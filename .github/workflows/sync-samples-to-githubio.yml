@@ -25,15 +25,15 @@ jobs:
           token: ${{ secrets.GITHUBIO_REPO_TOKEN }}
           path: githubio
 
-      - name: Copy samples to docs/samples
+      - name: Copy samples to docs/Tilia
         run: |
-          rm -rf githubio/docs/plugins
-          rm -rf githubio/docs/samples
-          rm -rf githubio/docs/src
-          mkdir -p githubio/docs
-          cp -r plugins githubio/docs/plugins
-          cp -r samples githubio/docs/samples
-          cp -r src githubio/docs/src
+          rm -rf githubio/docs/Tilia/plugins
+          rm -rf githubio/docs/Tilia/samples
+          rm -rf githubio/docs/Tilia/src
+          mkdir -p githubio/docs/Tilia
+          cp -r plugins githubio/docs/Tilia/plugins
+          cp -r samples githubio/docs/Tilia/samples
+          cp -r src githubio/docs/Tilia/src
 
       - name: Create PR in GitHubIO
         uses: peter-evans/create-pull-request@v6
