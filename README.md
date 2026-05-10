@@ -126,4 +126,4 @@ External dependencies are loaded from CDN via an importmap — an internet conne
 
 ## License
 
-[MIT](../LICENSE)
+This project is licensed under the 0BSD license. See [LICENSE](LICENSE).

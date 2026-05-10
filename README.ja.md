@@ -125,4 +125,4 @@ http://localhost:8010/samples/viewer/index.html
 
 ## ライセンス
 
-[MIT](../LICENSE)
+このプロジェクトは Zero-Clause BSD ライセンス（0BSD）の下で提供されています。詳細は [LICENSE](LICENSE) ファイルを参照してください。
