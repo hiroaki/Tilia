@@ -2,7 +2,7 @@
 
 # Tilia
 
-[Leaflet 2](https://leafletjs.com/) 上で地理空間データを地図に表示するための JavaScript ライブラリおよびプラグインシステムです。[maps.gpx](../maps-gpx.js) の後継プロジェクトです。
+[Leaflet 2](https://leafletjs.com/) 上で地理空間データを地図に表示するための JavaScript ライブラリおよびプラグインシステムです。[maps.gpx](https://github.com/hiroaki/maps.gpx) の後継プロジェクトです。
 
 > 現在アルファ版です。予告なく変更が入る可能性があります。
 
@@ -19,14 +19,14 @@ Tilia は、ウェブページに地図を手軽に組み込めるランタイ�
 `file://` 直開きはブラウザのセキュリティ制限で動作しないため、ローカル HTTP サーバーが必要です。
 
 ```bash
-cd <repo-root>
+cd Tilia/
 python3 -m http.server 8010
 ```
 
 付属の viewer を開きます:
 
 ```
-http://localhost:8010/Tilia/samples/viewer/index.html
+http://localhost:8010/samples/viewer/index.html
 ```
 
 

@@ -3,7 +3,7 @@
 # Tilia
 
 A JavaScript library for putting geospatial data on a [Leaflet 2](https://leafletjs.com/) map.
-Spiritual successor to [maps.gpx](../maps-gpx.js).
+Spiritual successor to [maps.gpx](https://github.com/hiroaki/maps.gpx).
 
 > Early alpha — APIs and behavior may change without notice.
 
@@ -20,14 +20,14 @@ Functionality is provided by plugins. The core runtime is intentionally small; p
 A local HTTP server is required. Direct `file://` access is blocked by browser security restrictions.
 
 ```bash
-cd <repo-root>
+cd Tilia
 python3 -m http.server 8010
 ```
 
 Open the ready-made viewer:
 
 ```
-http://localhost:8010/Tilia/samples/viewer/index.html
+http://localhost:8010/samples/viewer/index.html
 ```
 
 
