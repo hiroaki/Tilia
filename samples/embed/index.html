@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Tilia Embed Gallery Example</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@2.0.0-alpha.1/dist/leaflet.css" />
+    <style>
+      body {
+        margin: 0;
+        font-family: "Hiragino Sans", "Yu Gothic", sans-serif;
+        background: #f5f5f4;
+        color: #1c1917;
+      }
+
+      .app {
+        max-width: 1120px;
+        margin: 0 auto;
+        padding: 32px 20px 48px;
+      }
+
+      .page-header {
+        margin-bottom: 24px;
+      }
+
+      .page-title {
+        margin: 0;
+        font-size: 28px;
+        line-height: 1.2;
+      }
+
+      .page-copy {
+        margin: 10px 0 0;
+        max-width: 68ch;
+        font-size: 14px;
+        line-height: 1.6;
+        color: #57534e;
+      }
+
+      .story-list {
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+      }
+
+      .story-card {
+        display: grid;
+        grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+        gap: 18px;
+        padding: 18px;
+        border: 1px solid #d6d3d1;
+        border-radius: 18px;
+        background: #fffcf7;
+        box-shadow: 0 12px 28px #00000010;
+      }
+
+      .story-card-gpx {
+        grid-template-columns: 1fr;
+      }
+
+      .story-media {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        min-width: 0;
+      }
+
+      .story-photo {
+        display: block;
+        width: 100%;
+        max-height: 360px;
+        object-fit: cover;
+        border-radius: 14px;
+        background: #e7e5e4;
+      }
+
+      .story-kicker {
+        margin: 0;
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #57534e;
+      }
+
+      .story-heading {
+        margin: 0;
+        font-size: 18px;
+        line-height: 1.35;
+      }
+
+      .story-description {
+        margin: 0;
+        font-size: 13px;
+        line-height: 1.6;
+        color: #44403c;
+      }
+
+      .story-map-wrap {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .story-map {
+        height: 260px;
+        width: 100%;
+        border-radius: 14px;
+        overflow: hidden;
+        background: #d6d3d1;
+      }
+
+      .story-status {
+        min-height: 1.4em;
+        margin: 0;
+        font-size: 12px;
+        line-height: 1.4;
+        color: #57534e;
+      }
+
+      .story-meta {
+        margin: 0;
+        font-size: 12px;
+        color: #78716c;
+      }
+
+      @media (max-width: 860px) {
+        .story-card,
+        .story-card-gpx {
+          grid-template-columns: 1fr;
+        }
+
+        .story-map {
+          height: 220px;
+        }
+      }
+    </style>
+    <script type="importmap">
+      {
+        "imports": {
+          "leaflet": "https://unpkg.com/leaflet@2.0.0-alpha.1/dist/leaflet.js",
+          "exifr": "https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/lite.esm.js"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <div class="app">
+      <header class="page-header">
+        <h1 class="page-title">Tilia embed example: repeated maps from data attributes</h1>
+        <p class="page-copy">
+          This sample treats Tilia as an embeddable library rather than as the standalone viewer.
+          Each content block owns its own map instance, and only the <code>data-*</code> URLs change.
+          That makes the same template reusable in a CMS or blog page.
+        </p>
+      </header>
+
+      <main class="story-list">
+        <article class="story-card story-card-gpx" data-tilia-gpx-url="./biwakososui.gpx">
+          <div class="story-media">
+            <p class="story-kicker">Track embed</p>
+            <h2 class="story-heading">Walking the Lake Biwa Canal</h2>
+            <p class="story-description">
+              This block reads a GPX URL from its own <code>data-tilia-gpx-url</code> attribute and renders the track without any viewer-specific wrapper.
+            </p>
+          </div>
+          <div class="story-map-wrap">
+            <div class="story-map"></div>
+            <p class="story-status"></p>
+          </div>
+        </article>
+
+        <article class="story-card">
+          <div class="story-media">
+            <img
+              class="story-photo"
+              src="./IMG_2889.JPG"
+              alt="Sample photo IMG_2889"
+              data-tilia-photo-url="./IMG_2889.JPG"
+            />
+            <p class="story-kicker">Photo embed</p>
+            <h2 class="story-heading">Photo map from IMG_2889.JPG</h2>
+            <p class="story-description">
+              The image element itself carries the source URL in <code>data-tilia-photo-url</code>.
+              Tilia reads the photo file and places its marker next to the image.
+            </p>
+          </div>
+          <div class="story-map-wrap">
+            <div class="story-map"></div>
+            <p class="story-status"></p>
+          </div>
+        </article>
+
+        <article class="story-card">
+          <div class="story-media">
+            <img
+              class="story-photo"
+              src="./IMG_2892.JPG"
+              alt="Sample photo IMG_2892"
+              data-tilia-photo-url="./IMG_2892.JPG"
+            />
+            <p class="story-kicker">Photo embed</p>
+            <h2 class="story-heading">Photo map from IMG_2892.JPG</h2>
+            <p class="story-description">
+              This second image uses the same markup pattern with a different <code>data-tilia-photo-url</code> value.
+              In a CMS template, changing only that data attribute is enough to point the embedded map at a different photo location.
+            </p>
+          </div>
+          <div class="story-map-wrap">
+            <div class="story-map"></div>
+            <p class="story-status"></p>
+          </div>
+        </article>
+      </main>
+    </div>
+
+    <script type="module">
+      import { createDefaultTiliaApp } from "../../src/index.js";
+
+      async function loadIntoApp(app, url) {
+        // Fetch the asset and hand it to Tilia through the same File-based path as local input.
+        const response = await fetch(url);
+        const blob = await response.blob();
+        const name = url.split("/").at(-1);
+        const file = new File([blob], name, {
+          type: blob.type,
+        });
+        return app.load(file);
+      }
+
+      function setStatus(node, text) {
+        node.textContent = text;
+      }
+
+      async function bootTrackCard(card) {
+        const gpxUrl = card.dataset.tiliaGpxUrl;
+        const mapNode = card.querySelector(".story-map");
+        const statusNode = card.querySelector(".story-status");
+
+        // Each content block creates its own independent map and Tilia core.
+        const app = createDefaultTiliaApp(mapNode);
+
+        // The GPX URL comes from the card's data attribute.
+        const result = await loadIntoApp(app, gpxUrl);
+        setStatus(statusNode, `Loaded ${result.name}: ${result.summary}`);
+      }
+
+      async function bootPhotoCard(card) {
+        const photo = card.querySelector("img[data-tilia-photo-url]");
+        const photoUrl = photo.dataset.tiliaPhotoUrl;
+        const mapNode = card.querySelector(".story-map");
+        const statusNode = card.querySelector(".story-status");
+
+        // Photo cards follow the same flow; only the source data attribute changes.
+        const app = createDefaultTiliaApp(mapNode);
+
+        const result = await loadIntoApp(app, photoUrl);
+        setStatus(statusNode, `Loaded ${result.name}: ${result.summary}`);
+      }
+
+      // Boot every card on the page so the same markup pattern can be repeated freely.
+      for (const card of document.querySelectorAll("[data-tilia-gpx-url]")) {
+        bootTrackCard(card);
+      }
+
+      for (const card of document.querySelectorAll(".story-card:not([data-tilia-gpx-url])")) {
+        bootPhotoCard(card);
+      }
+    </script>
+  </body>
+</html>

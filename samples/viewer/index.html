@@ -1,0 +1,847 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Tilia Viewer</title>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@2.0.0-alpha.1/dist/leaflet.css"
+    />
+    <style>
+      :root {
+        --bg: #f5f5f4;
+        --panel: #ffffff;
+        --text: #1c1917;
+        --accent: #0f766e;
+      }
+
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: var(--bg);
+        color: var(--text);
+        font-family: "Hiragino Sans", "Yu Gothic", sans-serif;
+      }
+
+      .app {
+        height: 100%;
+      }
+
+      .app.drop-active {
+        box-shadow: inset 0 0 0 4px #0f766e66;
+      }
+
+      #map {
+        height: 100%;
+        width: 100%;
+      }
+
+      .tilia-map-control {
+        pointer-events: auto;
+      }
+
+      .tilia-control-panel {
+        border: 1px solid #d6d3d1;
+        border-radius: 8px;
+        background: #ffffffde;
+        backdrop-filter: blur(3px);
+        box-shadow: 0 8px 24px #00000014;
+        padding: 8px;
+      }
+
+      .tilia-control-panel-compact {
+        width: auto;
+        min-width: 0;
+        padding: 4px;
+      }
+
+      .tilia-control-button,
+      .tilia-url-input,
+      .tilia-control-select,
+      .tilia-layer-mode-select {
+        border: 1px solid #d6d3d1;
+        border-radius: 6px;
+        font-size: 13px;
+      }
+
+      .tilia-control-button {
+        background: #fafaf9;
+        color: #1c1917;
+        cursor: pointer;
+        padding: 8px 10px;
+      }
+
+      .tilia-control-button-icon,
+      .tilia-file-label.tilia-control-button-icon {
+        width: 40px;
+        height: 40px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        font-size: 16px;
+        font-weight: 700;
+      }
+
+      .tilia-control-button:hover {
+        background: #f5f5f4;
+      }
+
+      .tilia-file-label {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--accent);
+        color: #ffffff;
+        border-radius: 6px;
+        padding: 8px 10px;
+        font-size: 13px;
+        cursor: pointer;
+      }
+
+      .tilia-file-label input {
+        display: none;
+      }
+
+      .tilia-url-box {
+        display: flex;
+        flex-direction: row;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .tilia-time-mode-wrap {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .tilia-side-panel {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        bottom: 12px;
+        z-index: 900;
+        width: min(360px, 72vw);
+        display: flex;
+        flex-direction: column;
+        border: 1px solid #d6d3d1;
+        border-radius: 12px;
+        background: #fffffff2;
+        box-shadow: 0 16px 40px #0000001a;
+        backdrop-filter: blur(8px);
+        overflow: hidden;
+        box-sizing: border-box;
+        max-height: calc(100% - 24px);
+      }
+
+      .tilia-side-panel-layout-side {
+        top: 12px;
+        right: 12px;
+        bottom: 12px;
+        width: min(360px, 72vw);
+        flex-direction: column;
+      }
+
+      .tilia-side-panel-layout-bottom {
+        top: auto;
+        left: 12px;
+        right: 12px;
+        bottom: 12px;
+        height: min(280px, 38vh);
+        max-height: calc(100% - 24px);
+        width: auto;
+        flex-direction: column;
+      }
+
+      .tilia-side-panel-layout-bottom .tilia-side-panel-header {
+        padding: 10px 12px;
+      }
+
+      .tilia-side-panel-layout-bottom .tilia-side-panel-body {
+        padding: 10px 12px 12px;
+      }
+
+      .tilia-side-panel-hidden {
+        display: none;
+      }
+
+      .tilia-side-panel-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 16px;
+        border-bottom: 1px solid #e7e5e4;
+        background: #fafaf9;
+      }
+
+      .tilia-side-panel-title {
+        margin: 0;
+        font-size: 14px;
+        font-weight: 600;
+        color: #1c1917;
+      }
+
+      .tilia-side-panel-close {
+        border: 1px solid #d6d3d1;
+        border-radius: 999px;
+        background: #fff;
+        padding: 6px 10px;
+        font-size: 12px;
+        cursor: pointer;
+      }
+
+      .tilia-side-panel-body {
+        flex: 1;
+        min-height: 0;
+        overflow: auto;
+        padding: 16px;
+      }
+
+      .tilia-settings-panel-content {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+
+      .tilia-elevation-panel-content {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        height: 100%;
+        -webkit-user-select: none;
+        user-select: none;
+      }
+
+      .tilia-elevation-panel-main {
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+        min-width: 0;
+        min-height: 0;
+        flex: 1;
+      }
+
+      .tilia-elevation-chart {
+        width: 100%;
+        height: 100%;
+        min-width: 0;
+        border: 1px solid #e7e5e4;
+        border-radius: 12px;
+        background: linear-gradient(180deg, #f0fdfa 0%, #ffffff 100%);
+      }
+
+      .tilia-elevation-chart-wrap {
+        display: flex;
+        flex: 1;
+        min-height: 0;
+        flex-direction: column;
+      }
+
+      .tilia-elevation-chart-surface {
+        position: relative;
+        display: flex;
+        flex: 1;
+        min-height: 0;
+      }
+
+      .tilia-elevation-guide-overlay {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+      }
+
+      .tilia-elevation-guide-line {
+        position: absolute;
+        width: 0;
+        border-left: 1.5px dashed #0f766e66;
+        transform: translateX(-0.75px);
+      }
+
+      .tilia-elevation-guide-marker {
+        position: absolute;
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: #0f766e;
+        border: 2px solid #ffffff;
+        transform: translate(-50%, -50%);
+        box-sizing: border-box;
+      }
+
+      .tilia-elevation-chart-footer {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        padding-top: 4px;
+      }
+
+      .tilia-elevation-chart-label {
+        font-size: 11px;
+        line-height: 1.2;
+        color: #57534e;
+      }
+
+      .tilia-elevation-chart-label-end {
+        text-align: right;
+      }
+
+      .tilia-side-panel-layout-bottom .tilia-elevation-chart {
+        display: block;
+        width: 100%;
+        height: 100%;
+        max-height: none;
+      }
+
+      .tilia-elevation-empty {
+        margin: 0;
+        font-size: 12px;
+        color: #57534e;
+      }
+
+      .tilia-settings-panel-text {
+        margin: 0;
+        font-size: 12px;
+        color: #57534e;
+        line-height: 1.5;
+      }
+
+      .tilia-url-floating-panel {
+        position: absolute;
+        top: 12px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 850;
+        width: min(420px, calc(100vw - 32px));
+        box-sizing: border-box;
+      }
+
+      .tilia-url-floating-panel-hidden {
+        display: none;
+      }
+
+      .tilia-url-input {
+        width: 100%;
+        box-sizing: border-box;
+        height: 34px;
+        padding: 7px 8px;
+      }
+
+      .tilia-url-load-button,
+      .tilia-url-close-button {
+        height: 34px;
+        box-sizing: border-box;
+        white-space: nowrap;
+      }
+
+      .tilia-control-title {
+        margin: 0 0 6px;
+        font-size: 12px;
+        color: #44403c;
+      }
+
+      .tilia-layers-panel-content {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        height: 100%;
+        min-height: 0;
+      }
+
+      .tilia-layer-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: auto;
+      }
+
+      .tilia-layer-item {
+        font-size: 12px;
+      }
+
+      .tilia-layer-actions {
+        display: flex;
+        justify-content: flex-end;
+        margin: 8px;
+        -webkit-user-select: none;
+        user-select: none;
+      }
+
+      .tilia-layer-clear-button {
+        padding: 6px 8px;
+        font-size: 11px;
+      }
+
+      .tilia-layer-clear-button:disabled {
+        cursor: default;
+        opacity: 0.55;
+      }
+
+      .tilia-layer-card {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 8px;
+        border: 1px solid #e7e5e4;
+        border-radius: 12px;
+        background: #ffffff;
+        -webkit-user-select: none;
+        user-select: none;
+      }
+
+      .tilia-layer-card:hover {
+        border-color: #a8a29e;
+      }
+
+      .tilia-layer-card-body {
+        display: flex;
+        flex-direction: column;
+        flex: 1 1 auto;
+        gap: 6px;
+        min-width: 0;
+      }
+
+      .tilia-layer-header {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+      }
+
+      .tilia-layer-header .tilia-layer-toggle {
+        flex: 1 1 auto;
+      }
+
+      .tilia-layer-delete-button {
+        flex: 0 0 auto;
+        min-width: 24px;
+        height: 24px;
+        padding: 0 6px;
+        font-size: 12px;
+        line-height: 1;
+      }
+
+      .tilia-layer-thumbnail {
+        display: block;
+        width: 72px;
+        height: 72px;
+        margin-left: auto;
+        flex: 0 0 72px;
+        border-radius: 8px;
+        object-fit: cover;
+        background: #f5f5f4;
+      }
+
+      .tilia-layer-empty {
+        color: #78716c;
+      }
+
+      .tilia-layer-toggle {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        min-width: 0;
+      }
+
+      .tilia-layer-name {
+        font-size: 12px;
+        font-weight: 600;
+        color: #1c1917;
+        overflow-wrap: anywhere;
+      }
+
+      .tilia-layer-option {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+
+      .tilia-layer-meta {
+        font-size: 11px;
+        line-height: 1.4;
+        color: #57534e;
+      }
+
+      .tilia-layer-option-label,
+      .tilia-time-mode-label,
+      .tilia-status-text {
+        font-size: 12px;
+        color: #57534e;
+      }
+
+      .tilia-info-panel-content {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .tilia-info-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 8px 10px;
+        border: 1px solid #e7e5e4;
+        border-radius: 10px;
+        background: #fafaf9;
+      }
+
+      .tilia-info-label {
+        font-size: 12px;
+        color: #78716c;
+      }
+
+      .tilia-info-value {
+        font-size: 12px;
+        color: #1c1917;
+        text-align: right;
+      }
+
+      .tilia-info-meta-grid {
+        display: block;
+      }
+
+      .tilia-info-meta-item {
+        display: flex;
+        align-items: baseline;
+        min-width: 0;
+        line-height: 1.45;
+      }
+
+      .tilia-info-meta-label {
+        flex: 0 0 6.5rem;
+        font-size: 11px;
+        color: #78716c;
+      }
+
+      .tilia-info-meta-label::after {
+        content: ":";
+      }
+
+      .tilia-info-meta-value {
+        flex: 1 1 auto;
+        min-width: 0;
+        font-size: 12px;
+        color: #1c1917;
+        overflow-wrap: anywhere;
+      }
+
+      .tilia-info-section-title {
+        margin: 8px 0 0;
+        font-size: 12px;
+        font-weight: 700;
+        color: #44403c;
+      }
+
+      .tilia-photo-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .tilia-photo-list-item {
+        margin: 0;
+      }
+
+      .tilia-photo-list-button {
+        width: 100%;
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 8px;
+        border: 1px solid #e7e5e4;
+        border-radius: 10px;
+        background: #ffffff;
+        text-align: left;
+        cursor: pointer;
+      }
+
+      .tilia-photo-list-button:hover {
+        border-color: #a8a29e;
+        background: #fafaf9;
+      }
+
+      .tilia-photo-list-button-active {
+        border-color: #0f766e;
+        background: #f0fdfa;
+        box-shadow: inset 0 0 0 1px #0f766e22;
+      }
+
+      .tilia-photo-list-name {
+        font-size: 12px;
+        font-weight: 600;
+        color: #1c1917;
+      }
+
+      .tilia-photo-list-meta {
+        font-size: 11px;
+        line-height: 1.4;
+        color: #57534e;
+      }
+
+      .tilia-photo-list-thumbnail {
+        width: 72px;
+        height: 72px;
+        flex: 0 0 72px;
+        object-fit: cover;
+        border-radius: 8px;
+        background: #f5f5f4;
+      }
+
+      .tilia-photo-list-button .tilia-photo-list-name,
+      .tilia-photo-list-button .tilia-photo-list-meta {
+        display: block;
+      }
+
+      .tilia-photo-list-button > .tilia-photo-list-name,
+      .tilia-photo-list-button > .tilia-photo-list-meta {
+        margin-left: 0;
+      }
+
+      .tilia-photo-list-button {
+        display: grid;
+        grid-template-columns: 72px minmax(0, 1fr);
+        grid-template-areas:
+          "thumb name"
+          "thumb meta";
+      }
+
+      .tilia-photo-list-button .tilia-photo-list-thumbnail {
+        grid-area: thumb;
+      }
+
+      .tilia-photo-list-button .tilia-photo-list-name {
+        grid-area: name;
+        align-self: end;
+      }
+
+      .tilia-photo-list-button .tilia-photo-list-meta {
+        grid-area: meta;
+        align-self: start;
+      }
+
+      .tilia-info-photo-thumbnail-wrap {
+        border: 1px solid #e7e5e4;
+        border-radius: 12px;
+        overflow: hidden;
+        background: #fafaf9;
+      }
+
+      .tilia-info-photo-thumbnail,
+      .tilia-popup-thumbnail {
+        display: block;
+        width: 100%;
+        height: auto;
+        object-fit: contain;
+        background: #f5f5f4;
+      }
+
+      .tilia-info-photo-thumbnail {
+        max-height: 220px;
+      }
+
+      .tilia-popup-thumbnail {
+        width: 220px;
+        max-width: 100%;
+        max-height: 160px;
+        border-radius: 10px;
+        align-self: center;
+      }
+
+      .tilia-status-control .tilia-control-panel {
+        width: auto;
+        max-width: min(320px, 70vw);
+      }
+
+      .tilia-status-panel {
+        position: relative;
+        padding-right: 28px;
+      }
+
+      .tilia-status-panel-dismissed {
+        display: none;
+      }
+
+      .tilia-status-dismiss {
+        position: absolute;
+        top: 4px;
+        right: 4px;
+        width: 18px;
+        height: 18px;
+        border: 0;
+        border-radius: 999px;
+        background: transparent;
+        color: #78716c;
+        font-size: 11px;
+        line-height: 1;
+        cursor: pointer;
+      }
+
+      .tilia-status-dismiss:hover {
+        background: #f5f5f4;
+        color: #1c1917;
+      }
+
+      .tilia-info-popup-window .leaflet-popup-content-wrapper {
+        border-radius: 14px;
+        padding: 0;
+        box-shadow: 0 14px 30px #00000020;
+      }
+
+      .tilia-info-popup-window .leaflet-popup-content {
+        margin: 0;
+        min-width: 220px;
+      }
+
+      .tilia-popup {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding: 12px;
+      }
+
+      .tilia-popup-title {
+        font-size: 13px;
+        font-weight: 700;
+        color: #1c1917;
+      }
+
+      .tilia-popup-body {
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+      }
+
+      .tilia-popup-row {
+        display: flex;
+        align-items: baseline;
+        gap: 0;
+        line-height: 1.45;
+      }
+
+      .tilia-popup-label {
+        flex: 0 0 5.8rem;
+        font-size: 11px;
+        color: #78716c;
+      }
+
+      .tilia-popup-label::after {
+        content: ":";
+      }
+
+      .tilia-popup-value {
+        flex: 1 1 auto;
+        min-width: 0;
+        font-size: 12px;
+        color: #1c1917;
+        text-align: left;
+        overflow-wrap: anywhere;
+      }
+
+      .tilia-popup-detail {
+        font-size: 11px;
+        line-height: 1.45;
+        color: #57534e;
+      }
+
+      @media (max-width: 960px) {
+        .tilia-side-panel-layout-bottom {
+          height: min(320px, 44vh);
+        }
+
+        .tilia-side-panel-layout-bottom .tilia-elevation-panel-content {
+          height: 100%;
+        }
+
+      }
+
+      @media (max-width: 640px) {
+        .tilia-side-panel {
+          left: 12px;
+          width: auto;
+        }
+
+        .tilia-url-floating-panel {
+          width: calc(100vw - 24px);
+        }
+
+        .tilia-url-box {
+          flex-wrap: wrap;
+        }
+
+        .tilia-url-input {
+          min-width: 0;
+          flex: 1 1 180px;
+        }
+
+        .tilia-side-panel-layout-bottom {
+          top: auto;
+          height: min(360px, 52vh);
+          max-height: calc(100% - 24px);
+        }
+
+        .tilia-photo-list-button {
+          grid-template-columns: 56px minmax(0, 1fr);
+          gap: 8px;
+        }
+
+        .tilia-layer-card {
+          gap: 8px;
+        }
+
+        .tilia-photo-list-thumbnail {
+          width: 56px;
+          height: 56px;
+          flex-basis: 56px;
+        }
+
+        .tilia-layer-thumbnail {
+          width: 56px;
+          height: 56px;
+          flex-basis: 56px;
+        }
+      }
+    </style>
+    <script type="importmap">
+      {
+        "imports": {
+          "leaflet": "https://unpkg.com/leaflet@2.0.0-alpha.1/dist/leaflet.js",
+          "exifr": "https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/lite.esm.js"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <div id="app-root" class="app">
+      <div id="map"></div>
+    </div>
+
+    <script type="module">
+      import { createDefaultTiliaApp } from "../../src/index.js";
+
+      createDefaultTiliaApp("map", {
+        plugins: [
+          "tilia-panel",
+          "tilia-status",
+          "tilia-layers",
+          "tilia-elevation",
+          "tilia-file-import",
+          "tilia-url-import",
+          "tilia-settings",
+          "tilia-dropzone",
+          "x-milestone",
+        ],
+      });
+    </script>
+  </body>
+</html>
