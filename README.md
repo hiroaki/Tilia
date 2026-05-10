@@ -14,7 +14,7 @@ Tilia provides a lightweight runtime and a plugin system that makes it straightf
 
 Functionality is provided by plugins. The core runtime is intentionally small; plugins handle data loading, UI controls, and visualization. You can use the built-in plugins, load third-party ones, or write your own.
 
-A live demo is available here: [https://hiroaki.github.io/Tilia/](https://hiroaki.github.io/Tilia/)
+A live demo is available here: [https://hiroaki.github.io/Tilia/samples/](https://hiroaki.github.io/Tilia/samples/)
 
 
 ## Quick start

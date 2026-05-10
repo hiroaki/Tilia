@@ -13,7 +13,7 @@ Tilia は、ウェブページに地図を手軽に組み込めるランタイ�
 
 機能は**プラグイン**によって提供されます。コアランタイムは小さく保ち、データの読み込みや UI コントロール、可視化はプラグインが担当します。必要なものだけ選んで使うことも、サードパーティプラグインを追加することも、自分でプラグインを作ることもできます。
 
-動かせるデモがこちらにあります： [https://hiroaki.github.io/Tilia/](https://hiroaki.github.io/Tilia/)
+動かせるデモがこちらにあります： [https://hiroaki.github.io/Tilia/samples/](https://hiroaki.github.io/Tilia/samples/)
 
 
 ## クイックスタート
