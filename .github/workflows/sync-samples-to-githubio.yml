@@ -1,0 +1,46 @@
+name: sync-samples-to-githubio
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+concurrency:
+  group: sync-githubio
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    if: github.repository == 'hiroaki/Tilia'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Tilia
+        uses: actions/checkout@v4
+
+      - name: Checkout GitHubIO
+        uses: actions/checkout@v4
+        with:
+          repository: hiroaki/hiroaki.github.io
+          token: ${{ secrets.GITHUBIO_REPO_TOKEN }}
+          path: githubio
+
+      - name: Copy samples to docs/samples
+        run: |
+          rm -rf githubio/docs/plugins
+          rm -rf githubio/docs/samples
+          rm -rf githubio/docs/src
+          mkdir -p githubio/docs
+          cp -r plugins githubio/docs/plugins
+          cp -r samples githubio/docs/samples
+          cp -r src githubio/docs/src
+
+      - name: Create PR in GitHubIO
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUBIO_REPO_TOKEN }}
+          path: githubio
+          branch: sync-samples-from-Tilia
+          base: main
+          title: "Sync samples from Tilia"
+          commit-message: "sync samples from Tilia"
