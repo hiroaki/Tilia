@@ -14,6 +14,8 @@ Tilia provides a lightweight runtime and a plugin system that makes it straightf
 
 Functionality is provided by plugins. The core runtime is intentionally small; plugins handle data loading, UI controls, and visualization. You can use the built-in plugins, load third-party ones, or write your own.
 
+A live demo is available here: [https://hiroaki.github.io/Tilia/](https://hiroaki.github.io/Tilia/)
+
 
 ## Quick start
 
@@ -58,7 +60,7 @@ Add a `<div>` for the map and a short module script. No viewer controls are need
 </script>
 ```
 
-Multiple independent map instances can coexist on a single page. Driving them from `data-*` attributes makes the same template reusable in a CMS. See [`samples/embed/index.html`](samples/embed/index.html) for a working example.
+Multiple independent map instances can coexist on a single page. Driving them from `data-*` attributes makes the same template reusable in a CMS. See [`samples/embed/index.html`](samples/embed/index.html) for a example.
 
 ### Add viewer controls
 
@@ -117,7 +119,7 @@ Third-party and custom plugins can be added via `app.use()`. No build tools are 
 
 Copy the `Tilia/` directory to any static hosting service as-is. No bundler or build step is needed.
 
-Required contents: `src/`, `plugins/`, `samples/`, `docs/`
+Required contents: `src` is mandatory. If needed, place `plugins` in the same directory.
 
 External dependencies are loaded from CDN via an importmap — an internet connection is required:
 - [Leaflet 2.0.0-alpha.1](https://unpkg.com/leaflet@2.0.0-alpha.1/) (unpkg)

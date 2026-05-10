@@ -13,6 +13,8 @@ Tilia は、ウェブページに地図を手軽に組み込めるランタイ�
 
 機能は**プラグイン**によって提供されます。コアランタイムは小さく保ち、データの読み込みや UI コントロール、可視化はプラグインが担当します。必要なものだけ選んで使うことも、サードパーティプラグインを追加することも、自分でプラグインを作ることもできます。
 
+動かせるデモがこちらにあります： [https://hiroaki.github.io/Tilia/](https://hiroaki.github.io/Tilia/)
+
 
 ## クイックスタート
 
@@ -57,7 +59,7 @@ http://localhost:8010/samples/viewer/index.html
 </script>
 ```
 
-1 ページに複数の地図インスタンスを共存させることもできます。`data-*` 属性でデータを指定するパターンにすれば、CMS テンプレートで同じマークアップを繰り返し利用できます。動作例は [`samples/embed/index.html`](samples/embed/index.html) を参照してください。
+1 ページに複数の地図インスタンスを共存させることもできます。`data-*` 属性でデータを指定するパターンにすれば、CMS テンプレートで同じマークアップを繰り返し利用できます。例は [`samples/embed/index.html`](samples/embed/index.html) を参照してください。
 
 ### UI コントロールを追加する
 
@@ -116,7 +118,7 @@ http://localhost:8010/samples/viewer/index.html
 
 `Tilia/` ディレクトリをそのまま静的ホスティングサービスに配置するだけで動作します。ビルド手順は不要です。
 
-必要なコンテンツ: `src/`, `plugins/`, `samples/`, `docs/`
+必要なコンテンツ: `src` が必須です。必要に応じて `plugins` を同じディレクトリに配備してください。
 
 外部依存は importmap で CDN にピン留めしています。インターネット接続が必要です:
 - [Leaflet 2.0.0-alpha.1](https://unpkg.com/leaflet@2.0.0-alpha.1/) (unpkg)
