@@ -1,47 +1,40 @@
 import { DomEvent } from "leaflet";
 import { processInputItems } from "./file-import.js";
 import { createButton, createPanel, installMapControl } from "../../map/controls.js";
+import {
+  DEFAULT_URL_IMPORT_MAX_BYTES,
+  DEFAULT_URL_IMPORT_TIMEOUT_MS,
+  getContentLength,
+  isSupportedRemoteGpxContent,
+  parseHttpUrl,
+  resolveRemoteFileName,
+} from "../../core/input-utils.js";
 
-function fileNameFromUrl(url) {
-  try {
-    const parsed = new URL(url);
-    const path = parsed.pathname.split("/").filter(Boolean);
-    return path[path.length - 1] || "remote.gpx";
-  } catch {
-    return "remote.gpx";
-  }
+function createTimeoutController(timeoutMs) {
+  const controller = new AbortController();
+  const timerId = window.setTimeout(() => {
+    controller.abort(new Error(`Request timed out after ${timeoutMs} ms`));
+  }, timeoutMs);
+
+  return {
+    signal: controller.signal,
+    dispose() {
+      window.clearTimeout(timerId);
+    },
+  };
 }
 
-function parseHttpUrl(value) {
-  try {
-    const parsed = new URL(value, window.location.href);
-    if (!/^https?:$/i.test(parsed.protocol)) {
-      return null;
-    }
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-
-function resolveRemoteFileName(url, response) {
-  const disposition = response.headers.get("content-disposition") || "";
-  const match = disposition.match(/filename\*?=(?:UTF-8''|"?)([^";]+)/i);
-  const candidate = match ? decodeURIComponent(match[1].replace(/"/g, "")) : fileNameFromUrl(url);
-  const contentType = (response.headers.get("content-type") || "").toLowerCase();
-
-  if (/\.gpx$/i.test(candidate)) {
-    return candidate;
-  }
-
-  if (contentType.includes("gpx") || contentType.includes("xml")) {
-    return `${candidate || "remote"}.gpx`;
-  }
-
-  return candidate || "remote.gpx";
-}
-
-export function installUrlImportPlugin({ urlInput, loadButton, registry, context, onStatus, onError, onItemLoaded }) {
+export function installUrlImportPlugin({
+  urlInput,
+  loadButton,
+  registry,
+  context,
+  onStatus,
+  onError,
+  onItemLoaded,
+  timeoutMs = DEFAULT_URL_IMPORT_TIMEOUT_MS,
+  maxBytes = DEFAULT_URL_IMPORT_MAX_BYTES,
+}) {
   if (!urlInput || !loadButton) {
     return;
   }
@@ -60,25 +53,47 @@ export function installUrlImportPlugin({ urlInput, loadButton, registry, context
     }
 
     try {
-      const response = await fetch(parsedUrl.toString(), { mode: "cors" });
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+      const timeoutController = createTimeoutController(timeoutMs);
+
+      try {
+        const response = await fetch(parsedUrl.toString(), {
+          mode: "cors",
+          signal: timeoutController.signal,
+        });
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const declaredLength = getContentLength(response);
+        if (declaredLength !== null && declaredLength > maxBytes) {
+          throw new Error(`Remote file is too large (${declaredLength} bytes > ${maxBytes} bytes)`);
+        }
+
+        const body = await response.blob();
+        if (body.size > maxBytes) {
+          throw new Error(`Remote file is too large (${body.size} bytes > ${maxBytes} bytes)`);
+        }
+
+        const fileName = resolveRemoteFileName(parsedUrl.toString(), response);
+        const type = body.type || response.headers.get("content-type") || "application/gpx+xml";
+        if (!isSupportedRemoteGpxContent(fileName, type)) {
+          throw new Error(`Unsupported remote content type: ${type || "unknown"}`);
+        }
+
+        const file = new File([body], fileName, { type });
+
+        await processInputItems({
+          items: [file],
+          registry,
+          context,
+          onStatus,
+          onError,
+          sourceLabel: "url",
+          onItemLoaded,
+        });
+      } finally {
+        timeoutController.dispose();
       }
-
-      const body = await response.blob();
-      const fileName = resolveRemoteFileName(parsedUrl.toString(), response);
-      const type = body.type || "application/gpx+xml";
-      const file = new File([body], fileName, { type });
-
-      await processInputItems({
-        items: [file],
-        registry,
-        context,
-        onStatus,
-        onError,
-        sourceLabel: "url",
-        onItemLoaded,
-      });
     } catch (error) {
       onError(error);
       const detail = error instanceof TypeError
@@ -97,7 +112,7 @@ export function installUrlImportPlugin({ urlInput, loadButton, registry, context
   });
 }
 
-function createUrlImportPanel({ map, registry, context, onStatus, onError, onItemLoaded }) {
+function createUrlImportPanel({ map, registry, context, onStatus, onError, onItemLoaded, timeoutMs, maxBytes }) {
   const panel = createPanel("tilia-url-floating-panel tilia-url-floating-panel-hidden");
   const form = createPanel("tilia-url-box");
   const urlInput = document.createElement("input");
@@ -124,6 +139,8 @@ function createUrlImportPanel({ map, registry, context, onStatus, onError, onIte
     onStatus,
     onError,
     onItemLoaded,
+    timeoutMs,
+    maxBytes,
   });
 
   for (const eventName of ["click", "dblclick", "mousedown", "mouseup", "pointerdown", "pointerup"]) {
@@ -144,7 +161,17 @@ function createUrlImportPanel({ map, registry, context, onStatus, onError, onIte
   };
 }
 
-export function installUrlImportControl({ map, registry, context, onStatus, onError, onItemLoaded, position = "topleft" }) {
+export function installUrlImportControl({
+  map,
+  registry,
+  context,
+  onStatus,
+  onError,
+  onItemLoaded,
+  position = "topleft",
+  timeoutMs = DEFAULT_URL_IMPORT_TIMEOUT_MS,
+  maxBytes = DEFAULT_URL_IMPORT_MAX_BYTES,
+}) {
   const floatingPanel = createUrlImportPanel({
     map,
     registry,
@@ -152,6 +179,8 @@ export function installUrlImportControl({ map, registry, context, onStatus, onEr
     onStatus,
     onError,
     onItemLoaded,
+    timeoutMs,
+    maxBytes,
   });
 
   installMapControl({
