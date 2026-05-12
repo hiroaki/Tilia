@@ -5,6 +5,16 @@
 通常の利用入口は [`createDefaultTiliaApp()`](#createdefaulttiliaappcontainer-options) です。
 
 
+## 検証
+
+リポジトリ全体の開発時確認には次を使います。
+
+- `npm test`: Vitest による unit test
+- `npm run test:smoke`: 付属 viewer / embed sample を対象にした Playwright smoke test
+
+smoke test ではローカルの静的サーバーも自動起動します。
+
+
 ## ファクトリ関数
 
 ### `createDefaultTiliaApp(container, options?)`

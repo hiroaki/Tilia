@@ -31,6 +31,29 @@ http://localhost:8010/samples/viewer/index.html
 ```
 
 
+## テスト
+
+自動テストを実行する前に、一度だけ Node 依存をインストールしてください。
+
+```bash
+npm install
+```
+
+unit test を実行します。
+
+```bash
+npm test
+```
+
+付属 sample の browser smoke test を実行します。
+
+```bash
+npm run test:smoke
+```
+
+smoke test ではローカルの静的サーバーを自動で起動し、Playwright で sample ページを開いて、viewer の起動、file import、embed sample の起動フローを確認します。
+
+
 ## 使い方
 
 ### Leaflet のセットアップ

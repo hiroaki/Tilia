@@ -32,6 +32,29 @@ http://localhost:8010/samples/viewer/index.html
 ```
 
 
+## Testing
+
+Install the Node dependencies once before running automated checks.
+
+```bash
+npm install
+```
+
+Run the unit test suite:
+
+```bash
+npm test
+```
+
+Run the browser smoke tests for the bundled samples:
+
+```bash
+npm run test:smoke
+```
+
+The smoke tests start a local static server automatically, open the sample pages in Playwright, and verify the viewer boot flow, file import flow, and embed sample boot flow.
+
+
 ## Usage
 
 ### Leaflet setup
