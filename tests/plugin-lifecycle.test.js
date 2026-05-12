@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createBaseMap } from "../src/map/base.js";
 
 vi.mock("../src/core/boot.js", () => ({
   createTiliaCore: vi.fn(() => ({
@@ -33,11 +34,34 @@ vi.mock("../src/map/controls.js", () => ({
   installMapControl: vi.fn(),
 }));
 
-import { createTiliaApp } from "../src/app.js";
+import { createDefaultTiliaApp, createTiliaApp } from "../src/app.js";
 
 describe("createTiliaApp plugin lifecycle", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("deduplicates concurrent plugin installation while setup is pending", async () => {
+    let resolveSetup;
+    const setup = vi.fn(() => new Promise((resolve) => {
+      resolveSetup = resolve;
+    }));
+    const plugin = {
+      id: "vendor-pending",
+      setup,
+    };
+    const app = createTiliaApp({ map: {}, builtins: {} });
+
+    const firstInstall = app.use(plugin);
+    const secondInstall = app.use(plugin);
+    await Promise.resolve();
+    resolveSetup({ ready: true });
+
+    const [firstApi, secondApi] = await Promise.all([firstInstall, secondInstall]);
+
+    expect(setup).toHaveBeenCalledTimes(1);
+    expect(firstApi).toBe(secondApi);
+    expect(firstApi).toEqual({ ready: true });
   });
 
   it("installs each plugin only once and reuses its API", async () => {
@@ -64,6 +88,97 @@ describe("createTiliaApp plugin lifecycle", () => {
       map,
     });
     expect(app.services[plugin.id]).toBe(firstApi);
+  });
+
+  it("bootstraps configured plugins in order and reuses app.ready through whenReady", async () => {
+    const installOrder = [];
+    const builtins = {
+      "vendor-first": {
+        id: "vendor-first",
+        setup: vi.fn(async (app, options) => {
+          installOrder.push(["vendor-first", options.mode, app.getMap().name]);
+          return { mode: options.mode };
+        }),
+      },
+      "vendor-second": {
+        id: "vendor-second",
+        setup: vi.fn(async (app, options) => {
+          installOrder.push(["vendor-second", options.mode, app.getMap().name]);
+          return { mode: options.mode };
+        }),
+      },
+      "vendor-third": {
+        id: "vendor-third",
+        setup: vi.fn(async (app, options) => {
+          installOrder.push(["vendor-third", options.mode, app.getMap().name]);
+          return { mode: options.mode };
+        }),
+      },
+    };
+
+    const app = createTiliaApp({
+      map: { name: "bootstrap-map" },
+      builtins,
+      plugins: [
+        "vendor-first",
+        ["vendor-second", { mode: "array" }],
+        { plugin: "vendor-third", options: { mode: "object" } },
+      ],
+      pluginOptions: {
+        "vendor-first": { mode: "string" },
+      },
+    });
+
+    const readyApp = await app.ready;
+    const whenReadyApp = await app.whenReady();
+
+    expect(readyApp).toBe(app);
+    expect(whenReadyApp).toBe(app);
+    expect(installOrder).toEqual([
+      ["vendor-first", "string", "bootstrap-map"],
+      ["vendor-second", "array", "bootstrap-map"],
+      ["vendor-third", "object", "bootstrap-map"],
+    ]);
+    expect(app.services["vendor-first"]).toEqual({ mode: "string" });
+    expect(app.services["vendor-second"]).toEqual({ mode: "array" });
+    expect(app.services["vendor-third"]).toEqual({ mode: "object" });
+  });
+
+  it("rejects invalid configured plugin entries during app bootstrap", async () => {
+    const app = createTiliaApp({
+      map: {},
+      builtins: {},
+      plugins: [42],
+    });
+
+    await expect(app.ready).rejects.toThrow(
+      "Configured plugins must be a string, [plugin, options], or { plugin, options }",
+    );
+  });
+
+  it("creates the base map and forwards it into the default app factory", () => {
+    const builtins = {
+      "vendor-default": {
+        id: "vendor-default",
+        setup: vi.fn(async () => ({ ready: true })),
+      },
+    };
+    const map = { name: "default-map" };
+    const tileLayer = { name: "default-tile" };
+    createBaseMap.mockReturnValueOnce({ map, tileLayer });
+
+    const app = createDefaultTiliaApp("map-root", {
+      builtins,
+      baseMapOptions: {
+        zoom: 12,
+      },
+      plugins: ["vendor-default"],
+    });
+
+    expect(createBaseMap).toHaveBeenCalledWith("map-root", { zoom: 12 });
+    expect(app.getMap()).toBe(map);
+    expect(app.getBaseLayer()).toBe(tileLayer);
+    expect(app.getBaseMap()).toEqual({ map, tileLayer });
   });
 
   it("rejects plugins whose required dependency is not installed", async () => {
