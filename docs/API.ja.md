@@ -34,7 +34,7 @@ Leaflet ベースマップの作成と Tilia app の初期化をまとめて行�
 **例**
 
 ```js
-import { createDefaultTiliaApp } from "./Tilia/src/index.js";
+import { createDefaultTiliaApp } from "./src/index.js";
 
 const app = createDefaultTiliaApp("map", {
   plugins: [
@@ -85,7 +85,7 @@ Leaflet マップと OpenStreetMap タイルレイヤーを初期化します。
 
 プラグインを導入します。第一引数には以下を渡せます:
 
-- **文字列 ID** — built-in を解決するか、`Tilia/plugins/<id>/loader.js` から動的 import
+- **文字列 ID** — built-in を解決するか、`plugins/<id>/loader.js` から動的 import
 - **プラグインオブジェクト** `{ id, setup }` （[プラグインの作り方](#プラグインの作り方) を参照）
 
 すでに導入済みのプラグインを指定すると、再インストールせずに既存の API を返します。
@@ -199,7 +199,7 @@ unsub();
 | `tilia-layers` | `tilia-panel`, `tilia-status` | サイドパネル内のレイヤー一覧。エントリごとに表示切替・削除・フィット・写真のタイムスタンプモード変更が可能 |
 | `tilia-elevation` | `tilia-panel`, `tilia-status` | サイドパネル内のインタラクティブな高度プロファイルチャート。チャートでホバーすると対応するトラックポイントが地図上に表示される |
 | `tilia-file-import` | — | 地図上のコントロール（左上）にファイル選択ボタンを追加。`.gpx`・`.jpg`・`.jpeg` に対応、複数ファイルを同時に選択可能 |
-| `tilia-url-import` | — | URL 入力フォームを開くコントロール。HTTP/HTTPS のみ対応（CORS が必要）。ファイル名は `Content-Disposition` または URL パスから推定 |
+| `tilia-url-import` | — | URL 入力フォームを開くコントロール。HTTP/HTTPS のみ対応（CORS が必要）。ファイル名は `Content-Disposition` または URL パスから推定。`timeoutMs` と `maxBytes` を指定可能 |
 | `tilia-settings` | `tilia-panel`, `tilia-status` | 設定パネル。新規追加写真に適用するデフォルトのタイムスタンプ解釈モードを設定できる |
 | `tilia-dropzone` | — | マップコンテナ全体をドロップ対象にする。ドラッグ中はビジュアルハイライトを表示する |
 
@@ -212,6 +212,11 @@ unsub();
 | `utc` | EXIF のタイムスタンプを UTC として扱う。 |
 
 > **依存の順序に注意。** `requires` に列挙されたプラグインは先に導入してください。`options.plugins` で宣言する場合は配列の並び順がそのまま導入順になります。
+
+`tilia-url-import` には次のガード用オプションがあります:
+
+- `timeoutMs`: リモート fetch が長すぎる場合に中断する時間（デフォルト: `15000`）
+- `maxBytes`: このバイト数を超えるリモートファイルを拒否する上限（デフォルト: `10485760`）
 
 **例**
 
@@ -287,13 +292,12 @@ await app.use(myPlugin);
 
 ### 動的ローディングの規約
 
-文字列 ID を指定すると、デフォルトで `Tilia/plugins/<plugin-id>/loader.js` から読み込まれます:
+文字列 ID を指定すると、デフォルトで `plugins/<plugin-id>/loader.js` から読み込まれます:
 
 ```
-Tilia/
-  plugins/
-    x-milestone/
-      loader.js   ← デフォルトエクスポート、またはプラグイン ID と一致する名前付きエクスポートが必要
+plugins/
+  x-milestone/
+    loader.js   ← デフォルトエクスポート、またはプラグイン ID と一致する名前付きエクスポートが必要
 ```
 
 **特定 ID のパスだけ上書きする場合:**
@@ -316,6 +320,14 @@ createTiliaApp({
   },
 });
 ```
+
+> **セキュリティに関する注意:** 動的に読み込まれたプラグインは、ページ上の通常の JavaScript と同じ権限で実行されます。Tilia はプラグインコードをサンドボックス化しません。
+
+### 信頼モデルとネットワークに関する前提
+
+- 文字列 ID、`pluginUrls`、`pluginLoader` を通じて読み込まれるリモートプラグインモジュールは、ブラウザから見れば完全に信頼されたコードとして扱われます。
+- `tilia-url-import` プラグインは HTTP/HTTPS のみを受け付けますが、リモートサーバーの CORS 設定や可用性にも依存します。
+- importmap で参照される CDN 依存関係は、アプリケーション実行時の信頼境界の一部です。
 
 ### `setup(app, options)` 内で使える API
 

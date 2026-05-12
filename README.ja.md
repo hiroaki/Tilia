@@ -21,7 +21,6 @@ Tilia は、ウェブページに地図を手軽に組み込めるランタイ�
 `file://` 直開きはブラウザのセキュリティ制限で動作しないため、ローカル HTTP サーバーが必要です。
 
 ```bash
-cd Tilia
 ruby -run -e httpd . -p 8010
 ```
 
@@ -56,7 +55,7 @@ Tilia を利用するには、Leaflet の JavaScript と CSS をページに読�
 <div id="mymap" style="height: 300px;"></div>
 
 <script type="module">
-  import { createDefaultTiliaApp } from "./Tilia/src/index.js";
+  import { createDefaultTiliaApp } from "./src/index.js";
 
   const app = createDefaultTiliaApp("mymap");
 
@@ -76,7 +75,7 @@ Tilia を利用するには、Leaflet の JavaScript と CSS をページに読�
 <div id="map" style="height: 100vh;"></div>
 
 <script type="module">
-  import { createDefaultTiliaApp } from "./Tilia/src/index.js";
+  import { createDefaultTiliaApp } from "./src/index.js";
 
   createDefaultTiliaApp("map", {
     plugins: [
@@ -98,7 +97,7 @@ Tilia を利用するには、Leaflet の JavaScript と CSS をページに読�
 
 ## Built-in プラグイン
 
-すべての built-in プラグイン ID は `tilia-` prefix を持ちます。サードパーティプラグインはベンダー prefix または `x-` prefix を使い、`Tilia/plugins/<plugin-id>/loader.js` に配置します。
+すべての built-in プラグイン ID は `tilia-` prefix を持ちます。サードパーティプラグインはベンダー prefix または `x-` prefix を使い、`plugins/<plugin-id>/loader.js` に配置します。
 
 | ID | 依存 | 説明 |
 |----|------|------|
@@ -107,7 +106,7 @@ Tilia を利用するには、Leaflet の JavaScript と CSS をページに読�
 | `tilia-layers` | `tilia-panel`, `tilia-status` | レイヤー一覧。表示切替・削除・フィット・写真ごとのタイムモード変更が可能 |
 | `tilia-elevation` | `tilia-panel`, `tilia-status` | GPX トラックのインタラクティブな高度プロファイルチャート |
 | `tilia-file-import` | — | `.gpx` / `.jpg` / `.jpeg` を選択できるファイル選択コントロール |
-| `tilia-url-import` | — | HTTP/HTTPS URL から取得する URL 入力コントロール（サーバー側 CORS 許可が必要） |
+| `tilia-url-import` | — | HTTP/HTTPS URL から取得する URL 入力コントロール（サーバー側 CORS 許可が必要）。timeout とサイズ上限を設定可能 |
 | `tilia-settings` | `tilia-panel`, `tilia-status` | 写真タイムスタンプ解釈のデフォルトモード（ローカル / JST / UTC） |
 | `tilia-dropzone` | — | 地図全体をドロップ対象にするドラッグ＆ドロップ機能 |
 
@@ -116,13 +115,22 @@ Tilia を利用するには、Leaflet の JavaScript と CSS をページに読�
 
 ## 配布・ホスティング
 
-`Tilia/` ディレクトリをそのまま静的ホスティングサービスに配置するだけで動作します。ビルド手順は不要です。
+このリポジトリのルート内容をそのまま静的ホスティングサービスに配置するだけで動作します。ビルド手順は不要です。
 
 必要なコンテンツ: `src` が必須です。必要に応じて `plugins` を同じディレクトリに配備してください。
 
 外部依存は importmap で CDN にピン留めしています。インターネット接続が必要です:
 - [Leaflet 2.0.0-alpha.1](https://unpkg.com/leaflet@2.0.0-alpha.1/) (unpkg)
 - [exifr 7.1.3](https://cdn.jsdelivr.net/npm/exifr@7.1.3/) (jsDelivr)
+
+
+## 信頼モデル
+
+Tilia は完全にブラウザ上で動作します。また、リモートのコードやコンテンツをサンドボックス化しません。
+
+- `app.use("plugin-id")` またはカスタムの `pluginLoader` を通じて読み込まれるサードパーティ製プラグインは、通常のページ JavaScript として実行されます。信頼できるプラグインのみを読み込んでください。
+- `tilia-url-import` プラグインは HTTP/HTTPS 経由でリモートの GPX データを取得しますが、対象サーバーの CORS ポリシーにも依存します。リモート URL は信頼されていない入力として扱い、失敗する可能性があることを前提にしてください。
+- CDN でホストされている依存関係は、ランタイムの信頼境界の一部です。バージョンは意図的に固定し、更新前に変更内容を確認してください。
 
 
 ## ライセンス
