@@ -7,8 +7,11 @@
     "test:smoke": "playwright test"
   },
   "devDependencies": {
-    "@xmldom/xmldom": "^0.8.11",
     "@playwright/test": "^1.54.1",
+    "@xmldom/xmldom": "^0.8.11",
     "vitest": "^3.2.4"
+  },
+  "dependencies": {
+    "leaflet": "2.0.0-alpha.1"
   }
 }
