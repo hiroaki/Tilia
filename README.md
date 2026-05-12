@@ -23,7 +23,7 @@ A local HTTP server is required. Direct `file://` access is blocked by browser s
 
 ```bash
 cd Tilia
-python3 -m http.server 8010
+ruby -run -e httpd . -p 8010
 ```
 
 Open the ready-made viewer:
@@ -35,19 +35,28 @@ http://localhost:8010/samples/viewer/index.html
 
 ## Usage
 
-### Embed a map in a page
+### Leaflet setup
 
-Add a `<div>` for the map and a short module script. No viewer controls are needed for a simple embedded map — just load the data directly.
+To use Tilia, you must load Leaflet's JavaScript and CSS on your page. If you want to use EXIF metadata from image files, also load exifr.
 
 ```html
-<div id="mymap" style="height: 300px;"></div>
-
+<link rel="stylesheet" href="https://unpkg.com/leaflet@2.0.0-alpha.1/dist/leaflet.css" />
 <script type="importmap">
 { "imports": {
   "leaflet": "https://unpkg.com/leaflet@2.0.0-alpha.1/dist/leaflet.js",
   "exifr":   "https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/lite.esm.js"
 } }
 </script>
+```
+
+All following code samples assume this setup is already present and only show the Tilia-specific part.
+
+### Embed a map in a page
+
+Add a `<div>` for the map and a short module script. No viewer controls are needed for a simple embedded map — just load the data directly.
+
+```html
+<div id="mymap" style="height: 300px;"></div>
 
 <script type="module">
   import { createDefaultTiliaApp } from "./Tilia/src/index.js";
@@ -68,13 +77,6 @@ Pass a `plugins` list to enable UI controls, the layer panel, elevation chart, a
 
 ```html
 <div id="map" style="height: 100vh;"></div>
-
-<script type="importmap">
-{ "imports": {
-  "leaflet": "https://unpkg.com/leaflet@2.0.0-alpha.1/dist/leaflet.js",
-  "exifr":   "https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/lite.esm.js"
-} }
-</script>
 
 <script type="module">
   import { createDefaultTiliaApp } from "./Tilia/src/index.js";
