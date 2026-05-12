@@ -4,7 +4,7 @@ export default defineConfig({
   testDir: "./tests/smoke",
   timeout: 30_000,
   fullyParallel: true,
-  reporter: "html",
+  reporter: process.env.CI ? [["html", { outputFolder: "playwright-report" }], ["list"]] : [["list"]],
   use: {
     baseURL: "http://127.0.0.1:4173",
     trace: "on-first-retry",
