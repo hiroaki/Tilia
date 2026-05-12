@@ -21,8 +21,8 @@ Tilia は、ウェブページに地図を手軽に組み込めるランタイ�
 `file://` 直開きはブラウザのセキュリティ制限で動作しないため、ローカル HTTP サーバーが必要です。
 
 ```bash
-cd Tilia/
-python3 -m http.server 8010
+cd Tilia
+ruby -run -e httpd . -p 8010
 ```
 
 付属の viewer を開きます:
@@ -34,19 +34,26 @@ http://localhost:8010/samples/viewer/index.html
 
 ## 使い方
 
-### ページに地図を埋め込む
+### Leaflet のセットアップ
 
-コンテナとなる `<div>` を用意して、短いモジュールスクリプトを書くだけです。ビューア用の UI は必要ない場合、プラグインを指定せずデータだけ渡すシンプルな使い方もできます。
+Tilia を利用するには、Leaflet の JavaScript と CSS をページに読み込む必要があります。画像ファイルの EXIF 情報を利用する場合は exifr も読み込んでください。
 
 ```html
-<div id="mymap" style="height: 300px;"></div>
-
+<link rel="stylesheet" href="https://unpkg.com/leaflet@2.0.0-alpha.1/dist/leaflet.css" />
 <script type="importmap">
 { "imports": {
   "leaflet": "https://unpkg.com/leaflet@2.0.0-alpha.1/dist/leaflet.js",
   "exifr":   "https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/lite.esm.js"
 } }
 </script>
+```
+
+### ページに地図を埋め込む
+
+コンテナとなる `<div>` を用意して、短いモジュールスクリプトを書くだけです。ビューア用の UI は必要ない場合、プラグインを指定せずデータだけ渡すシンプルな使い方もできます。
+
+```html
+<div id="mymap" style="height: 300px;"></div>
 
 <script type="module">
   import { createDefaultTiliaApp } from "./Tilia/src/index.js";
@@ -67,13 +74,6 @@ http://localhost:8010/samples/viewer/index.html
 
 ```html
 <div id="map" style="height: 100vh;"></div>
-
-<script type="importmap">
-{ "imports": {
-  "leaflet": "https://unpkg.com/leaflet@2.0.0-alpha.1/dist/leaflet.js",
-  "exifr":   "https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/lite.esm.js"
-} }
-</script>
 
 <script type="module">
   import { createDefaultTiliaApp } from "./Tilia/src/index.js";
