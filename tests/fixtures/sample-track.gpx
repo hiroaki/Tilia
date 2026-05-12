@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Tilia test fixture" xmlns="http://www.topografix.com/GPX/1/1">
+  <wpt lat="35.0100" lon="135.0100">
+    <name>Start marker</name>
+  </wpt>
+  <trk>
+    <name>Sample Track</name>
+    <trkseg>
+      <trkpt lat="35.2000" lon="135.2000">
+        <ele>120.5</ele>
+        <time>2024-01-01T00:10:00Z</time>
+      </trkpt>
+      <trkpt lat="35.1000" lon="135.1000">
+        <time>2024-01-01T00:00:00Z</time>
+      </trkpt>
+      <trkpt lat="NaN" lon="135.5000">
+        <ele>999</ele>
+        <time>2024-01-01T00:05:00Z</time>
+      </trkpt>
+      <trkpt lat="35.3000" lon="135.3000">
+        <ele>130.0</ele>
+      </trkpt>
+    </trkseg>
+  </trk>
+</gpx>

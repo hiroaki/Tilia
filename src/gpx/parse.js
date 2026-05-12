@@ -117,25 +117,40 @@ function parseWaypoints(doc) {
     .filter(Boolean);
 }
 
-export async function parseGpxFile(file) {
-  const xmlText = await readText(file);
-  const parser = new DOMParser();
+export function parseGpxText(xmlText, options = {}) {
+  const {
+    fileName = "track.gpx",
+    createDomParser = () => new DOMParser(),
+  } = options;
+  const parseErrors = [];
+  const parser = createDomParser({
+    onError(message) {
+      parseErrors.push(message);
+    },
+  });
   const doc = parser.parseFromString(xmlText, "application/xml");
 
-  const parserError = doc.querySelector("parsererror") || getFirstChild(doc, "parsererror");
-  if (parserError) {
-    throw new Error(`Invalid GPX XML: ${file.name}`);
+  const parserError = doc.querySelector?.("parsererror") || getFirstChild(doc, "parsererror");
+  if (parserError || parseErrors.length > 0) {
+    throw new Error(`Invalid GPX XML: ${fileName}`);
   }
 
   const { trackPoints, trackPointDetails, trackTimeline, elevationProfile } = parseTrackPoints(doc);
 
   return {
     type: "gpx",
-    name: file.name,
+    name: fileName,
     trackPoints,
     trackPointDetails,
     trackTimeline,
     elevationProfile,
     waypoints: parseWaypoints(doc),
   };
+}
+
+export async function parseGpxFile(file) {
+  const xmlText = await readText(file);
+  return parseGpxText(xmlText, {
+    fileName: file.name,
+  });
 }
