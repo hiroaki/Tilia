@@ -29,11 +29,11 @@ function revokePhotoPreviewUrls(entries) {
 }
 
 function resolvePhotoSource(state, photo, options = {}) {
-  const photoTimeMode = options.photoTimeMode || "local";
+  const requestedPhotoTimeMode = options.photoTimeMode || "auto";
 
   if (!photo.hasGps) {
     const inferred = inferPhotoLocationFromGpx(state.sources, photo, {
-      timeInterpretationMode: photoTimeMode,
+      timeInterpretationMode: requestedPhotoTimeMode,
     });
 
     return {
@@ -43,6 +43,7 @@ function resolvePhotoSource(state, photo, options = {}) {
       locationSource: inferred.locationSource,
       locationReason: inferred.locationReason,
       inferenceDetail: inferred.inferenceDetail,
+      requestedPhotoTimeMode,
       photoTimeMode: inferred.timeInterpretationMode,
     };
   }
@@ -51,6 +52,7 @@ function resolvePhotoSource(state, photo, options = {}) {
     ...photo,
     locationSource: "exif-gps",
     locationReason: "Read directly from EXIF GPS",
+    requestedPhotoTimeMode: "n/a",
     photoTimeMode: "n/a",
   };
 }
@@ -60,7 +62,7 @@ export function createTiliaCore(map, options = {}) {
   const registry = createInputRegistry();
   const interactionHub = createInteractionHub(() => state.entries);
   const selectionHub = createSelectionHub(map);
-  let defaultPhotoTimeMode = options.defaultPhotoTimeMode || "local";
+  let defaultPhotoTimeMode = options.defaultPhotoTimeMode || "auto";
   const context = { state, map };
 
   registry.register(
@@ -105,6 +107,7 @@ export function createTiliaCore(map, options = {}) {
         interactions: overlay.interactions,
         source: resolvedPhoto,
         photoOriginal: photo,
+        requestedPhotoTimeMode: resolvedPhoto.requestedPhotoTimeMode,
         photoTimeMode: resolvedPhoto.photoTimeMode,
         visible: true,
       });
@@ -113,7 +116,7 @@ export function createTiliaCore(map, options = {}) {
       return {
         entryId: entry.id,
         ...resolvedPhoto,
-        summary: `photo marker at ${resolvedPhoto.lat.toFixed(6)}, ${resolvedPhoto.lon.toFixed(6)} (${resolvedPhoto.locationSource}, mode=${resolvedPhoto.photoTimeMode})`,
+        summary: `photo marker at ${resolvedPhoto.lat.toFixed(6)}, ${resolvedPhoto.lon.toFixed(6)} (${resolvedPhoto.locationSource}, mode=${resolvedPhoto.requestedPhotoTimeMode === "auto" ? `auto->${resolvedPhoto.photoTimeMode}` : resolvedPhoto.photoTimeMode})`,
       };
     },
   );
@@ -151,6 +154,7 @@ export function createTiliaCore(map, options = {}) {
         visible: nextVisible,
       });
       replaceEntrySource(state, entryId, nextSource);
+      entry.requestedPhotoTimeMode = nextSource.requestedPhotoTimeMode;
       entry.photoTimeMode = nextSource.photoTimeMode;
       interactionHub.syncEntry(entry);
 

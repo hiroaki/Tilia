@@ -13,6 +13,10 @@ test("viewer sample infers a photo location from an imported GPX track", async (
 
   await page.goto("/samples/viewer/");
 
+  await page.getByRole("button", { name: "Settings" }).click();
+  await page.locator(".tilia-default-time-mode-select").selectOption("jst");
+  await page.getByRole("button", { name: "Close" }).click();
+
   await page.locator('.tilia-file-import-control input[type="file"]').setInputFiles([
     sampleTrackPath,
     sampleInferredPhotoPath,
@@ -20,6 +24,7 @@ test("viewer sample infers a photo location from an imported GPX track", async (
 
   await expect(page.locator(".tilia-status-text")).toContainText("IMG_2892.JPG");
   await expect(page.locator(".tilia-status-text")).toContainText("gpx-time-inference");
+  await expect(page.locator(".tilia-status-text")).toContainText("mode=jst");
 
   await page.getByRole("button", { name: "Layers" }).click();
   const trackLayer = page.locator(".tilia-layer-item").filter({

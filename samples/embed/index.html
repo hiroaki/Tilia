@@ -190,7 +190,11 @@
           </div>
         </article>
 
-        <article class="story-card" data-tilia-gpx-url="./biwakososui.gpx">
+        <article
+          class="story-card"
+          data-tilia-gpx-url="./biwakososui.gpx"
+          data-tilia-photo-time-mode="jst"
+        >
           <div class="story-media">
             <img
               class="story-photo"
@@ -203,7 +207,8 @@
             <p class="story-description">
               This second image keeps its own <code>data-tilia-photo-url</code> value, but also adds a card-level
               <code>data-tilia-gpx-url</code>. Tilia loads the track first and then infers the photo location from the
-              GPX timeline when the image itself does not carry GPS coordinates.
+              GPX timeline when the image itself does not carry GPS coordinates. This card also pins a
+              <code>data-tilia-photo-time-mode</code> for a stable interpretation of the sample photo timestamp.
             </p>
           </div>
           <div class="story-map-wrap">
@@ -249,11 +254,14 @@
         const photo = card.querySelector("img[data-tilia-photo-url]");
         const photoUrl = photo.dataset.tiliaPhotoUrl;
         const gpxUrl = card.dataset.tiliaGpxUrl;
+        const photoTimeMode = card.dataset.tiliaPhotoTimeMode;
         const mapNode = card.querySelector(".story-map");
         const statusNode = card.querySelector(".story-status");
 
         // Photo cards follow the same flow; only the source data attribute changes.
-        const app = createDefaultTiliaApp(mapNode);
+        const app = createDefaultTiliaApp(mapNode, {
+          defaultPhotoTimeMode: photoTimeMode || "auto",
+        });
 
         if (gpxUrl) {
           await loadIntoApp(app, gpxUrl);

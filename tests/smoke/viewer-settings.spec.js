@@ -14,7 +14,7 @@ test("viewer settings panel updates the default time mode and re-shows status", 
   await page.getByRole("button", { name: "Settings" }).click();
   await expect(page.locator(".tilia-side-panel:not(.tilia-side-panel-hidden)")).toBeVisible();
   await expect(page.locator(".tilia-side-panel-title")).toHaveText("Settings");
-  await expect(page.locator(".tilia-default-time-mode-select")).toHaveValue("local");
+  await expect(page.locator(".tilia-default-time-mode-select")).toHaveValue("auto");
 
   await page.locator(".tilia-default-time-mode-select").selectOption("utc");
   await expect(page.locator(".tilia-status-text")).toContainText("Default photo time mode set to UTC");

@@ -12,6 +12,7 @@ function createTimeModeField({ core, onStatus }) {
   selectNode.className = "tilia-control-select tilia-default-time-mode-select";
 
   for (const option of [
+    { value: "auto", label: "Auto" },
     { value: "local", label: "Local" },
     { value: "jst", label: "JST" },
     { value: "utc", label: "UTC" },
