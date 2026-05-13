@@ -199,7 +199,7 @@ Install by passing a string ID to `app.use()`, or by listing in `options.plugins
 | `tilia-layers` | `tilia-panel`, `tilia-status` | Layer list in the side panel; per-entry controls for visibility, delete, fit-to-view, and (for inferred-location photos) timestamp mode override |
 | `tilia-elevation` | `tilia-panel`, `tilia-status` | Interactive elevation profile chart in the side panel; hover highlights the corresponding track point on the map |
 | `tilia-file-import` | — | Map control (top-left) with a file picker; accepts `.gpx`, `.jpg`, `.jpeg`; supports multiple files at once |
-| `tilia-url-import` | — | Map control that opens a URL input; fetches via HTTP/HTTPS with CORS; filename inferred from `Content-Disposition` or the URL path; supports `timeoutMs` and `maxBytes` options |
+| `tilia-url-import` | — | Map control that opens a URL input; fetches via HTTP/HTTPS with CORS; filename inferred from `Content-Disposition` or the URL path; `timeoutMs` aborts slow fetches and `maxBytes` rejects oversized remote files |
 | `tilia-settings` | `tilia-panel`, `tilia-status` | Settings panel with a single control: the default photo timestamp interpretation mode applied to newly loaded photos |
 | `tilia-dropzone` | — | Makes the entire map container a drag-and-drop target; visual highlight shown during drag |
 
@@ -214,38 +214,10 @@ Install by passing a string ID to `app.use()`, or by listing in `options.plugins
 
 > **Published embed warning.** `auto` depends on the viewer's runtime environment. If a public page infers photo positions from GPX tracks and needs stable results across timezones, set an explicit photo time mode instead of relying on `auto`. Use `utc` or a fixed offset string such as `+09:00`.
 
-> **Dependency order matters.** Install `tilia-panel` and `tilia-status` before any plugin that lists them in `requires`. When using `options.plugins`, list them first — the array order is preserved.
-
-`tilia-url-import` accepts two useful guardrail options:
-
-- `timeoutMs`: abort the remote fetch if it takes too long (default: `15000`)
-- `maxBytes`: reject remote files larger than this byte size (default: `10485760`)
-
-**Example**
-
-```js
-// Explicit, sequential install
-await app.use("tilia-panel");
-await app.use("tilia-status");
-await app.use("tilia-layers");   // OK: dependencies already installed
-
-// Declarative (recommended for startup)
-createDefaultTiliaApp("map", {
-  plugins: [
-    "tilia-panel",
-    "tilia-status",
-    "tilia-layers",
-    "tilia-elevation",
-    "tilia-file-import",
-    "tilia-url-import",
-    "tilia-settings",
-    "tilia-dropzone",
-  ],
-});
-```
-
 
 ## Authoring Plugins
+
+For the current operational contract around `requires`, startup order, built-in vs third-party IDs, and dynamic loading, see [PLUGIN-OPERATIONS.md](PLUGIN-OPERATIONS.md).
 
 A plugin is a plain object with `id` and `setup`:
 

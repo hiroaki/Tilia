@@ -37,6 +37,8 @@ smoke test では同梱の Node ベース静的サーバーを自動起動し、
 
 - viewer の起動
 - viewer の file import
+- viewer の photo import
+- viewer の photo inference
 - viewer の URL import
 - viewer の settings panel
 - viewer の elevation panel

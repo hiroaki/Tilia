@@ -37,6 +37,8 @@ Current smoke coverage includes:
 
 - Viewer boot
 - Viewer file import
+- Viewer photo import
+- Viewer photo inference
 - Viewer URL import
 - Viewer settings panel
 - Viewer elevation panel

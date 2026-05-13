@@ -107,9 +107,11 @@ Tilia を利用するには、Leaflet の JavaScript と CSS をページに読�
 詳細なランタイム API とプラグイン作成ガイドは [docs/API.ja.md](docs/API.ja.md) を参照してください。
 
 
-## Built-in プラグイン
+## プラグイン
 
 すべての built-in プラグイン ID は `tilia-` prefix を持ちます。サードパーティプラグインはベンダー prefix または `x-` prefix を使い、`plugins/<plugin-id>/loader.js` に配置します。
+
+現在の plugin 読み込み、依存順序、dynamic loading の契約は [docs/PLUGIN-OPERATIONS.ja.md](docs/PLUGIN-OPERATIONS.ja.md) にまとめています。
 
 | ID | 依存 | 説明 |
 |----|------|------|

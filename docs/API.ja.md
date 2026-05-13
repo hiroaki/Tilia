@@ -199,7 +199,7 @@ unsub();
 | `tilia-layers` | `tilia-panel`, `tilia-status` | サイドパネル内のレイヤー一覧。エントリごとに表示切替・削除・フィット・写真のタイムスタンプモード変更が可能 |
 | `tilia-elevation` | `tilia-panel`, `tilia-status` | サイドパネル内のインタラクティブな高度プロファイルチャート。チャートでホバーすると対応するトラックポイントが地図上に表示される |
 | `tilia-file-import` | — | 地図上のコントロール（左上）にファイル選択ボタンを追加。`.gpx`・`.jpg`・`.jpeg` に対応、複数ファイルを同時に選択可能 |
-| `tilia-url-import` | — | URL 入力フォームを開くコントロール。HTTP/HTTPS のみ対応（CORS が必要）。ファイル名は `Content-Disposition` または URL パスから推定。`timeoutMs` と `maxBytes` を指定可能 |
+| `tilia-url-import` | — | URL 入力フォームを開くコントロール。HTTP/HTTPS のみ対応（CORS が必要）。ファイル名は `Content-Disposition` または URL パスから推定。`timeoutMs` で遅い fetch を中断し、`maxBytes` で大きすぎるリモートファイルを拒否できる |
 | `tilia-settings` | `tilia-panel`, `tilia-status` | 設定パネル。新規追加写真に適用するデフォルトのタイムスタンプ解釈モードを設定できる |
 | `tilia-dropzone` | — | マップコンテナ全体をドロップ対象にする。ドラッグ中はビジュアルハイライトを表示する |
 
@@ -214,38 +214,10 @@ unsub();
 
 > **公開 embed での注意。** `auto` は閲覧者の実行環境に依存します。公開ページで GPX トラックから写真位置を推定し、タイムゾーンが違う閲覧者にも同じ結果を見せたい場合は、`auto` に任せず photo time mode を明示指定してください。`utc` または `+09:00` のような固定オフセットを推奨します。
 
-> **依存の順序に注意。** `requires` に列挙されたプラグインは先に導入してください。`options.plugins` で宣言する場合は配列の並び順がそのまま導入順になります。
-
-`tilia-url-import` には次のガード用オプションがあります:
-
-- `timeoutMs`: リモート fetch が長すぎる場合に中断する時間（デフォルト: `15000`）
-- `maxBytes`: このバイト数を超えるリモートファイルを拒否する上限（デフォルト: `10485760`）
-
-**例**
-
-```js
-// 個別に await する場合
-await app.use("tilia-panel");
-await app.use("tilia-status");
-await app.use("tilia-layers");   // OK: 依存が先に導入済み
-
-// 宣言的に指定する場合（起動時の推奨パターン）
-createDefaultTiliaApp("map", {
-  plugins: [
-    "tilia-panel",
-    "tilia-status",
-    "tilia-layers",
-    "tilia-elevation",
-    "tilia-file-import",
-    "tilia-url-import",
-    "tilia-settings",
-    "tilia-dropzone",
-  ],
-});
-```
-
 
 ## プラグインの作り方
+
+`requires`、起動順序、built-in / third-party plugin ID、dynamic loading の現在の運用契約は [PLUGIN-OPERATIONS.ja.md](PLUGIN-OPERATIONS.ja.md) を参照してください。
 
 プラグインは `id` と `setup` を持つプレーンオブジェクトです:
 

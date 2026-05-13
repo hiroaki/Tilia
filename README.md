@@ -78,7 +78,7 @@ Add a `<div>` for the map and a short module script. No viewer controls are need
 </script>
 ```
 
-Multiple independent map instances can coexist on a single page. Driving them from `data-*` attributes makes the same template reusable in a CMS. See [`samples/embed/index.html`](samples/embed/index.html) for a example.
+Multiple independent map instances can coexist on a single page. Driving them from `data-*` attributes makes the same template reusable in a CMS. See [`samples/embed/index.html`](samples/embed/index.html) for an example.
 
 When a published embed infers photo locations from GPX timestamps, prefer an explicit photo time mode instead of relying on the default `auto` behavior. `auto` uses the viewer's environment (`local` or `utc`), so a card that looks correct in one timezone may fail to place a marker for viewers in another timezone. For stable public output, use `utc` or a fixed offset such as `+09:00`.
 
@@ -110,9 +110,11 @@ Pass a `plugins` list to enable UI controls, the layer panel, elevation chart, a
 See [docs/API.md](docs/API.md) for the full runtime API and plugin authoring guide.
 
 
-## Built-in plugins
+## Plugins
 
 All built-in plugin IDs are prefixed with `tilia-`. Third-party plugins use a vendor or `x-` prefix and are placed at `plugins/<plugin-id>/loader.js`.
+
+The current plugin loading, dependency-order, and dynamic-loading contract is summarized in [docs/PLUGIN-OPERATIONS.md](docs/PLUGIN-OPERATIONS.md).
 
 | ID | Requires | Description |
 |----|----------|-------------|
