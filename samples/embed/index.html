@@ -206,9 +206,9 @@
             <p class="story-description">
               This second image keeps its own <code>data-tilia-photo-url</code> value, but also adds a card-level
               <code>data-tilia-gpx-url</code>. Tilia loads the track first and then infers the photo location from the
-              GPX timeline when the image itself does not carry GPS coordinates. Because published pages should not
-              depend on each viewer's local timezone, this card explicitly pins <code>data-tilia-photo-time-mode</code>
-              to <code>+09:00</code>.
+              GPX timeline when the image itself does not carry GPS coordinates. Because EXIF timestamps do not store
+              their timezone, this sample sets the photo time mode to <code>+09:00</code> in the map initialization
+              code so the photo timestamp is interpreted against the GPX track in the intended timezone.
             </p>
           </div>
           <div class="story-map-wrap">
