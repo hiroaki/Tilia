@@ -15,6 +15,7 @@ import { parseGpxFile } from "../gpx/parse.js";
 import { buildGpxOverlay, buildPhotoOverlay, fitMapToGroup } from "../map/layers.js";
 import { parsePhotoFile } from "../photo/exif.js";
 import { inferPhotoLocationFromGpx } from "../photo/infer-location.js";
+import { assertPhotoTimeMode, formatPhotoTimeModeLabel } from "./photo-time-utils.js";
 
 function revokePhotoPreviewUrls(entries) {
   const revokedUrls = new Set();
@@ -29,7 +30,7 @@ function revokePhotoPreviewUrls(entries) {
 }
 
 function resolvePhotoSource(state, photo, options = {}) {
-  const requestedPhotoTimeMode = options.photoTimeMode || "auto";
+  const requestedPhotoTimeMode = assertPhotoTimeMode(options.photoTimeMode || "auto");
 
   if (!photo.hasGps) {
     const inferred = inferPhotoLocationFromGpx(state.sources, photo, {
@@ -62,7 +63,7 @@ export function createTiliaCore(map, options = {}) {
   const registry = createInputRegistry();
   const interactionHub = createInteractionHub(() => state.entries);
   const selectionHub = createSelectionHub(map);
-  let defaultPhotoTimeMode = options.defaultPhotoTimeMode || "auto";
+  let defaultPhotoTimeMode = assertPhotoTimeMode(options.defaultPhotoTimeMode || "auto");
   const context = { state, map };
 
   registry.register(
@@ -116,7 +117,7 @@ export function createTiliaCore(map, options = {}) {
       return {
         entryId: entry.id,
         ...resolvedPhoto,
-        summary: `photo marker at ${resolvedPhoto.lat.toFixed(6)}, ${resolvedPhoto.lon.toFixed(6)} (${resolvedPhoto.locationSource}, mode=${resolvedPhoto.requestedPhotoTimeMode === "auto" ? `auto->${resolvedPhoto.photoTimeMode}` : resolvedPhoto.photoTimeMode})`,
+        summary: `photo marker at ${resolvedPhoto.lat.toFixed(6)}, ${resolvedPhoto.lon.toFixed(6)} (${resolvedPhoto.locationSource}, mode=${resolvedPhoto.requestedPhotoTimeMode === "auto" ? `auto->${resolvedPhoto.photoTimeMode}` : formatPhotoTimeModeLabel(resolvedPhoto.photoTimeMode)})`,
       };
     },
   );
@@ -129,7 +130,7 @@ export function createTiliaCore(map, options = {}) {
       return defaultPhotoTimeMode;
     },
     setDefaultPhotoTimeMode(mode) {
-      defaultPhotoTimeMode = mode;
+      defaultPhotoTimeMode = assertPhotoTimeMode(mode);
     },
     updatePhotoTimeMode(entryId, mode) {
       const entry = state.entries.find((candidate) => candidate.id === entryId);

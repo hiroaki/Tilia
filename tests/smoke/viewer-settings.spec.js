@@ -15,9 +15,16 @@ test("viewer settings panel updates the default time mode and re-shows status", 
   await expect(page.locator(".tilia-side-panel:not(.tilia-side-panel-hidden)")).toBeVisible();
   await expect(page.locator(".tilia-side-panel-title")).toHaveText("Settings");
   await expect(page.locator(".tilia-default-time-mode-select")).toHaveValue("auto");
+  await expect(page.locator(".tilia-default-time-mode-custom")).toBeHidden();
 
+  await page.locator(".tilia-default-time-mode-select").selectOption("custom");
+  await expect(page.locator(".tilia-default-time-mode-custom")).toBeVisible();
+  await page.locator(".tilia-default-time-mode-sign").selectOption("+");
+  await page.locator(".tilia-default-time-mode-offset").fill("00:00");
+  await page.locator(".tilia-default-time-mode-offset").press("Enter");
+  await expect(page.locator(".tilia-status-text")).toContainText("Default photo time mode set to +00:00");
   await page.locator(".tilia-default-time-mode-select").selectOption("utc");
-  await expect(page.locator(".tilia-status-text")).toContainText("Default photo time mode set to UTC");
+  await expect(page.locator(".tilia-default-time-mode-custom")).toBeHidden();
   await expect(page.locator(".tilia-status-panel")).not.toHaveClass(/tilia-status-panel-dismissed/);
 
   await page.getByRole("button", { name: "Close" }).click();

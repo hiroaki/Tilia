@@ -1,3 +1,5 @@
+import { parseFixedOffsetMinutes } from "../core/photo-time-utils.js";
+
 function flattenGpxTimeline(sources) {
   const timeline = [];
 
@@ -17,32 +19,6 @@ function flattenGpxTimeline(sources) {
 
   timeline.sort((a, b) => a.timestamp - b.timestamp);
   return timeline;
-}
-
-function parseFixedOffsetMinutes(mode) {
-  if (typeof mode !== "string") {
-    return null;
-  }
-
-  const trimmed = mode.trim();
-  if (trimmed === "Z") {
-    return 0;
-  }
-
-  const match = /^([+-])(\d{2}):(\d{2})$|^([+-])(\d{2})(\d{2})$/.exec(trimmed);
-  if (!match) {
-    return null;
-  }
-
-  const sign = match[1] || match[4];
-  const hours = Number(match[2] || match[5]);
-  const minutes = Number(match[3] || match[6]);
-  if (hours > 23 || minutes > 59) {
-    throw new Error(`Invalid photo time mode: ${mode}`);
-  }
-
-  const totalMinutes = (hours * 60) + minutes;
-  return sign === "+" ? totalMinutes : -totalMinutes;
 }
 
 function toModeAdjustedTimestamp(dateValue, mode) {

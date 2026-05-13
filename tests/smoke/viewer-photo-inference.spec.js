@@ -33,6 +33,17 @@ test("viewer sample infers a photo location from an imported GPX track", async (
   await expect(photoLayer).toHaveCount(1);
   await expect(photoLayer.locator(".tilia-layer-meta")).toContainText("gpx-time-inference");
   await expect(photoLayer.locator(".tilia-layer-mode-select")).toHaveCount(1);
+  await expect(photoLayer.locator(".tilia-layer-mode-custom")).toBeHidden();
+  await photoLayer.locator(".tilia-layer-mode-select").selectOption("custom");
+  await expect(photoLayer.locator(".tilia-layer-mode-custom")).toBeVisible();
+  await photoLayer.locator(".tilia-layer-mode-sign").selectOption("+");
+  await photoLayer.locator(".tilia-layer-mode-offset").press("ArrowUp");
+  await expect(page.locator(".tilia-status-text")).toContainText("gpx-time-inference");
+  await expect(page.locator(".tilia-status-text")).not.toContainText("Updated IMG_2892.JPG photo time mode");
+  await photoLayer.locator(".tilia-layer-mode-offset").fill("00:00");
+  await page.locator(".tilia-layer-actions").click();
+  await expect(page.locator(".tilia-status-text")).toContainText("Updated IMG_2892.JPG photo time mode to +00:00");
+  await expect(photoLayer.locator(".tilia-layer-mode-offset")).toHaveValue("00:00");
 
   expect(pageErrors).toEqual([]);
 });
