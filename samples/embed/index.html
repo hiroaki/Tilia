@@ -190,7 +190,10 @@
           </div>
         </article>
 
-        <article class="story-card">
+        <article
+          class="story-card"
+          data-tilia-gpx-url="./biwakososui.gpx"
+        >
           <div class="story-media">
             <img
               class="story-photo"
@@ -201,8 +204,11 @@
             <p class="story-kicker">Photo embed</p>
             <h2 class="story-heading">Photo map from IMG_2892.JPG</h2>
             <p class="story-description">
-              This second image uses the same markup pattern with a different <code>data-tilia-photo-url</code> value.
-              In a CMS template, changing only that data attribute is enough to point the embedded map at a different photo location.
+              This second image keeps its own <code>data-tilia-photo-url</code> value, but also adds a card-level
+              <code>data-tilia-gpx-url</code>. Tilia loads the track first and then infers the photo location from the
+              GPX timeline when the image itself does not carry GPS coordinates. Because EXIF timestamps do not store
+              their timezone, this sample sets the photo time mode to <code>+09:00</code> in the map initialization
+              code so the photo timestamp is interpreted against the GPX track in the intended timezone.
             </p>
           </div>
           <div class="story-map-wrap">
@@ -247,23 +253,37 @@
       async function bootPhotoCard(card) {
         const photo = card.querySelector("img[data-tilia-photo-url]");
         const photoUrl = photo.dataset.tiliaPhotoUrl;
+        const gpxUrl = card.dataset.tiliaGpxUrl;
         const mapNode = card.querySelector(".story-map");
         const statusNode = card.querySelector(".story-status");
 
         // Photo cards follow the same flow; only the source data attribute changes.
-        const app = createDefaultTiliaApp(mapNode);
+        // This demo photo was shot with a +09:00 wall-clock timestamp.
+        const app = createDefaultTiliaApp(mapNode, {
+          defaultPhotoTimeMode: gpxUrl ? "+09:00" : "auto",
+        });
+
+        if (gpxUrl) {
+          await loadIntoApp(app, gpxUrl);
+          const helperEntry = app.state.entries[app.state.entries.length - 1];
+          if (helperEntry?.kind === "gpx") {
+            app.core.setEntryVisibility(helperEntry.id, false);
+          }
+        }
 
         const result = await loadIntoApp(app, photoUrl);
         setStatus(statusNode, `Loaded ${result.name}: ${result.summary}`);
       }
 
       // Boot every card on the page so the same markup pattern can be repeated freely.
-      for (const card of document.querySelectorAll("[data-tilia-gpx-url]")) {
+      for (const card of document.querySelectorAll(".story-card-gpx[data-tilia-gpx-url]")) {
         bootTrackCard(card);
       }
 
-      for (const card of document.querySelectorAll(".story-card:not([data-tilia-gpx-url])")) {
-        bootPhotoCard(card);
+      for (const card of document.querySelectorAll(".story-card")) {
+        if (card.querySelector("img[data-tilia-photo-url]")) {
+          bootPhotoCard(card);
+        }
       }
     </script>
   </body>

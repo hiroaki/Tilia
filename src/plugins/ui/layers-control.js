@@ -1,5 +1,11 @@
 import { createButton, createPanel, createSelect, installMapControl } from "../../map/controls.js";
 import { createPhotoThumbnailNode } from "../../map/layers.js";
+import {
+  buildFixedOffsetTimeMode,
+  formatPhotoTimeModeLabel,
+  isPresetPhotoTimeMode,
+  splitFixedOffsetTimeMode,
+} from "../../core/photo-time-utils.js";
 
 function formatDateTime(value) {
   if (!value) {
@@ -44,17 +50,93 @@ function createPhotoModeField(entry, onModeChange) {
   caption.className = "tilia-layer-option-label";
   caption.textContent = "Photo time";
 
+  const currentMode = entry.requestedPhotoTimeMode || entry.photoTimeMode;
   const select = createSelect([
-    { value: "local", label: "Local", selected: entry.photoTimeMode === "local" },
-    { value: "jst", label: "JST", selected: entry.photoTimeMode === "jst" },
-    { value: "utc", label: "UTC", selected: entry.photoTimeMode === "utc" },
+    { value: "auto", label: "Auto", selected: currentMode === "auto" },
+    { value: "local", label: "Local", selected: currentMode === "local" },
+    { value: "utc", label: "UTC", selected: currentMode === "utc" },
+    { value: "custom", label: "Custom offset", selected: !isPresetPhotoTimeMode(currentMode) },
   ], "tilia-layer-mode-select");
+  const offsetWrap = document.createElement("div");
+  offsetWrap.className = "tilia-layer-mode-custom";
+
+  const signSelect = createSelect([
+    { value: "+", label: "+" },
+    { value: "-", label: "-" },
+  ], "tilia-layer-mode-sign");
+  signSelect.setAttribute("aria-label", `${entry.source?.name || `Layer ${entry.id}`} photo time offset sign`);
+
+  const offsetInput = document.createElement("input");
+  offsetInput.type = "time";
+  offsetInput.step = "900";
+  offsetInput.className = "tilia-control-select tilia-layer-mode-offset";
+  offsetInput.setAttribute("aria-label", `${entry.source?.name || `Layer ${entry.id}`} photo time offset`);
+
+  const currentOffset = splitFixedOffsetTimeMode(currentMode);
+  let lastAppliedCustomMode = currentOffset
+    ? `${currentOffset.sign}${currentOffset.time}`
+    : null;
+  offsetWrap.hidden = isPresetPhotoTimeMode(currentMode) || !currentOffset;
+  signSelect.disabled = offsetWrap.hidden;
+  offsetInput.disabled = offsetWrap.hidden;
+  signSelect.value = currentOffset?.sign || "+";
+  offsetInput.value = currentOffset?.time || "00:00";
+  offsetWrap.appendChild(signSelect);
+  offsetWrap.appendChild(offsetInput);
+
+  async function applyMode(mode) {
+    await onModeChange(entry, mode);
+  }
+
+  async function applyCustomOffset() {
+    const normalizedMode = buildFixedOffsetTimeMode(signSelect.value, offsetInput.value || "00:00");
+    if (normalizedMode === lastAppliedCustomMode) {
+      return;
+    }
+    signSelect.value = normalizedMode.startsWith("-") ? "-" : "+";
+    offsetInput.value = normalizedMode.slice(1);
+    await applyMode(normalizedMode);
+    lastAppliedCustomMode = normalizedMode;
+  }
+
   select.addEventListener("change", async () => {
-    await onModeChange(entry, select.value);
+    const isCustom = select.value === "custom";
+    offsetWrap.hidden = !isCustom;
+    signSelect.disabled = !isCustom;
+    offsetInput.disabled = !isCustom;
+    if (isCustom) {
+      offsetInput.value ||= "00:00";
+      offsetInput.focus();
+      return;
+    }
+    await applyMode(select.value);
+  });
+  signSelect.addEventListener("keydown", async (event) => {
+    if (event.key === "Enter" && select.value === "custom") {
+      event.preventDefault();
+      await applyCustomOffset();
+    }
+  });
+  offsetInput.addEventListener("keydown", async (event) => {
+    if (event.key === "Enter" && select.value === "custom") {
+      event.preventDefault();
+      await applyCustomOffset();
+    }
+  });
+  offsetWrap.addEventListener("focusout", async (event) => {
+    if (select.value !== "custom") {
+      return;
+    }
+    const nextTarget = event.relatedTarget;
+    if (nextTarget instanceof Node && offsetWrap.contains(nextTarget)) {
+      return;
+    }
+    await applyCustomOffset();
   });
 
   wrap.appendChild(caption);
   wrap.appendChild(select);
+  wrap.appendChild(offsetWrap);
   return wrap;
 }
 
@@ -213,7 +295,7 @@ export function installLayersControl({ map, core, panel, onStatus, onError, onEn
             core.updatePhotoTimeMode(targetEntry.id, mode);
             onEntriesChanged?.();
             render();
-            onStatus(`Updated ${targetEntry.source.name} photo time mode to ${mode.toUpperCase()}`);
+            onStatus(`Updated ${targetEntry.source.name} photo time mode to ${formatPhotoTimeModeLabel(mode)}`);
           } catch (error) {
             onError(error);
             onStatus(`Failed to update ${targetEntry.source.name}: ${error.message}`);

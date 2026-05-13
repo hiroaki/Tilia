@@ -1,0 +1,18 @@
+{
+  "name": "tilia",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "serve": "node scripts/static-server.mjs",
+    "test": "vitest run",
+    "test:smoke": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.54.1",
+    "@xmldom/xmldom": "^0.8.11",
+    "vitest": "^3.2.4"
+  },
+  "dependencies": {
+    "leaflet": "2.0.0-alpha.1"
+  }
+}

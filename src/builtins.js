@@ -100,6 +100,7 @@ export const settings = definePlugin({
 			core: app.core,
 			panel: app.services["tilia-panel"],
 			onStatus: app.setStatus,
+			onError: app.setError,
 			...options,
 		});
 	},

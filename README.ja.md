@@ -20,9 +20,18 @@ Tilia は、ウェブページに地図を手軽に組み込めるランタイ�
 
 `file://` 直開きはブラウザのセキュリティ制限で動作しないため、ローカル HTTP サーバーが必要です。
 
+リポジトリ root で、次のような静的サーバーを使って起動できます。
+
 ```bash
-cd Tilia
+python3 -m http.server 8010
+```
+
+```bash
 ruby -run -e httpd . -p 8010
+```
+
+```bash
+npm run serve -- 8010
 ```
 
 付属の viewer を開きます:
@@ -56,7 +65,7 @@ Tilia を利用するには、Leaflet の JavaScript と CSS をページに読�
 <div id="mymap" style="height: 300px;"></div>
 
 <script type="module">
-  import { createDefaultTiliaApp } from "./Tilia/src/index.js";
+  import { createDefaultTiliaApp } from "./src/index.js";
 
   const app = createDefaultTiliaApp("mymap");
 
@@ -68,6 +77,8 @@ Tilia を利用するには、Leaflet の JavaScript と CSS をページに読�
 
 1 ページに複数の地図インスタンスを共存させることもできます。`data-*` 属性でデータを指定するパターンにすれば、CMS テンプレートで同じマークアップを繰り返し利用できます。例は [`samples/embed/index.html`](samples/embed/index.html) を参照してください。
 
+公開ページで GPX タイムラインを使って写真位置を推定する場合は、デフォルトの `auto` に任せるより photo time mode を明示指定する方が安全です。`auto` は閲覧者の実行環境にある `local` または `utc` を使うため、あるタイムゾーンでは正しく見えても、別のタイムゾーンではマーカーを置けないことがあります。公開時は `utc` または `+09:00` のような固定オフセットの指定を推奨します。
+
 ### UI コントロールを追加する
 
 `plugins` リストを渡すと、レイヤーパネル・高度プロファイル・ファイル入力などの UI コントロールを有効にできます。
@@ -76,7 +87,7 @@ Tilia を利用するには、Leaflet の JavaScript と CSS をページに読�
 <div id="map" style="height: 100vh;"></div>
 
 <script type="module">
-  import { createDefaultTiliaApp } from "./Tilia/src/index.js";
+  import { createDefaultTiliaApp } from "./src/index.js";
 
   createDefaultTiliaApp("map", {
     plugins: [
@@ -96,9 +107,11 @@ Tilia を利用するには、Leaflet の JavaScript と CSS をページに読�
 詳細なランタイム API とプラグイン作成ガイドは [docs/API.ja.md](docs/API.ja.md) を参照してください。
 
 
-## Built-in プラグイン
+## プラグイン
 
-すべての built-in プラグイン ID は `tilia-` prefix を持ちます。サードパーティプラグインはベンダー prefix または `x-` prefix を使い、`Tilia/plugins/<plugin-id>/loader.js` に配置します。
+すべての built-in プラグイン ID は `tilia-` prefix を持ちます。サードパーティプラグインはベンダー prefix または `x-` prefix を使い、`plugins/<plugin-id>/loader.js` に配置します。
+
+現在の plugin 読み込み、依存順序、dynamic loading の契約は [docs/PLUGIN-OPERATIONS.ja.md](docs/PLUGIN-OPERATIONS.ja.md) にまとめています。
 
 | ID | 依存 | 説明 |
 |----|------|------|
@@ -107,8 +120,8 @@ Tilia を利用するには、Leaflet の JavaScript と CSS をページに読�
 | `tilia-layers` | `tilia-panel`, `tilia-status` | レイヤー一覧。表示切替・削除・フィット・写真ごとのタイムモード変更が可能 |
 | `tilia-elevation` | `tilia-panel`, `tilia-status` | GPX トラックのインタラクティブな高度プロファイルチャート |
 | `tilia-file-import` | — | `.gpx` / `.jpg` / `.jpeg` を選択できるファイル選択コントロール |
-| `tilia-url-import` | — | HTTP/HTTPS URL から取得する URL 入力コントロール（サーバー側 CORS 許可が必要） |
-| `tilia-settings` | `tilia-panel`, `tilia-status` | 写真タイムスタンプ解釈のデフォルトモード（ローカル / JST / UTC） |
+| `tilia-url-import` | — | HTTP/HTTPS URL から取得する URL 入力コントロール（サーバー側 CORS 許可が必要）。timeout とサイズ上限を設定可能 |
+| `tilia-settings` | `tilia-panel`, `tilia-status` | 写真タイムスタンプ解釈のデフォルトモード（Auto / ローカル / UTC / 固定オフセット） |
 | `tilia-dropzone` | — | 地図全体をドロップ対象にするドラッグ＆ドロップ機能 |
 
 `app.use()` でサードパーティ・カスタムプラグインも追加できます。プラグインの作成にビルドツールは不要です。詳細は [docs/API.ja.md](docs/API.ja.md) を参照。
@@ -116,13 +129,36 @@ Tilia を利用するには、Leaflet の JavaScript と CSS をページに読�
 
 ## 配布・ホスティング
 
-`Tilia/` ディレクトリをそのまま静的ホスティングサービスに配置するだけで動作します。ビルド手順は不要です。
+このリポジトリのルート内容をそのまま静的ホスティングサービスに配置するだけで動作します。ビルド手順は不要です。
 
 必要なコンテンツ: `src` が必須です。必要に応じて `plugins` を同じディレクトリに配備してください。
 
 外部依存は importmap で CDN にピン留めしています。インターネット接続が必要です:
 - [Leaflet 2.0.0-alpha.1](https://unpkg.com/leaflet@2.0.0-alpha.1/) (unpkg)
 - [exifr 7.1.3](https://cdn.jsdelivr.net/npm/exifr@7.1.3/) (jsDelivr)
+
+
+## 信頼モデル
+
+Tilia は完全にブラウザ上で動作します。また、リモートのコードやコンテンツをサンドボックス化しません。
+
+- `app.use("plugin-id")` またはカスタムの `pluginLoader` を通じて読み込まれるサードパーティ製プラグインは、通常のページ JavaScript として実行されます。信頼できるプラグインのみを読み込んでください。
+- `tilia-url-import` プラグインは HTTP/HTTPS 経由でリモートの GPX データを取得しますが、対象サーバーの CORS ポリシーにも依存します。リモート URL は信頼されていない入力として扱い、失敗する可能性があることを前提にしてください。
+- CDN でホストされている依存関係は、ランタイムの信頼境界の一部です。バージョンは意図的に固定し、更新前に変更内容を確認してください。
+
+
+## コントリビュート
+
+バグ報告、ドキュメント修正、機能追加など、プロジェクトへの貢献を歓迎します。  
+コントリビュートの際は、以下のルールに従ってください。
+
+- 振る舞いが大きく変わる提案や新機能の提案は、まず [Discussions](https://github.com/hiroaki/Tilia/discussions) で相談してください。
+- Pull Request は 1 つの関心事に絞ってください。
+- Pull Request は `develop` ブランチ向けに作成してください。
+- テストがすべて通ることを確認してください。
+- コントリビュートされた内容は、このプロジェクトと同じライセンスで提供されるものとします。
+
+リポジトリ固有の開発フロー、テストコマンド、ローカルでの検証手順については、[docs/DEVELOPMENT.ja.md](docs/DEVELOPMENT.ja.md) を参照してください。
 
 
 ## ライセンス

@@ -27,14 +27,14 @@ Creates a Leaflet base map and attaches a Tilia app runtime in one step. This is
 | `pluginUrls` | `object?` | Override loader paths for specific IDs: `{ "x-my-plugin": "./path/loader.js" }` |
 | `pluginLoader` | `function?` | Fully custom async loader: `async (pluginId) => pluginModule` |
 | `baseMapOptions` | `object?` | Passed to `createBaseMap()` (see below) |
-| `defaultPhotoTimeMode` | `"local" \| "jst" \| "utc"` | Default EXIF timestamp interpretation mode for newly loaded photos (default: `"local"`) |
+| `defaultPhotoTimeMode` | `"auto" \| "local" \| "utc" \| string` | Default EXIF timestamp interpretation mode for newly loaded photos (default: `"auto"`). Fixed offsets such as `"+09:00"` are supported. |
 
 **Returns** a [Tilia app instance](#app-instance-api).
 
 **Example**
 
 ```js
-import { createDefaultTiliaApp } from "./Tilia/src/index.js";
+import { createDefaultTiliaApp } from "./src/index.js";
 
 const app = createDefaultTiliaApp("map", {
   plugins: [
@@ -85,7 +85,7 @@ All properties and methods below are available on the object returned by `create
 
 Installs a plugin. The first argument may be:
 
-- A **string ID** — resolves a built-in, or dynamically imports from `Tilia/plugins/<id>/loader.js`
+- A **string ID** — resolves a built-in, or dynamically imports from `plugins/<id>/loader.js`
 - A **plugin object** with `{ id, setup }` (see [Authoring Plugins](#authoring-plugins))
 
 Calling `use()` on an already-installed plugin returns the existing API without reinstalling.
@@ -133,7 +133,7 @@ Processes one GPX file or JPEG image. `input` may be a `File`, a URL string, or 
   1. **EXIF GPS** — used directly when present
   2. **GPX timestamp interpolation** — when EXIF GPS is absent, the EXIF capture timestamp is interpolated against the timeline of all loaded GPX tracks
   3. **Error** — thrown when neither GPS nor a usable timestamp is available in EXIF
-- The timestamp is interpreted according to the current photo time mode (`"local"`, `"jst"`, or `"utc"`)
+- The timestamp is interpreted according to the current photo time mode (`"auto"`, `"local"`, `"utc"`, or a fixed offset such as `"+09:00"`)
 
 > **Note:** GPX routes (`<rte>`) are not currently parsed. Only tracks (`<trk>`) and waypoints (`<wpt>`) are supported.
 
@@ -199,7 +199,7 @@ Install by passing a string ID to `app.use()`, or by listing in `options.plugins
 | `tilia-layers` | `tilia-panel`, `tilia-status` | Layer list in the side panel; per-entry controls for visibility, delete, fit-to-view, and (for inferred-location photos) timestamp mode override |
 | `tilia-elevation` | `tilia-panel`, `tilia-status` | Interactive elevation profile chart in the side panel; hover highlights the corresponding track point on the map |
 | `tilia-file-import` | — | Map control (top-left) with a file picker; accepts `.gpx`, `.jpg`, `.jpeg`; supports multiple files at once |
-| `tilia-url-import` | — | Map control that opens a URL input; fetches via HTTP/HTTPS with CORS; filename inferred from `Content-Disposition` or the URL path |
+| `tilia-url-import` | — | Map control that opens a URL input; fetches via HTTP/HTTPS with CORS; filename inferred from `Content-Disposition` or the URL path; `timeoutMs` aborts slow fetches and `maxBytes` rejects oversized remote files |
 | `tilia-settings` | `tilia-panel`, `tilia-status` | Settings panel with a single control: the default photo timestamp interpretation mode applied to newly loaded photos |
 | `tilia-dropzone` | — | Makes the entire map container a drag-and-drop target; visual highlight shown during drag |
 
@@ -207,37 +207,17 @@ Install by passing a string ID to `app.use()`, or by listing in `options.plugins
 
 | Mode | Behaviour |
 |------|-----------|
-| `local` | Treats the EXIF timestamp as the device's local wall-clock time (no timezone conversion). This is the default. |
-| `jst` | Treats the EXIF timestamp as Japan Standard Time (UTC+9) regardless of the device locale. |
+| `auto` | Tries `local` and `utc`, then keeps the interpretation that best matches the loaded GPX timeline. This is the default for newly loaded non-GPS photos. |
+| `local` | Treats the EXIF timestamp as the device's local wall-clock time (no timezone conversion). |
 | `utc` | Treats the EXIF timestamp as UTC. |
+| `+09:00`-style fixed offset | Treats the EXIF timestamp as a wall-clock time in the given numeric offset. Both `+0900` and `+09:00` forms are accepted. |
 
-> **Dependency order matters.** Install `tilia-panel` and `tilia-status` before any plugin that lists them in `requires`. When using `options.plugins`, list them first — the array order is preserved.
-
-**Example**
-
-```js
-// Explicit, sequential install
-await app.use("tilia-panel");
-await app.use("tilia-status");
-await app.use("tilia-layers");   // OK: dependencies already installed
-
-// Declarative (recommended for startup)
-createDefaultTiliaApp("map", {
-  plugins: [
-    "tilia-panel",
-    "tilia-status",
-    "tilia-layers",
-    "tilia-elevation",
-    "tilia-file-import",
-    "tilia-url-import",
-    "tilia-settings",
-    "tilia-dropzone",
-  ],
-});
-```
+> **Published embed warning.** `auto` depends on the viewer's runtime environment. If a public page infers photo positions from GPX tracks and needs stable results across timezones, set an explicit photo time mode instead of relying on `auto`. Use `utc` or a fixed offset string such as `+09:00`.
 
 
 ## Authoring Plugins
+
+For the current operational contract around `requires`, startup order, built-in vs third-party IDs, and dynamic loading, see [PLUGIN-OPERATIONS.md](PLUGIN-OPERATIONS.md).
 
 A plugin is a plain object with `id` and `setup`:
 
@@ -287,14 +267,13 @@ await app.use(myPlugin);
 
 ### Dynamic loading
 
-String IDs are resolved by default from `Tilia/plugins/<plugin-id>/loader.js`:
+String IDs are resolved by default from `plugins/<plugin-id>/loader.js`:
 
 ```
-Tilia/
-  plugins/
-    x-milestone/
-      loader.js   ← must export a default plugin object,
-                     or a named export whose id matches the plugin ID
+plugins/
+  x-milestone/
+    loader.js   ← must export a default plugin object,
+                   or a named export whose id matches the plugin ID
 ```
 
 **Override a specific URL:**
@@ -317,6 +296,14 @@ createTiliaApp({
   },
 });
 ```
+
+> **Security note:** dynamically loaded plugins run with the same privileges as any other JavaScript on the page. Tilia does not sandbox plugin code.
+
+### Trust and network assumptions
+
+- Remote plugin modules loaded by string ID, `pluginUrls`, or `pluginLoader` are fully trusted code from the browser's point of view.
+- `tilia-url-import` plugin accepts only HTTP/HTTPS, but it still depends on the remote server's CORS policy and availability.
+- CDN dependencies referenced by your importmap are part of the application's runtime trust boundary.
 
 ### Available API inside `setup(app, options)`
 
