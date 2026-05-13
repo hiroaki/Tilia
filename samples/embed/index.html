@@ -257,6 +257,10 @@
 
         if (gpxUrl) {
           await loadIntoApp(app, gpxUrl);
+          const helperEntry = app.state.entries[app.state.entries.length - 1];
+          if (helperEntry?.kind === "gpx") {
+            app.core.setEntryVisibility(helperEntry.id, false);
+          }
         }
 
         const result = await loadIntoApp(app, photoUrl);
