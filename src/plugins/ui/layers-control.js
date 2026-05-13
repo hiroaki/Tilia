@@ -47,7 +47,6 @@ function createPhotoModeField(entry, onModeChange) {
   const select = createSelect([
     { value: "auto", label: "Auto", selected: (entry.requestedPhotoTimeMode || entry.photoTimeMode) === "auto" },
     { value: "local", label: "Local", selected: (entry.requestedPhotoTimeMode || entry.photoTimeMode) === "local" },
-    { value: "jst", label: "JST", selected: (entry.requestedPhotoTimeMode || entry.photoTimeMode) === "jst" },
     { value: "utc", label: "UTC", selected: (entry.requestedPhotoTimeMode || entry.photoTimeMode) === "utc" },
   ], "tilia-layer-mode-select");
   select.addEventListener("change", async () => {

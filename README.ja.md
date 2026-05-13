@@ -77,6 +77,8 @@ Tilia を利用するには、Leaflet の JavaScript と CSS をページに読�
 
 1 ページに複数の地図インスタンスを共存させることもできます。`data-*` 属性でデータを指定するパターンにすれば、CMS テンプレートで同じマークアップを繰り返し利用できます。例は [`samples/embed/index.html`](samples/embed/index.html) を参照してください。
 
+公開ページで GPX タイムラインを使って写真位置を推定する場合は、デフォルトの `auto` に任せるより photo time mode を明示指定する方が安全です。`auto` は閲覧者の実行環境にある `local` または `utc` を使うため、あるタイムゾーンでは正しく見えても、別のタイムゾーンではマーカーを置けないことがあります。公開時は `utc` または `+09:00` のような固定オフセットの指定を推奨します。
+
 ### UI コントロールを追加する
 
 `plugins` リストを渡すと、レイヤーパネル・高度プロファイル・ファイル入力などの UI コントロールを有効にできます。
@@ -117,7 +119,7 @@ Tilia を利用するには、Leaflet の JavaScript と CSS をページに読�
 | `tilia-elevation` | `tilia-panel`, `tilia-status` | GPX トラックのインタラクティブな高度プロファイルチャート |
 | `tilia-file-import` | — | `.gpx` / `.jpg` / `.jpeg` を選択できるファイル選択コントロール |
 | `tilia-url-import` | — | HTTP/HTTPS URL から取得する URL 入力コントロール（サーバー側 CORS 許可が必要）。timeout とサイズ上限を設定可能 |
-| `tilia-settings` | `tilia-panel`, `tilia-status` | 写真タイムスタンプ解釈のデフォルトモード（ローカル / JST / UTC） |
+| `tilia-settings` | `tilia-panel`, `tilia-status` | 写真タイムスタンプ解釈のデフォルトモード（Auto / ローカル / UTC） |
 | `tilia-dropzone` | — | 地図全体をドロップ対象にするドラッグ＆ドロップ機能 |
 
 `app.use()` でサードパーティ・カスタムプラグインも追加できます。プラグインの作成にビルドツールは不要です。詳細は [docs/API.ja.md](docs/API.ja.md) を参照。

@@ -191,4 +191,54 @@ describe("inferPhotoLocationFromGpx", () => {
     expect(result.timeInterpretationMode).toBe("utc");
     expect(result.locationReason).toContain("AUTO");
   });
+
+  it("supports explicit fixed offsets like +09:00", () => {
+    const photo = {
+      name: "photo.jpg",
+      dateTimeOriginal: new MockExifDate(1_700_100_000_000, {
+        year: 2024,
+        month: 0,
+        day: 1,
+        hour: 12,
+        minute: 0,
+        second: 0,
+        ms: 0,
+      }),
+    };
+    const inferredTimestamp = Date.UTC(2024, 0, 1, 3, 0, 0);
+    const sources = [
+      {
+        type: "gpx",
+        trackTimeline: [
+          createTimelinePoint(inferredTimestamp - 60_000, 35.0, 135.0),
+          createTimelinePoint(inferredTimestamp + 60_000, 35.2, 135.2),
+        ],
+      },
+    ];
+
+    const result = inferPhotoLocationFromGpx(sources, photo, { timeInterpretationMode: "+09:00" });
+
+    expect(result.timeInterpretationMode).toBe("+09:00");
+    expect(result.lat).toBeCloseTo(35.1, 6);
+    expect(result.lon).toBeCloseTo(135.1, 6);
+  });
+
+  it("rejects invalid fixed offset strings", () => {
+    const sources = [
+      {
+        type: "gpx",
+        trackTimeline: [
+          createTimelinePoint(Date.UTC(2024, 0, 1, 0, 0, 0), 35.0, 135.0),
+          createTimelinePoint(Date.UTC(2024, 0, 1, 0, 10, 0), 35.1, 135.2),
+        ],
+      },
+    ];
+
+    expect(() => inferPhotoLocationFromGpx(sources, {
+      name: "photo.jpg",
+      dateTimeOriginal: new Date(Date.UTC(2024, 0, 1, 0, 5, 0)),
+    }, {
+      timeInterpretationMode: "+25:00",
+    })).toThrow("Invalid photo time mode");
+  });
 });

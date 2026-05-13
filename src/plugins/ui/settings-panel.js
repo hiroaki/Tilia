@@ -14,7 +14,6 @@ function createTimeModeField({ core, onStatus }) {
   for (const option of [
     { value: "auto", label: "Auto" },
     { value: "local", label: "Local" },
-    { value: "jst", label: "JST" },
     { value: "utc", label: "UTC" },
   ]) {
     const node = document.createElement("option");
