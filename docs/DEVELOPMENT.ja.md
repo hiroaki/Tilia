@@ -31,7 +31,7 @@ Playwright の smoke suite を実行します。
 npm run test:smoke
 ```
 
-smoke test ではローカルの静的サーバーを自動起動し、付属 sample をブラウザで実行して主要フローを確認します。
+smoke test では同梱の Node ベース静的サーバーを自動起動し、付属 sample をブラウザで実行して主要フローを確認します。
 
 現在の smoke coverage は次のとおりです。
 
@@ -51,7 +51,7 @@ sample ページは `file://` ではなく HTTP が必要です。
 手動確認時は、リポジトリ root で次を実行します。
 
 ```bash
-ruby -run -e httpd . -p 8010
+npm run serve -- 8010
 ```
 
 そのうえで次を開きます。

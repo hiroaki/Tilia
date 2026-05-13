@@ -20,8 +20,18 @@ Tilia は、ウェブページに地図を手軽に組み込めるランタイ�
 
 `file://` 直開きはブラウザのセキュリティ制限で動作しないため、ローカル HTTP サーバーが必要です。
 
+リポジトリ root で、次のような静的サーバーを使って起動できます。
+
+```bash
+python3 -m http.server 8010
+```
+
 ```bash
 ruby -run -e httpd . -p 8010
+```
+
+```bash
+npm run serve -- 8010
 ```
 
 付属の viewer を開きます:

@@ -112,6 +112,7 @@ describe("installFileImportPlugin", () => {
   it("processes selected files and clears the input value after change", async () => {
     const listeners = new Map();
     const fileInput = {
+      files: [{ name: "track.gpx" }],
       value: "selected",
       addEventListener: vi.fn((eventName, handler) => {
         listeners.set(eventName, handler);
@@ -138,17 +139,13 @@ describe("installFileImportPlugin", () => {
       onItemLoaded,
     });
 
-    await listeners.get("change")({
-      target: {
-        files: [{ name: "track.gpx" }],
-        value: "selected",
-      },
-    });
+    await listeners.get("change")({ target: fileInput });
 
     expect(onItemLoaded).toHaveBeenCalledWith({ name: "track.gpx", summary: "1 point" });
     expect(onStatus).toHaveBeenCalledWith(
       "Loaded 1 file(s) from file. Total layers: 1. Last: track.gpx (1 point)",
     );
+    expect(fileInput.value).toBe("");
   });
 
   it("does nothing when no input element is provided", () => {

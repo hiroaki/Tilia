@@ -21,8 +21,18 @@ A live demo is available here: [https://hiroaki.github.io/Tilia/samples/](https:
 
 A local HTTP server is required. Direct `file://` access is blocked by browser security restrictions.
 
+You can use any simple static server from the repository root. For example:
+
+```bash
+python3 -m http.server 8010
+```
+
 ```bash
 ruby -run -e httpd . -p 8010
+```
+
+```bash
+npm run serve -- 8010
 ```
 
 Open the ready-made viewer:

@@ -31,7 +31,7 @@ Run the Playwright smoke suite:
 npm run test:smoke
 ```
 
-The smoke tests start a local static server automatically and exercise the bundled samples in a browser.
+The smoke tests start the bundled Node-based static server automatically and exercise the bundled samples in a browser.
 
 Current smoke coverage includes:
 
@@ -51,7 +51,7 @@ The sample pages require HTTP, not `file://`.
 For manual checks, start a local server from the repository root:
 
 ```bash
-ruby -run -e httpd . -p 8010
+npm run serve -- 8010
 ```
 
 Then open:

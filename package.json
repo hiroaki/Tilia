@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "serve": "node scripts/static-server.mjs",
     "test": "vitest run",
     "test:smoke": "playwright test"
   },
