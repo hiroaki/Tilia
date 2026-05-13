@@ -27,7 +27,7 @@ Creates a Leaflet base map and attaches a Tilia app runtime in one step. This is
 | `pluginUrls` | `object?` | Override loader paths for specific IDs: `{ "x-my-plugin": "./path/loader.js" }` |
 | `pluginLoader` | `function?` | Fully custom async loader: `async (pluginId) => pluginModule` |
 | `baseMapOptions` | `object?` | Passed to `createBaseMap()` (see below) |
-| `defaultPhotoTimeMode` | `"local" \| "jst" \| "utc"` | Default EXIF timestamp interpretation mode for newly loaded photos (default: `"local"`) |
+| `defaultPhotoTimeMode` | `"auto" \| "local" \| "utc" \| string` | Default EXIF timestamp interpretation mode for newly loaded photos (default: `"auto"`). Fixed offsets such as `"+09:00"` are supported. |
 
 **Returns** a [Tilia app instance](#app-instance-api).
 
@@ -133,7 +133,7 @@ Processes one GPX file or JPEG image. `input` may be a `File`, a URL string, or 
   1. **EXIF GPS** — used directly when present
   2. **GPX timestamp interpolation** — when EXIF GPS is absent, the EXIF capture timestamp is interpolated against the timeline of all loaded GPX tracks
   3. **Error** — thrown when neither GPS nor a usable timestamp is available in EXIF
-- The timestamp is interpreted according to the current photo time mode (`"local"`, `"jst"`, or `"utc"`)
+- The timestamp is interpreted according to the current photo time mode (`"auto"`, `"local"`, or `"utc"`)
 
 > **Note:** GPX routes (`<rte>`) are not currently parsed. Only tracks (`<trk>`) and waypoints (`<wpt>`) are supported.
 
@@ -207,9 +207,12 @@ Install by passing a string ID to `app.use()`, or by listing in `options.plugins
 
 | Mode | Behaviour |
 |------|-----------|
-| `local` | Treats the EXIF timestamp as the device's local wall-clock time (no timezone conversion). This is the default. |
-| `jst` | Treats the EXIF timestamp as Japan Standard Time (UTC+9) regardless of the device locale. |
+| `auto` | Tries `local` and `utc`, then keeps the interpretation that best matches the loaded GPX timeline. This is the default for newly loaded non-GPS photos. |
+| `local` | Treats the EXIF timestamp as the device's local wall-clock time (no timezone conversion). |
 | `utc` | Treats the EXIF timestamp as UTC. |
+| `+09:00`-style fixed offset | Treats the EXIF timestamp as a wall-clock time in the given numeric offset. Both `+0900` and `+09:00` forms are accepted. |
+
+> **Published embed warning.** `auto` depends on the viewer's runtime environment. If a public page infers photo positions from GPX tracks and needs stable results across timezones, set an explicit photo time mode instead of relying on `auto`. Use `utc` or a fixed offset string such as `+09:00`.
 
 > **Dependency order matters.** Install `tilia-panel` and `tilia-status` before any plugin that lists them in `requires`. When using `options.plugins`, list them first — the array order is preserved.
 
