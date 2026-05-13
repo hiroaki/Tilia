@@ -176,6 +176,79 @@ describe("createTiliaCore", () => {
     });
   });
 
+  it("passes explicit fixed offsets through photo inference", async () => {
+    const photo = {
+      name: "photo.jpg",
+      hasGps: false,
+      dateTimeOriginal: new Date("2024-01-01T00:05:00Z"),
+      previewUrl: "blob:photo-preview",
+    };
+    bootMocks.parsePhotoFile.mockResolvedValue(photo);
+    bootMocks.inferPhotoLocationFromGpx.mockReturnValue({
+      lat: 35.5,
+      lon: 135.5,
+      locationSource: "gpx-time-inference",
+      locationReason: "Interpolated from GPX",
+      inferenceDetail: "between points",
+      timeInterpretationMode: "+09:00",
+    });
+    bootMocks.buildPhotoOverlay.mockReturnValue({
+      layer: createLayer("photo-layer-offset"),
+      interactions: { marker: { id: "marker-offset" } },
+    });
+
+    const core = createTiliaCore({ closePopup: bootMocks.closePopup }, { defaultPhotoTimeMode: "+09:00" });
+
+    const result = await core.registry.dispatch(core.context, { name: "photo.jpg" });
+
+    expect(core.getDefaultPhotoTimeMode()).toBe("+09:00");
+    expect(bootMocks.inferPhotoLocationFromGpx).toHaveBeenCalledWith(core.state.sources, photo, {
+      timeInterpretationMode: "+09:00",
+    });
+    expect(result).toMatchObject({
+      photoTimeMode: "+09:00",
+    });
+    expect(core.state.entries[0]).toMatchObject({
+      requestedPhotoTimeMode: "+09:00",
+      photoTimeMode: "+09:00",
+    });
+  });
+
+  it("defaults non-GPS photo inference to auto mode", async () => {
+    const photo = {
+      name: "photo.jpg",
+      hasGps: false,
+      dateTimeOriginal: new Date("2024-01-01T00:05:00Z"),
+      previewUrl: "blob:photo-preview",
+    };
+    bootMocks.parsePhotoFile.mockResolvedValue(photo);
+    bootMocks.inferPhotoLocationFromGpx.mockReturnValue({
+      lat: 35.5,
+      lon: 135.5,
+      locationSource: "gpx-time-inference",
+      locationReason: "Interpolated from GPX",
+      inferenceDetail: "between points",
+      timeInterpretationMode: "local",
+    });
+    bootMocks.buildPhotoOverlay.mockReturnValue({
+      layer: createLayer("photo-layer-auto"),
+      interactions: { marker: { id: "marker-auto" } },
+    });
+
+    const core = createTiliaCore({ closePopup: bootMocks.closePopup });
+
+    await core.registry.dispatch(core.context, { name: "photo.jpg" });
+
+    expect(core.getDefaultPhotoTimeMode()).toBe("auto");
+    expect(bootMocks.inferPhotoLocationFromGpx).toHaveBeenCalledWith(core.state.sources, photo, {
+      timeInterpretationMode: "auto",
+    });
+    expect(core.state.entries[0]).toMatchObject({
+      requestedPhotoTimeMode: "auto",
+      photoTimeMode: "local",
+    });
+  });
+
   it("updates a non-GPS photo entry when the photo time mode changes", async () => {
     const originalPhoto = {
       name: "photo.jpg",
@@ -224,6 +297,7 @@ describe("createTiliaCore", () => {
     expect(firstOverlay.layer.remove).toHaveBeenCalledTimes(1);
     expect(secondOverlay.layer.addTo).toHaveBeenCalledWith(map);
     expect(bootMocks.fitMapToGroup).toHaveBeenLastCalledWith(map, secondOverlay.layer);
+    expect(updatedEntry.requestedPhotoTimeMode).toBe("utc");
     expect(updatedEntry.photoTimeMode).toBe("utc");
     expect(updatedEntry.source).toMatchObject({ lat: 35.6, lon: 135.6, photoTimeMode: "utc" });
     expect(updatedEntry.layer).toBe(secondOverlay.layer);
