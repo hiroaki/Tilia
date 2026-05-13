@@ -21,8 +21,18 @@ A live demo is available here: [https://hiroaki.github.io/Tilia/samples/](https:
 
 A local HTTP server is required. Direct `file://` access is blocked by browser security restrictions.
 
+You can use any simple static server from the repository root. For example:
+
+```bash
+python3 -m http.server 8010
+```
+
 ```bash
 ruby -run -e httpd . -p 8010
+```
+
+```bash
+npm run serve -- 8010
 ```
 
 Open the ready-made viewer:
@@ -134,6 +144,19 @@ Tilia runs entirely in the browser and does not sandbox remote code or content.
 - Third-party plugins loaded via `app.use("plugin-id")` or a custom `pluginLoader` execute as normal page JavaScript. Only load plugins you trust.
 - `tilia-url-import` plugin fetches remote GPX data over HTTP/HTTPS and still depends on the target server's CORS policy. Treat remote URLs as untrusted input and expect failures.
 - CDN-hosted dependencies are part of the runtime trust boundary. Pin versions deliberately and review changes before updating them.
+
+
+## Contributing
+
+Bug reports, documentation fixes, and feature contributions are welcome. If you want to contribute, please follow these guidelines.
+
+- For larger behavior changes or new features, start the conversation in [Discussions](https://github.com/hiroaki/Tilia/discussions) first.
+- Keep pull requests focused on a single concern.
+- Target the `develop` branch when opening a pull request.
+- Make sure the tests pass before submitting changes.
+- By contributing, you agree that your contribution will be provided under the same license as this project.
+
+For repository-specific development workflows, test commands, and local verification steps, see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
 
 ## License
