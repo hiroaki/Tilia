@@ -133,7 +133,7 @@ Processes one GPX file or JPEG image. `input` may be a `File`, a URL string, or 
   1. **EXIF GPS** — used directly when present
   2. **GPX timestamp interpolation** — when EXIF GPS is absent, the EXIF capture timestamp is interpolated against the timeline of all loaded GPX tracks
   3. **Error** — thrown when neither GPS nor a usable timestamp is available in EXIF
-- The timestamp is interpreted according to the current photo time mode (`"auto"`, `"local"`, or `"utc"`)
+- The timestamp is interpreted according to the current photo time mode (`"auto"`, `"local"`, `"utc"`, or a fixed offset such as `"+09:00"`)
 
 > **Note:** GPX routes (`<rte>`) are not currently parsed. Only tracks (`<trk>`) and waypoints (`<wpt>`) are supported.
 

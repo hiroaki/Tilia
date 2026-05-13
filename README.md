@@ -122,7 +122,7 @@ All built-in plugin IDs are prefixed with `tilia-`. Third-party plugins use a ve
 | `tilia-elevation` | `tilia-panel`, `tilia-status` | Interactive elevation profile chart for GPX tracks |
 | `tilia-file-import` | — | File picker map control; accepts `.gpx` and `.jpg`/`.jpeg` |
 | `tilia-url-import` | — | URL input map control; HTTP/HTTPS only (CORS required on the server), with configurable timeout and size guardrails |
-| `tilia-settings` | `tilia-panel`, `tilia-status` | Default photo timestamp interpretation mode (Auto / Local / UTC) |
+| `tilia-settings` | `tilia-panel`, `tilia-status` | Default photo timestamp interpretation mode (Auto / Local / UTC / Custom offset) |
 | `tilia-dropzone` | — | Drag-and-drop target covering the entire map area |
 
 Third-party and custom plugins can be added via `app.use()`. No build tools are required to use or create plugins. See [docs/API.md](docs/API.md).
