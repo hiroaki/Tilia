@@ -32,29 +32,6 @@ http://localhost:8010/samples/viewer/index.html
 ```
 
 
-## Testing
-
-Install the Node dependencies once before running automated checks.
-
-```bash
-npm install
-```
-
-Run the unit test suite:
-
-```bash
-npm test
-```
-
-Run the browser smoke tests for the bundled samples:
-
-```bash
-npm run test:smoke
-```
-
-The smoke tests start a local static server automatically, open the sample pages in Playwright, and verify the viewer boot flow, file import flow, and embed sample boot flow.
-
-
 ## Usage
 
 ### Leaflet setup
@@ -157,6 +134,19 @@ Tilia runs entirely in the browser and does not sandbox remote code or content.
 - Third-party plugins loaded via `app.use("plugin-id")` or a custom `pluginLoader` execute as normal page JavaScript. Only load plugins you trust.
 - `tilia-url-import` plugin fetches remote GPX data over HTTP/HTTPS and still depends on the target server's CORS policy. Treat remote URLs as untrusted input and expect failures.
 - CDN-hosted dependencies are part of the runtime trust boundary. Pin versions deliberately and review changes before updating them.
+
+
+## Contributing
+
+Bug reports, documentation fixes, and feature contributions are welcome. If you want to contribute, please follow these guidelines.
+
+- For larger behavior changes or new features, start the conversation in [Discussions](https://github.com/hiroaki/Tilia/discussions) first.
+- Keep pull requests focused on a single concern.
+- Target the `develop` branch when opening a pull request.
+- Make sure the tests pass before submitting changes.
+- By contributing, you agree that your contribution will be provided under the same license as this project.
+
+For repository-specific development workflows, test commands, and local verification steps, see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
 
 ## License

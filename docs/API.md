@@ -5,16 +5,6 @@
 The primary entry point for most use cases is [`createDefaultTiliaApp()`](#createdefaulttiliaappcontainer-options).
 
 
-## Verification
-
-For repository-level checks during development:
-
-- Run `npm test` for the Vitest unit suite.
-- Run `npm run test:smoke` for the Playwright smoke checks covering the bundled viewer and embed samples.
-
-The smoke tests start a local static server automatically.
-
-
 ## Factory Functions
 
 ### `createDefaultTiliaApp(container, options?)`

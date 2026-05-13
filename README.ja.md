@@ -31,29 +31,6 @@ http://localhost:8010/samples/viewer/index.html
 ```
 
 
-## テスト
-
-自動テストを実行する前に、一度だけ Node 依存をインストールしてください。
-
-```bash
-npm install
-```
-
-unit test を実行します。
-
-```bash
-npm test
-```
-
-付属 sample の browser smoke test を実行します。
-
-```bash
-npm run test:smoke
-```
-
-smoke test ではローカルの静的サーバーを自動で起動し、Playwright で sample ページを開いて、viewer の起動、file import、embed sample の起動フローを確認します。
-
-
 ## 使い方
 
 ### Leaflet のセットアップ
@@ -154,6 +131,20 @@ Tilia は完全にブラウザ上で動作します。また、リモートの�
 - `app.use("plugin-id")` またはカスタムの `pluginLoader` を通じて読み込まれるサードパーティ製プラグインは、通常のページ JavaScript として実行されます。信頼できるプラグインのみを読み込んでください。
 - `tilia-url-import` プラグインは HTTP/HTTPS 経由でリモートの GPX データを取得しますが、対象サーバーの CORS ポリシーにも依存します。リモート URL は信頼されていない入力として扱い、失敗する可能性があることを前提にしてください。
 - CDN でホストされている依存関係は、ランタイムの信頼境界の一部です。バージョンは意図的に固定し、更新前に変更内容を確認してください。
+
+
+## コントリビュート
+
+バグ報告、ドキュメント修正、機能追加など、プロジェクトへの貢献を歓迎します。  
+コントリビュートの際は、以下のルールに従ってください。
+
+- 振る舞いが大きく変わる提案や新機能の提案は、まず [Discussions](https://github.com/hiroaki/Tilia/discussions) で相談してください。
+- Pull Request は 1 つの関心事に絞ってください。
+- Pull Request は `develop` ブランチ向けに作成してください。
+- テストがすべて通ることを確認してください。
+- コントリビュートされた内容は、このプロジェクトと同じライセンスで提供されるものとします。
+
+リポジトリ固有の開発フロー、テストコマンド、ローカルでの検証手順については、[docs/DEVELOPMENT.ja.md](docs/DEVELOPMENT.ja.md) を参照してください。
 
 
 ## ライセンス
