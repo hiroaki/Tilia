@@ -24,6 +24,15 @@ function appendOption(container, definition, currentDefinition) {
   container.appendChild(optionNode);
 }
 
+function appendPlaceholderOption(container, { value, label }) {
+  const optionNode = document.createElement("option");
+  optionNode.value = value;
+  optionNode.textContent = label;
+  optionNode.selected = true;
+  optionNode.disabled = true;
+  container.appendChild(optionNode);
+}
+
 function groupDefinitionsByProvider(definitions) {
   const groups = [];
   const groupIndexByProvider = new Map();
@@ -51,7 +60,12 @@ export function installBaseMapControl({ map, baseMaps, onStatus = null, position
 
   function hasSelectableAlternative(currentDefinition, options) {
     if (!currentDefinition) {
-      return options.length > 1;
+      return options.length > 0;
+    }
+
+    const currentVisible = options.some((definition) => definition.id === currentDefinition.id);
+    if (!currentVisible) {
+      return options.length > 0;
     }
 
     return options.some((definition) => definition.id !== currentDefinition.id);
@@ -64,7 +78,22 @@ export function installBaseMapControl({ map, baseMaps, onStatus = null, position
 
     const currentDefinition = baseMaps.getCurrent();
     const options = baseMaps.listVisible();
+    const currentVisible = currentDefinition
+      ? options.some((definition) => definition.id === currentDefinition.id)
+      : false;
     selectNode.replaceChildren();
+
+    if (!currentVisible) {
+      appendPlaceholderOption(selectNode, currentDefinition
+        ? {
+          value: `__current__:${currentDefinition.id}`,
+          label: `${currentDefinition.label} (current)`,
+        }
+        : {
+          value: "__placeholder__",
+          label: "Select a base map",
+        });
+    }
 
     for (const group of groupDefinitionsByProvider(options)) {
       if (group.definitions.length === 1) {

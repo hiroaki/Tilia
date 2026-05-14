@@ -90,6 +90,53 @@ describe("base-map control", () => {
     api.render();
 
     expect(lastCreatedSelect.disabled).toBe(false);
+    expect(lastCreatedSelect.children[0]).toEqual(expect.objectContaining({
+      value: "__current__:hidden-current",
+      textContent: "Hidden Current (current)",
+      selected: true,
+      disabled: true,
+    }));
+    expect(lastCreatedSelect.children[1]).toEqual(expect.objectContaining({
+      value: "visible-alt",
+      textContent: "Visible Alternative",
+    }));
+  });
+
+  it("shows a placeholder and keeps the selector enabled when no current base layer is active", () => {
+    const baseMaps = {
+      getCurrent() {
+        return null;
+      },
+      listVisible() {
+        return [{
+          id: "visible-alt",
+          label: "Visible Alternative",
+          provider: "vendor",
+        }];
+      },
+      select: vi.fn(),
+    };
+
+    globalThis.document = {
+      createElement(tagName) {
+        return createFakeElement(tagName);
+      },
+    };
+
+    const api = installBaseMapControl({ map: {}, baseMaps });
+    api.render();
+
+    expect(lastCreatedSelect.disabled).toBe(false);
+    expect(lastCreatedSelect.children[0]).toEqual(expect.objectContaining({
+      value: "__placeholder__",
+      textContent: "Select a base map",
+      selected: true,
+      disabled: true,
+    }));
+    expect(lastCreatedSelect.children[1]).toEqual(expect.objectContaining({
+      value: "visible-alt",
+      textContent: "Visible Alternative",
+    }));
   });
 
   it("disables the selector when there is no selectable alternative", () => {
