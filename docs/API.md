@@ -40,7 +40,9 @@ const app = createDefaultTiliaApp("map", {
   plugins: [
     "tilia-panel",
     "tilia-status",
+    "tilia-base-maps-control",
     "tilia-layers",
+    "x-gsi-base-maps",
   ],
 });
 
@@ -61,9 +63,12 @@ Initializes a Leaflet map with an OpenStreetMap tile layer. Called internally by
 | `zoom` | `number` | `10` | Initial zoom level |
 | `tileUrl` | `string` | `https://tile.openstreetmap.org/{z}/{x}/{y}.png` | Custom tile URL template |
 | `tileOptions` | `object` | — | Leaflet `TileLayer` options (e.g., `attribution`, `maxZoom`) |
+| `baseLayers` | `Array<object>` | OSM only | Base layer definition list. Each entry must include `id` and `url`; may also define `label`, `provider`, `category`, `options`, `attributionLabel`, `isDefault`, and `visibleInSelector` |
+| `selectedBaseLayerId` | `string` | first default entry | Initial active base layer ID |
+| `baseLayerOverrides` | `object` | — | Per-ID override map applied after definitions are loaded: `{ [id]: { label, visibleInSelector, options, ... } }` |
 | `mapOptions` | `object` | — | Leaflet `Map` constructor options |
 
-**Returns** `{ map: L.Map, tileLayer: L.TileLayer }`
+**Returns** `{ map: L.Map, tileLayer: L.TileLayer, baseLayer, baseLayers, baseLayerManager }`
 
 ### `createTiliaApp({ map, ...options })`
 
@@ -73,6 +78,10 @@ Low-level factory for callers that already own a Leaflet map instance. Accepts t
 |------|------|-------------|
 | `map` | `L.Map` | **Required.** Existing Leaflet map to attach to |
 | `tileLayer` | `L.TileLayer?` | Base tile layer to associate with this app |
+| `baseLayer` | `object?` | Current base layer definition associated with this app |
+| `baseLayers` | `Array<object>?` | Base layer definitions to register into the runtime manager |
+| `selectedBaseLayerId` | `string?` | Initial active base layer ID when registering definitions |
+| `baseLayerOverrides` | `object?` | Per-ID override map applied to built-in and plugin-registered base layer definitions |
 
 
 ## App Instance API
@@ -112,9 +121,26 @@ app.whenReady().then(() => app.load(myFile));
 | Member | Returns | Description |
 |--------|---------|-------------|
 | `app.map` | `L.Map` | The underlying Leaflet map instance |
+| `app.baseMaps` | `object` | Base layer catalog facade for listing, registering, and selecting base maps |
 | `getMap()` | `L.Map` | Same as `app.map` |
 | `getBaseLayer()` | `L.TileLayer` | The base tile layer |
 | `getBaseMap()` | `{ map, tileLayer }` | Both |
+
+#### `app.baseMaps`
+
+The base-map service is available directly as `app.baseMaps` and is also published to other plugins as `app.services["tilia-base-maps"]`.
+
+| Member | Returns | Description |
+|--------|---------|-------------|
+| `list()` | `Array<object>` | All registered base layer definitions |
+| `listVisible()` | `Array<object>` | Definitions whose `visibleInSelector !== false` |
+| `get(id)` | `object \| null` | One definition by ID |
+| `has(id)` | `boolean` | Whether a definition is registered |
+| `getCurrent()` | `object \| null` | Current base layer definition |
+| `getCurrentLayer()` | `L.TileLayer \| null` | Current active Leaflet tile layer |
+| `register(definition)` | `object` | Register one base layer definition |
+| `registerMany(definitions)` | `Array<object>` | Register multiple base layer definitions |
+| `select(id)` | `{ definition, layer }` | Switch the active base layer |
 
 ### Data loading
 
@@ -196,6 +222,7 @@ Install by passing a string ID to `app.use()`, or by listing in `options.plugins
 |----|----------|-------------|
 | `tilia-panel` | — | Side panel container rendered inside the map area; used by layers, elevation, and settings plugins |
 | `tilia-status` | — | Status bar in the bottom-left corner of the map; shows load results and errors |
+| `tilia-base-maps-control` | — | Base map selector control; shows visible entries from `app.baseMaps`, grouped by provider when applicable |
 | `tilia-layers` | `tilia-panel`, `tilia-status` | Layer list in the side panel; per-entry controls for visibility, delete, fit-to-view, and (for inferred-location photos) timestamp mode override |
 | `tilia-elevation` | `tilia-panel`, `tilia-status` | Interactive elevation profile chart in the side panel; hover highlights the corresponding track point on the map |
 | `tilia-file-import` | — | Map control (top-left) with a file picker; accepts `.gpx`, `.jpg`, `.jpeg`; supports multiple files at once |
@@ -331,6 +358,7 @@ app.provide(name, service)
 // Read services published by other plugins
 app.services["tilia-panel"]   // { openPanel, closePanel, togglePanel, rerenderPanel, isOpen }
 app.services["tilia-status"]  // { setStatus }
+app.services["tilia-base-maps"]  // same object as app.baseMaps
 ```
 
 

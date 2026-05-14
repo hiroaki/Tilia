@@ -20,12 +20,18 @@ vi.mock("../src/builtins.js", () => ({
   builtins: {},
 }));
 
-vi.mock("../src/map/base.js", () => ({
-  createBaseMap: vi.fn(() => ({
-    map: {},
-    tileLayer: null,
-  })),
-}));
+vi.mock("../src/map/base.js", async () => {
+  const actual = await vi.importActual("../src/map/base.js");
+  return {
+    ...actual,
+    createBaseMap: vi.fn(() => ({
+      map: {},
+      tileLayer: null,
+      baseLayer: null,
+      baseLayers: [],
+    })),
+  };
+});
 
 vi.mock("../src/map/controls.js", () => ({
   createButton: vi.fn(),
@@ -165,7 +171,16 @@ describe("createTiliaApp plugin lifecycle", () => {
     };
     const map = { name: "default-map" };
     const tileLayer = { name: "default-tile" };
-    createBaseMap.mockReturnValueOnce({ map, tileLayer });
+    const baseLayer = {
+      id: "osm",
+      label: "OpenStreetMap",
+      provider: "osm",
+      category: "street",
+      url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+      visibleInSelector: true,
+    };
+    const baseLayers = [baseLayer];
+    createBaseMap.mockReturnValueOnce({ map, tileLayer, baseLayer, baseLayers });
 
     const app = createDefaultTiliaApp("map-root", {
       builtins,
@@ -179,6 +194,163 @@ describe("createTiliaApp plugin lifecycle", () => {
     expect(app.getMap()).toBe(map);
     expect(app.getBaseLayer()).toBe(tileLayer);
     expect(app.getBaseMap()).toEqual({ map, tileLayer });
+  });
+
+  it("uses one merged baseLayerOverrides map for initial creation and plugin-registered entries", async () => {
+    const baseLayer = {
+      id: "osm",
+      label: "OpenStreetMap",
+      provider: "osm",
+      category: "street",
+      url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+      visibleInSelector: true,
+    };
+    const map = {
+      addLayer: vi.fn(),
+    };
+    createBaseMap.mockReturnValueOnce({
+      map,
+      tileLayer: null,
+      baseLayer,
+      baseLayers: [baseLayer],
+    });
+    const app = createDefaultTiliaApp("map-root", {
+      builtins: {},
+      baseMapOptions: {
+        baseLayerOverrides: {
+          "vendor-street": {
+            label: "Vendor Street Custom",
+            options: { maxZoom: 17 },
+          },
+        },
+      },
+      baseLayerOverrides: {
+        "vendor-street": {
+          visibleInSelector: false,
+          options: { minZoom: 4 },
+        },
+      },
+    });
+
+    await app.use({
+      id: "vendor-base-map-provider",
+      setup(runtimeApp) {
+        runtimeApp.baseMaps.register({
+          id: "vendor-street",
+          label: "Vendor Street",
+          provider: "vendor",
+          category: "street",
+          url: "https://example.com/street/{z}/{x}/{y}.png",
+          visibleInSelector: true,
+        });
+      },
+    });
+
+    expect(createBaseMap).toHaveBeenCalledWith("map-root", {
+      baseLayerOverrides: {
+        "vendor-street": {
+          label: "Vendor Street Custom",
+          visibleInSelector: false,
+          options: {
+            maxZoom: 17,
+            minZoom: 4,
+          },
+        },
+      },
+    });
+    expect(app.baseMaps.get("vendor-street")).toEqual(expect.objectContaining({
+      id: "vendor-street",
+      label: "Vendor Street Custom",
+      visibleInSelector: false,
+      options: expect.objectContaining({
+        maxZoom: 17,
+        minZoom: 4,
+      }),
+    }));
+  });
+
+  it("publishes a base-map service and facade on the app", () => {
+    const app = createTiliaApp({ map: {}, builtins: {} });
+
+    expect(app.baseMaps).toBe(app.services["tilia-base-maps"]);
+    expect(app.baseMaps.list()).toEqual([]);
+    expect(app.baseMaps.getCurrent()).toBeNull();
+  });
+
+  it("lets plugins contribute base-map definitions through the public facade", async () => {
+    const refreshHandler = vi.fn();
+    const plugin = {
+      id: "vendor-base-map-provider",
+      setup(app) {
+        app.baseMaps.registerMany([
+          {
+            id: "vendor-street",
+            label: "Vendor Street",
+            provider: "vendor",
+            category: "street",
+            url: "https://example.com/street/{z}/{x}/{y}.png",
+          },
+          {
+            id: "vendor-hidden",
+            label: "Vendor Hidden",
+            provider: "vendor",
+            category: "street",
+            url: "https://example.com/hidden/{z}/{x}/{y}.png",
+            visibleInSelector: false,
+          },
+        ]);
+        return { registered: true };
+      },
+    };
+    const app = createTiliaApp({ map: {}, builtins: {} });
+    app.addRefreshHandler(refreshHandler);
+
+    await app.use(plugin);
+
+    expect(app.baseMaps.list().map((definition) => definition.id)).toEqual([
+      "vendor-street",
+      "vendor-hidden",
+    ]);
+    expect(app.baseMaps.listVisible().map((definition) => definition.id)).toEqual([
+      "vendor-street",
+    ]);
+    expect(refreshHandler).toHaveBeenCalledTimes(1);
+  });
+
+  it("applies configured base-layer overrides to plugin-contributed definitions", async () => {
+    const plugin = {
+      id: "vendor-base-map-provider",
+      setup(app) {
+        app.baseMaps.register({
+          id: "vendor-street",
+          label: "Vendor Street",
+          provider: "vendor",
+          category: "street",
+          url: "https://example.com/street/{z}/{x}/{y}.png",
+          visibleInSelector: true,
+        });
+        return { registered: true };
+      },
+    };
+    const app = createTiliaApp({
+      map: {},
+      builtins: {},
+      baseLayerOverrides: {
+        "vendor-street": {
+          label: "Vendor Street Hidden",
+          visibleInSelector: false,
+        },
+      },
+    });
+
+    await app.use(plugin);
+
+    expect(app.baseMaps.get("vendor-street")).toEqual(expect.objectContaining({
+      id: "vendor-street",
+      label: "Vendor Street Hidden",
+      visibleInSelector: false,
+    }));
+    expect(app.baseMaps.listVisible()).toEqual([]);
   });
 
   it("rejects plugins whose required dependency is not installed", async () => {

@@ -96,12 +96,15 @@ Pass a `plugins` list to enable UI controls, the layer panel, elevation chart, a
     plugins: [
       "tilia-panel",
       "tilia-status",
+      "tilia-base-maps-control",
       "tilia-layers",
       "tilia-elevation",
       "tilia-file-import",
       "tilia-url-import",
       "tilia-settings",
       "tilia-dropzone",
+      "x-gsi-base-maps",
+      "x-opentopomap-base-maps",
     ],
   });
 </script>
@@ -120,6 +123,7 @@ The current plugin loading, dependency-order, and dynamic-loading contract is su
 |----|----------|-------------|
 | `tilia-panel` | — | Side panel container; required by layers, elevation, and settings |
 | `tilia-status` | — | Status bar inside the panel |
+| `tilia-base-maps-control` | — | Base map selector control; lists visible entries from `app.baseMaps` |
 | `tilia-layers` | `tilia-panel`, `tilia-status` | Layer list with visibility toggle, delete, fit-to-view, and per-photo time mode |
 | `tilia-elevation` | `tilia-panel`, `tilia-status` | Interactive elevation profile chart for GPX tracks |
 | `tilia-file-import` | — | File picker map control; accepts `.gpx` and `.jpg`/`.jpeg` |

@@ -32,7 +32,7 @@ Plugin IDs must follow these rules:
 - the `tilia-` namespace is reserved for built-in plugins
 - third-party plugins must include a prefix and at least one hyphen, for example `x-milestone` or `acme-heatmap`
 
-Built-in plugins are resolved from the built-in registry first. If a string ID is not built-in, Tilia treats it as a dynamically loaded third-party plugin.
+Built-in plugins are resolved from the built-in registry first. If a string ID is not built-in, Tilia treats it as a dynamically loaded third-party plugin. Current examples include `x-gsi-base-maps` and `x-opentopomap-base-maps`.
 
 ## `requires` semantics
 

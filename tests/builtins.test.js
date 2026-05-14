@@ -5,6 +5,7 @@ const builtinMocks = vi.hoisted(() => ({
   installFileImportControl: vi.fn(),
   installUrlImportControl: vi.fn(),
   installElevationPanelControl: vi.fn(),
+  installBaseMapControl: vi.fn(),
   installLayersControl: vi.fn(),
   installPanelPlugin: vi.fn(),
   installSettingsPanelControl: vi.fn(),
@@ -27,6 +28,10 @@ vi.mock("../src/plugins/ui/elevation-panel.js", () => ({
   installElevationPanelControl: builtinMocks.installElevationPanelControl,
 }));
 
+vi.mock("../src/plugins/ui/base-map-control.js", () => ({
+  installBaseMapControl: builtinMocks.installBaseMapControl,
+}));
+
 vi.mock("../src/plugins/ui/layers-control.js", () => ({
   installLayersControl: builtinMocks.installLayersControl,
 }));
@@ -44,6 +49,7 @@ vi.mock("../src/plugins/ui/status-control.js", () => ({
 }));
 
 import {
+  baseMaps,
   builtins,
   dropzone,
   elevation,
@@ -66,6 +72,7 @@ function createAppStub(overrides = {}) {
     services: {
       "tilia-panel": { id: "panel-service" },
     },
+    baseMaps: { id: "base-maps-service" },
     setStatus: vi.fn(),
     setError: vi.fn(),
     refreshView: vi.fn(),
@@ -82,6 +89,7 @@ describe("built-in plugins", () => {
   it("exposes canonical aliases for each built-in plugin", () => {
     expect(builtins.panel).toBe(panel);
     expect(builtins.status).toBe(status);
+    expect(builtins.baseMaps).toBe(baseMaps);
     expect(builtins.layers).toBe(layers);
     expect(builtins.elevation).toBe(elevation);
     expect(builtins.fileImport).toBe(fileImport);
@@ -90,6 +98,7 @@ describe("built-in plugins", () => {
     expect(builtins.dropzone).toBe(dropzone);
     expect(builtins["tilia-panel"]).toBe(panel);
     expect(builtins["tilia-status"]).toBe(status);
+    expect(builtins["tilia-base-maps-control"]).toBe(baseMaps);
     expect(builtins["tilia-layers"]).toBe(layers);
     expect(builtins["tilia-elevation"]).toBe(elevation);
     expect(builtins["tilia-file-import"]).toBe(fileImport);
@@ -101,14 +110,23 @@ describe("built-in plugins", () => {
   it("wires panel and status installers directly from the app map", () => {
     const panelApi = { id: "panel-api" };
     const statusApi = { id: "status-api" };
+    const baseMapsApi = { render: vi.fn() };
     const app = createAppStub({ map: { id: "map" } });
     builtinMocks.installPanelPlugin.mockReturnValue(panelApi);
     builtinMocks.installStatusControl.mockReturnValue(statusApi);
+    builtinMocks.installBaseMapControl.mockReturnValue(baseMapsApi);
 
     expect(panel.setup(app)).toBe(panelApi);
     expect(status.setup(app)).toBe(statusApi);
+    expect(baseMaps.setup(app)).toBe(baseMapsApi);
     expect(builtinMocks.installPanelPlugin).toHaveBeenCalledWith({ map: app.map });
     expect(builtinMocks.installStatusControl).toHaveBeenCalledWith({ map: app.map });
+    expect(builtinMocks.installBaseMapControl).toHaveBeenCalledWith({
+      map: app.map,
+      baseMaps: app.baseMaps,
+      onStatus: app.setStatus,
+    });
+    expect(baseMapsApi.render).toHaveBeenCalledTimes(1);
   });
 
   it("wires layers and elevation plugins with panel dependencies and refresh hooks", () => {
