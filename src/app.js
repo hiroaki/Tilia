@@ -157,6 +157,7 @@ export function createTiliaApp({ map, builtins = defaultBuiltins, ...options } =
     currentLayer: options.tileLayer || null,
     currentDefinition: options.baseLayer || null,
     selectedBaseLayerId: options.selectedBaseLayerId || null,
+    overrides: options.baseLayerOverrides || null,
   });
   const services = Object.create(null);
   const plugins = new Map();

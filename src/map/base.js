@@ -44,29 +44,30 @@ export const defaultBaseLayerDefinitions = Object.freeze([
   }),
 ]);
 
+function applyBaseLayerOverride(definition, override) {
+  if (!override || typeof override !== "object") {
+    return definition;
+  }
+
+  return {
+    ...definition,
+    ...override,
+    id: definition.id,
+    options: override.options && typeof override.options === "object"
+      ? {
+        ...(definition.options && typeof definition.options === "object" ? definition.options : {}),
+        ...override.options,
+      }
+      : definition.options,
+  };
+}
+
 function applyBaseLayerOverrides(definitions, overrides) {
   if (!overrides || typeof overrides !== "object") {
     return definitions;
   }
 
-  return definitions.map((definition) => {
-    const override = overrides[definition.id];
-    if (!override || typeof override !== "object") {
-      return definition;
-    }
-
-    return {
-      ...definition,
-      ...override,
-      id: definition.id,
-      options: override.options && typeof override.options === "object"
-        ? {
-          ...(definition.options && typeof definition.options === "object" ? definition.options : {}),
-          ...override.options,
-        }
-        : definition.options,
-    };
-  });
+  return definitions.map((definition) => applyBaseLayerOverride(definition, overrides[definition.id]));
 }
 
 function cloneBaseLayerDefinition(definition) {
@@ -132,6 +133,7 @@ export function createBaseLayerManager({
   currentLayer = null,
   currentDefinition = null,
   selectedBaseLayerId = null,
+  overrides = null,
 } = {}) {
   if (!map) {
     throw new Error("createBaseLayerManager requires a Leaflet map");
@@ -139,10 +141,14 @@ export function createBaseLayerManager({
 
   const registry = new Map();
   let activeLayer = currentLayer;
-  let activeDefinition = currentDefinition ? normalizeBaseLayerDefinition(currentDefinition) : null;
+  let activeDefinition = currentDefinition
+    ? normalizeBaseLayerDefinition(applyBaseLayerOverride(currentDefinition, overrides?.[currentDefinition.id]))
+    : null;
 
   function register(definition) {
-    const normalized = normalizeBaseLayerDefinition(definition);
+    const normalized = normalizeBaseLayerDefinition(
+      applyBaseLayerOverride(definition, overrides?.[definition.id]),
+    );
     registry.set(normalized.id, normalized);
     return cloneBaseLayerDefinition(normalized);
   }
