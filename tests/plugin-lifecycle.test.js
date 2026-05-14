@@ -196,6 +196,79 @@ describe("createTiliaApp plugin lifecycle", () => {
     expect(app.getBaseMap()).toEqual({ map, tileLayer });
   });
 
+  it("uses one merged baseLayerOverrides map for initial creation and plugin-registered entries", async () => {
+    const baseLayer = {
+      id: "osm",
+      label: "OpenStreetMap",
+      provider: "osm",
+      category: "street",
+      url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+      visibleInSelector: true,
+    };
+    const map = {
+      addLayer: vi.fn(),
+    };
+    createBaseMap.mockReturnValueOnce({
+      map,
+      tileLayer: null,
+      baseLayer,
+      baseLayers: [baseLayer],
+    });
+    const app = createDefaultTiliaApp("map-root", {
+      builtins: {},
+      baseMapOptions: {
+        baseLayerOverrides: {
+          "vendor-street": {
+            label: "Vendor Street Custom",
+            options: { maxZoom: 17 },
+          },
+        },
+      },
+      baseLayerOverrides: {
+        "vendor-street": {
+          visibleInSelector: false,
+          options: { minZoom: 4 },
+        },
+      },
+    });
+
+    await app.use({
+      id: "vendor-base-map-provider",
+      setup(runtimeApp) {
+        runtimeApp.baseMaps.register({
+          id: "vendor-street",
+          label: "Vendor Street",
+          provider: "vendor",
+          category: "street",
+          url: "https://example.com/street/{z}/{x}/{y}.png",
+          visibleInSelector: true,
+        });
+      },
+    });
+
+    expect(createBaseMap).toHaveBeenCalledWith("map-root", {
+      baseLayerOverrides: {
+        "vendor-street": {
+          label: "Vendor Street Custom",
+          visibleInSelector: false,
+          options: {
+            maxZoom: 17,
+            minZoom: 4,
+          },
+        },
+      },
+    });
+    expect(app.baseMaps.get("vendor-street")).toEqual(expect.objectContaining({
+      id: "vendor-street",
+      label: "Vendor Street Custom",
+      visibleInSelector: false,
+      options: expect.objectContaining({
+        maxZoom: 17,
+        minZoom: 4,
+      }),
+    }));
+  });
+
   it("publishes a base-map service and facade on the app", () => {
     const app = createTiliaApp({ map: {}, builtins: {} });
 

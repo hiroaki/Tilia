@@ -126,6 +126,72 @@ describe("base-map runtime", () => {
     expect(manager.getCurrent()).toEqual(expect.objectContaining({ id: "gsi-std" }));
   });
 
+  it("derives the current definition from selectedBaseLayerId when an existing layer is already attached", () => {
+    const existingLayer = { id: "existing-layer" };
+    const manager = createBaseLayerManager({
+      map: { id: "map" },
+      currentLayer: existingLayer,
+      selectedBaseLayerId: "gsi-std",
+      definitions: [
+        {
+          id: "osm",
+          label: "OpenStreetMap",
+          provider: "osm",
+          category: "street",
+          url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+          isDefault: true,
+        },
+        {
+          id: "gsi-std",
+          label: "GSI Standard",
+          provider: "gsi",
+          category: "street",
+          url: "https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png",
+        },
+      ],
+    });
+
+    expect(manager.getCurrentLayer()).toBe(existingLayer);
+    expect(manager.getCurrent()).toEqual(expect.objectContaining({ id: "gsi-std" }));
+  });
+
+  it("creates the missing tile layer when only the current definition is provided", () => {
+    const manager = createBaseLayerManager({
+      map: { id: "map" },
+      currentDefinition: {
+        id: "gsi-std",
+        label: "GSI Standard",
+        provider: "gsi",
+        category: "street",
+        url: "https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png",
+      },
+      definitions: [
+        {
+          id: "gsi-std",
+          label: "GSI Standard",
+          provider: "gsi",
+          category: "street",
+          url: "https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png",
+        },
+      ],
+    });
+
+    expect(manager.getCurrent()).toEqual(expect.objectContaining({ id: "gsi-std" }));
+    expect(manager.getCurrentLayer()).toEqual(expect.objectContaining({
+      url: "https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png",
+    }));
+    expect(manager.getCurrentLayer().addTo).toHaveBeenCalledWith({ id: "map" });
+  });
+
+  it("throws the intended validation error for non-object registrations", () => {
+    const manager = createBaseLayerManager({
+      map: { id: "map" },
+      definitions: [],
+    });
+
+    expect(() => manager.register(null)).toThrow("Base layer definitions must be objects");
+  });
+
   it("keeps hidden definitions out of selector lists without removing them from the catalog", () => {
     const manager = createBaseLayerManager({
       map: { id: "map" },

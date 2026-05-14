@@ -10,6 +10,7 @@ test("viewer base-map selector switches the active base layer", async ({ page })
 
   const selector = page.locator(".tilia-base-map-control .tilia-base-map-select");
   await expect(selector).toBeVisible();
+  await expect(selector.locator("option")).toHaveCount(4);
 
   const optionLabels = await selector.locator("option").evaluateAll((nodes) =>
     nodes.map((node) => node.textContent),

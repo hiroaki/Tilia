@@ -143,6 +143,44 @@ function normalizeConfiguredPlugin(entry, pluginOptionsMap) {
   throw new Error("Configured plugins must be a string, [plugin, options], or { plugin, options }");
 }
 
+function mergeBaseLayerOverrides(baseMapOverrides, appOverrides) {
+  const sources = [baseMapOverrides, appOverrides].filter((value) => value && typeof value === "object");
+  if (sources.length === 0) {
+    return null;
+  }
+
+  const merged = {};
+  for (const source of sources) {
+    for (const [id, override] of Object.entries(source)) {
+      if (!override || typeof override !== "object") {
+        merged[id] = override;
+        continue;
+      }
+
+      const previous = merged[id];
+      const previousOptions = previous && typeof previous === "object" && previous.options && typeof previous.options === "object"
+        ? previous.options
+        : null;
+      const nextOptions = override.options && typeof override.options === "object"
+        ? override.options
+        : null;
+
+      merged[id] = {
+        ...(previous && typeof previous === "object" ? previous : {}),
+        ...override,
+        options: previousOptions || nextOptions
+          ? {
+            ...(previousOptions || {}),
+            ...(nextOptions || {}),
+          }
+          : override.options,
+      };
+    }
+  }
+
+  return merged;
+}
+
 // Low-level factory for callers that already own a Leaflet map instance.
 export function createTiliaApp({ map, builtins = defaultBuiltins, ...options } = {}) {
   if (!map) {
@@ -363,13 +401,21 @@ export function createDefaultTiliaApp(container, options = {}) {
     baseMapOptions = {},
     ...appOptions
   } = options;
-  const baseMap = createBaseMap(container, baseMapOptions);
+  const baseLayerOverrides = mergeBaseLayerOverrides(baseMapOptions.baseLayerOverrides, appOptions.baseLayerOverrides);
+  const resolvedBaseMapOptions = baseLayerOverrides
+    ? {
+      ...baseMapOptions,
+      baseLayerOverrides,
+    }
+    : baseMapOptions;
+  const baseMap = createBaseMap(container, resolvedBaseMapOptions);
   return createTiliaApp({
     ...appOptions,
     builtins,
     map: baseMap.map,
     baseLayer: baseMap.baseLayer,
     baseLayers: baseMap.baseLayers,
+    baseLayerOverrides,
     selectedBaseLayerId: baseMap.baseLayer?.id || null,
     tileLayer: baseMap.tileLayer,
   });

@@ -44,6 +44,15 @@ function applyBaseLayerOverrides(definitions, overrides) {
   return definitions.map((definition) => applyBaseLayerOverride(definition, overrides[definition.id]));
 }
 
+function getBaseLayerOverride(overrides, definition) {
+  if (!overrides || typeof overrides !== "object" || !definition || typeof definition !== "object") {
+    return null;
+  }
+
+  const id = typeof definition.id === "string" ? definition.id.trim() : "";
+  return id ? overrides[id] : null;
+}
+
 function cloneBaseLayerDefinition(definition) {
   if (!definition) {
     return null;
@@ -116,12 +125,12 @@ export function createBaseLayerManager({
   const registry = new Map();
   let activeLayer = currentLayer;
   let activeDefinition = currentDefinition
-    ? normalizeBaseLayerDefinition(applyBaseLayerOverride(currentDefinition, overrides?.[currentDefinition.id]))
+    ? normalizeBaseLayerDefinition(applyBaseLayerOverride(currentDefinition, getBaseLayerOverride(overrides, currentDefinition)))
     : null;
 
   function register(definition) {
     const normalized = normalizeBaseLayerDefinition(
-      applyBaseLayerOverride(definition, overrides?.[definition.id]),
+      applyBaseLayerOverride(definition, getBaseLayerOverride(overrides, definition)),
     );
     registry.set(normalized.id, normalized);
     return cloneBaseLayerDefinition(normalized);
@@ -182,14 +191,30 @@ export function createBaseLayerManager({
 
   registerMany(definitions);
 
-  if (!activeDefinition && !activeLayer) {
-    const initialBaseLayerId = selectedBaseLayerId
-      || Array.from(registry.values()).find((definition) => definition.isDefault)?.id
-      || registry.keys().next().value
-      || null;
+  const initialBaseLayerId = selectedBaseLayerId
+    || activeDefinition?.id
+    || Array.from(registry.values()).find((definition) => definition.isDefault)?.id
+    || registry.keys().next().value
+    || null;
 
-    if (initialBaseLayerId) {
-      select(initialBaseLayerId);
+  if (!activeDefinition && initialBaseLayerId) {
+    activeDefinition = registry.get(initialBaseLayerId) || null;
+  }
+
+  if (!activeLayer && activeDefinition) {
+    const nextLayer = createTileLayer(activeDefinition);
+    nextLayer.addTo(map);
+    activeLayer = nextLayer;
+  }
+
+  if (!activeDefinition && !activeLayer && initialBaseLayerId) {
+    select(initialBaseLayerId);
+  }
+
+  if (!activeDefinition && activeLayer && selectedBaseLayerId) {
+    const selectedDefinition = registry.get(selectedBaseLayerId);
+    if (selectedDefinition) {
+      activeDefinition = selectedDefinition;
     }
   }
 
