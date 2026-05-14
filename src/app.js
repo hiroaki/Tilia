@@ -1,7 +1,7 @@
 import { createTiliaCore } from "./core/boot.js";
 import { setError as setStateError } from "./core/state.js";
 import { builtins as defaultBuiltins } from "./builtins.js";
-import { createBaseMap } from "./map/base.js";
+import { createBaseLayerManager, createBaseMap } from "./map/base.js";
 import { createButton, createPanel, createSelect, installMapControl } from "./map/controls.js";
 
 function isPluginObject(value) {
@@ -150,10 +150,14 @@ export function createTiliaApp({ map, builtins = defaultBuiltins, ...options } =
   }
 
   const core = createTiliaCore(map, options);
-  const baseMap = {
+  const baseMap = { map };
+  const baseLayerManager = createBaseLayerManager({
     map,
-    tileLayer: options.tileLayer || null,
-  };
+    definitions: Array.isArray(options.baseLayers) ? options.baseLayers : [],
+    currentLayer: options.tileLayer || null,
+    currentDefinition: options.baseLayer || null,
+    selectedBaseLayerId: options.selectedBaseLayerId || null,
+  });
   const services = Object.create(null);
   const plugins = new Map();
   const pendingPlugins = new Map();
@@ -163,10 +167,51 @@ export function createTiliaApp({ map, builtins = defaultBuiltins, ...options } =
   const configuredPluginOptions = options.pluginOptions && typeof options.pluginOptions === "object"
     ? options.pluginOptions
     : null;
+  let appRef = null;
+
+  const baseMaps = {
+    list() {
+      return baseLayerManager.list();
+    },
+    listVisible() {
+      return baseLayerManager.listVisible();
+    },
+    get(id) {
+      return baseLayerManager.get(id);
+    },
+    has(id) {
+      return baseLayerManager.has(id);
+    },
+    getCurrent() {
+      return baseLayerManager.getCurrent();
+    },
+    getCurrentLayer() {
+      return baseLayerManager.getCurrentLayer();
+    },
+    register(definition) {
+      const registered = baseLayerManager.register(definition);
+      appRef?.refreshView();
+      return registered;
+    },
+    registerMany(definitions) {
+      const registered = baseLayerManager.registerMany(definitions);
+      appRef?.refreshView();
+      return registered;
+    },
+    select(id) {
+      const selection = baseLayerManager.select(id);
+      if (appRef) {
+        appRef.tileLayer = selection.layer;
+        appRef.refreshView();
+      }
+      return selection;
+    },
+  };
 
   const app = {
     map,
-    tileLayer: baseMap.tileLayer,
+    tileLayer: baseLayerManager.getCurrentLayer(),
+    baseMaps,
     core,
     state: core.state,
     registry: core.registry,
@@ -185,11 +230,14 @@ export function createTiliaApp({ map, builtins = defaultBuiltins, ...options } =
     },
     // Expose the current base tile layer without leaking internal storage shape.
     getBaseLayer() {
-      return baseMap.tileLayer;
+      return baseLayerManager.getCurrentLayer();
     },
     // Return the full base-map bundle created or attached to this app.
     getBaseMap() {
-      return { ...baseMap };
+      return {
+        ...baseMap,
+        tileLayer: baseLayerManager.getCurrentLayer(),
+      };
     },
     // Plugins can publish shared services here for other plugins to consume.
     provide(name, service) {
@@ -285,6 +333,8 @@ export function createTiliaApp({ map, builtins = defaultBuiltins, ...options } =
       return record.api;
     },
   };
+  appRef = app;
+  app.provide("tilia-base-maps", baseMaps);
 
   // `plugins: [...]` is a bootstrap convenience only. The real installation path remains `app.use(...)`
   // so startup sugar does not fork the plugin lifecycle or create a second implementation path.
@@ -317,6 +367,9 @@ export function createDefaultTiliaApp(container, options = {}) {
     ...appOptions,
     builtins,
     map: baseMap.map,
+    baseLayer: baseMap.baseLayer,
+    baseLayers: baseMap.baseLayers,
+    selectedBaseLayerId: baseMap.baseLayer?.id || null,
     tileLayer: baseMap.tileLayer,
   });
 }

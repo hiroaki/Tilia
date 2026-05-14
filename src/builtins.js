@@ -2,6 +2,7 @@ import { installDropzonePlugin } from "./plugins/input/dropzone.js";
 import { installFileImportControl } from "./plugins/input/file-import.js";
 import { installUrlImportControl } from "./plugins/input/url-import.js";
 import { installElevationPanelControl } from "./plugins/ui/elevation-panel.js";
+import { installBaseMapControl } from "./plugins/ui/base-map-control.js";
 import { installLayersControl } from "./plugins/ui/layers-control.js";
 import { installPanelPlugin } from "./plugins/ui/panel.js";
 import { installSettingsPanelControl } from "./plugins/ui/settings-panel.js";
@@ -22,6 +23,21 @@ export const status = definePlugin({
 	id: "tilia-status",
 	setup(app) {
 		return installStatusControl({ map: app.map });
+	},
+});
+
+export const baseMaps = definePlugin({
+	id: "tilia-base-maps-control",
+	setup(app, options = {}) {
+		const api = installBaseMapControl({
+			map: app.map,
+			baseMaps: app.baseMaps,
+			onStatus: app.setStatus,
+			...options,
+		});
+		api.render();
+		app.addRefreshHandler(() => api.render());
+		return api;
 	},
 });
 
@@ -125,6 +141,7 @@ export const dropzone = definePlugin({
 export const builtins = Object.freeze({
 	panel,
 	status,
+	baseMaps,
 	layers,
 	elevation,
 	fileImport,
@@ -133,6 +150,7 @@ export const builtins = Object.freeze({
 	dropzone,
 	"tilia-panel": panel,
 	"tilia-status": status,
+	"tilia-base-maps-control": baseMaps,
 	"tilia-layers": layers,
 	"tilia-elevation": elevation,
 	"tilia-file-import": fileImport,

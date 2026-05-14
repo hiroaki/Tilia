@@ -20,12 +20,18 @@ vi.mock("../src/builtins.js", () => ({
   builtins: {},
 }));
 
-vi.mock("../src/map/base.js", () => ({
-  createBaseMap: vi.fn(() => ({
-    map: {},
-    tileLayer: null,
-  })),
-}));
+vi.mock("../src/map/base.js", async () => {
+  const actual = await vi.importActual("../src/map/base.js");
+  return {
+    ...actual,
+    createBaseMap: vi.fn(() => ({
+      map: {},
+      tileLayer: null,
+      baseLayer: null,
+      baseLayers: [],
+    })),
+  };
+});
 
 vi.mock("../src/map/controls.js", () => ({
   createButton: vi.fn(),
@@ -165,7 +171,16 @@ describe("createTiliaApp plugin lifecycle", () => {
     };
     const map = { name: "default-map" };
     const tileLayer = { name: "default-tile" };
-    createBaseMap.mockReturnValueOnce({ map, tileLayer });
+    const baseLayer = {
+      id: "osm",
+      label: "OpenStreetMap",
+      provider: "osm",
+      category: "street",
+      url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+      visibleInSelector: true,
+    };
+    const baseLayers = [baseLayer];
+    createBaseMap.mockReturnValueOnce({ map, tileLayer, baseLayer, baseLayers });
 
     const app = createDefaultTiliaApp("map-root", {
       builtins,
@@ -179,6 +194,14 @@ describe("createTiliaApp plugin lifecycle", () => {
     expect(app.getMap()).toBe(map);
     expect(app.getBaseLayer()).toBe(tileLayer);
     expect(app.getBaseMap()).toEqual({ map, tileLayer });
+  });
+
+  it("publishes a base-map service and facade on the app", () => {
+    const app = createTiliaApp({ map: {}, builtins: {} });
+
+    expect(app.baseMaps).toBe(app.services["tilia-base-maps"]);
+    expect(app.baseMaps.list()).toEqual([]);
+    expect(app.baseMaps.getCurrent()).toBeNull();
   });
 
   it("rejects plugins whose required dependency is not installed", async () => {
