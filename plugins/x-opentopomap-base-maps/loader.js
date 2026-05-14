@@ -14,10 +14,10 @@ const openTopoMapDefinition = Object.freeze({
 });
 
 const openTopoMapPlugin = {
-	id: "x-opentopomap",
+	id: "x-opentopomap-base-maps",
 	setup(app) {
 		if (!app.baseMaps?.register) {
-			throw new Error('Plugin "x-opentopomap" requires app.baseMaps.register(definition)');
+			throw new Error('Plugin "x-opentopomap-base-maps" requires app.baseMaps.register(definition)');
 		}
 
 		const registeredDefinition = app.baseMaps.register(openTopoMapDefinition);

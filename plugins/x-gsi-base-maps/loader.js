@@ -28,10 +28,10 @@ const gsiBaseLayerDefinitions = Object.freeze([
 ]);
 
 const gsiPlugin = {
-	id: "x-gsi",
+	id: "x-gsi-base-maps",
 	setup(app) {
 		if (!app.baseMaps?.registerMany) {
-			throw new Error('Plugin "x-gsi" requires app.baseMaps.registerMany(definitions)');
+			throw new Error('Plugin "x-gsi-base-maps" requires app.baseMaps.registerMany(definitions)');
 		}
 
 		const registeredDefinitions = app.baseMaps.registerMany(gsiBaseLayerDefinitions);
