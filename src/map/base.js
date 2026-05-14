@@ -44,6 +44,31 @@ export const defaultBaseLayerDefinitions = Object.freeze([
   }),
 ]);
 
+function applyBaseLayerOverrides(definitions, overrides) {
+  if (!overrides || typeof overrides !== "object") {
+    return definitions;
+  }
+
+  return definitions.map((definition) => {
+    const override = overrides[definition.id];
+    if (!override || typeof override !== "object") {
+      return definition;
+    }
+
+    return {
+      ...definition,
+      ...override,
+      id: definition.id,
+      options: override.options && typeof override.options === "object"
+        ? {
+          ...(definition.options && typeof definition.options === "object" ? definition.options : {}),
+          ...override.options,
+        }
+        : definition.options,
+    };
+  });
+}
+
 function cloneBaseLayerDefinition(definition) {
   if (!definition) {
     return null;
@@ -202,12 +227,14 @@ export function createBaseLayerManager({
 }
 
 function resolveBaseLayerDefinitions(options) {
+  let definitions = null;
+
   if (Array.isArray(options.baseLayers) && options.baseLayers.length > 0) {
-    return options.baseLayers;
+    definitions = options.baseLayers;
   }
 
-  if (typeof options.tileUrl === "string" && options.tileUrl.trim()) {
-    return [{
+  if (!definitions && typeof options.tileUrl === "string" && options.tileUrl.trim()) {
+    definitions = [{
       ...defaultBaseLayerDefinition,
       url: options.tileUrl.trim(),
       options: {
@@ -217,7 +244,7 @@ function resolveBaseLayerDefinitions(options) {
     }];
   }
 
-  return defaultBaseLayerDefinitions;
+  return applyBaseLayerOverrides(definitions || defaultBaseLayerDefinitions, options.baseLayerOverrides);
 }
 
 // Create a reusable Leaflet base map without coupling it to the Tilia runtime.

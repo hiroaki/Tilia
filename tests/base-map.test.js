@@ -55,6 +55,34 @@ describe("base-map runtime", () => {
     expect(baseMap.tileLayer.url).toBe(defaultBaseLayerDefinition.url);
   });
 
+  it("applies id-based definition overrides without changing the catalog shape", () => {
+    const baseMap = createBaseMap("map-root", {
+      selectedBaseLayerId: "gsi-pale",
+      baseLayerOverrides: {
+        "gsi-pale": {
+          label: "GSI Pale Custom",
+          visibleInSelector: false,
+        },
+      },
+    });
+
+    expect(baseMap.baseLayer).toEqual(expect.objectContaining({
+      id: "gsi-pale",
+      label: "GSI Pale Custom",
+      visibleInSelector: false,
+    }));
+    expect(baseMap.baseLayers.find((definition) => definition.id === "gsi-pale")).toEqual(
+      expect.objectContaining({
+        id: "gsi-pale",
+        label: "GSI Pale Custom",
+        visibleInSelector: false,
+      }),
+    );
+    expect(
+      baseMap.baseLayerManager.listVisible().some((definition) => definition.id === "gsi-pale"),
+    ).toBe(false);
+  });
+
   it("switches the active base layer and removes the previous tile layer", () => {
     const map = { id: "map" };
     const manager = createBaseLayerManager({
