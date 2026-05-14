@@ -57,6 +57,16 @@ describe("base-map runtime", () => {
 
   it("applies id-based definition overrides without changing the catalog shape", () => {
     const baseMap = createBaseMap("map-root", {
+      baseLayers: [
+        {
+          id: "gsi-pale",
+          label: "GSI Pale",
+          provider: "gsi",
+          category: "street",
+          url: "https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png",
+          visibleInSelector: true,
+        },
+      ],
       selectedBaseLayerId: "gsi-pale",
       baseLayerOverrides: {
         "gsi-pale": {

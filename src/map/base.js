@@ -16,32 +16,6 @@ export const defaultBaseLayerDefinition = Object.freeze({
 
 export const defaultBaseLayerDefinitions = Object.freeze([
   defaultBaseLayerDefinition,
-  Object.freeze({
-    id: "gsi-std",
-    label: "GSI Standard",
-    provider: "gsi",
-    category: "street",
-    url: "https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png",
-    options: {
-      attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html">GSI Tiles</a>',
-    },
-    attributionLabel: "GSI Tiles",
-    isDefault: false,
-    visibleInSelector: true,
-  }),
-  Object.freeze({
-    id: "gsi-pale",
-    label: "GSI Pale",
-    provider: "gsi",
-    category: "street",
-    url: "https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png",
-    options: {
-      attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html">GSI Tiles</a>',
-    },
-    attributionLabel: "GSI Tiles",
-    isDefault: false,
-    visibleInSelector: true,
-  }),
 ]);
 
 function applyBaseLayerOverride(definition, override) {
