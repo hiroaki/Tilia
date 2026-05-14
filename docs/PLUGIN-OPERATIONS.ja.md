@@ -32,7 +32,7 @@ plugin ID には次の規則があります。
 - `tilia-` namespace は built-in plugin 専用の予約語
 - third-party plugin は prefix を持ち、少なくとも 1 つハイフンを含む。例: `x-milestone`, `acme-heatmap`
 
-built-in plugin はまず built-in registry から解決されます。文字列 ID が built-in でなければ、Tilia はそれを dynamic loading 対象の third-party plugin として扱います。
+built-in plugin はまず built-in registry から解決されます。文字列 ID が built-in でなければ、Tilia はそれを dynamic loading 対象の third-party plugin として扱います。現在の例として `x-gsi-base-maps` と `x-opentopomap-base-maps` があります。
 
 ## `requires` の意味
 
