@@ -93,12 +93,15 @@ Tilia を利用するには、Leaflet の JavaScript と CSS をページに読�
     plugins: [
       "tilia-panel",
       "tilia-status",
+      "tilia-base-maps-control",
       "tilia-layers",
       "tilia-elevation",
       "tilia-file-import",
       "tilia-url-import",
       "tilia-settings",
       "tilia-dropzone",
+      "x-gsi-base-maps",
+      "x-opentopomap-base-maps",
     ],
   });
 </script>
@@ -117,6 +120,7 @@ Tilia を利用するには、Leaflet の JavaScript と CSS をページに読�
 |----|------|------|
 | `tilia-panel` | — | レイヤー・高度・設定プラグインが必要とするサイドパネルコンテナ |
 | `tilia-status` | — | パネル内のステータスバー |
+| `tilia-base-maps-control` | — | ベースマップ選択コントロール。`app.baseMaps` の可視エントリを一覧表示する |
 | `tilia-layers` | `tilia-panel`, `tilia-status` | レイヤー一覧。表示切替・削除・フィット・写真ごとのタイムモード変更が可能 |
 | `tilia-elevation` | `tilia-panel`, `tilia-status` | GPX トラックのインタラクティブな高度プロファイルチャート |
 | `tilia-file-import` | — | `.gpx` / `.jpg` / `.jpeg` を選択できるファイル選択コントロール |

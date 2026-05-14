@@ -40,7 +40,9 @@ const app = createDefaultTiliaApp("map", {
   plugins: [
     "tilia-panel",
     "tilia-status",
+    "tilia-base-maps-control",
     "tilia-layers",
+    "x-gsi-base-maps",
   ],
 });
 
@@ -61,9 +63,12 @@ Leaflet マップと OpenStreetMap タイルレイヤーを初期化します。
 | `zoom` | `number` | `10` | 初期ズームレベル |
 | `tileUrl` | `string` | `https://tile.openstreetmap.org/{z}/{x}/{y}.png` | カスタムタイル URL テンプレート |
 | `tileOptions` | `object` | — | Leaflet `TileLayer` オプション（`attribution`、`maxZoom` など） |
+| `baseLayers` | `Array<object>` | OSM のみ | ベースレイヤー定義一覧。各要素は `id` と `url` が必須で、`label`、`provider`、`category`、`options`、`attributionLabel`、`isDefault`、`visibleInSelector` を指定可能 |
+| `selectedBaseLayerId` | `string` | 既定エントリの先頭 | 起動時に有効化するベースレイヤー ID |
+| `baseLayerOverrides` | `object` | — | 定義読込後に ID ごとに上書きするマップ: `{ [id]: { label, visibleInSelector, options, ... } }` |
 | `mapOptions` | `object` | — | Leaflet `Map` コンストラクタオプション |
 
-**戻り値**: `{ map: L.Map, tileLayer: L.TileLayer }`
+**戻り値**: `{ map: L.Map, tileLayer: L.TileLayer, baseLayer, baseLayers, baseLayerManager }`
 
 ### `createTiliaApp({ map, ...options })`
 
@@ -73,6 +78,10 @@ Leaflet マップと OpenStreetMap タイルレイヤーを初期化します。
 |------|----|------|
 | `map` | `L.Map` | **必須。** 接続先の Leaflet マップ |
 | `tileLayer` | `L.TileLayer?` | このアプリに関連付けるベースタイルレイヤー |
+| `baseLayer` | `object?` | このアプリに関連付ける現在のベースレイヤー定義 |
+| `baseLayers` | `Array<object>?` | 実行時マネージャに登録するベースレイヤー定義一覧 |
+| `selectedBaseLayerId` | `string?` | 定義登録時に最初に有効化するベースレイヤー ID |
+| `baseLayerOverrides` | `object?` | built-in と plugin 登録の両方に適用する、ID ごとの上書きマップ |
 
 
 ## App インスタンス API
@@ -112,9 +121,26 @@ app.whenReady().then(() => app.load(myFile));
 | メンバ | 戻り値 | 説明 |
 |--------|--------|------|
 | `app.map` | `L.Map` | Leaflet マップインスタンス |
+| `app.baseMaps` | `object` | ベースレイヤーカタログの公開 facade。列挙・登録・切替を行う |
 | `getMap()` | `L.Map` | `app.map` と同じ |
 | `getBaseLayer()` | `L.TileLayer` | ベースタイルレイヤー |
 | `getBaseMap()` | `{ map, tileLayer }` | 両方 |
+
+#### `app.baseMaps`
+
+ベースマップサービスは `app.baseMaps` として直接利用でき、他プラグイン向けには `app.services["tilia-base-maps"]` にも公開されます。
+
+| メンバ | 戻り値 | 説明 |
+|--------|--------|------|
+| `list()` | `Array<object>` | 登録済みベースレイヤー定義一覧 |
+| `listVisible()` | `Array<object>` | `visibleInSelector !== false` の定義一覧 |
+| `get(id)` | `object \| null` | ID を指定して 1 件取得 |
+| `has(id)` | `boolean` | その ID が登録済みか |
+| `getCurrent()` | `object \| null` | 現在のベースレイヤー定義 |
+| `getCurrentLayer()` | `L.TileLayer \| null` | 現在有効な Leaflet タイルレイヤー |
+| `register(definition)` | `object` | ベースレイヤー定義を 1 件登録 |
+| `registerMany(definitions)` | `Array<object>` | ベースレイヤー定義を複数登録 |
+| `select(id)` | `{ definition, layer }` | 現在のベースレイヤーを切り替える |
 
 ### データ読み込み
 
@@ -196,6 +222,7 @@ unsub();
 |----|------|------|
 | `tilia-panel` | — | レイヤー・高度・設定パネルのコンテナとなるサイドパネル（マップ内に描画される） |
 | `tilia-status` | — | 地図左下に表示されるステータスバー。読み込み結果やエラーを表示する |
+| `tilia-base-maps-control` | — | ベースマップ選択コントロール。`app.baseMaps` の可視エントリを、必要に応じて provider ごとにグループ分けして表示する |
 | `tilia-layers` | `tilia-panel`, `tilia-status` | サイドパネル内のレイヤー一覧。エントリごとに表示切替・削除・フィット・写真のタイムスタンプモード変更が可能 |
 | `tilia-elevation` | `tilia-panel`, `tilia-status` | サイドパネル内のインタラクティブな高度プロファイルチャート。チャートでホバーすると対応するトラックポイントが地図上に表示される |
 | `tilia-file-import` | — | 地図上のコントロール（左上）にファイル選択ボタンを追加。`.gpx`・`.jpg`・`.jpeg` に対応、複数ファイルを同時に選択可能 |
@@ -330,6 +357,7 @@ app.provide(name, service)
 // 他プラグインが公開した共有サービスを参照する
 app.services["tilia-panel"]   // { openPanel, closePanel, togglePanel, rerenderPanel, isOpen }
 app.services["tilia-status"]  // { setStatus }
+app.services["tilia-base-maps"]  // app.baseMaps と同じオブジェクト
 ```
 
 
