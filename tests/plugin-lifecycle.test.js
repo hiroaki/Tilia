@@ -204,6 +204,46 @@ describe("createTiliaApp plugin lifecycle", () => {
     expect(app.baseMaps.getCurrent()).toBeNull();
   });
 
+  it("lets plugins contribute base-map definitions through the public facade", async () => {
+    const refreshHandler = vi.fn();
+    const plugin = {
+      id: "vendor-base-map-provider",
+      setup(app) {
+        app.baseMaps.registerMany([
+          {
+            id: "vendor-street",
+            label: "Vendor Street",
+            provider: "vendor",
+            category: "street",
+            url: "https://example.com/street/{z}/{x}/{y}.png",
+          },
+          {
+            id: "vendor-hidden",
+            label: "Vendor Hidden",
+            provider: "vendor",
+            category: "street",
+            url: "https://example.com/hidden/{z}/{x}/{y}.png",
+            visibleInSelector: false,
+          },
+        ]);
+        return { registered: true };
+      },
+    };
+    const app = createTiliaApp({ map: {}, builtins: {} });
+    app.addRefreshHandler(refreshHandler);
+
+    await app.use(plugin);
+
+    expect(app.baseMaps.list().map((definition) => definition.id)).toEqual([
+      "vendor-street",
+      "vendor-hidden",
+    ]);
+    expect(app.baseMaps.listVisible().map((definition) => definition.id)).toEqual([
+      "vendor-street",
+    ]);
+    expect(refreshHandler).toHaveBeenCalledTimes(1);
+  });
+
   it("rejects plugins whose required dependency is not installed", async () => {
     const setup = vi.fn();
     const plugin = {
