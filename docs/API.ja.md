@@ -222,7 +222,7 @@ unsub();
 |----|------|------|
 | `tilia-panel` | — | レイヤー・高度・設定パネルのコンテナとなるサイドパネル（マップ内に描画される） |
 | `tilia-status` | — | 地図左下に表示されるステータスバー。読み込み結果やエラーを表示する |
-| `tilia-base-maps-control` | — | ベースマップ選択コントロール。`app.baseMaps` の可視エントリを、必要に応じて provider ごとに grouped 表示する |
+| `tilia-base-maps-control` | — | ベースマップ選択コントロール。`app.baseMaps` の可視エントリを、必要に応じて provider ごとにグループ分けして表示する |
 | `tilia-layers` | `tilia-panel`, `tilia-status` | サイドパネル内のレイヤー一覧。エントリごとに表示切替・削除・フィット・写真のタイムスタンプモード変更が可能 |
 | `tilia-elevation` | `tilia-panel`, `tilia-status` | サイドパネル内のインタラクティブな高度プロファイルチャート。チャートでホバーすると対応するトラックポイントが地図上に表示される |
 | `tilia-file-import` | — | 地図上のコントロール（左上）にファイル選択ボタンを追加。`.gpx`・`.jpg`・`.jpeg` に対応、複数ファイルを同時に選択可能 |
