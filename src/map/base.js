@@ -41,7 +41,7 @@ function applyBaseLayerOverrides(definitions, overrides) {
     return definitions;
   }
 
-  return definitions.map((definition) => applyBaseLayerOverride(definition, overrides[definition.id]));
+  return definitions.map((definition) => applyBaseLayerOverride(definition, getBaseLayerOverride(overrides, definition)));
 }
 
 function getBaseLayerOverride(overrides, definition) {
@@ -132,6 +132,11 @@ export function createBaseLayerManager({
     const normalized = normalizeBaseLayerDefinition(
       applyBaseLayerOverride(definition, getBaseLayerOverride(overrides, definition)),
     );
+
+    if (registry.has(normalized.id)) {
+      throw new Error(`Base layer already registered: ${normalized.id}`);
+    }
+
     registry.set(normalized.id, normalized);
     return cloneBaseLayerDefinition(normalized);
   }
@@ -233,19 +238,36 @@ export function createBaseLayerManager({
 
 function resolveBaseLayerDefinitions(options) {
   let definitions = null;
+  const tileUrl = typeof options.tileUrl === "string" ? options.tileUrl.trim() : "";
+  const tileOptions = options.tileOptions && typeof options.tileOptions === "object"
+    ? options.tileOptions
+    : null;
 
   if (Array.isArray(options.baseLayers) && options.baseLayers.length > 0) {
     definitions = options.baseLayers;
   }
 
-  if (!definitions && typeof options.tileUrl === "string" && options.tileUrl.trim()) {
+  if (!definitions && (tileUrl || tileOptions)) {
+    const resolvedUrl = tileUrl || defaultBaseLayerDefinition.url;
+    const useDefaultOsmMetadata = resolvedUrl === defaultBaseLayerDefinition.url;
     definitions = [{
-      ...defaultBaseLayerDefinition,
-      url: options.tileUrl.trim(),
-      options: {
-        ...defaultBaseLayerDefinition.options,
-        ...(options.tileOptions && typeof options.tileOptions === "object" ? options.tileOptions : {}),
-      },
+      ...(useDefaultOsmMetadata
+        ? defaultBaseLayerDefinition
+        : {
+          ...defaultBaseLayerDefinition,
+          id: "custom",
+          label: "Custom",
+          provider: "custom",
+          category: "general",
+          attributionLabel: null,
+        }),
+      url: resolvedUrl,
+      options: useDefaultOsmMetadata
+        ? {
+          ...defaultBaseLayerDefinition.options,
+          ...(tileOptions || {}),
+        }
+        : (tileOptions ? { ...tileOptions } : {}),
     }];
   }
 

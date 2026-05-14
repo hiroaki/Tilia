@@ -93,6 +93,35 @@ describe("base-map runtime", () => {
     ).toBe(false);
   });
 
+  it("keeps tileOptions working with the default OSM URL", () => {
+    const baseMap = createBaseMap("map-root", {
+      tileOptions: {
+        maxZoom: 22,
+      },
+    });
+
+    expect(baseMap.tileLayer.url).toBe(defaultBaseLayerDefinition.url);
+    expect(baseMap.tileLayer.options).toEqual(expect.objectContaining({
+      attribution: defaultBaseLayerDefinition.options.attribution,
+      maxZoom: 22,
+    }));
+  });
+
+  it("does not inherit OSM attribution when a custom tileUrl is provided", () => {
+    const baseMap = createBaseMap("map-root", {
+      tileUrl: "https://example.com/tiles/{z}/{x}/{y}.png",
+    });
+
+    expect(baseMap.tileLayer.url).toBe("https://example.com/tiles/{z}/{x}/{y}.png");
+    expect(baseMap.tileLayer.options.attribution).toBeUndefined();
+    expect(baseMap.baseLayer).toEqual(expect.objectContaining({
+      id: "custom",
+      label: "Custom",
+      provider: "custom",
+      attributionLabel: null,
+    }));
+  });
+
   it("switches the active base layer and removes the previous tile layer", () => {
     const map = { id: "map" };
     const manager = createBaseLayerManager({
@@ -190,6 +219,41 @@ describe("base-map runtime", () => {
     });
 
     expect(() => manager.register(null)).toThrow("Base layer definitions must be objects");
+  });
+
+  it("throws the intended validation error when baseLayers contain non-objects and overrides are enabled", () => {
+    expect(() => createBaseMap("map-root", {
+      baseLayers: [null],
+      baseLayerOverrides: {
+        anything: {
+          label: "Ignored",
+        },
+      },
+    })).toThrow("Base layer definitions must be objects");
+  });
+
+  it("rejects duplicate base-layer ids instead of overwriting the active state", () => {
+    const manager = createBaseLayerManager({
+      map: { id: "map" },
+      definitions: [
+        {
+          id: "osm",
+          label: "OpenStreetMap",
+          provider: "osm",
+          category: "street",
+          url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+          isDefault: true,
+        },
+      ],
+    });
+
+    expect(() => manager.register({
+      id: "osm",
+      label: "Replaced OSM",
+      provider: "osm",
+      category: "street",
+      url: "https://example.com/osm/{z}/{x}/{y}.png",
+    })).toThrow("Base layer already registered: osm");
   });
 
   it("keeps hidden definitions out of selector lists without removing them from the catalog", () => {

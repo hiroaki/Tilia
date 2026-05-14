@@ -49,6 +49,14 @@ function groupDefinitionsByProvider(definitions) {
 export function installBaseMapControl({ map, baseMaps, onStatus = null, position = "topright" }) {
   let selectNode = null;
 
+  function hasSelectableAlternative(currentDefinition, options) {
+    if (!currentDefinition) {
+      return options.length > 1;
+    }
+
+    return options.some((definition) => definition.id !== currentDefinition.id);
+  }
+
   function render() {
     if (!selectNode) {
       return;
@@ -72,7 +80,7 @@ export function installBaseMapControl({ map, baseMaps, onStatus = null, position
       selectNode.appendChild(optGroupNode);
     }
 
-    selectNode.disabled = options.length <= 1;
+    selectNode.disabled = !hasSelectableAlternative(currentDefinition, options);
   }
 
   const control = installMapControl({
