@@ -23,6 +23,9 @@ function createElement(ownerDocument, tagName) {
     offsetWidth: 0,
     offsetHeight: 0,
     appendChild(child) {
+      if (child.parentNode) {
+        child.parentNode.children = child.parentNode.children.filter((node) => node !== child);
+      }
       child.parentNode = this;
       this.children.push(child);
       return child;
@@ -153,6 +156,39 @@ describe("createUiSurfaceManager", () => {
 
     expect(mapContainer.children[0].children).toHaveLength(1);
     expect(mapContainer.children[0].children[0]).toBe(secondNode);
+  });
+
+  it("moves an existing element to a new surface when updated", () => {
+    const ownerDocument = createDocumentStub();
+    const mapContainer = createElement(ownerDocument, "div");
+    const manager = createUiSurfaceManager({
+      map: {
+        getContainer() {
+          return mapContainer;
+        },
+      },
+    });
+    const node = createElement(ownerDocument, "div");
+
+    const handle = manager.mount({
+      id: "movable",
+      surface: TILIA_UI_LAYER.floating,
+      element: node,
+      priority: TILIA_CONTROL_PRIORITY.low,
+    });
+
+    handle.update({
+      surface: TILIA_UI_LAYER.panel,
+      priority: TILIA_CONTROL_PRIORITY.high,
+    });
+
+    expect(mapContainer.children).toHaveLength(2);
+    expect(mapContainer.children[0].dataset.tiliaSurfaceRoot).toBe(TILIA_UI_LAYER.floating);
+    expect(mapContainer.children[1].dataset.tiliaSurfaceRoot).toBe(TILIA_UI_LAYER.panel);
+    expect(mapContainer.children[0].children).toHaveLength(0);
+    expect(mapContainer.children[1].children[0]).toBe(node);
+    expect(node.dataset.tiliaSurface).toBe(TILIA_UI_LAYER.panel);
+    expect(node.dataset.tiliaSurfacePriority).toBe(TILIA_CONTROL_PRIORITY.high);
   });
 
   it("publishes reserved insets for side and bottom panel layouts", () => {

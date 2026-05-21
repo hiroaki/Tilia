@@ -207,11 +207,17 @@ export function createUiSurfaceManager({ map }) {
       throw new Error("Surface items must provide an HTMLElement");
     }
 
-    const root = ensureSurfaceRoot(surface);
+    const normalizedSurface = surface || TILIA_UI_LAYER.floating;
+    const normalizedPriority = resolvePriority(priority);
+    const root = ensureSurfaceRoot(normalizedSurface);
     const current = items.get(id);
     if (current?.element === element) {
-      current.priority = resolvePriority(priority);
-      applySurfaceMetadata(element, surface, current.priority);
+      if (current.surface !== normalizedSurface) {
+        root.appendChild(element);
+        current.surface = normalizedSurface;
+      }
+      current.priority = normalizedPriority;
+      applySurfaceMetadata(element, normalizedSurface, current.priority);
       return current.handle;
     }
 
@@ -220,14 +226,14 @@ export function createUiSurfaceManager({ map }) {
       items.delete(id);
     }
 
-    applySurfaceMetadata(element, surface, priority);
+    applySurfaceMetadata(element, normalizedSurface, normalizedPriority);
     root.appendChild(element);
 
     const record = {
       id,
-      surface,
+      surface: normalizedSurface,
       element,
-      priority: resolvePriority(priority),
+      priority: normalizedPriority,
       handle: {
         element,
         unmount() {
@@ -237,9 +243,14 @@ export function createUiSurfaceManager({ map }) {
           }
         },
         update(nextOptions = {}) {
-          const nextSurface = nextOptions.surface || surface;
-          const nextPriority = resolvePriority(nextOptions.priority || priority);
-          if (nextSurface !== surface) {
+          const currentRecord = items.get(id);
+          if (!currentRecord || currentRecord.element !== element) {
+            return;
+          }
+
+          const nextSurface = nextOptions.surface || currentRecord.surface;
+          const nextPriority = resolvePriority(nextOptions.priority ?? currentRecord.priority);
+          if (nextSurface !== currentRecord.surface) {
             mount({
               id,
               surface: nextSurface,
@@ -249,10 +260,7 @@ export function createUiSurfaceManager({ map }) {
             return;
           }
           applySurfaceMetadata(element, nextSurface, nextPriority);
-          const nextRecord = items.get(id);
-          if (nextRecord) {
-            nextRecord.priority = nextPriority;
-          }
+          currentRecord.priority = nextPriority;
         },
       },
     };
