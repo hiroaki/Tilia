@@ -3,6 +3,8 @@ import { TILIA_CONTROL_PRIORITY, TILIA_UI_LAYER } from "./protocol.js";
 const SURFACE_ROOT_CLASS = "tilia-ui-surface-root";
 const RESERVED_RIGHT_VAR = "--tilia-reserved-right";
 const RESERVED_BOTTOM_VAR = "--tilia-reserved-bottom";
+const PANEL_OFFSET_RIGHT_VAR = "--tilia-panel-offset-right";
+const PANEL_OFFSET_BOTTOM_VAR = "--tilia-panel-offset-bottom";
 
 function resolveDocument(map) {
   const mapContainer = map?.getContainer?.();
@@ -50,6 +52,48 @@ function removeStyleProperty(style, name) {
   delete style[name];
 }
 
+function measureNode(node, dimension) {
+  const rect = node?.getBoundingClientRect?.();
+  if (dimension === "width") {
+    return Math.ceil(rect?.width || node?.offsetWidth || node?.clientWidth || 0);
+  }
+  return Math.ceil(rect?.height || node?.offsetHeight || node?.clientHeight || 0);
+}
+
+function queryCornerNodes(mapContainer, selectors) {
+  if (typeof mapContainer?.querySelectorAll !== "function") {
+    return [];
+  }
+
+  return selectors.flatMap((selector) => Array.from(mapContainer.querySelectorAll(selector) || []));
+}
+
+function queryPriorityControls(container) {
+  if (typeof container?.querySelectorAll !== "function") {
+    return [];
+  }
+
+  return Array.from(container.querySelectorAll(".tilia-map-control") || []);
+}
+
+function getCornerPriority(cornerNodes) {
+  const priorities = cornerNodes.flatMap((cornerNode) => queryPriorityControls(cornerNode).map((control) => control.dataset?.tiliaPriority));
+  if (priorities.includes(TILIA_CONTROL_PRIORITY.high)) {
+    return TILIA_CONTROL_PRIORITY.high;
+  }
+  if (priorities.includes(TILIA_CONTROL_PRIORITY.normal)) {
+    return TILIA_CONTROL_PRIORITY.normal;
+  }
+  if (priorities.includes(TILIA_CONTROL_PRIORITY.low)) {
+    return TILIA_CONTROL_PRIORITY.low;
+  }
+  return null;
+}
+
+function getCornerExtent(cornerNodes, dimension) {
+  return cornerNodes.reduce((largest, node) => Math.max(largest, measureNode(node, dimension)), 0);
+}
+
 export function createUiSurfaceManager({ map }) {
   const mapContainer = map?.getContainer?.();
   const ownerDocument = resolveDocument(map);
@@ -89,21 +133,47 @@ export function createUiSurfaceManager({ map }) {
       delete mapContainer.dataset.tiliaPanelLayout;
       removeStyleProperty(mapContainer.style, RESERVED_RIGHT_VAR);
       removeStyleProperty(mapContainer.style, RESERVED_BOTTOM_VAR);
+      removeStyleProperty(mapContainer.style, PANEL_OFFSET_RIGHT_VAR);
+      removeStyleProperty(mapContainer.style, PANEL_OFFSET_BOTTOM_VAR);
       return;
     }
 
     mapContainer.dataset.tiliaPanelLayout = panelState.layout;
 
     if (panelState.layout === "bottom") {
-      const reservedBottom = `${measureInset(panelState.element, "height") + 24}px`;
-      setStyleProperty(mapContainer.style, RESERVED_BOTTOM_VAR, reservedBottom);
+      const conflictingCorners = queryCornerNodes(mapContainer, [
+        ".leaflet-bottom.leaflet-left",
+        ".leaflet-bottom.leaflet-right",
+      ]);
+      const panelInset = `${measureInset(panelState.element, "height") + 24}px`;
+      const controlInset = `${getCornerExtent(conflictingCorners, "height") + 24}px`;
+      if (getCornerPriority(conflictingCorners) === TILIA_CONTROL_PRIORITY.high) {
+        setStyleProperty(mapContainer.style, PANEL_OFFSET_BOTTOM_VAR, controlInset);
+        removeStyleProperty(mapContainer.style, RESERVED_BOTTOM_VAR);
+      } else {
+        setStyleProperty(mapContainer.style, RESERVED_BOTTOM_VAR, panelInset);
+        removeStyleProperty(mapContainer.style, PANEL_OFFSET_BOTTOM_VAR);
+      }
       removeStyleProperty(mapContainer.style, RESERVED_RIGHT_VAR);
+      removeStyleProperty(mapContainer.style, PANEL_OFFSET_RIGHT_VAR);
       return;
     }
 
-    const reservedRight = `${measureInset(panelState.element, "width") + 24}px`;
-    setStyleProperty(mapContainer.style, RESERVED_RIGHT_VAR, reservedRight);
+    const conflictingCorners = queryCornerNodes(mapContainer, [
+      ".leaflet-top.leaflet-right",
+      ".leaflet-bottom.leaflet-right",
+    ]);
+    const panelInset = `${measureInset(panelState.element, "width") + 24}px`;
+    const controlInset = `${getCornerExtent(conflictingCorners, "width") + 24}px`;
+    if (getCornerPriority(conflictingCorners) === TILIA_CONTROL_PRIORITY.high) {
+      setStyleProperty(mapContainer.style, PANEL_OFFSET_RIGHT_VAR, controlInset);
+      removeStyleProperty(mapContainer.style, RESERVED_RIGHT_VAR);
+    } else {
+      setStyleProperty(mapContainer.style, RESERVED_RIGHT_VAR, panelInset);
+      removeStyleProperty(mapContainer.style, PANEL_OFFSET_RIGHT_VAR);
+    }
     removeStyleProperty(mapContainer.style, RESERVED_BOTTOM_VAR);
+    removeStyleProperty(mapContainer.style, PANEL_OFFSET_BOTTOM_VAR);
   }
 
   function observePanel(element) {

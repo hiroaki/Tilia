@@ -7,6 +7,8 @@
   --tilia-layer-floating: 950;
   --tilia-reserved-right: 0px;
   --tilia-reserved-bottom: 0px;
+  --tilia-panel-offset-right: 0px;
+  --tilia-panel-offset-bottom: 0px;
 }
 
 .tilia-ui-surface-root {
@@ -144,7 +146,7 @@
 .tilia-side-panel {
   position: absolute;
   top: 12px;
-  right: 12px;
+  right: calc(12px + var(--tilia-panel-offset-right));
   bottom: 12px;
   width: min(360px, 72vw);
   display: flex;
@@ -161,7 +163,7 @@
 
 .tilia-side-panel-layout-side {
   top: 12px;
-  right: 12px;
+  right: calc(12px + var(--tilia-panel-offset-right));
   bottom: 12px;
   width: min(360px, 72vw);
   flex-direction: column;
@@ -171,7 +173,7 @@
   top: auto;
   left: 12px;
   right: 12px;
-  bottom: 12px;
+  bottom: calc(12px + var(--tilia-panel-offset-bottom));
   height: min(280px, 38vh);
   max-height: calc(100% - 24px);
   width: auto;

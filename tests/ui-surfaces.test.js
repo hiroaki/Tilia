@@ -27,6 +27,12 @@ function createElement(ownerDocument, tagName) {
       this.children.push(child);
       return child;
     },
+    querySelectorAll(selector) {
+      const matcher = createSelectorMatcher(selector);
+      const results = [];
+      collectMatches(this, matcher, results);
+      return results;
+    },
     remove() {
       if (!this.parentNode) {
         return;
@@ -41,6 +47,29 @@ function createElement(ownerDocument, tagName) {
       };
     },
   };
+}
+
+function createSelectorMatcher(selector) {
+  const parts = selector.trim().split(".").filter(Boolean);
+  const tagName = selector.startsWith(".") ? null : parts.shift()?.toLowerCase() || null;
+  const classes = parts;
+  return (node) => {
+    const nodeTag = String(node.tagName || "").toLowerCase();
+    const classNames = String(node.className || "").split(/\s+/).filter(Boolean);
+    if (tagName && nodeTag !== tagName) {
+      return false;
+    }
+    return classes.every((className) => classNames.includes(className));
+  };
+}
+
+function collectMatches(node, matcher, results) {
+  for (const child of node.children || []) {
+    if (matcher(child)) {
+      results.push(child);
+    }
+    collectMatches(child, matcher, results);
+  }
 }
 
 function createDocumentStub() {
@@ -157,5 +186,33 @@ describe("createUiSurfaceManager", () => {
     expect(mapContainer.dataset.tiliaPanelLayout).toBeUndefined();
     expect(mapContainer.style.values["--tilia-reserved-right"]).toBeUndefined();
     expect(mapContainer.style.values["--tilia-reserved-bottom"]).toBeUndefined();
+  });
+
+  it("lets high-priority conflicting controls keep the corner and pushes the panel instead", () => {
+    const ownerDocument = createDocumentStub();
+    const mapContainer = createElement(ownerDocument, "div");
+    const topRightCorner = createElement(ownerDocument, "div");
+    topRightCorner.className = "leaflet-top leaflet-right";
+    topRightCorner.offsetWidth = 52;
+    const highPriorityControl = createElement(ownerDocument, "div");
+    highPriorityControl.className = "tilia-map-control tilia-base-map-control";
+    highPriorityControl.dataset.tiliaPriority = "high";
+    topRightCorner.appendChild(highPriorityControl);
+    mapContainer.appendChild(topRightCorner);
+
+    const manager = createUiSurfaceManager({
+      map: {
+        getContainer() {
+          return mapContainer;
+        },
+      },
+    });
+    const panelNode = createElement(ownerDocument, "aside");
+    panelNode.offsetWidth = 360;
+
+    manager.setPanelState({ active: true, layout: "side", element: panelNode });
+
+    expect(mapContainer.style.values["--tilia-panel-offset-right"]).toBe("76px");
+    expect(mapContainer.style.values["--tilia-reserved-right"]).toBeUndefined();
   });
 });

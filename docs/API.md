@@ -336,6 +336,7 @@ createTiliaApp({
 - Third-party plugins can declare `stylesheets` on the plugin object. Tilia injects each declared stylesheet once per document before `setup()` executes.
 - Built-in UI plugin options flow through `pluginOptions`. `position` selects the Leaflet control corner and `priority` controls relative control strength when multiple controls compete.
 - Floating UI that should live above the map but outside Leaflet controls can be mounted through the shared UI surface manager instead of appending directly to the map container.
+- During panel/layout arbitration, `priority: "high"` lets a conflicting control keep its corner and makes the panel yield space instead.
 
 ```js
 createDefaultTiliaApp("map", {

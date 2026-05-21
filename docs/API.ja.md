@@ -335,6 +335,7 @@ createTiliaApp({
 - third-party plugin は plugin object に `stylesheets` を宣言できます。各 stylesheet は `setup()` 実行前に、document ごとに 1 回だけ注入されます。
 - built-in UI plugin の `position` や `priority` は `pluginOptions` 経由で指定できます。
 - Leaflet control ではない floating UI や panel UI は、map container へ直接 `appendChild()` せず `app.ui.mountSurface()` を使って `panel` または `floating` surface に載せてください。
+- panel との競合時には、`priority: "high"` の control を優先し、control をどかす代わりに panel 側が退避する場合があります。
 
 ```js
 createDefaultTiliaApp("map", {
