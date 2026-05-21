@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { TILIA_CONTROL_PRIORITY, TILIA_UI_LAYER } from "../src/ui/protocol.js";
+import { TILIA_CONTROL_EDGE_POLICY, TILIA_CONTROL_PRIORITY, TILIA_UI_LAYER } from "../src/ui/protocol.js";
 import { createUiSurfaceManager } from "../src/ui/surfaces.js";
 
 function createElement(ownerDocument, tagName) {
@@ -188,7 +188,7 @@ describe("createUiSurfaceManager", () => {
     expect(mapContainer.style.values["--tilia-reserved-bottom"]).toBeUndefined();
   });
 
-  it("lets high-priority conflicting controls keep the corner and pushes the panel instead", () => {
+  it("lets keep-policy conflicting controls keep the corner and pushes the panel instead", () => {
     const ownerDocument = createDocumentStub();
     const mapContainer = createElement(ownerDocument, "div");
     const topRightCorner = createElement(ownerDocument, "div");
@@ -196,7 +196,8 @@ describe("createUiSurfaceManager", () => {
     topRightCorner.offsetWidth = 52;
     const highPriorityControl = createElement(ownerDocument, "div");
     highPriorityControl.className = "tilia-map-control tilia-base-map-control";
-    highPriorityControl.dataset.tiliaPriority = "high";
+    highPriorityControl.dataset.tiliaPriority = "normal";
+    highPriorityControl.dataset.tiliaEdgePolicy = TILIA_CONTROL_EDGE_POLICY.keep;
     topRightCorner.appendChild(highPriorityControl);
     mapContainer.appendChild(topRightCorner);
 
@@ -214,5 +215,34 @@ describe("createUiSurfaceManager", () => {
 
     expect(mapContainer.style.values["--tilia-panel-offset-right"]).toBe("76px");
     expect(mapContainer.style.values["--tilia-reserved-right"]).toBeUndefined();
+  });
+
+  it("lets explicit yield policy override high priority and keep the panel reservation", () => {
+    const ownerDocument = createDocumentStub();
+    const mapContainer = createElement(ownerDocument, "div");
+    const topRightCorner = createElement(ownerDocument, "div");
+    topRightCorner.className = "leaflet-top leaflet-right";
+    topRightCorner.offsetWidth = 52;
+    const highPriorityControl = createElement(ownerDocument, "div");
+    highPriorityControl.className = "tilia-map-control tilia-base-map-control";
+    highPriorityControl.dataset.tiliaPriority = "high";
+    highPriorityControl.dataset.tiliaEdgePolicy = TILIA_CONTROL_EDGE_POLICY.yield;
+    topRightCorner.appendChild(highPriorityControl);
+    mapContainer.appendChild(topRightCorner);
+
+    const manager = createUiSurfaceManager({
+      map: {
+        getContainer() {
+          return mapContainer;
+        },
+      },
+    });
+    const panelNode = createElement(ownerDocument, "aside");
+    panelNode.offsetWidth = 360;
+
+    manager.setPanelState({ active: true, layout: "side", element: panelNode });
+
+    expect(mapContainer.style.values["--tilia-reserved-right"]).toBe("384px");
+    expect(mapContainer.style.values["--tilia-panel-offset-right"]).toBeUndefined();
   });
 });

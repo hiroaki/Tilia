@@ -4,6 +4,11 @@ export const TILIA_CONTROL_PRIORITY = Object.freeze({
   high: "high",
 });
 
+export const TILIA_CONTROL_EDGE_POLICY = Object.freeze({
+  yield: "yield",
+  keep: "keep",
+});
+
 export const TILIA_UI_LAYER = Object.freeze({
   panel: "panel",
   floating: "floating",
@@ -32,4 +37,13 @@ export function resolveBuiltinUiOptions(pluginId, options = {}) {
     ...(TILIA_BUILTIN_UI_DEFAULTS[pluginId] || {}),
     ...(options && typeof options === "object" ? options : {}),
   };
+}
+
+export function resolveControlEdgePolicy({ priority = TILIA_CONTROL_PRIORITY.normal, edgePolicy = null } = {}) {
+  if (edgePolicy === TILIA_CONTROL_EDGE_POLICY.keep || edgePolicy === TILIA_CONTROL_EDGE_POLICY.yield) {
+    return edgePolicy;
+  }
+  return priority === TILIA_CONTROL_PRIORITY.high
+    ? TILIA_CONTROL_EDGE_POLICY.keep
+    : TILIA_CONTROL_EDGE_POLICY.yield;
 }

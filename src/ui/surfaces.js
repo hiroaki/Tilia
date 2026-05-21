@@ -1,4 +1,4 @@
-import { TILIA_CONTROL_PRIORITY, TILIA_UI_LAYER } from "./protocol.js";
+import { TILIA_CONTROL_EDGE_POLICY, TILIA_CONTROL_PRIORITY, TILIA_UI_LAYER } from "./protocol.js";
 
 const SURFACE_ROOT_CLASS = "tilia-ui-surface-root";
 const RESERVED_RIGHT_VAR = "--tilia-reserved-right";
@@ -76,18 +76,10 @@ function queryPriorityControls(container) {
   return Array.from(container.querySelectorAll(".tilia-map-control") || []);
 }
 
-function getCornerPriority(cornerNodes) {
-  const priorities = cornerNodes.flatMap((cornerNode) => queryPriorityControls(cornerNode).map((control) => control.dataset?.tiliaPriority));
-  if (priorities.includes(TILIA_CONTROL_PRIORITY.high)) {
-    return TILIA_CONTROL_PRIORITY.high;
-  }
-  if (priorities.includes(TILIA_CONTROL_PRIORITY.normal)) {
-    return TILIA_CONTROL_PRIORITY.normal;
-  }
-  if (priorities.includes(TILIA_CONTROL_PRIORITY.low)) {
-    return TILIA_CONTROL_PRIORITY.low;
-  }
-  return null;
+function getCornerKeepPolicy(cornerNodes) {
+  return cornerNodes.some((cornerNode) => queryPriorityControls(cornerNode).some((control) => {
+    return control.dataset?.tiliaEdgePolicy === TILIA_CONTROL_EDGE_POLICY.keep;
+  }));
 }
 
 function getCornerExtent(cornerNodes, dimension) {
@@ -147,7 +139,7 @@ export function createUiSurfaceManager({ map }) {
       ]);
       const panelInset = `${measureInset(panelState.element, "height") + 24}px`;
       const controlInset = `${getCornerExtent(conflictingCorners, "height") + 24}px`;
-      if (getCornerPriority(conflictingCorners) === TILIA_CONTROL_PRIORITY.high) {
+      if (getCornerKeepPolicy(conflictingCorners)) {
         setStyleProperty(mapContainer.style, PANEL_OFFSET_BOTTOM_VAR, controlInset);
         removeStyleProperty(mapContainer.style, RESERVED_BOTTOM_VAR);
       } else {
@@ -165,7 +157,7 @@ export function createUiSurfaceManager({ map }) {
     ]);
     const panelInset = `${measureInset(panelState.element, "width") + 24}px`;
     const controlInset = `${getCornerExtent(conflictingCorners, "width") + 24}px`;
-    if (getCornerPriority(conflictingCorners) === TILIA_CONTROL_PRIORITY.high) {
+    if (getCornerKeepPolicy(conflictingCorners)) {
       setStyleProperty(mapContainer.style, PANEL_OFFSET_RIGHT_VAR, controlInset);
       removeStyleProperty(mapContainer.style, RESERVED_RIGHT_VAR);
     } else {

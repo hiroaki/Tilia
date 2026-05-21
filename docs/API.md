@@ -334,9 +334,9 @@ createTiliaApp({
 
 - Built-in UI styles are loaded automatically by the runtime.
 - Third-party plugins can declare `stylesheets` on the plugin object. Tilia injects each declared stylesheet once per document before `setup()` executes.
-- Built-in UI plugin options flow through `pluginOptions`. `position` selects the Leaflet control corner and `priority` controls relative control strength when multiple controls compete.
+- Built-in UI plugin options flow through `pluginOptions`. `position` selects the Leaflet control corner, `priority` controls relative visual strength, and `edgePolicy` controls whether a conflicting control yields to a panel or keeps its corner.
 - Floating UI that should live above the map but outside Leaflet controls can be mounted through the shared UI surface manager instead of appending directly to the map container.
-- During panel/layout arbitration, `priority: "high"` lets a conflicting control keep its corner and makes the panel yield space instead.
+- During panel/layout arbitration, `edgePolicy: "keep"` lets a conflicting control keep its corner and makes the panel yield space instead. When `edgePolicy` is omitted, `priority: "high"` defaults to `keep` and other priorities default to `yield`.
 
 ```js
 createDefaultTiliaApp("map", {
@@ -345,6 +345,7 @@ createDefaultTiliaApp("map", {
     "tilia-file-import": {
       position: "topright",
       priority: "high",
+      edgePolicy: "keep",
     },
   },
 });
@@ -379,7 +380,7 @@ mounted.unmount();
 
 ```js
 // Install a native Leaflet map control that wraps your content
-app.ui.installMapControl({ map, position, priority, className, createContent })
+app.ui.installMapControl({ map, position, priority, edgePolicy, className, createContent })
 
 // Create common UI elements
 app.ui.createPanel()               // returns a class-based panel element styled by the core stylesheet

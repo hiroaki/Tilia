@@ -135,7 +135,7 @@ Plugin authors should assume:
 - dependency order must be satisfied before installation starts
 - shared cross-plugin coordination happens through `app.provide(...)` and `app.services[...]`
 - built-in UI plugins own their shared stylesheet through the core runtime rather than viewer HTML
-- UI plugins may use `position` and `priority` options to negotiate control placement without hard-coding page-level CSS
+- UI plugins may use `position`, `priority`, and `edgePolicy` options to negotiate control placement without hard-coding page-level CSS
 - panel-like and floating overlay UI should use managed surfaces rather than directly mutating the map container DOM
 - when a panel competes with controls for the same edge, `priority: "high"` allows the control to keep that corner and pushes the panel instead
 - teardown is optional but recommended via `destroy()` or a returned cleanup function

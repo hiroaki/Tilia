@@ -136,7 +136,7 @@ plugin author は次を前提にしてください。
 - 依存順序はインストール前に満たされている必要がある
 - plugin 間の共有は `app.provide(...)` と `app.services[...]` を使う
 - built-in UI plugin の共通 stylesheet は viewer HTML ではなく core runtime が所有する
-- UI plugin の control 配置は `position` と `priority` で調整し、page-level CSS に依存しない
+- UI plugin の control 配置は `position`、`priority`、`edgePolicy` で調整し、page-level CSS に依存しない
 - panel / floating overlay は managed surface を使い、map container DOM を直接いじらない
 - panel と control が同じ辺で競合した場合、`priority: "high"` の control は corner を維持し、代わりに panel 側が退避することがある
 - teardown は必須ではないが、`destroy()` または cleanup function の返却を推奨する

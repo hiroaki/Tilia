@@ -1,10 +1,12 @@
 import { Control, DomEvent, DomUtil } from "leaflet";
+import { resolveControlEdgePolicy } from "../ui/protocol.js";
 
-export function installMapControl({ map, position = "topleft", className = "", priority = "normal", createContent }) {
+export function installMapControl({ map, position = "topleft", className = "", priority = "normal", edgePolicy = null, createContent }) {
   class TiliaControl extends Control {
     onAdd() {
       const container = DomUtil.create("div", `tilia-map-control ${className}`.trim());
       container.dataset.tiliaPriority = priority;
+      container.dataset.tiliaEdgePolicy = resolveControlEdgePolicy({ priority, edgePolicy });
       DomEvent.disableClickPropagation(container);
       DomEvent.on(container, "dblclick", DomEvent.stopPropagation);
       DomEvent.on(container, "dblclick", DomEvent.preventDefault);

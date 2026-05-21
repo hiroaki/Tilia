@@ -333,9 +333,9 @@ createTiliaApp({
 
 - built-in UI stylesheet は runtime が自動で読み込みます。
 - third-party plugin は plugin object に `stylesheets` を宣言できます。各 stylesheet は `setup()` 実行前に、document ごとに 1 回だけ注入されます。
-- built-in UI plugin の `position` や `priority` は `pluginOptions` 経由で指定できます。
+- built-in UI plugin の `position`、`priority`、`edgePolicy` は `pluginOptions` 経由で指定できます。
 - Leaflet control ではない floating UI や panel UI は、map container へ直接 `appendChild()` せず `app.ui.mountSurface()` を使って `panel` または `floating` surface に載せてください。
-- panel との競合時には、`priority: "high"` の control を優先し、control をどかす代わりに panel 側が退避する場合があります。
+- panel との競合時には、`edgePolicy: "keep"` を指定した control を優先し、control をどかす代わりに panel 側が退避します。`edgePolicy` を省略した場合は、`priority: "high"` が `keep`、それ以外は `yield` として扱います。
 
 ```js
 createDefaultTiliaApp("map", {
@@ -344,6 +344,7 @@ createDefaultTiliaApp("map", {
     "tilia-file-import": {
       position: "topright",
       priority: "high",
+      edgePolicy: "keep",
     },
   },
 });
@@ -377,7 +378,7 @@ mounted.unmount();
 
 ```js
 // Leaflet のネイティブマップコントロールとしてコンテンツを追加
-app.ui.installMapControl({ map, position, priority, className, createContent })
+app.ui.installMapControl({ map, position, priority, edgePolicy, className, createContent })
 
 // UI 要素の生成
 app.ui.createPanel()                         // core stylesheet で見た目が定義される class ベースの panel 要素
