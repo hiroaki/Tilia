@@ -115,6 +115,17 @@ const plugin = {
 
 Because the runtime receives only the plugin object, relative stylesheet paths should be resolved by the plugin module itself.
 
+## UI surface contract
+
+Tilia also owns a small set of shared UI surfaces above the map container.
+
+- `panel`: for persistent side or bottom panels such as `tilia-panel`
+- `floating`: for transient overlay UI such as the URL import form
+
+Plugin authors should mount this kind of UI through `app.ui.mountSurface(...)` or `app.ui.surfaceManager`, not by appending directly to `map.getContainer()`.
+
+This keeps stacking and future layout arbitration in the core runtime instead of scattering `z-index` ownership across plugins.
+
 ## Runtime expectations for plugin authors
 
 Plugin authors should assume:
@@ -125,6 +136,7 @@ Plugin authors should assume:
 - shared cross-plugin coordination happens through `app.provide(...)` and `app.services[...]`
 - built-in UI plugins own their shared stylesheet through the core runtime rather than viewer HTML
 - UI plugins may use `position` and `priority` options to negotiate control placement without hard-coding page-level CSS
+- panel-like and floating overlay UI should use managed surfaces rather than directly mutating the map container DOM
 - teardown is optional but recommended via `destroy()` or a returned cleanup function
 
 If a plugin depends on another plugin's UI or service surface, prefer documenting that dependency in both places:

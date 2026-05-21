@@ -335,6 +335,7 @@ createTiliaApp({
 - Built-in UI styles are loaded automatically by the runtime.
 - Third-party plugins can declare `stylesheets` on the plugin object. Tilia injects each declared stylesheet once per document before `setup()` executes.
 - Built-in UI plugin options flow through `pluginOptions`. `position` selects the Leaflet control corner and `priority` controls relative control strength when multiple controls compete.
+- Floating UI that should live above the map but outside Leaflet controls can be mounted through the shared UI surface manager instead of appending directly to the map container.
 
 ```js
 createDefaultTiliaApp("map", {
@@ -346,6 +347,23 @@ createDefaultTiliaApp("map", {
     },
   },
 });
+```
+
+Use `app.ui.mountSurface()` for panel-like or floating UI that is not a Leaflet control:
+
+```js
+const panel = document.createElement("aside");
+panel.className = "my-plugin-panel";
+
+const mounted = app.ui.mountSurface({
+  id: "x-my-plugin-panel",
+  surface: "panel",       // or "floating"
+  element: panel,
+  priority: "high",
+});
+
+// Later, during teardown:
+mounted.unmount();
 ```
 
 > **Security note:** dynamically loaded plugins run with the same privileges as any other JavaScript on the page. Tilia does not sandbox plugin code.
@@ -370,6 +388,12 @@ app.ui.createSelect(optionValues, onChange)  // returns a <select>
 // Register an additional stylesheet for the current document
 app.ui.registerStylesheet({ href, id? })
 
+// Mount UI into a managed surface above the map container
+app.ui.mountSurface({ id, surface, element, priority? })
+
+// Access the low-level surface manager if needed
+app.ui.surfaceManager
+
 // Subscribe to track / waypoint / photo events (returns unsubscribe fn)
 app.subscribeInteractions({ onTrackLayer, onWaypointLayer, onPhotoMarker })
 
@@ -386,6 +410,7 @@ app.provide(name, service)
 app.services["tilia-panel"]   // { openPanel, closePanel, togglePanel, rerenderPanel, isOpen }
 app.services["tilia-status"]  // { setStatus }
 app.services["tilia-base-maps"]  // same object as app.baseMaps
+app.services["tilia-ui-surfaces"] // same object as app.ui.surfaceManager
 ```
 
 
