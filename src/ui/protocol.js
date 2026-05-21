@@ -18,8 +18,8 @@ export const TILIA_UI_LAYER = Object.freeze({
 export const TILIA_UI_STYLESHEET_ID = "tilia-core-ui";
 
 export const TILIA_UI_LAYER_Z_INDEX = Object.freeze({
-  panel: 900,
-  floating: 950,
+  panel: 1100,
+  floating: 1150,
 });
 
 export const TILIA_BUILTIN_UI_DEFAULTS = Object.freeze({
