@@ -9,8 +9,19 @@ function createElement(ownerDocument, tagName) {
     nodeType: 1,
     className: "",
     dataset: {},
+    style: {
+      values: {},
+      setProperty(name, value) {
+        this.values[name] = value;
+      },
+      removeProperty(name) {
+        delete this.values[name];
+      },
+    },
     children: [],
     parentNode: null,
+    offsetWidth: 0,
+    offsetHeight: 0,
     appendChild(child) {
       child.parentNode = this;
       this.children.push(child);
@@ -22,6 +33,12 @@ function createElement(ownerDocument, tagName) {
       }
       this.parentNode.children = this.parentNode.children.filter((child) => child !== this);
       this.parentNode = null;
+    },
+    getBoundingClientRect() {
+      return {
+        width: this.offsetWidth,
+        height: this.offsetHeight,
+      };
     },
   };
 }
@@ -107,5 +124,38 @@ describe("createUiSurfaceManager", () => {
 
     expect(mapContainer.children[0].children).toHaveLength(1);
     expect(mapContainer.children[0].children[0]).toBe(secondNode);
+  });
+
+  it("publishes reserved insets for side and bottom panel layouts", () => {
+    const ownerDocument = createDocumentStub();
+    const mapContainer = createElement(ownerDocument, "div");
+    const manager = createUiSurfaceManager({
+      map: {
+        getContainer() {
+          return mapContainer;
+        },
+      },
+    });
+    const panelNode = createElement(ownerDocument, "aside");
+    panelNode.offsetWidth = 360;
+    panelNode.offsetHeight = 280;
+
+    manager.setPanelState({ active: true, layout: "side", element: panelNode });
+
+    expect(mapContainer.dataset.tiliaPanelLayout).toBe("side");
+    expect(mapContainer.style.values["--tilia-reserved-right"]).toBe("384px");
+    expect(mapContainer.style.values["--tilia-reserved-bottom"]).toBeUndefined();
+
+    manager.setPanelState({ active: true, layout: "bottom", element: panelNode });
+
+    expect(mapContainer.dataset.tiliaPanelLayout).toBe("bottom");
+    expect(mapContainer.style.values["--tilia-reserved-bottom"]).toBe("304px");
+    expect(mapContainer.style.values["--tilia-reserved-right"]).toBeUndefined();
+
+    manager.setPanelState({ active: false });
+
+    expect(mapContainer.dataset.tiliaPanelLayout).toBeUndefined();
+    expect(mapContainer.style.values["--tilia-reserved-right"]).toBeUndefined();
+    expect(mapContainer.style.values["--tilia-reserved-bottom"]).toBeUndefined();
   });
 });

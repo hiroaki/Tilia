@@ -5,6 +5,8 @@
   --accent: #0f766e;
   --tilia-layer-panel: 900;
   --tilia-layer-floating: 950;
+  --tilia-reserved-right: 0px;
+  --tilia-reserved-bottom: 0px;
 }
 
 .tilia-ui-surface-root {
@@ -35,6 +37,15 @@
 
 .tilia-ui-surface-root > *[data-tilia-surface-priority="high"] {
   z-index: 2;
+}
+
+.leaflet-container[data-tilia-panel-layout="side"] .leaflet-top.leaflet-right,
+.leaflet-container[data-tilia-panel-layout="side"] .leaflet-bottom.leaflet-right {
+  right: var(--tilia-reserved-right);
+}
+
+.leaflet-container[data-tilia-panel-layout="bottom"] .leaflet-bottom {
+  bottom: var(--tilia-reserved-bottom);
 }
 
 .tilia-map-control {

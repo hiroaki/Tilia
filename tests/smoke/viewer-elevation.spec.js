@@ -23,5 +23,15 @@ test("viewer elevation panel renders a profile for an imported GPX track", async
   await expect(page.locator(".tilia-elevation-chart")).toHaveAttribute("aria-label", "Elevation profile");
   await expect(page.locator(".tilia-status-text")).toContainText("Selected sample-track.gpx elevation profile");
 
+  const bottomPanelBox = await page.locator(".tilia-side-panel:not(.tilia-side-panel-hidden)").evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom };
+  });
+  const statusControlBox = await page.locator(".tilia-status-control").evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom };
+  });
+  expect(statusControlBox.bottom).toBeLessThanOrEqual(bottomPanelBox.top);
+
   expect(pageErrors).toEqual([]);
 });

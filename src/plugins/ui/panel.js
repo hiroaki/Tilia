@@ -55,6 +55,7 @@ export function installPanelPlugin({ map, surfaces = null }) {
     panelRoot.classList.add("tilia-side-panel-hidden");
     panelRoot.classList.remove(...layoutClasses);
     panelRoot.classList.add("tilia-side-panel-layout-side");
+    surfaces?.setPanelState({ active: false });
     panelBody.innerHTML = "";
   }
 
@@ -70,6 +71,11 @@ export function installPanelPlugin({ map, surfaces = null }) {
       panelBody.appendChild(content);
     }
     panelRoot.classList.remove("tilia-side-panel-hidden");
+    surfaces?.setPanelState({
+      active: true,
+      layout,
+      element: panelRoot,
+    });
   }
 
   function rerenderPanel(panelId) {
@@ -91,6 +97,7 @@ export function installPanelPlugin({ map, surfaces = null }) {
     closePanel,
     rerenderPanel,
     destroy() {
+      surfaces?.setPanelState({ active: false });
       mountedSurface?.unmount?.();
     },
     togglePanel(spec) {

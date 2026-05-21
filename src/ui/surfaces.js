@@ -1,6 +1,8 @@
 import { TILIA_CONTROL_PRIORITY, TILIA_UI_LAYER } from "./protocol.js";
 
 const SURFACE_ROOT_CLASS = "tilia-ui-surface-root";
+const RESERVED_RIGHT_VAR = "--tilia-reserved-right";
+const RESERVED_BOTTOM_VAR = "--tilia-reserved-bottom";
 
 function resolveDocument(map) {
   const mapContainer = map?.getContainer?.();
@@ -24,11 +26,41 @@ function applySurfaceMetadata(element, surface, priority) {
   element.dataset.tiliaSurfacePriority = resolvePriority(priority);
 }
 
+function measureInset(element, dimension) {
+  const rect = element?.getBoundingClientRect?.();
+  if (dimension === "width") {
+    return Math.ceil(rect?.width || element?.offsetWidth || element?.clientWidth || 0);
+  }
+  return Math.ceil(rect?.height || element?.offsetHeight || element?.clientHeight || 0);
+}
+
+function setStyleProperty(style, name, value) {
+  if (typeof style?.setProperty === "function") {
+    style.setProperty(name, value);
+    return;
+  }
+  style[name] = value;
+}
+
+function removeStyleProperty(style, name) {
+  if (typeof style?.removeProperty === "function") {
+    style.removeProperty(name);
+    return;
+  }
+  delete style[name];
+}
+
 export function createUiSurfaceManager({ map }) {
   const mapContainer = map?.getContainer?.();
   const ownerDocument = resolveDocument(map);
   const roots = new Map();
   const items = new Map();
+  let panelObserver = null;
+  let panelState = {
+    active: false,
+    layout: "side",
+    element: null,
+  };
 
   if (!mapContainer || !ownerDocument) {
     return {
@@ -42,8 +74,48 @@ export function createUiSurfaceManager({ map }) {
       getSurfaceRoot() {
         return null;
       },
+      setPanelState() {},
       unmount() {},
     };
+  }
+
+  function disconnectPanelObserver() {
+    panelObserver?.disconnect?.();
+    panelObserver = null;
+  }
+
+  function applyPanelState() {
+    if (!panelState.active || !panelState.element) {
+      delete mapContainer.dataset.tiliaPanelLayout;
+      removeStyleProperty(mapContainer.style, RESERVED_RIGHT_VAR);
+      removeStyleProperty(mapContainer.style, RESERVED_BOTTOM_VAR);
+      return;
+    }
+
+    mapContainer.dataset.tiliaPanelLayout = panelState.layout;
+
+    if (panelState.layout === "bottom") {
+      const reservedBottom = `${measureInset(panelState.element, "height") + 24}px`;
+      setStyleProperty(mapContainer.style, RESERVED_BOTTOM_VAR, reservedBottom);
+      removeStyleProperty(mapContainer.style, RESERVED_RIGHT_VAR);
+      return;
+    }
+
+    const reservedRight = `${measureInset(panelState.element, "width") + 24}px`;
+    setStyleProperty(mapContainer.style, RESERVED_RIGHT_VAR, reservedRight);
+    removeStyleProperty(mapContainer.style, RESERVED_BOTTOM_VAR);
+  }
+
+  function observePanel(element) {
+    disconnectPanelObserver();
+    const ResizeObserverCtor = ownerDocument.defaultView?.ResizeObserver || globalThis.ResizeObserver;
+    if (!ResizeObserverCtor || !element) {
+      return;
+    }
+    panelObserver = new ResizeObserverCtor(() => {
+      applyPanelState();
+    });
+    panelObserver.observe(element);
   }
 
   function ensureSurfaceRoot(surface) {
@@ -130,6 +202,21 @@ export function createUiSurfaceManager({ map }) {
     mount,
     getSurfaceRoot(surface) {
       return ensureSurfaceRoot(surface);
+    },
+    setPanelState(nextState = {}) {
+      panelState = {
+        active: !!nextState.active,
+        layout: nextState.layout === "bottom" ? "bottom" : "side",
+        element: nextState.element || null,
+      };
+
+      if (panelState.active && panelState.element) {
+        observePanel(panelState.element);
+      } else {
+        disconnectPanelObserver();
+      }
+
+      applyPanelState();
     },
     unmount(id) {
       items.get(id)?.handle.unmount();
