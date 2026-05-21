@@ -120,11 +120,17 @@ describe("built-in plugins", () => {
     expect(status.setup(app)).toBe(statusApi);
     expect(baseMaps.setup(app)).toBe(baseMapsApi);
     expect(builtinMocks.installPanelPlugin).toHaveBeenCalledWith({ map: app.map });
-    expect(builtinMocks.installStatusControl).toHaveBeenCalledWith({ map: app.map });
+    expect(builtinMocks.installStatusControl).toHaveBeenCalledWith({
+      map: app.map,
+      position: "bottomleft",
+      priority: "low",
+    });
     expect(builtinMocks.installBaseMapControl).toHaveBeenCalledWith({
       map: app.map,
       baseMaps: app.baseMaps,
       onStatus: app.setStatus,
+      position: "topright",
+      priority: "normal",
     });
     expect(baseMapsApi.render).toHaveBeenCalledTimes(1);
   });

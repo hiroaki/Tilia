@@ -13,10 +13,18 @@ function definePlugin(spec) {
 	return Object.freeze(spec);
 }
 
+function resolveSurfaceOptions(app) {
+	const surfaces = app.ui?.surfaceManager;
+	return surfaces ? { surfaces } : {};
+}
+
 export const panel = definePlugin({
 	id: "tilia-panel",
 	setup(app) {
-		return installPanelPlugin({ map: app.map, surfaces: app.ui.surfaceManager });
+		return installPanelPlugin({
+			map: app.map,
+			...resolveSurfaceOptions(app),
+		});
 	},
 });
 
@@ -101,12 +109,12 @@ export const urlImport = definePlugin({
 	setup(app, options = {}) {
 		return installUrlImportControl({
 			map: app.map,
-			surfaces: app.ui.surfaceManager,
 			registry: app.registry,
 			context: app.context,
 			onStatus: app.setStatus,
 			onError: app.setError,
 			onItemLoaded: () => app.refreshView(),
+			...resolveSurfaceOptions(app),
 			...resolveBuiltinUiOptions("tilia-url-import", options),
 		});
 	},
