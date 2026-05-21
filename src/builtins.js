@@ -7,6 +7,7 @@ import { installLayersControl } from "./plugins/ui/layers-control.js";
 import { installPanelPlugin } from "./plugins/ui/panel.js";
 import { installSettingsPanelControl } from "./plugins/ui/settings-panel.js";
 import { installStatusControl } from "./plugins/ui/status-control.js";
+import { resolveBuiltinUiOptions } from "./ui/protocol.js";
 
 function definePlugin(spec) {
 	return Object.freeze(spec);
@@ -22,7 +23,10 @@ export const panel = definePlugin({
 export const status = definePlugin({
 	id: "tilia-status",
 	setup(app) {
-		return installStatusControl({ map: app.map });
+		return installStatusControl({
+			map: app.map,
+			...resolveBuiltinUiOptions("tilia-status"),
+		});
 	},
 });
 
@@ -33,7 +37,7 @@ export const baseMaps = definePlugin({
 			map: app.map,
 			baseMaps: app.baseMaps,
 			onStatus: app.setStatus,
-			...options,
+			...resolveBuiltinUiOptions("tilia-base-maps-control", options),
 		});
 		api.render();
 		app.addRefreshHandler(() => api.render());
@@ -52,7 +56,7 @@ export const layers = definePlugin({
 			onStatus: app.setStatus,
 			onError: app.setError,
 			onEntriesChanged: () => app.refreshView(),
-			...options,
+			...resolveBuiltinUiOptions("tilia-layers", options),
 		});
 		api.render();
 		app.addRefreshHandler(() => api.render());
@@ -69,7 +73,7 @@ export const elevation = definePlugin({
 			core: app.core,
 			panel: app.services["tilia-panel"],
 			onStatus: app.setStatus,
-			...options,
+			...resolveBuiltinUiOptions("tilia-elevation", options),
 		});
 		api.refresh();
 		app.addRefreshHandler(() => api.refresh());
@@ -87,7 +91,7 @@ export const fileImport = definePlugin({
 			onStatus: app.setStatus,
 			onError: app.setError,
 			onItemLoaded: () => app.refreshView(),
-			...options,
+			...resolveBuiltinUiOptions("tilia-file-import", options),
 		});
 	},
 });
@@ -102,7 +106,7 @@ export const urlImport = definePlugin({
 			onStatus: app.setStatus,
 			onError: app.setError,
 			onItemLoaded: () => app.refreshView(),
-			...options,
+			...resolveBuiltinUiOptions("tilia-url-import", options),
 		});
 	},
 });
@@ -117,7 +121,7 @@ export const settings = definePlugin({
 			panel: app.services["tilia-panel"],
 			onStatus: app.setStatus,
 			onError: app.setError,
-			...options,
+			...resolveBuiltinUiOptions("tilia-settings", options),
 		});
 	},
 });

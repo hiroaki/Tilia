@@ -169,6 +169,7 @@ export function installUrlImportControl({
   onError,
   onItemLoaded,
   position = "topleft",
+  priority = "normal",
   timeoutMs = DEFAULT_URL_IMPORT_TIMEOUT_MS,
   maxBytes = DEFAULT_URL_IMPORT_MAX_BYTES,
 }) {
@@ -186,6 +187,7 @@ export function installUrlImportControl({
   installMapControl({
     map,
     position,
+    priority,
     className: "tilia-url-import-control",
     createContent() {
       const wrap = createPanel("tilia-control-panel-compact");

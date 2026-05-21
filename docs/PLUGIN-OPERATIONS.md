@@ -11,6 +11,7 @@ This document describes the current behaviour of:
 - `requires` handling
 - built-in vs third-party plugin IDs
 - dynamic loading through `pluginUrls` and `pluginLoader`
+- stylesheet registration through built-in UI styles and plugin-declared stylesheets
 
 It does **not** describe future manifest auto-resolution, selective enablement, or plugin sandboxing. Those remain out of scope for the current runtime.
 
@@ -89,6 +90,31 @@ Accepted module shapes:
 
 If no valid plugin object is found, installation fails.
 
+## Stylesheet contract
+
+Tilia now distinguishes JavaScript plugin loading from stylesheet ownership.
+
+- built-in UI styles are injected automatically by the runtime once per document
+- a third-party plugin may declare `stylesheets` on its plugin object
+- each stylesheet is registered before `setup()` runs
+- stylesheet entries may be either strings or `{ href, id }` objects
+
+Recommended pattern for third-party plugins:
+
+```js
+const plugin = {
+  id: "x-my-plugin",
+  stylesheets: [
+    new URL("./my-plugin.css", import.meta.url).href,
+  ],
+  setup(app) {
+    // ...
+  },
+};
+```
+
+Because the runtime receives only the plugin object, relative stylesheet paths should be resolved by the plugin module itself.
+
 ## Runtime expectations for plugin authors
 
 Plugin authors should assume:
@@ -97,6 +123,8 @@ Plugin authors should assume:
 - no sandbox or capability isolation exists
 - dependency order must be satisfied before installation starts
 - shared cross-plugin coordination happens through `app.provide(...)` and `app.services[...]`
+- built-in UI plugins own their shared stylesheet through the core runtime rather than viewer HTML
+- UI plugins may use `position` and `priority` options to negotiate control placement without hard-coding page-level CSS
 - teardown is optional but recommended via `destroy()` or a returned cleanup function
 
 If a plugin depends on another plugin's UI or service surface, prefer documenting that dependency in both places:

@@ -42,6 +42,32 @@ vi.mock("../src/map/controls.js", () => ({
 
 import { createDefaultTiliaApp, createTiliaApp } from "../src/app.js";
 
+function createDocumentStub() {
+  const links = [];
+  return {
+    head: {
+      querySelector(selector) {
+        const match = selector.match(/data-tilia-stylesheet=\"([^\"]+)\"/);
+        const id = match?.[1];
+        return links.find((link) => link.dataset.tiliaStylesheet === id) || null;
+      },
+      appendChild(node) {
+        links.push(node);
+        return node;
+      },
+    },
+    createElement(tagName) {
+      return {
+        tagName,
+        dataset: {},
+      };
+    },
+    get stylesheetLinks() {
+      return links;
+    },
+  };
+}
+
 describe("createTiliaApp plugin lifecycle", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -267,6 +293,50 @@ describe("createTiliaApp plugin lifecycle", () => {
         minZoom: 4,
       }),
     }));
+  });
+
+  it("injects the built-in stylesheet only once per document", () => {
+    const ownerDocument = createDocumentStub();
+    const map = {
+      getContainer() {
+        return { ownerDocument };
+      },
+    };
+
+    createTiliaApp({ map, builtins: {} });
+    createTiliaApp({ map, builtins: {} });
+
+    expect(ownerDocument.stylesheetLinks).toHaveLength(1);
+    expect(ownerDocument.stylesheetLinks[0].rel).toBe("stylesheet");
+    expect(ownerDocument.stylesheetLinks[0].dataset.tiliaStylesheet).toBe("tilia-core-ui");
+  });
+
+  it("registers plugin declared stylesheets before setup", async () => {
+    const ownerDocument = createDocumentStub();
+    const map = {
+      getContainer() {
+        return { ownerDocument };
+      },
+    };
+    const setup = vi.fn(() => ({ ready: true }));
+    const app = createTiliaApp({ map, builtins: {} });
+
+    await app.use({
+      id: "vendor-styled-plugin",
+      stylesheets: [
+        "https://example.com/vendor.css",
+        { href: "https://example.com/vendor-extra.css", id: "vendor-extra" },
+      ],
+      setup,
+    });
+
+    expect(setup).toHaveBeenCalledTimes(1);
+    expect(ownerDocument.stylesheetLinks).toHaveLength(3);
+    expect(ownerDocument.stylesheetLinks.map((link) => link.href)).toEqual([
+      expect.stringContaining("/src/ui/styles.css"),
+      "https://example.com/vendor.css",
+      "https://example.com/vendor-extra.css",
+    ]);
   });
 
   it("publishes a base-map service and facade on the app", () => {

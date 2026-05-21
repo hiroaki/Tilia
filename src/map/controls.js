@@ -1,9 +1,10 @@
 import { Control, DomEvent, DomUtil } from "leaflet";
 
-export function installMapControl({ map, position = "topleft", className = "", createContent }) {
+export function installMapControl({ map, position = "topleft", className = "", priority = "normal", createContent }) {
   class TiliaControl extends Control {
     onAdd() {
       const container = DomUtil.create("div", `tilia-map-control ${className}`.trim());
+      container.dataset.tiliaPriority = priority;
       DomEvent.disableClickPropagation(container);
       DomEvent.on(container, "dblclick", DomEvent.stopPropagation);
       DomEvent.on(container, "dblclick", DomEvent.preventDefault);

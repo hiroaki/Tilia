@@ -219,7 +219,7 @@ function createProfileSvg(profile, activePoint, { onPointSelect, onPointHover, o
   return wrap;
 }
 
-export function installElevationPanelControl({ map, core, panel, onStatus, position = "topleft" }) {
+export function installElevationPanelControl({ map, core, panel, onStatus, position = "topleft", priority = "normal" }) {
   let selectedEntryId = null;
   let selectedPointByEntryId = new Map();
   let hoveredPointByEntryId = new Map();
@@ -492,6 +492,7 @@ export function installElevationPanelControl({ map, core, panel, onStatus, posit
   installMapControl({
     map,
     position,
+    priority,
     className: "tilia-elevation-control",
     createContent() {
       const wrap = createPanel("tilia-control-panel-compact");
