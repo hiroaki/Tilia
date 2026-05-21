@@ -16,7 +16,7 @@ function definePlugin(spec) {
 export const panel = definePlugin({
 	id: "tilia-panel",
 	setup(app) {
-		return installPanelPlugin({ map: app.map });
+		return installPanelPlugin({ map: app.map, surfaces: app.ui.surfaceManager });
 	},
 });
 
@@ -101,6 +101,7 @@ export const urlImport = definePlugin({
 	setup(app, options = {}) {
 		return installUrlImportControl({
 			map: app.map,
+			surfaces: app.ui.surfaceManager,
 			registry: app.registry,
 			context: app.context,
 			onStatus: app.setStatus,

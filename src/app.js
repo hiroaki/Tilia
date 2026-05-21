@@ -4,6 +4,7 @@ import { builtins as defaultBuiltins } from "./builtins.js";
 import { createBaseLayerManager, createBaseMap } from "./map/base.js";
 import { createButton, createPanel, createSelect, installMapControl } from "./map/controls.js";
 import { ensureBuiltinUiStyles, registerStylesheet } from "./ui/styles.js";
+import { createUiSurfaceManager } from "./ui/surfaces.js";
 
 function isPluginObject(value) {
   return !!value && typeof value === "object" && typeof value.setup === "function";
@@ -215,6 +216,7 @@ export function createTiliaApp({ map, builtins = defaultBuiltins, ...options } =
   }
 
   ensureBuiltinUiStyles({ map });
+  const surfaceManager = createUiSurfaceManager({ map });
 
   const core = createTiliaCore(map, options);
   const baseMap = { map };
@@ -291,6 +293,10 @@ export function createTiliaApp({ map, builtins = defaultBuiltins, ...options } =
       createPanel,
       createButton,
       createSelect,
+      surfaceManager,
+      mountSurface(surfaceItem) {
+        return surfaceManager.mount(surfaceItem);
+      },
       registerStylesheet(stylesheet) {
         return registerStylesheet({
           map,
@@ -413,6 +419,7 @@ export function createTiliaApp({ map, builtins = defaultBuiltins, ...options } =
   };
   appRef = app;
   app.provide("tilia-base-maps", baseMaps);
+  app.provide("tilia-ui-surfaces", surfaceManager);
 
   // `plugins: [...]` is a bootstrap convenience only. The real installation path remains `app.use(...)`
   // so startup sugar does not fork the plugin lifecycle or create a second implementation path.

@@ -1,6 +1,7 @@
 import { DomEvent } from "leaflet";
 import { processInputItems } from "./file-import.js";
 import { createButton, createPanel, installMapControl } from "../../map/controls.js";
+import { TILIA_CONTROL_PRIORITY, TILIA_UI_LAYER } from "../../ui/protocol.js";
 import {
   DEFAULT_URL_IMPORT_MAX_BYTES,
   DEFAULT_URL_IMPORT_TIMEOUT_MS,
@@ -112,7 +113,7 @@ export function installUrlImportPlugin({
   });
 }
 
-function createUrlImportPanel({ map, registry, context, onStatus, onError, onItemLoaded, timeoutMs, maxBytes }) {
+function createUrlImportPanel({ map, surfaces = null, registry, context, onStatus, onError, onItemLoaded, timeoutMs, maxBytes }) {
   const panel = createPanel("tilia-url-floating-panel tilia-url-floating-panel-hidden");
   const form = createPanel("tilia-url-box");
   const urlInput = document.createElement("input");
@@ -149,10 +150,21 @@ function createUrlImportPanel({ map, registry, context, onStatus, onError, onIte
   DomEvent.on(panel, "dblclick", DomEvent.preventDefault);
   DomEvent.disableScrollPropagation(panel);
 
-  map.getContainer().appendChild(panel);
+  const mountedSurface = surfaces?.mount({
+    id: "tilia-url-import-floating-panel",
+    surface: TILIA_UI_LAYER.floating,
+    element: panel,
+    priority: TILIA_CONTROL_PRIORITY.high,
+  });
+  if (!mountedSurface) {
+    map.getContainer().appendChild(panel);
+  }
 
   return {
     panel,
+    destroy() {
+      mountedSurface?.unmount?.();
+    },
     focus() {
       queueMicrotask(() => {
         urlInput.focus();
@@ -163,6 +175,7 @@ function createUrlImportPanel({ map, registry, context, onStatus, onError, onIte
 
 export function installUrlImportControl({
   map,
+  surfaces = null,
   registry,
   context,
   onStatus,
@@ -175,6 +188,7 @@ export function installUrlImportControl({
 }) {
   const floatingPanel = createUrlImportPanel({
     map,
+    surfaces,
     registry,
     context,
     onStatus,
@@ -184,7 +198,7 @@ export function installUrlImportControl({
     maxBytes,
   });
 
-  installMapControl({
+  const control = installMapControl({
     map,
     position,
     priority,
@@ -205,4 +219,12 @@ export function installUrlImportControl({
       return wrap;
     },
   });
+
+  return {
+    control,
+    destroy() {
+      floatingPanel.destroy();
+      control.remove?.();
+    },
+  };
 }

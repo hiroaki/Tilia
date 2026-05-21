@@ -7,6 +7,36 @@
   --tilia-layer-floating: 950;
 }
 
+.tilia-ui-surface-root {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.tilia-ui-surface-root-panel {
+  z-index: var(--tilia-layer-panel);
+}
+
+.tilia-ui-surface-root-floating {
+  z-index: var(--tilia-layer-floating);
+}
+
+.tilia-ui-surface-root > * {
+  pointer-events: auto;
+}
+
+.tilia-ui-surface-root > *[data-tilia-surface-priority="low"] {
+  z-index: 0;
+}
+
+.tilia-ui-surface-root > *[data-tilia-surface-priority="normal"] {
+  z-index: 1;
+}
+
+.tilia-ui-surface-root > *[data-tilia-surface-priority="high"] {
+  z-index: 2;
+}
+
 .tilia-map-control {
   pointer-events: auto;
   position: relative;
@@ -105,7 +135,6 @@
   top: 12px;
   right: 12px;
   bottom: 12px;
-  z-index: var(--tilia-layer-panel);
   width: min(360px, 72vw);
   display: flex;
   flex-direction: column;
@@ -296,7 +325,6 @@
   top: 12px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: var(--tilia-layer-floating);
   width: min(420px, calc(100vw - 32px));
   box-sizing: border-box;
 }
