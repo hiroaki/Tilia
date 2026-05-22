@@ -1,6 +1,6 @@
 import { createPanel, installMapControl } from "../../map/controls.js";
 
-export function installStatusControl({ map, position = "bottomleft" }) {
+export function installStatusControl({ map, position = "bottomleft", priority = "normal", edgePolicy = null }) {
   let statusNode = null;
   let panelNode = null;
   let dismissed = false;
@@ -8,6 +8,8 @@ export function installStatusControl({ map, position = "bottomleft" }) {
   installMapControl({
     map,
     position,
+    priority,
+    edgePolicy,
     className: "tilia-status-control",
     createContent() {
       const panel = createPanel("tilia-status-panel");

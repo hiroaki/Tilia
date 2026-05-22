@@ -23,7 +23,7 @@ Leaflet ベースマップの作成と Tilia app の初期化をまとめて行�
 | 名前 | 型 | 説明 |
 |------|----|------|
 | `plugins` | `Array?` | 起動時に導入するプラグイン一覧（文字列 ID、プラグインオブジェクト、`[plugin, options]` タプルが混在可） |
-| `pluginOptions` | `object?` | プラグイン ID をキーにした、各プラグインへのオプションマップ |
+| `pluginOptions` | `object?` | プラグイン ID をキーにした、各プラグインへのオプションマップ。built-in UI plugin では `position` や `priority` をここで指定できます。 |
 | `pluginUrls` | `object?` | 特定 ID のローダーパスを上書き: `{ "x-my-plugin": "./path/loader.js" }` |
 | `pluginLoader` | `function?` | 完全カスタムのローダー関数: `async (pluginId) => pluginModule` |
 | `baseMapOptions` | `object?` | `createBaseMap()` に渡すオプション（下記参照） |
@@ -252,11 +252,15 @@ unsub();
 const myPlugin = {
   id: "x-my-plugin",           // lower-kebab-case、ベンダー prefix 付き
   requires: ["tilia-status"],   // 先に導入が必要なプラグイン ID（省略可）
+  stylesheets: [
+    new URL("./my-plugin.css", import.meta.url).href,
+  ],
 
   setup(app, options) {
     const control = app.ui.installMapControl({
       map: app.map,
       position: "topright",
+      priority: "high",
       className: "my-plugin-control",
       createContent() {
         const panel = app.ui.createPanel();
@@ -284,6 +288,8 @@ const myPlugin = {
 
 await app.use(myPlugin);
 ```
+
+`stylesheets` は省略可能です。指定した場合、Tilia は `setup()` 実行前に各 stylesheet を登録します。相対パスの asset は `new URL(..., import.meta.url).href` で plugin module 側から解決してください。
 
 ### プラグイン ID の規則
 
@@ -323,6 +329,43 @@ createTiliaApp({
 });
 ```
 
+### UI スタイルと surface の契約
+
+- built-in UI stylesheet は runtime が自動で読み込みます。
+- third-party plugin は plugin object に `stylesheets` を宣言できます。各 stylesheet は `setup()` 実行前に、document ごとに 1 回だけ注入されます。
+- built-in UI plugin の `position`、`priority`、`edgePolicy` は `pluginOptions` 経由で指定できます。
+- Leaflet control ではない floating UI や panel UI は、map container へ直接 `appendChild()` せず `app.ui.mountSurface()` を使って `panel` または `floating` surface に載せてください。
+- panel との競合時には、`edgePolicy: "keep"` を指定した control を優先し、control をどかす代わりに panel 側が退避します。`edgePolicy` を省略した場合は、`priority: "high"` が `keep`、それ以外は `yield` として扱います。
+
+```js
+createDefaultTiliaApp("map", {
+  plugins: ["tilia-status", "tilia-file-import"],
+  pluginOptions: {
+    "tilia-file-import": {
+      position: "topright",
+      priority: "high",
+      edgePolicy: "keep",
+    },
+  },
+});
+```
+
+Leaflet control 以外の UI を管理 surface に載せる例:
+
+```js
+const panel = document.createElement("aside");
+panel.className = "my-plugin-panel";
+
+const mounted = app.ui.mountSurface({
+  id: "x-my-plugin-panel",
+  surface: "panel", // または "floating"
+  element: panel,
+  priority: "high",
+});
+
+mounted.unmount();
+```
+
 > **セキュリティに関する注意:** 動的に読み込まれたプラグインは、ページ上の通常の JavaScript と同じ権限で実行されます。Tilia はプラグインコードをサンドボックス化しません。
 
 ### 信頼モデルとネットワークに関する前提
@@ -335,12 +378,21 @@ createTiliaApp({
 
 ```js
 // Leaflet のネイティブマップコントロールとしてコンテンツを追加
-app.ui.installMapControl({ map, position, className, createContent })
+app.ui.installMapControl({ map, position, priority, edgePolicy, className, createContent })
 
 // UI 要素の生成
-app.ui.createPanel()                         // スタイル済みの <div>
+app.ui.createPanel()                         // core stylesheet で見た目が定義される class ベースの panel 要素
 app.ui.createButton(label)                   // <button>
 app.ui.createSelect(optionValues, onChange)  // <select>
+
+// 現在の document に stylesheet を追加登録
+app.ui.registerStylesheet({ href, id? })
+
+// map 上の managed surface に UI を mount
+app.ui.mountSurface({ id, surface, element, priority? })
+
+// low-level な surface manager 本体
+app.ui.surfaceManager
 
 // トラック・ウェイポイント・写真のイベントを購読（購読解除関数を返す）
 app.subscribeInteractions({ onTrackLayer, onWaypointLayer, onPhotoMarker })
@@ -358,6 +410,7 @@ app.provide(name, service)
 app.services["tilia-panel"]   // { openPanel, closePanel, togglePanel, rerenderPanel, isOpen }
 app.services["tilia-status"]  // { setStatus }
 app.services["tilia-base-maps"]  // app.baseMaps と同じオブジェクト
+app.services["tilia-ui-surfaces"] // app.ui.surfaceManager と同じオブジェクト
 ```
 
 

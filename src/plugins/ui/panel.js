@@ -1,31 +1,41 @@
 import { DomEvent } from "leaflet";
+import { TILIA_CONTROL_PRIORITY, TILIA_UI_LAYER } from "../../ui/protocol.js";
 
-export function installPanelPlugin({ map }) {
+export function installPanelPlugin({ map, surfaces = null }) {
   const mapContainer = map.getContainer();
-  const panelRoot = document.createElement("aside");
+  const ownerDocument = mapContainer.ownerDocument;
+  const panelRoot = ownerDocument.createElement("aside");
   panelRoot.className = "tilia-side-panel tilia-side-panel-hidden";
   const layoutClasses = ["tilia-side-panel-layout-side", "tilia-side-panel-layout-bottom"];
 
-  const panelHeader = document.createElement("div");
+  const panelHeader = ownerDocument.createElement("div");
   panelHeader.className = "tilia-side-panel-header";
 
-  const panelTitle = document.createElement("h2");
+  const panelTitle = ownerDocument.createElement("h2");
   panelTitle.className = "tilia-side-panel-title";
   panelTitle.textContent = "Panel";
 
-  const closeButton = document.createElement("button");
+  const closeButton = ownerDocument.createElement("button");
   closeButton.type = "button";
   closeButton.className = "tilia-side-panel-close";
   closeButton.textContent = "Close";
 
-  const panelBody = document.createElement("div");
+  const panelBody = ownerDocument.createElement("div");
   panelBody.className = "tilia-side-panel-body";
 
   panelHeader.appendChild(panelTitle);
   panelHeader.appendChild(closeButton);
   panelRoot.appendChild(panelHeader);
   panelRoot.appendChild(panelBody);
-  mapContainer.appendChild(panelRoot);
+  const mountedSurface = surfaces?.mount({
+    id: "tilia-panel-root",
+    surface: TILIA_UI_LAYER.panel,
+    element: panelRoot,
+    priority: TILIA_CONTROL_PRIORITY.normal,
+  });
+  if (!mountedSurface) {
+    mapContainer.appendChild(panelRoot);
+  }
 
   for (const eventName of ["click", "dblclick", "mousedown", "mouseup", "pointerdown", "pointerup"]) {
     panelRoot.addEventListener(eventName, (event) => {
@@ -46,6 +56,7 @@ export function installPanelPlugin({ map }) {
     panelRoot.classList.add("tilia-side-panel-hidden");
     panelRoot.classList.remove(...layoutClasses);
     panelRoot.classList.add("tilia-side-panel-layout-side");
+    surfaces?.setPanelState({ active: false });
     panelBody.innerHTML = "";
   }
 
@@ -61,6 +72,11 @@ export function installPanelPlugin({ map }) {
       panelBody.appendChild(content);
     }
     panelRoot.classList.remove("tilia-side-panel-hidden");
+    surfaces?.setPanelState({
+      active: true,
+      layout,
+      element: panelRoot,
+    });
   }
 
   function rerenderPanel(panelId) {
@@ -81,6 +97,11 @@ export function installPanelPlugin({ map }) {
     openPanel,
     closePanel,
     rerenderPanel,
+    destroy() {
+      surfaces?.setPanelState({ active: false });
+      mountedSurface?.unmount?.();
+      panelRoot.remove?.();
+    },
     togglePanel(spec) {
       if (activePanelId === spec.panelId) {
         closePanel();

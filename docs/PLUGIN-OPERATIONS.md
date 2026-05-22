@@ -11,6 +11,7 @@ This document describes the current behaviour of:
 - `requires` handling
 - built-in vs third-party plugin IDs
 - dynamic loading through `pluginUrls` and `pluginLoader`
+- stylesheet registration through built-in UI styles and plugin-declared stylesheets
 
 It does **not** describe future manifest auto-resolution, selective enablement, or plugin sandboxing. Those remain out of scope for the current runtime.
 
@@ -89,6 +90,42 @@ Accepted module shapes:
 
 If no valid plugin object is found, installation fails.
 
+## Stylesheet contract
+
+Tilia now distinguishes JavaScript plugin loading from stylesheet ownership.
+
+- built-in UI styles are injected automatically by the runtime once per document
+- a third-party plugin may declare `stylesheets` on its plugin object
+- each stylesheet is registered before `setup()` runs
+- stylesheet entries may be either strings or `{ href, id }` objects
+
+Recommended pattern for third-party plugins:
+
+```js
+const plugin = {
+  id: "x-my-plugin",
+  stylesheets: [
+    new URL("./my-plugin.css", import.meta.url).href,
+  ],
+  setup(app) {
+    // ...
+  },
+};
+```
+
+Because the runtime receives only the plugin object, relative stylesheet paths should be resolved by the plugin module itself.
+
+## UI surface contract
+
+Tilia also owns a small set of shared UI surfaces above the map container.
+
+- `panel`: for persistent side or bottom panels such as `tilia-panel`
+- `floating`: for transient overlay UI such as the URL import form
+
+Plugin authors should mount this kind of UI through `app.ui.mountSurface(...)` or `app.ui.surfaceManager`, not by appending directly to `map.getContainer()`.
+
+This keeps stacking and future layout arbitration in the core runtime instead of scattering `z-index` ownership across plugins.
+
 ## Runtime expectations for plugin authors
 
 Plugin authors should assume:
@@ -97,6 +134,10 @@ Plugin authors should assume:
 - no sandbox or capability isolation exists
 - dependency order must be satisfied before installation starts
 - shared cross-plugin coordination happens through `app.provide(...)` and `app.services[...]`
+- built-in UI plugins own their shared stylesheet through the core runtime rather than viewer HTML
+- UI plugins may use `position`, `priority`, and `edgePolicy` options to negotiate control placement without hard-coding page-level CSS
+- panel-like and floating overlay UI should use managed surfaces rather than directly mutating the map container DOM
+- when a panel competes with controls for the same edge, `priority: "high"` allows the control to keep that corner and pushes the panel instead
 - teardown is optional but recommended via `destroy()` or a returned cleanup function
 
 If a plugin depends on another plugin's UI or service surface, prefer documenting that dependency in both places:

@@ -123,10 +123,11 @@ function createTimeModeField({ core, onStatus, onError = null }) {
   };
 }
 
-export function installSettingsPanelControl({ map, core, panel, onStatus, onError = null, position = "topleft" }) {
+export function installSettingsPanelControl({ map, core, panel, onStatus, onError = null, position = "topleft", priority = "normal" }) {
   return installMapControl({
     map,
     position,
+    priority,
     className: "tilia-settings-control",
     createContent() {
       const wrap = createPanel("tilia-control-panel-compact");

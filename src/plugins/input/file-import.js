@@ -71,12 +71,13 @@ export function installFileImportPlugin({ fileInput, registry, context, onStatus
   });
 }
 
-export function installFileImportControl({ map, registry, context, onStatus, onError, onItemLoaded, position = "topleft" }) {
+export function installFileImportControl({ map, registry, context, onStatus, onError, onItemLoaded, position = "topleft", priority = "normal" }) {
   let fileInput = null;
 
   installMapControl({
     map,
     position,
+    priority,
     className: "tilia-file-import-control",
     createContent() {
       const panel = createPanel("tilia-control-panel-compact");
