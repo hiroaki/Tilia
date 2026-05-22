@@ -135,6 +135,23 @@ describe("built-in plugins", () => {
     expect(baseMapsApi.render).toHaveBeenCalledTimes(1);
   });
 
+  it("forwards explicit tilia-status options to installStatusControl", () => {
+    const app = createAppStub({ map: { id: "map" } });
+
+    status.setup(app, {
+      position: "topright",
+      priority: "high",
+      edgePolicy: "keep",
+    });
+
+    expect(builtinMocks.installStatusControl).toHaveBeenCalledWith({
+      map: app.map,
+      position: "topright",
+      priority: "high",
+      edgePolicy: "keep",
+    });
+  });
+
   it("wires layers and elevation plugins with panel dependencies and refresh hooks", () => {
     const app = createAppStub();
     const layersApi = { render: vi.fn() };

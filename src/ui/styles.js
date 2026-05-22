@@ -23,7 +23,10 @@ export function registerStylesheet({ map = null, document: ownerDocument = null,
     return null;
   }
 
-  const existing = resolvedDocument.head.querySelector(`link[data-tilia-stylesheet="${id}"]`);
+  const existingLinks = Array.from(
+    resolvedDocument.head.querySelectorAll?.("link[data-tilia-stylesheet]") || [],
+  );
+  const existing = existingLinks.find((link) => link?.dataset?.tiliaStylesheet === id) || null;
   if (existing) {
     return existing;
   }

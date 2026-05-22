@@ -281,4 +281,28 @@ describe("createUiSurfaceManager", () => {
     expect(mapContainer.style.values["--tilia-reserved-right"]).toBe("384px");
     expect(mapContainer.style.values["--tilia-panel-offset-right"]).toBeUndefined();
   });
+
+  it("falls back to floating when an unsupported surface value is provided", () => {
+    const ownerDocument = createDocumentStub();
+    const mapContainer = createElement(ownerDocument, "div");
+    const manager = createUiSurfaceManager({
+      map: {
+        getContainer() {
+          return mapContainer;
+        },
+      },
+    });
+    const node = createElement(ownerDocument, "div");
+
+    manager.mount({
+      id: "invalid-surface",
+      surface: "controls",
+      element: node,
+      priority: TILIA_CONTROL_PRIORITY.normal,
+    });
+
+    expect(mapContainer.children).toHaveLength(1);
+    expect(mapContainer.children[0].dataset.tiliaSurfaceRoot).toBe(TILIA_UI_LAYER.floating);
+    expect(node.dataset.tiliaSurface).toBe(TILIA_UI_LAYER.floating);
+  });
 });

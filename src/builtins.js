@@ -30,10 +30,10 @@ export const panel = definePlugin({
 
 export const status = definePlugin({
 	id: "tilia-status",
-	setup(app) {
+	setup(app, options = {}) {
 		return installStatusControl({
 			map: app.map,
-			...resolveBuiltinUiOptions("tilia-status"),
+			...resolveBuiltinUiOptions("tilia-status", options),
 		});
 	},
 });

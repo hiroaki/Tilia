@@ -46,10 +46,11 @@ function createDocumentStub() {
   const links = [];
   return {
     head: {
-      querySelector(selector) {
-        const match = selector.match(/data-tilia-stylesheet=\"([^\"]+)\"/);
-        const id = match?.[1];
-        return links.find((link) => link.dataset.tiliaStylesheet === id) || null;
+      querySelectorAll(selector) {
+        if (selector === "link[data-tilia-stylesheet]") {
+          return links;
+        }
+        return [];
       },
       appendChild(node) {
         links.push(node);

@@ -24,6 +24,12 @@ function resolvePriority(priority) {
     : TILIA_CONTROL_PRIORITY.normal;
 }
 
+function resolveSurface(surface) {
+  return Object.values(TILIA_UI_LAYER).includes(surface)
+    ? surface
+    : TILIA_UI_LAYER.floating;
+}
+
 function applySurfaceMetadata(element, surface, priority) {
   element.dataset.tiliaSurface = surface;
   element.dataset.tiliaSurfacePriority = resolvePriority(priority);
@@ -182,7 +188,7 @@ export function createUiSurfaceManager({ map }) {
   }
 
   function ensureSurfaceRoot(surface) {
-    const normalizedSurface = surface || TILIA_UI_LAYER.floating;
+    const normalizedSurface = resolveSurface(surface);
     const existing = roots.get(normalizedSurface);
     if (existing) {
       return existing;
@@ -208,7 +214,7 @@ export function createUiSurfaceManager({ map }) {
       throw new Error("Surface items must provide an HTMLElement");
     }
 
-    const normalizedSurface = surface || TILIA_UI_LAYER.floating;
+    const normalizedSurface = resolveSurface(surface);
     const normalizedPriority = resolvePriority(priority);
     const root = ensureSurfaceRoot(normalizedSurface);
     const current = items.get(id);
@@ -249,7 +255,7 @@ export function createUiSurfaceManager({ map }) {
             return;
           }
 
-          const nextSurface = nextOptions.surface || currentRecord.surface;
+          const nextSurface = resolveSurface(nextOptions.surface || currentRecord.surface);
           const nextPriority = resolvePriority(nextOptions.priority ?? currentRecord.priority);
           if (nextSurface !== currentRecord.surface) {
             mount({
