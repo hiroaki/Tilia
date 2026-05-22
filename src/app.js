@@ -3,6 +3,8 @@ import { setError as setStateError } from "./core/state.js";
 import { builtins as defaultBuiltins } from "./builtins.js";
 import { createBaseLayerManager, createBaseMap } from "./map/base.js";
 import { createButton, createPanel, createSelect, installMapControl } from "./map/controls.js";
+import { ensureBuiltinUiStyles, registerStylesheet } from "./ui/styles.js";
+import { createUiSurfaceManager } from "./ui/surfaces.js";
 
 function isPluginObject(value) {
   return !!value && typeof value === "object" && typeof value.setup === "function";
@@ -143,6 +145,32 @@ function normalizeConfiguredPlugin(entry, pluginOptionsMap) {
   throw new Error("Configured plugins must be a string, [plugin, options], or { plugin, options }");
 }
 
+function normalizePluginStylesheets(plugin) {
+  if (!Array.isArray(plugin?.stylesheets)) {
+    return [];
+  }
+
+  return plugin.stylesheets
+    .map((stylesheet, index) => {
+      if (typeof stylesheet === "string") {
+        return {
+          href: stylesheet,
+          id: `${plugin.id}:stylesheet:${index}`,
+        };
+      }
+
+      if (stylesheet && typeof stylesheet === "object" && typeof stylesheet.href === "string") {
+        return {
+          ...stylesheet,
+          id: stylesheet.id || `${plugin.id}:stylesheet:${index}`,
+        };
+      }
+
+      return null;
+    })
+    .filter(Boolean);
+}
+
 function mergeBaseLayerOverrides(baseMapOverrides, appOverrides) {
   const sources = [baseMapOverrides, appOverrides].filter((value) => value && typeof value === "object");
   if (sources.length === 0) {
@@ -186,6 +214,9 @@ export function createTiliaApp({ map, builtins = defaultBuiltins, ...options } =
   if (!map) {
     throw new Error("createTiliaApp requires a Leaflet map");
   }
+
+  ensureBuiltinUiStyles({ map });
+  const surfaceManager = createUiSurfaceManager({ map });
 
   const core = createTiliaCore(map, options);
   const baseMap = { map };
@@ -262,6 +293,16 @@ export function createTiliaApp({ map, builtins = defaultBuiltins, ...options } =
       createPanel,
       createButton,
       createSelect,
+      surfaceManager,
+      mountSurface(surfaceItem) {
+        return surfaceManager.mount(surfaceItem);
+      },
+      registerStylesheet(stylesheet) {
+        return registerStylesheet({
+          map,
+          ...stylesheet,
+        });
+      },
     },
     // Expose the underlying Leaflet map when callers need direct access.
     getMap() {
@@ -329,6 +370,10 @@ export function createTiliaApp({ map, builtins = defaultBuiltins, ...options } =
           }
         }
 
+        for (const stylesheet of normalizePluginStylesheets(plugin)) {
+          app.ui.registerStylesheet(stylesheet);
+        }
+
         const setupResult = await plugin.setup(app, pluginOptions);
         const api = typeof setupResult === "function"
           ? { destroy: setupResult }
@@ -374,6 +419,7 @@ export function createTiliaApp({ map, builtins = defaultBuiltins, ...options } =
   };
   appRef = app;
   app.provide("tilia-base-maps", baseMaps);
+  app.provide("tilia-ui-surfaces", surfaceManager);
 
   // `plugins: [...]` is a bootstrap convenience only. The real installation path remains `app.use(...)`
   // so startup sugar does not fork the plugin lifecycle or create a second implementation path.

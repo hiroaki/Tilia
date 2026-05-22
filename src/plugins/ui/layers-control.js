@@ -218,7 +218,7 @@ function createLayerCard(entry, handlers) {
   return item;
 }
 
-export function installLayersControl({ map, core, panel, onStatus, onError, onEntriesChanged = null, position = "topleft" }) {
+export function installLayersControl({ map, core, panel, onStatus, onError, onEntriesChanged = null, position = "topleft", priority = "normal" }) {
   let listNode = null;
   let clearAllButton = null;
 
@@ -309,6 +309,7 @@ export function installLayersControl({ map, core, panel, onStatus, onError, onEn
   installMapControl({
     map,
     position,
+    priority,
     className: "tilia-layers-control",
     createContent() {
       const wrap = createPanel("tilia-control-panel-compact");

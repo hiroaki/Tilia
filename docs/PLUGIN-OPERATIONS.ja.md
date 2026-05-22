@@ -11,6 +11,8 @@
 - `requires` の意味
 - built-in と third-party plugin ID の扱い
 - `pluginUrls` と `pluginLoader` による dynamic loading
+- built-in UI stylesheet と plugin 宣言 stylesheet の登録
+- panel / floating UI surface の使い方
 
 manifest の自動解決、selective enablement、plugin sandboxing は現在のスコープ外です。
 
@@ -89,6 +91,42 @@ await app.use("tilia-layers");
 
 有効な plugin object が見つからなければ、インストールは失敗します。
 
+## Stylesheet の契約
+
+Tilia では JavaScript plugin の読み込みと stylesheet の所有を分けて扱います。
+
+- built-in UI stylesheet は runtime が document ごとに 1 回だけ注入する
+- third-party plugin は plugin object に `stylesheets` を宣言できる
+- 各 stylesheet は `setup()` 実行前に登録される
+- stylesheet entry は文字列、または `{ href, id }` オブジェクトを受け付ける
+
+third-party plugin での推奨形:
+
+```js
+const plugin = {
+  id: "x-my-plugin",
+  stylesheets: [
+    new URL("./my-plugin.css", import.meta.url).href,
+  ],
+  setup(app) {
+    // ...
+  },
+};
+```
+
+runtime が受け取るのは plugin object のみなので、相対 stylesheet パスは plugin module 側で解決してください。
+
+## UI surface の契約
+
+Tilia は map container の上に共有 UI surface をいくつか持ちます。
+
+- `panel`: `tilia-panel` のような持続的な side / bottom panel 用
+- `floating`: URL import form のような一時的 overlay UI 用
+
+この種の UI は `map.getContainer()` に直接 `appendChild()` せず、`app.ui.mountSurface(...)` または `app.ui.surfaceManager` を通して mount してください。
+
+これにより、重なり順と将来の layout 仲裁を plugin ごとの `z-index` ではなく core runtime 側で管理できます。
+
 ## Plugin author 向けの実運用前提
 
 plugin author は次を前提にしてください。
@@ -97,6 +135,10 @@ plugin author は次を前提にしてください。
 - sandbox や capability isolation はない
 - 依存順序はインストール前に満たされている必要がある
 - plugin 間の共有は `app.provide(...)` と `app.services[...]` を使う
+- built-in UI plugin の共通 stylesheet は viewer HTML ではなく core runtime が所有する
+- UI plugin の control 配置は `position`、`priority`、`edgePolicy` で調整し、page-level CSS に依存しない
+- panel / floating overlay は managed surface を使い、map container DOM を直接いじらない
+- panel と control が同じ辺で競合した場合、`priority: "high"` の control は corner を維持し、代わりに panel 側が退避することがある
 - teardown は必須ではないが、`destroy()` または cleanup function の返却を推奨する
 
 ある plugin が別 plugin の UI や service surface に依存する場合は、次の 2 つを両方書くのがよいです。

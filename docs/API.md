@@ -23,7 +23,7 @@ Creates a Leaflet base map and attaches a Tilia app runtime in one step. This is
 | Name | Type | Description |
 |------|------|-------------|
 | `plugins` | `Array?` | Plugin list to install at startup (string IDs, plugin objects, or `[plugin, options]` tuples) |
-| `pluginOptions` | `object?` | Per-plugin option map keyed by plugin ID |
+| `pluginOptions` | `object?` | Per-plugin option map keyed by plugin ID. Built-in UI plugins accept options such as `position` and `priority` here. |
 | `pluginUrls` | `object?` | Override loader paths for specific IDs: `{ "x-my-plugin": "./path/loader.js" }` |
 | `pluginLoader` | `function?` | Fully custom async loader: `async (pluginId) => pluginModule` |
 | `baseMapOptions` | `object?` | Passed to `createBaseMap()` (see below) |
@@ -252,11 +252,15 @@ A plugin is a plain object with `id` and `setup`:
 const myPlugin = {
   id: "x-my-plugin",           // lower-kebab-case, vendor-prefixed
   requires: ["tilia-status"],   // optional: IDs of plugins that must be installed first
+  stylesheets: [
+    new URL("./my-plugin.css", import.meta.url).href,
+  ],
 
   setup(app, options) {
     const control = app.ui.installMapControl({
       map: app.map,
       position: "topright",
+      priority: "high",
       className: "my-plugin-control",
       createContent() {
         const panel = app.ui.createPanel();
@@ -284,6 +288,8 @@ const myPlugin = {
 
 await app.use(myPlugin);
 ```
+
+`stylesheets` is optional. When present, Tilia registers each stylesheet before `setup()` runs. Use absolute URLs or resolve relative files inside the plugin module with `new URL(..., import.meta.url).href`.
 
 ### Plugin ID rules
 
@@ -324,6 +330,44 @@ createTiliaApp({
 });
 ```
 
+### UI styling contract
+
+- Built-in UI styles are loaded automatically by the runtime.
+- Third-party plugins can declare `stylesheets` on the plugin object. Tilia injects each declared stylesheet once per document before `setup()` executes.
+- Built-in UI plugin options flow through `pluginOptions`. `position` selects the Leaflet control corner, `priority` controls relative visual strength, and `edgePolicy` controls whether a conflicting control yields to a panel or keeps its corner.
+- Floating UI that should live above the map but outside Leaflet controls can be mounted through the shared UI surface manager instead of appending directly to the map container.
+- During panel/layout arbitration, `edgePolicy: "keep"` lets a conflicting control keep its corner and makes the panel yield space instead. When `edgePolicy` is omitted, `priority: "high"` defaults to `keep` and other priorities default to `yield`.
+
+```js
+createDefaultTiliaApp("map", {
+  plugins: ["tilia-status", "tilia-file-import"],
+  pluginOptions: {
+    "tilia-file-import": {
+      position: "topright",
+      priority: "high",
+      edgePolicy: "keep",
+    },
+  },
+});
+```
+
+Use `app.ui.mountSurface()` for panel-like or floating UI that is not a Leaflet control:
+
+```js
+const panel = document.createElement("aside");
+panel.className = "my-plugin-panel";
+
+const mounted = app.ui.mountSurface({
+  id: "x-my-plugin-panel",
+  surface: "panel",       // or "floating"
+  element: panel,
+  priority: "high",
+});
+
+// Later, during teardown:
+mounted.unmount();
+```
+
 > **Security note:** dynamically loaded plugins run with the same privileges as any other JavaScript on the page. Tilia does not sandbox plugin code.
 
 ### Trust and network assumptions
@@ -336,12 +380,21 @@ createTiliaApp({
 
 ```js
 // Install a native Leaflet map control that wraps your content
-app.ui.installMapControl({ map, position, className, createContent })
+app.ui.installMapControl({ map, position, priority, edgePolicy, className, createContent })
 
 // Create common UI elements
-app.ui.createPanel()               // returns a styled <div>
+app.ui.createPanel()               // returns a class-based panel element styled by the core stylesheet
 app.ui.createButton(label)         // returns a <button>
 app.ui.createSelect(optionValues, onChange)  // returns a <select>
+
+// Register an additional stylesheet for the current document
+app.ui.registerStylesheet({ href, id? })
+
+// Mount UI into a managed surface above the map container
+app.ui.mountSurface({ id, surface, element, priority? })
+
+// Access the low-level surface manager if needed
+app.ui.surfaceManager
 
 // Subscribe to track / waypoint / photo events (returns unsubscribe fn)
 app.subscribeInteractions({ onTrackLayer, onWaypointLayer, onPhotoMarker })
@@ -359,6 +412,7 @@ app.provide(name, service)
 app.services["tilia-panel"]   // { openPanel, closePanel, togglePanel, rerenderPanel, isOpen }
 app.services["tilia-status"]  // { setStatus }
 app.services["tilia-base-maps"]  // same object as app.baseMaps
+app.services["tilia-ui-surfaces"] // same object as app.ui.surfaceManager
 ```
 
 

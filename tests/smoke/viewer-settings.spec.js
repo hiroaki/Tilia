@@ -17,6 +17,16 @@ test("viewer settings panel updates the default time mode and re-shows status", 
   await expect(page.locator(".tilia-default-time-mode-select")).toHaveValue("auto");
   await expect(page.locator(".tilia-default-time-mode-custom")).toBeHidden();
 
+  const sidePanelBox = await page.locator(".tilia-side-panel:not(.tilia-side-panel-hidden)").evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom };
+  });
+  const baseMapControlBox = await page.locator(".tilia-base-map-control").evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom };
+  });
+  expect(baseMapControlBox.right).toBeLessThanOrEqual(sidePanelBox.left);
+
   await page.locator(".tilia-default-time-mode-select").selectOption("custom");
   await expect(page.locator(".tilia-default-time-mode-custom")).toBeVisible();
   await page.locator(".tilia-default-time-mode-sign").selectOption("+");

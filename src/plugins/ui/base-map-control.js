@@ -55,7 +55,7 @@ function groupDefinitionsByProvider(definitions) {
   return groups;
 }
 
-export function installBaseMapControl({ map, baseMaps, onStatus = null, position = "topright" }) {
+export function installBaseMapControl({ map, baseMaps, onStatus = null, position = "topright", priority = "normal", edgePolicy = null }) {
   let selectNode = null;
 
   function hasSelectableAlternative(currentDefinition, options) {
@@ -115,6 +115,8 @@ export function installBaseMapControl({ map, baseMaps, onStatus = null, position
   const control = installMapControl({
     map,
     position,
+    priority,
+    edgePolicy,
     className: "tilia-base-map-control",
     createContent() {
       const wrap = createPanel("tilia-control-panel-compact");
