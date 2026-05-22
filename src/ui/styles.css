@@ -26,6 +26,7 @@
 }
 
 .tilia-ui-surface-root > * {
+  position: relative;
   pointer-events: auto;
 }
 

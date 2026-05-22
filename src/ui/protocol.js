@@ -12,7 +12,6 @@ export const TILIA_CONTROL_EDGE_POLICY = Object.freeze({
 export const TILIA_UI_LAYER = Object.freeze({
   panel: "panel",
   floating: "floating",
-  control: "control",
 });
 
 export const TILIA_UI_STYLESHEET_ID = "tilia-core-ui";
