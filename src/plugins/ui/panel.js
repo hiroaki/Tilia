@@ -2,7 +2,8 @@ import { DomEvent } from "leaflet";
 import { TILIA_CONTROL_PRIORITY, TILIA_UI_LAYER } from "../../ui/protocol.js";
 
 export function installPanelPlugin({ map, surfaces = null }) {
-  const ownerDocument = map.getContainer().ownerDocument;
+  const mapContainer = map.getContainer();
+  const ownerDocument = mapContainer.ownerDocument;
   const panelRoot = ownerDocument.createElement("aside");
   panelRoot.className = "tilia-side-panel tilia-side-panel-hidden";
   const layoutClasses = ["tilia-side-panel-layout-side", "tilia-side-panel-layout-bottom"];
@@ -33,7 +34,7 @@ export function installPanelPlugin({ map, surfaces = null }) {
     priority: TILIA_CONTROL_PRIORITY.normal,
   });
   if (!mountedSurface) {
-    map.getContainer().appendChild(panelRoot);
+    mapContainer.appendChild(panelRoot);
   }
 
   for (const eventName of ["click", "dblclick", "mousedown", "mouseup", "pointerdown", "pointerup"]) {
@@ -99,6 +100,7 @@ export function installPanelPlugin({ map, surfaces = null }) {
     destroy() {
       surfaces?.setPanelState({ active: false });
       mountedSurface?.unmount?.();
+      panelRoot.remove?.();
     },
     togglePanel(spec) {
       if (activePanelId === spec.panelId) {

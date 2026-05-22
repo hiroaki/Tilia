@@ -164,6 +164,7 @@ function createUrlImportPanel({ map, surfaces = null, registry, context, onStatu
     panel,
     destroy() {
       mountedSurface?.unmount?.();
+      panel.remove?.();
     },
     focus() {
       queueMicrotask(() => {

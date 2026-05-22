@@ -5,6 +5,7 @@ const RESERVED_RIGHT_VAR = "--tilia-reserved-right";
 const RESERVED_BOTTOM_VAR = "--tilia-reserved-bottom";
 const PANEL_OFFSET_RIGHT_VAR = "--tilia-panel-offset-right";
 const PANEL_OFFSET_BOTTOM_VAR = "--tilia-panel-offset-bottom";
+const PANEL_EDGE_GAP_PX = 24;
 
 function resolveDocument(map) {
   const mapContainer = map?.getContainer?.();
@@ -137,8 +138,8 @@ export function createUiSurfaceManager({ map }) {
         ".leaflet-bottom.leaflet-left",
         ".leaflet-bottom.leaflet-right",
       ]);
-      const panelInset = `${measureInset(panelState.element, "height") + 24}px`;
-      const controlInset = `${getCornerExtent(conflictingCorners, "height") + 24}px`;
+      const panelInset = `${measureInset(panelState.element, "height") + PANEL_EDGE_GAP_PX}px`;
+      const controlInset = `${getCornerExtent(conflictingCorners, "height") + PANEL_EDGE_GAP_PX}px`;
       if (getCornerKeepPolicy(conflictingCorners)) {
         setStyleProperty(mapContainer.style, PANEL_OFFSET_BOTTOM_VAR, controlInset);
         removeStyleProperty(mapContainer.style, RESERVED_BOTTOM_VAR);
@@ -155,8 +156,8 @@ export function createUiSurfaceManager({ map }) {
       ".leaflet-top.leaflet-right",
       ".leaflet-bottom.leaflet-right",
     ]);
-    const panelInset = `${measureInset(panelState.element, "width") + 24}px`;
-    const controlInset = `${getCornerExtent(conflictingCorners, "width") + 24}px`;
+    const panelInset = `${measureInset(panelState.element, "width") + PANEL_EDGE_GAP_PX}px`;
+    const controlInset = `${getCornerExtent(conflictingCorners, "width") + PANEL_EDGE_GAP_PX}px`;
     if (getCornerKeepPolicy(conflictingCorners)) {
       setStyleProperty(mapContainer.style, PANEL_OFFSET_RIGHT_VAR, controlInset);
       removeStyleProperty(mapContainer.style, RESERVED_RIGHT_VAR);
