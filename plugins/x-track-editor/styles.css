@@ -35,8 +35,23 @@
   font-size: 0.82rem;
 }
 
+.tilia-track-editor-hint {
+  margin: 0;
+  color: #475569;
+  font-size: 0.78rem;
+}
+
 .tilia-track-editor-form {
   display: grid;
   grid-template-columns: 1fr;
   gap: 0.3rem;
+}
+
+.tilia-track-editor-handle {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid #0f766e;
+  background: #fef3c7;
+  box-shadow: 0 2px 8px #00000028;
 }

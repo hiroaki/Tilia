@@ -1,3 +1,4 @@
+import { DivIcon, Marker } from "leaflet";
 import { createButton, createPanel, createSelect, installMapControl } from "../../src/map/controls.js";
 import { cloneGpxSource, updateTrackPoint } from "../../src/gpx/source.js";
 
@@ -70,7 +71,8 @@ export const trackEditorPlugin = {
 
     let activeSession = null;
     let selectedEntryId = null;
-    let moveArmed = false;
+    let dragHandle = null;
+    let dragActive = false;
 
     function setStatus(text) {
       app.setStatus?.(text);
@@ -81,6 +83,81 @@ export const trackEditorPlugin = {
         return null;
       }
       return getEntryById(core, activeSession.draftEntryId);
+    }
+
+    function clearDragHandle() {
+      if (!dragHandle) {
+        return;
+      }
+      dragHandle.remove();
+      dragHandle = null;
+      dragActive = false;
+    }
+
+    function syncDragHandle() {
+      const draftEntry = getDraftEntry();
+      if (!activeSession || !draftEntry) {
+        clearDragHandle();
+        return;
+      }
+
+      const point = draftEntry.source?.trackPointDetails?.[activeSession.selectedPointIndex] || null;
+      if (!point) {
+        clearDragHandle();
+        return;
+      }
+
+      const latlng = [point.lat, point.lon];
+      if (dragHandle && dragActive) {
+        return;
+      }
+
+      if (!dragHandle) {
+        dragHandle = new Marker(latlng, {
+          draggable: true,
+          keyboard: false,
+          zIndexOffset: 1500,
+          icon: new DivIcon({
+            className: "tilia-track-editor-handle",
+            html: "",
+          }),
+        });
+
+        dragHandle.on("click", (event) => {
+          event.originalEvent?.preventDefault?.();
+          event.originalEvent?.stopPropagation?.();
+          map.closePopup();
+        });
+
+        dragHandle.on("dragstart", () => {
+          dragActive = true;
+          map.closePopup();
+        });
+
+        dragHandle.on("drag", () => {
+          map.closePopup();
+        });
+
+        dragHandle.on("dragend", () => {
+          if (!activeSession) {
+            dragActive = false;
+            return;
+          }
+
+          const moved = dragHandle.getLatLng();
+          updateDraftPoint(activeSession.selectedPointIndex, {
+            lat: moved.lat,
+            lon: moved.lng,
+          });
+          dragActive = false;
+          setStatus("Track editor: moved selected point");
+          panel.rerenderPanel("track-editor");
+        });
+
+        dragHandle.addTo(map);
+      }
+
+      dragHandle.setLatLng(latlng);
     }
 
     function ensureSelectedEntryId() {
@@ -103,6 +180,7 @@ export const trackEditorPlugin = {
       }
       const nextSource = updateTrackPoint(draftEntry.source, index, patch);
       core.updateGpxSource(draftEntry.id, nextSource, { fitToView: false });
+      syncDragHandle();
       app.refreshView();
     }
 
@@ -120,7 +198,7 @@ export const trackEditorPlugin = {
         core.removeEntry(activeSession.draftEntryId);
       }
 
-      moveArmed = false;
+      clearDragHandle();
       activeSession = null;
       app.refreshView();
       panel.rerenderPanel("track-editor");
@@ -149,8 +227,8 @@ export const trackEditorPlugin = {
         draftEntryId: draftEntry.id,
         selectedPointIndex: 0,
       };
-      moveArmed = false;
       selectedEntryId = originalEntry.id;
+      syncDragHandle();
 
       setStatus(`Track editor: editing ${draftSource.name}`);
       app.refreshView();
@@ -289,7 +367,7 @@ export const trackEditorPlugin = {
       const pointActions = document.createElement("div");
       pointActions.className = "tilia-track-editor-actions";
 
-      const applyButton = createButton("Apply Point", "tilia-track-editor-action");
+      const applyButton = createButton("Apply Fields", "tilia-track-editor-action");
       applyButton.disabled = !selectedPoint;
       applyButton.addEventListener("click", () => {
         if (!activeSession || !selectedPoint) {
@@ -306,21 +384,14 @@ export const trackEditorPlugin = {
       });
       pointActions.appendChild(applyButton);
 
-      const moveButton = createButton(moveArmed ? "Click Map..." : "Move by Map Click", "tilia-track-editor-action");
-      moveButton.disabled = !selectedPoint;
-      moveButton.addEventListener("click", () => {
-        if (!activeSession) {
-          return;
-        }
-        moveArmed = !moveArmed;
-        setStatus(moveArmed
-          ? "Track editor: click the map to move the selected point"
-          : "Track editor: move mode canceled");
-        panel.rerenderPanel("track-editor");
-      });
-      pointActions.appendChild(moveButton);
-
       root.appendChild(pointActions);
+
+      const dragHint = document.createElement("p");
+      dragHint.className = "tilia-track-editor-hint";
+      dragHint.textContent = selectedPoint
+        ? "Drag the highlighted point handle on the map to move it."
+        : "Select a point to enable drag editing.";
+      root.appendChild(dragHint);
 
       return root;
     }
@@ -367,33 +438,30 @@ export const trackEditorPlugin = {
           if (nextIndex < 0) {
             return;
           }
+          event.originalEvent?.preventDefault?.();
+          event.originalEvent?.stopPropagation?.();
+          map.closePopup();
           activeSession.selectedPointIndex = nextIndex;
+          syncDragHandle();
           setStatus(`Track editor: selected point #${nextIndex + 1}`);
           panel.rerenderPanel("track-editor");
         });
       },
     });
 
-    const onMapClick = (event) => {
-      if (!activeSession || !moveArmed) {
-        return;
+    const onPopupOpen = () => {
+      if (activeSession) {
+        map.closePopup();
       }
-      updateDraftPoint(activeSession.selectedPointIndex, {
-        lat: event.latlng.lat,
-        lon: event.latlng.lng,
-      });
-      moveArmed = false;
-      setStatus("Track editor: moved selected point");
-      panel.rerenderPanel("track-editor");
     };
-
-    map.on("click", onMapClick);
+    map.on("popupopen", onPopupOpen);
 
     const removeRefreshHandler = app.addRefreshHandler(() => {
       if (activeSession && !getDraftEntry()) {
         activeSession = null;
-        moveArmed = false;
+        clearDragHandle();
       }
+      syncDragHandle();
       panel.rerenderPanel("track-editor");
     });
 
@@ -406,10 +474,11 @@ export const trackEditorPlugin = {
         stopEditing({ keepDraft: true });
       },
       destroy() {
-        map.off("click", onMapClick);
+        map.off("popupopen", onPopupOpen);
         unsubscribeInteractions();
         removeRefreshHandler();
         control.remove?.();
+        clearDragHandle();
         if (activeSession) {
           stopEditing({ keepDraft: false });
         }
