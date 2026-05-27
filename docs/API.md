@@ -230,6 +230,15 @@ Install by passing a string ID to `app.use()`, or by listing in `options.plugins
 | `tilia-settings` | `tilia-panel`, `tilia-status` | Settings panel with a single control: the default photo timestamp interpretation mode applied to newly loaded photos |
 | `tilia-dropzone` | — | Makes the entire map container a drag-and-drop target; visual highlight shown during drag |
 
+### Optional repository plugins
+
+These plugins are provided in this repository under `plugins/` as third-party style modules. They are not built-ins and must be installed explicitly.
+
+| ID | Requires | Description |
+|----|----------|-------------|
+| `x-track-editor` | `tilia-panel`, `tilia-status` | Starts a GPX editing session from a working copy, edits track points, and keeps the edited copy as a new layer on save |
+| `x-gpx-export` | `tilia-panel`, `tilia-status` | Exports a selected GPX layer to a `.gpx` download |
+
 ### Photo timestamp interpretation modes
 
 | Mode | Behaviour |

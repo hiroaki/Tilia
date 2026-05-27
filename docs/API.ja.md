@@ -230,6 +230,15 @@ unsub();
 | `tilia-settings` | `tilia-panel`, `tilia-status` | 設定パネル。新規追加写真に適用するデフォルトのタイムスタンプ解釈モードを設定できる |
 | `tilia-dropzone` | — | マップコンテナ全体をドロップ対象にする。ドラッグ中はビジュアルハイライトを表示する |
 
+### リポジトリ同梱の optional プラグイン
+
+これらは `plugins/` 配下にある third-party 形式のプラグインです。built-in ではないため、利用時は明示的に導入する必要があります。
+
+| ID | 依存 | 説明 |
+|----|------|------|
+| `x-track-editor` | `tilia-panel`, `tilia-status` | GPX の working copy から編集セッションを開始し、トラックポイントを編集して保存時に新規レイヤーとして残す |
+| `x-gpx-export` | `tilia-panel`, `tilia-status` | 選択した GPX レイヤーを `.gpx` としてダウンロード出力する |
+
 ### 写真タイムスタンプ解釈モード
 
 | モード | 動作 |

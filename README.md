@@ -131,6 +131,13 @@ The current plugin loading, dependency-order, and dynamic-loading contract is su
 | `tilia-settings` | `tilia-panel`, `tilia-status` | Default photo timestamp interpretation mode (Auto / Local / UTC / Custom offset) |
 | `tilia-dropzone` | — | Drag-and-drop target covering the entire map area |
 
+The repository also includes optional third-party style plugins under `plugins/`:
+
+| ID | Requires | Description |
+|----|----------|-------------|
+| `x-track-editor` | `tilia-panel`, `tilia-status` | Creates a working copy of a GPX layer, edits track points, and saves the edited result as a new layer |
+| `x-gpx-export` | `tilia-panel`, `tilia-status` | Exports a selected GPX layer to a local `.gpx` file |
+
 Third-party and custom plugins can be added via `app.use()`. No build tools are required to use or create plugins. See [docs/API.md](docs/API.md).
 
 
