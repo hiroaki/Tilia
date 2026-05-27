@@ -32,18 +32,38 @@ function getNearestTrackPointIndex(source, latlng) {
   return nearestIndex;
 }
 
-function formatIso(value) {
+function padDateTimeSegment(value) {
+  return String(value).padStart(2, "0");
+}
+
+export function formatTimestampForDateTimeLocal(value) {
   if (!Number.isFinite(value)) {
     return "";
   }
-  return new Date(value).toISOString().slice(0, 16);
+  const date = new Date(value);
+  return `${date.getFullYear()}-${padDateTimeSegment(date.getMonth() + 1)}-${padDateTimeSegment(date.getDate())}T${padDateTimeSegment(date.getHours())}:${padDateTimeSegment(date.getMinutes())}:${padDateTimeSegment(date.getSeconds())}`;
 }
 
-function parseIsoLocal(value) {
+export function parseDateTimeLocalToTimestamp(value) {
   if (!value) {
     return null;
   }
-  const timestamp = Date.parse(value);
+
+  const match = String(value).trim().match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d{1,3})?)?$/);
+  if (!match) {
+    return null;
+  }
+
+  const [, year, month, day, hours, minutes, seconds = "00"] = match;
+  const timestamp = new Date(
+    Number(year),
+    Number(month) - 1,
+    Number(day),
+    Number(hours),
+    Number(minutes),
+    Number(seconds),
+    0,
+  ).getTime();
   return Number.isFinite(timestamp) ? timestamp : null;
 }
 
@@ -64,7 +84,7 @@ function isFormTarget(target) {
 
 function createEditorSourceName(sourceName = "track.gpx") {
   const suffix = " (edited)";
-  if (sourceName.endsWith(".gpx")) {
+  if (sourceName.toLowerCase().endsWith(".gpx")) {
     const base = sourceName.slice(0, -4);
     return `${base}${suffix}.gpx`;
   }
@@ -354,8 +374,9 @@ export const trackEditorPlugin = {
 
       const timeInput = document.createElement("input");
       timeInput.type = "datetime-local";
+      timeInput.step = "1";
       timeInput.className = "tilia-control-select tilia-track-editor-input";
-      timeInput.value = formatIso(selectedPoint?.timestamp);
+      timeInput.value = formatTimestampForDateTimeLocal(selectedPoint?.timestamp);
       timeInput.disabled = !selectedPoint;
 
       function applyScalarEdits() {
@@ -364,7 +385,7 @@ export const trackEditorPlugin = {
         }
 
         const nextElevation = eleInput.value === "" ? null : Number(eleInput.value);
-        const nextTimestamp = parseIsoLocal(timeInput.value);
+        const nextTimestamp = parseDateTimeLocalToTimestamp(timeInput.value);
         if (valuesEqual(nextElevation, selectedPoint.elevation) && valuesEqual(nextTimestamp, selectedPoint.timestamp)) {
           return;
         }

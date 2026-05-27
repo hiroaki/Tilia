@@ -16,11 +16,11 @@ function ensureSelectedEntryId(core, selectedEntryId) {
   return tracks[0].id;
 }
 
-function makeFileName(name) {
+export function makeFileName(name) {
   if (!name) {
     return "track.gpx";
   }
-  return name.endsWith(".gpx") ? name : `${name}.gpx`;
+  return name.toLowerCase().endsWith(".gpx") ? name : `${name}.gpx`;
 }
 
 function downloadTextFile(fileName, text) {
