@@ -1,0 +1,42 @@
+.tilia-track-editor-panel {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.tilia-track-editor-intro {
+  margin: 0;
+  color: #475569;
+  font-size: 0.87rem;
+}
+
+.tilia-track-editor-label {
+  color: #0f172a;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.tilia-track-editor-select,
+.tilia-track-editor-input {
+  width: 100%;
+}
+
+.tilia-track-editor-actions {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.tilia-track-editor-action {
+  min-width: 6.5rem;
+}
+
+.tilia-track-editor-point-meta {
+  color: #334155;
+  font-size: 0.82rem;
+}
+
+.tilia-track-editor-form {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.3rem;
+}
