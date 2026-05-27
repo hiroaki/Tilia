@@ -51,6 +51,17 @@ function valuesEqual(left, right) {
   return Object.is(left, right);
 }
 
+function isFormTarget(target) {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+  const tagName = target.tagName;
+  if (tagName === "INPUT" || tagName === "TEXTAREA" || tagName === "SELECT") {
+    return true;
+  }
+  return target.isContentEditable === true;
+}
+
 function createEditorSourceName(sourceName = "track.gpx") {
   const suffix = " (edited)";
   if (sourceName.endsWith(".gpx")) {
@@ -403,7 +414,7 @@ export const trackEditorPlugin = {
       const dragHint = document.createElement("p");
       dragHint.className = "tilia-track-editor-hint";
       dragHint.textContent = selectedPoint
-        ? "Drag the highlighted point handle on the map to move it."
+        ? "Drag the highlighted point handle on the map to move it. Use ArrowUp/ArrowDown to switch points."
         : "Select a point to enable drag editing.";
       root.appendChild(dragHint);
 
@@ -463,6 +474,41 @@ export const trackEditorPlugin = {
       },
     });
 
+    const onArrowNavigate = (event) => {
+      if (!activeSession) {
+        return;
+      }
+      if (event.key !== "ArrowUp" && event.key !== "ArrowDown") {
+        return;
+      }
+      if (isFormTarget(event.target)) {
+        return;
+      }
+
+      const draftEntry = getDraftEntry();
+      const details = draftEntry?.source?.trackPointDetails || [];
+      if (details.length === 0) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      const delta = event.key === "ArrowDown" ? 1 : -1;
+      const current = activeSession.selectedPointIndex || 0;
+      const nextIndex = Math.max(0, Math.min(details.length - 1, current + delta));
+      if (nextIndex === current) {
+        return;
+      }
+
+      activeSession.selectedPointIndex = nextIndex;
+      syncDragHandle();
+      map.closePopup();
+      setStatus(`Track editor: selected point #${nextIndex + 1}`);
+      panel.rerenderPanel("track-editor");
+    };
+    map.getContainer().addEventListener("keydown", onArrowNavigate, true);
+
     const onPopupOpen = () => {
       if (activeSession) {
         map.closePopup();
@@ -489,6 +535,7 @@ export const trackEditorPlugin = {
       },
       destroy() {
         map.off("popupopen", onPopupOpen);
+        map.getContainer().removeEventListener("keydown", onArrowNavigate, true);
         unsubscribeInteractions();
         removeRefreshHandler();
         control.remove?.();
