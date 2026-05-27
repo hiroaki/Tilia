@@ -12,6 +12,7 @@ import { createInteractionHub } from "./interaction-hub.js";
 import { createSelectionHub } from "./selection-hub.js";
 import { createInputRegistry } from "./input-registry.js";
 import { parseGpxFile } from "../gpx/parse.js";
+import { normalizeGpxSource } from "../gpx/source.js";
 import { buildGpxOverlay, buildPhotoOverlay, fitMapToGroup } from "../map/layers.js";
 import { parsePhotoFile } from "../photo/exif.js";
 import { inferPhotoLocationFromGpx } from "../photo/infer-location.js";
@@ -58,6 +59,28 @@ function resolvePhotoSource(state, photo, options = {}) {
   };
 }
 
+function addGpxEntry({ state, map, interactionHub }, source, options = {}) {
+  const normalizedSource = normalizeGpxSource(source);
+  const overlay = buildGpxOverlay(normalizedSource);
+  const entry = addEntry(state, {
+    kind: "gpx",
+    source: normalizedSource,
+    layer: overlay.layer,
+    interactions: overlay.interactions,
+    visible: options.visible !== false,
+  });
+
+  if (entry.visible !== false) {
+    overlay.layer.addTo(map);
+    if (options.fitToView !== false) {
+      fitMapToGroup(map, overlay.layer);
+    }
+  }
+
+  interactionHub.syncEntry(entry);
+  return entry;
+}
+
 export function createTiliaCore(map, options = {}) {
   const state = createAppState();
   const registry = createInputRegistry();
@@ -70,18 +93,10 @@ export function createTiliaCore(map, options = {}) {
     (input) => input?.name?.toLowerCase().endsWith(".gpx"),
     async (ctx, file) => {
       const parsed = await parseGpxFile(file);
-      const overlay = buildGpxOverlay(parsed);
-      overlay.layer.addTo(ctx.map);
-      fitMapToGroup(ctx.map, overlay.layer);
-
-      const entry = addEntry(ctx.state, {
-        kind: "gpx",
-        source: parsed,
-        layer: overlay.layer,
-        interactions: overlay.interactions,
+      const entry = addGpxEntry({ state: ctx.state, map: ctx.map, interactionHub }, parsed, {
+        fitToView: true,
         visible: true,
       });
-      interactionHub.syncEntry(entry);
 
       return {
         ...parsed,
@@ -131,6 +146,36 @@ export function createTiliaCore(map, options = {}) {
     },
     setDefaultPhotoTimeMode(mode) {
       defaultPhotoTimeMode = assertPhotoTimeMode(mode);
+    },
+    addGpxSource(source, options = {}) {
+      return addGpxEntry({ state, map, interactionHub }, source, options);
+    },
+    updateGpxSource(entryId, nextSource, options = {}) {
+      const entry = state.entries.find((candidate) => candidate.id === entryId);
+      if (!entry || entry.kind !== "gpx") {
+        return null;
+      }
+
+      const normalizedSource = normalizeGpxSource(nextSource);
+      const nextOverlay = buildGpxOverlay(normalizedSource);
+      const nextVisible = options.visible ?? entry.visible !== false;
+      if (nextVisible) {
+        nextOverlay.layer.addTo(map);
+      }
+      entry.layer.remove();
+
+      replaceEntryPresentation(state, entryId, {
+        layer: nextOverlay.layer,
+        interactions: nextOverlay.interactions,
+        visible: nextVisible,
+      });
+      replaceEntrySource(state, entryId, normalizedSource);
+      interactionHub.syncEntry(entry);
+
+      if (nextVisible && options.fitToView === true) {
+        fitMapToGroup(map, nextOverlay.layer);
+      }
+      return entry;
     },
     updatePhotoTimeMode(entryId, mode) {
       const entry = state.entries.find((candidate) => candidate.id === entryId);

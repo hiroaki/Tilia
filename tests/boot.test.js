@@ -113,14 +113,22 @@ describe("createTiliaCore", () => {
     const result = await core.registry.dispatch(core.context, { name: "sample.gpx" });
 
     expect(bootMocks.parseGpxFile).toHaveBeenCalledWith({ name: "sample.gpx" });
-    expect(bootMocks.buildGpxOverlay).toHaveBeenCalledWith(gpxSource);
+    expect(bootMocks.buildGpxOverlay).toHaveBeenCalledWith(expect.objectContaining({
+      name: "sample.gpx",
+      type: "gpx",
+      trackPoints: [[35.0, 135.0], [35.1, 135.1]],
+    }));
     expect(overlay.layer.addTo).toHaveBeenCalledWith(map);
     expect(bootMocks.fitMapToGroup).toHaveBeenCalledWith(map, overlay.layer);
     expect(result.summary).toBe("2 track points, 1 waypoints");
     expect(core.state.entries).toHaveLength(1);
     expect(core.state.entries[0]).toMatchObject({
       kind: "gpx",
-      source: gpxSource,
+      source: expect.objectContaining({
+        name: "sample.gpx",
+        type: "gpx",
+        trackPoints: [[35.0, 135.0], [35.1, 135.1]],
+      }),
       layer: overlay.layer,
       interactions: overlay.interactions,
       visible: true,
@@ -332,6 +340,50 @@ describe("createTiliaCore", () => {
     expect(bootMocks.fitMapToGroup).toHaveBeenLastCalledWith(map, overlay.layer);
     expect(core.setEntryVisibility(999, false)).toBeNull();
     expect(core.fitEntryToView(999)).toBeNull();
+  });
+
+  it("adds and updates normalized GPX sources without going through file dispatch", () => {
+    const firstOverlay = {
+      layer: createLayer("gpx-layer-1"),
+      interactions: { trackLayer: { id: "track-1" }, waypoints: [] },
+    };
+    const secondOverlay = {
+      layer: createLayer("gpx-layer-2"),
+      interactions: { trackLayer: { id: "track-2" }, waypoints: [] },
+    };
+    bootMocks.buildGpxOverlay
+      .mockReturnValueOnce(firstOverlay)
+      .mockReturnValueOnce(secondOverlay);
+    const map = { closePopup: bootMocks.closePopup };
+    const core = createTiliaCore(map);
+
+    const entry = core.addGpxSource({
+      name: "draft.gpx",
+      trackPointDetails: [
+        { lat: 35.0, lon: 135.0, elevation: 10, timestamp: Date.parse("2024-01-01T00:00:00Z") },
+        { lat: 35.1, lon: 135.1, elevation: null, timestamp: null },
+      ],
+    }, { fitToView: false });
+
+    expect(entry).toMatchObject({ kind: "gpx", visible: true });
+    expect(entry.source.trackPoints).toEqual([[35.0, 135.0], [35.1, 135.1]]);
+    expect(firstOverlay.layer.addTo).toHaveBeenCalledWith(map);
+    expect(bootMocks.fitMapToGroup).not.toHaveBeenCalled();
+
+    const updated = core.updateGpxSource(entry.id, {
+      ...entry.source,
+      trackPointDetails: [
+        { lat: 35.0, lon: 135.0, elevation: 10, timestamp: Date.parse("2024-01-01T00:00:00Z") },
+        { lat: 35.2, lon: 135.2, elevation: 20, timestamp: Date.parse("2024-01-01T00:05:00Z") },
+      ],
+    }, { fitToView: true });
+
+    expect(updated).toBe(entry);
+    expect(firstOverlay.layer.remove).toHaveBeenCalledTimes(1);
+    expect(secondOverlay.layer.addTo).toHaveBeenCalledWith(map);
+    expect(updated.source.trackPoints).toEqual([[35.0, 135.0], [35.2, 135.2]]);
+    expect(bootMocks.fitMapToGroup).toHaveBeenCalledWith(map, secondOverlay.layer);
+    expect(core.updateGpxSource(999, entry.source)).toBeNull();
   });
 
   it("removes selected entries and clears all layers, sources, and photo previews", async () => {
