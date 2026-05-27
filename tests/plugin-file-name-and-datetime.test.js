@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { makeFileName } from "../plugins/x-gpx-export/loader.js";
+import { makeFileName } from "../plugins/x-gpx-export/helpers.js";
 import {
   formatTimestampForDateTimeLocal,
   parseDateTimeLocalToTimestamp,
-} from "../plugins/x-track-editor/loader.js";
+} from "../plugins/x-track-editor/helpers.js";
 
 describe("track editor datetime-local helpers", () => {
   it("round-trips timestamps through datetime-local values without timezone drift", () => {

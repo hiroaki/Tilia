@@ -1,5 +1,6 @@
 import { createButton, createPanel, createSelect, installMapControl } from "../../src/map/controls.js";
 import { serializeGpxSource } from "../../src/gpx/serialize.js";
+import { makeFileName } from "./helpers.js";
 
 function getTrackEntries(core) {
   return core.state.entries.filter((entry) => entry.kind === "gpx");
@@ -14,13 +15,6 @@ function ensureSelectedEntryId(core, selectedEntryId) {
     return selectedEntryId;
   }
   return tracks[0].id;
-}
-
-export function makeFileName(name) {
-  if (!name) {
-    return "track.gpx";
-  }
-  return name.toLowerCase().endsWith(".gpx") ? name : `${name}.gpx`;
 }
 
 function downloadTextFile(fileName, text) {

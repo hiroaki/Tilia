@@ -68,4 +68,22 @@ describe("GPX source helpers", () => {
       expect.objectContaining({ lat: 35.0, lon: 135.0, elevation: 10 }),
     ]);
   });
+
+  it("ignores invalid coordinate patches and preserves the existing point", () => {
+    const source = normalizeGpxSource({
+      name: "edit.gpx",
+      trackPointDetails: [
+        { lat: 35.0, lon: 135.0, elevation: 10, timestamp: 1000 },
+        { lat: 35.1, lon: 135.1, elevation: 20, timestamp: 2000 },
+      ],
+    });
+
+    const updated = updateTrackPoint(source, 1, {
+      lat: "",
+      lon: "not-a-number",
+    });
+
+    expect(updated.trackPoints[1]).toEqual([35.1, 135.1]);
+    expect(updated.trackPointDetails[1]).toMatchObject({ lat: 35.1, lon: 135.1 });
+  });
 });

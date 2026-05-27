@@ -36,6 +36,14 @@ function coerceElevation(value) {
   return Number.isFinite(elevation) ? elevation : null;
 }
 
+function coerceCoordinate(value) {
+  if (value == null || value === "") {
+    return null;
+  }
+  const coordinate = Number(value);
+  return Number.isFinite(coordinate) ? coordinate : null;
+}
+
 function normalizeWaypoint(waypoint) {
   const lat = Number(waypoint?.lat);
   const lon = Number(waypoint?.lon);
@@ -168,14 +176,17 @@ export function updateTrackPoint(source, index, patch = {}) {
     return normalized;
   }
 
+  const nextLat = Object.hasOwn(patch, "lat") ? coerceCoordinate(patch.lat) : null;
+  const nextLon = Object.hasOwn(patch, "lon") ? coerceCoordinate(patch.lon) : null;
+
   const nextDetails = normalized.trackPointDetails.map((detail, detailIndex) => {
     if (detailIndex !== index) {
       return { ...detail };
     }
     return {
       ...detail,
-      ...(Object.hasOwn(patch, "lat") ? { lat: Number(patch.lat) } : {}),
-      ...(Object.hasOwn(patch, "lon") ? { lon: Number(patch.lon) } : {}),
+      ...(nextLat !== null ? { lat: nextLat } : {}),
+      ...(nextLon !== null ? { lon: nextLon } : {}),
       ...(Object.hasOwn(patch, "elevation") ? { elevation: patch.elevation } : {}),
       ...(Object.hasOwn(patch, "timestamp") ? { timestamp: patch.timestamp } : {}),
     };
