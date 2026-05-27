@@ -270,15 +270,20 @@ export const trackEditorPlugin = {
       });
       root.appendChild(sourceSelect);
 
-      const actions = document.createElement("div");
-      actions.className = "tilia-track-editor-actions";
+      const primaryActions = document.createElement("div");
+      primaryActions.className = "tilia-track-editor-actions tilia-track-editor-actions-primary";
 
-      const startButton = createButton("Start Edit", "tilia-track-editor-action");
+      const startButton = createButton("Start Edit", "tilia-track-editor-action tilia-track-editor-start");
       startButton.disabled = activeSession != null || selectedId == null;
       startButton.addEventListener("click", () => {
         startEditing(Number(sourceSelect.value));
       });
-      actions.appendChild(startButton);
+      primaryActions.appendChild(startButton);
+
+      root.appendChild(primaryActions);
+
+      const secondaryActions = document.createElement("div");
+      secondaryActions.className = "tilia-track-editor-actions tilia-track-editor-actions-secondary";
 
       const saveButton = createButton("Save Copy", "tilia-track-editor-action");
       saveButton.disabled = activeSession == null;
@@ -289,7 +294,7 @@ export const trackEditorPlugin = {
         stopEditing({ keepDraft: true });
         setStatus("Track editor: saved edited copy as a new layer");
       });
-      actions.appendChild(saveButton);
+      secondaryActions.appendChild(saveButton);
 
       const cancelButton = createButton("Cancel", "tilia-track-editor-action");
       cancelButton.disabled = activeSession == null;
@@ -297,9 +302,9 @@ export const trackEditorPlugin = {
         stopEditing({ keepDraft: false });
         setStatus("Track editor: discarded working copy");
       });
-      actions.appendChild(cancelButton);
+      secondaryActions.appendChild(cancelButton);
 
-      root.appendChild(actions);
+      root.appendChild(secondaryActions);
 
       const draftEntry = getDraftEntry();
       const details = draftEntry?.source?.trackPointDetails || [];

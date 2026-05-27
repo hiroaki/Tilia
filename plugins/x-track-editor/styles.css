@@ -26,8 +26,30 @@
   flex-wrap: wrap;
 }
 
+.tilia-track-editor-actions-primary {
+  width: 100%;
+}
+
+.tilia-track-editor-actions-secondary {
+  width: 100%;
+}
+
 .tilia-track-editor-action {
   min-width: 6.5rem;
+}
+
+.tilia-track-editor-start {
+  width: 100%;
+}
+
+.tilia-track-editor-start:enabled {
+  background: #dc2626;
+  border-color: #b91c1c;
+  color: #fff;
+}
+
+.tilia-track-editor-actions-secondary .tilia-track-editor-action {
+  flex: 1 1 0;
 }
 
 .tilia-track-editor-point-meta {
