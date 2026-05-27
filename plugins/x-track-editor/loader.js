@@ -47,6 +47,10 @@ function parseIsoLocal(value) {
   return Number.isFinite(timestamp) ? timestamp : null;
 }
 
+function valuesEqual(left, right) {
+  return Object.is(left, right);
+}
+
 function createEditorSourceName(sourceName = "track.gpx") {
   const suffix = " (edited)";
   if (sourceName.endsWith(".gpx")) {
@@ -314,6 +318,7 @@ export const trackEditorPlugin = {
       latInput.className = "tilia-control-select tilia-track-editor-input";
       latInput.value = selectedPoint ? String(selectedPoint.lat) : "";
       latInput.disabled = !selectedPoint;
+      latInput.readOnly = true;
 
       const lonInput = document.createElement("input");
       lonInput.type = "number";
@@ -321,6 +326,7 @@ export const trackEditorPlugin = {
       lonInput.className = "tilia-control-select tilia-track-editor-input";
       lonInput.value = selectedPoint ? String(selectedPoint.lon) : "";
       lonInput.disabled = !selectedPoint;
+      lonInput.readOnly = true;
 
       const eleInput = document.createElement("input");
       eleInput.type = "number";
@@ -334,6 +340,30 @@ export const trackEditorPlugin = {
       timeInput.className = "tilia-control-select tilia-track-editor-input";
       timeInput.value = formatIso(selectedPoint?.timestamp);
       timeInput.disabled = !selectedPoint;
+
+      function applyScalarEdits() {
+        if (!activeSession || !selectedPoint) {
+          return;
+        }
+
+        const nextElevation = eleInput.value === "" ? null : Number(eleInput.value);
+        const nextTimestamp = parseIsoLocal(timeInput.value);
+        if (valuesEqual(nextElevation, selectedPoint.elevation) && valuesEqual(nextTimestamp, selectedPoint.timestamp)) {
+          return;
+        }
+
+        updateDraftPoint(activeSession.selectedPointIndex, {
+          elevation: nextElevation,
+          timestamp: nextTimestamp,
+        });
+        setStatus("Track editor: updated selected point");
+        panel.rerenderPanel("track-editor");
+      }
+
+      eleInput.addEventListener("change", applyScalarEdits);
+      eleInput.addEventListener("blur", applyScalarEdits);
+      timeInput.addEventListener("change", applyScalarEdits);
+      timeInput.addEventListener("blur", applyScalarEdits);
 
       const form = document.createElement("div");
       form.className = "tilia-track-editor-form";
@@ -363,28 +393,6 @@ export const trackEditorPlugin = {
       form.appendChild(timeInput);
 
       root.appendChild(form);
-
-      const pointActions = document.createElement("div");
-      pointActions.className = "tilia-track-editor-actions";
-
-      const applyButton = createButton("Apply Fields", "tilia-track-editor-action");
-      applyButton.disabled = !selectedPoint;
-      applyButton.addEventListener("click", () => {
-        if (!activeSession || !selectedPoint) {
-          return;
-        }
-        updateDraftPoint(activeSession.selectedPointIndex, {
-          lat: Number(latInput.value),
-          lon: Number(lonInput.value),
-          elevation: eleInput.value === "" ? null : Number(eleInput.value),
-          timestamp: parseIsoLocal(timeInput.value),
-        });
-        setStatus("Track editor: updated selected point");
-        panel.rerenderPanel("track-editor");
-      });
-      pointActions.appendChild(applyButton);
-
-      root.appendChild(pointActions);
 
       const dragHint = document.createElement("p");
       dragHint.className = "tilia-track-editor-hint";
