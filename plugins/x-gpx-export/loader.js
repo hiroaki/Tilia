@@ -27,7 +27,9 @@ function downloadTextFile(fileName, text) {
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
-  URL.revokeObjectURL(objectUrl);
+  setTimeout(() => {
+    URL.revokeObjectURL(objectUrl);
+  }, 0);
 }
 
 export const gpxExportPlugin = {
