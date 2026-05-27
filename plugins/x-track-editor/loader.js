@@ -242,6 +242,7 @@ export const trackEditorPlugin = {
     function buildEditorContent() {
       const root = document.createElement("div");
       root.className = "tilia-track-editor-panel";
+      root.classList.toggle("tilia-track-editor-is-editing", activeSession != null);
 
       const intro = document.createElement("p");
       intro.className = "tilia-track-editor-intro";

@@ -42,10 +42,11 @@
   width: 100%;
 }
 
-.tilia-track-editor-start:enabled {
+.tilia-track-editor-is-editing .tilia-track-editor-start {
   background: #dc2626;
   border-color: #b91c1c;
   color: #fff;
+  opacity: 1;
 }
 
 .tilia-track-editor-actions-secondary .tilia-track-editor-action {
