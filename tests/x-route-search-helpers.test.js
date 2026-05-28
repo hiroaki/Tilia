@@ -62,12 +62,21 @@ describe("x-route-search helpers", () => {
       warnings: [],
     }, {
       profile: "car",
+      waypoints: [
+        { lat: 35.665521, lon: 139.7596 },
+        { lat: 35.668, lon: 139.762 },
+        { lat: 35.671989, lon: 139.765893 },
+      ],
     });
 
     expect(source).toMatchObject({
       type: "gpx",
-      name: "Route (car).gpx",
-      waypoints: [],
+      name: "Route (car-971m-1min).gpx",
+      waypoints: [
+        { lat: 35.665521, lon: 139.7596, name: "Start" },
+        { lat: 35.668, lon: 139.762, name: "Via 1" },
+        { lat: 35.671989, lon: 139.765893, name: "Goal" },
+      ],
       trackPointDetails: [
         { lat: 35.665521, lon: 139.7596, elevation: null, timestamp: null },
         { lat: 35.671989, lon: 139.765893, elevation: null, timestamp: null },

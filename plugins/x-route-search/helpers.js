@@ -52,6 +52,29 @@ function normalizeSingleRoute(route) {
   };
 }
 
+function formatRouteNameDistance(distanceMeters) {
+  if (!Number.isFinite(distanceMeters) || distanceMeters <= 0) {
+    return null;
+  }
+  if (distanceMeters >= 1000) {
+    return `${(distanceMeters / 1000).toFixed(1)}km`;
+  }
+  return `${Math.round(distanceMeters)}m`;
+}
+
+function formatRouteNameDuration(durationSeconds) {
+  if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+    return null;
+  }
+  const roundedMinutes = Math.max(1, Math.round(durationSeconds / 60));
+  if (roundedMinutes < 60) {
+    return `${roundedMinutes}min`;
+  }
+  const hours = Math.floor(roundedMinutes / 60);
+  const minutes = roundedMinutes % 60;
+  return minutes > 0 ? `${hours}h${minutes}m` : `${hours}h`;
+}
+
 export function normalizeRouteResponse(payload, maxRoutes = 3) {
   const routes = Array.isArray(payload?.routes)
     ? payload.routes
@@ -65,13 +88,50 @@ export function normalizeRouteResponse(payload, maxRoutes = 3) {
     .slice(0, Math.max(1, maxRoutes));
 }
 
-function createRouteSourceName({ profile, routeIndex, routeCount }) {
+function createRouteSourceName({ profile, routeIndex, routeCount, distanceMeters, durationSeconds }) {
   const suffix = routeCount > 1 ? ` ${routeIndex + 1}` : "";
-  const profileSuffix = profile ? ` (${profile})` : "";
-  return `Route${suffix}${profileSuffix}.gpx`;
+  const details = [profile, formatRouteNameDistance(distanceMeters), formatRouteNameDuration(durationSeconds)]
+    .filter(Boolean)
+    .join("-");
+  const detailSuffix = details ? ` (${details})` : "";
+  return `Route${suffix}${detailSuffix}.gpx`;
 }
 
-export function createImportedRouteSource(route, { profile = "", routeIndex = 0, routeCount = 1 } = {}) {
+function normalizeWaypointPoint(point) {
+  const lat = Number(point?.lat);
+  const lon = Number(point?.lon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+    return null;
+  }
+  return { lat, lon };
+}
+
+function buildRouteWaypoints(points = []) {
+  return points
+    .map((point, index) => {
+      const normalizedPoint = normalizeWaypointPoint(point);
+      if (!normalizedPoint) {
+        return null;
+      }
+
+      let name = "Via";
+      if (index === 0) {
+        name = "Start";
+      } else if (index === points.length - 1) {
+        name = "Goal";
+      } else {
+        name = `Via ${index}`;
+      }
+
+      return {
+        ...normalizedPoint,
+        name,
+      };
+    })
+    .filter(Boolean);
+}
+
+export function createImportedRouteSource(route, { profile = "", routeIndex = 0, routeCount = 1, waypoints = [] } = {}) {
   const normalizedRoute = normalizeSingleRoute(route);
   if (!normalizedRoute) {
     return null;
@@ -79,14 +139,20 @@ export function createImportedRouteSource(route, { profile = "", routeIndex = 0,
 
   return {
     type: "gpx",
-    name: createRouteSourceName({ profile, routeIndex, routeCount }),
+    name: createRouteSourceName({
+      profile,
+      routeIndex,
+      routeCount,
+      distanceMeters: normalizedRoute.distanceMeters,
+      durationSeconds: normalizedRoute.durationSeconds,
+    }),
     trackPointDetails: normalizedRoute.geometry.coordinates.map((coordinate) => ({
       lat: coordinate.lat,
       lon: coordinate.lon,
       elevation: null,
       timestamp: null,
     })),
-    waypoints: [],
+    waypoints: buildRouteWaypoints(waypoints),
     routeSummary: {
       provider: normalizedRoute.provider,
       distanceMeters: normalizedRoute.distanceMeters,

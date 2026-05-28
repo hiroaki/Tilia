@@ -1,5 +1,5 @@
-import { DomEvent } from "leaflet";
-import { createButton, createPanel, createSelect, installMapControl } from "../../src/map/controls.js";
+import { DivIcon, DomEvent, FeatureGroup, Marker } from "leaflet";
+import { createButton, createPanel, installMapControl } from "../../src/map/controls.js";
 import { TILIA_CONTROL_PRIORITY, TILIA_UI_LAYER } from "../../src/ui/protocol.js";
 import { requestPhloemRoutes } from "./client.js";
 import { createImportedRouteSource } from "./helpers.js";
@@ -44,6 +44,119 @@ function formatDuration(durationSeconds) {
   const hours = Math.floor(minutes / 60);
   const remainderMinutes = minutes % 60;
   return remainderMinutes > 0 ? `${hours} h ${remainderMinutes} min` : `${hours} h`;
+}
+
+function createMarkerCoordinate(value) {
+  return Number(value).toFixed(6);
+}
+
+function formatPointInputValue(point) {
+  const lat = point?.lat ?? "";
+  const lon = point?.lon ?? "";
+  if (lat !== "" && lon !== "") {
+    return `${lat}, ${lon}`;
+  }
+  return lat || lon || "";
+}
+
+function parsePointInputValue(value) {
+  const text = String(value ?? "").trim();
+  if (!text) {
+    return createEmptyPoint();
+  }
+
+  const parts = text.split(",");
+  if (parts.length === 1) {
+    return {
+      lat: parts[0].trim(),
+      lon: "",
+    };
+  }
+
+  return {
+    lat: parts[0].trim(),
+    lon: parts.slice(1).join(",").trim(),
+  };
+}
+
+function createPointMarkerText(kind, index = null) {
+  if (kind === "origin") {
+    return "S";
+  }
+  if (kind === "destination") {
+    return "G";
+  }
+  if (kind === "via" && Number.isInteger(index)) {
+    return String(index + 1);
+  }
+  if (kind === "via") {
+    return "V";
+  }
+  return "?";
+}
+
+function createMenuActionLabel(kind) {
+  if (kind === "origin") {
+    return "Start";
+  }
+  if (kind === "destination") {
+    return "Goal";
+  }
+  return "Via";
+}
+
+function formatProfileLabel(profile) {
+  const value = String(profile || "").trim();
+  if (!value) {
+    return "Profile";
+  }
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function createPointMarkerIcon(kind, text) {
+  return new DivIcon({
+    className: `tilia-route-search-marker-icon tilia-route-search-marker-${kind}`,
+    html: `<span class="tilia-route-search-marker"><span class="tilia-route-search-marker-dot">${text}</span></span>`,
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+  });
+}
+
+function listMarkerPoints(state) {
+  const points = [];
+
+  if (isCompletePoint(state.origin)) {
+    points.push({
+      key: "origin",
+      kind: "origin",
+      label: "Start",
+      point: state.origin,
+    });
+  }
+
+  state.viaPoints.forEach((point, index) => {
+    if (!isCompletePoint(point)) {
+      return;
+    }
+    points.push({
+      key: `via-${index}`,
+      kind: "via",
+      label: `Via ${index + 1}`,
+      point,
+      index,
+    });
+  });
+
+  if (isCompletePoint(state.destination)) {
+    points.push({
+      key: "destination",
+      kind: "destination",
+      label: "Destination",
+      point: state.destination,
+    });
+  }
+
+  return points;
 }
 
 function getOrderedPoints(state) {
@@ -106,6 +219,8 @@ export const routeSearchPlugin = {
 
     const panel = createPanel("tilia-route-search-panel tilia-route-search-panel-hidden");
     const contextMenu = createPanel("tilia-route-search-menu tilia-route-search-menu-hidden");
+    const markerLayer = new FeatureGroup();
+    markerLayer.addTo(map);
     stopPanelPropagation(panel);
     stopPanelPropagation(contextMenu);
 
@@ -131,6 +246,51 @@ export const routeSearchPlugin = {
       contextMenu.classList.add("tilia-route-search-menu-hidden");
     }
 
+    function syncPointMarkers() {
+      markerLayer.clearLayers();
+
+      for (const descriptor of listMarkerPoints(state)) {
+        const marker = new Marker([Number(descriptor.point.lat), Number(descriptor.point.lon)], {
+          draggable: true,
+          keyboard: false,
+          zIndexOffset: 1400,
+          icon: createPointMarkerIcon(descriptor.kind, createPointMarkerText(descriptor.kind, descriptor.index)),
+        });
+
+        marker.on("click", (event) => {
+          event.originalEvent?.preventDefault?.();
+          event.originalEvent?.stopPropagation?.();
+          hideContextMenu();
+        });
+
+        marker.on("dragstart", () => {
+          hideContextMenu();
+        });
+
+        marker.on("dragend", () => {
+          const moved = marker.getLatLng();
+          const nextPoint = {
+            lat: createMarkerCoordinate(moved.lat),
+            lon: createMarkerCoordinate(moved.lng),
+          };
+
+          if (descriptor.kind === "origin") {
+            state.origin = nextPoint;
+          } else if (descriptor.kind === "destination") {
+            state.destination = nextPoint;
+          } else if (descriptor.kind === "via" && Number.isInteger(descriptor.index)) {
+            state.viaPoints[descriptor.index] = nextPoint;
+          }
+
+          setStatus(`Route search: moved ${descriptor.label.toLowerCase()} point`);
+          renderPanel();
+          syncPointMarkers();
+        });
+
+        marker.addTo(markerLayer);
+      }
+    }
+
     function setPoint(kind, point) {
       if (kind === "origin") {
         state.origin = copyPoint(point);
@@ -141,6 +301,7 @@ export const routeSearchPlugin = {
       }
       hideContextMenu();
       renderPanel();
+      syncPointMarkers();
     }
 
     function renderContextMenu() {
@@ -161,13 +322,21 @@ export const routeSearchPlugin = {
       contextMenu.appendChild(title);
 
       const actions = [
-        { label: "Set as start", kind: "origin" },
-        { label: "Add as via", kind: "via" },
-        { label: "Set as destination", kind: "destination" },
+        { label: "Set as", kind: "origin" },
+        { label: "Add as", kind: "via" },
+        { label: "Set as", kind: "destination" },
       ];
 
       for (const action of actions) {
-        const button = createButton(action.label, "tilia-route-search-menu-action");
+        const button = createButton("", `tilia-route-search-menu-action tilia-route-search-menu-action-${action.kind}`);
+        const mark = document.createElement("span");
+        mark.className = `tilia-route-search-point-mark tilia-route-search-point-mark-${action.kind}`;
+        mark.textContent = createPointMarkerText(action.kind);
+        button.appendChild(mark);
+
+        const text = document.createElement("span");
+        text.textContent = `${action.label} ${createMenuActionLabel(action.kind)}`;
+        button.appendChild(text);
         button.addEventListener("click", () => {
           setPoint(action.kind, state.menu.point);
         });
@@ -175,48 +344,54 @@ export const routeSearchPlugin = {
       }
     }
 
-    function createPointSection({ label, point, onChange, onRemove = null }) {
-      const wrap = document.createElement("div");
-      wrap.className = "tilia-route-search-point";
-
-      const heading = document.createElement("div");
-      heading.className = "tilia-route-search-point-header";
-      const labelNode = document.createElement("label");
-      labelNode.className = "tilia-route-search-label";
-      labelNode.textContent = label;
-      heading.appendChild(labelNode);
-
-      if (typeof onRemove === "function") {
-        const removeButton = createButton("Remove", "tilia-route-search-inline-action");
-        removeButton.addEventListener("click", onRemove);
-        heading.appendChild(removeButton);
-      }
-
-      wrap.appendChild(heading);
-
+    function createPointRow({ label, kind, index = null, point, onChange, onRemove }) {
       const row = document.createElement("div");
       row.className = "tilia-route-search-point-row";
-      const latInput = document.createElement("input");
-      latInput.type = "number";
-      latInput.step = "0.000001";
-      latInput.placeholder = "Latitude";
-      latInput.className = "tilia-control-select tilia-route-search-input";
-      latInput.value = point.lat;
-      latInput.addEventListener("input", () => onChange({ ...point, lat: latInput.value }));
 
-      const lonInput = document.createElement("input");
-      lonInput.type = "number";
-      lonInput.step = "0.000001";
-      lonInput.placeholder = "Longitude";
-      lonInput.className = "tilia-control-select tilia-route-search-input";
-      lonInput.value = point.lon;
-      lonInput.addEventListener("input", () => onChange({ ...point, lon: lonInput.value }));
+      const marker = document.createElement("span");
+      marker.className = `tilia-route-search-point-mark tilia-route-search-point-mark-${kind}`;
+      marker.textContent = createPointMarkerText(kind, index);
+      marker.title = label;
+      row.appendChild(marker);
 
-      row.appendChild(latInput);
-      row.appendChild(lonInput);
-      wrap.appendChild(row);
+      const input = document.createElement("input");
+      input.type = "text";
+      input.inputMode = "decimal";
+      input.placeholder = `${label}: lat, lon`;
+      input.className = "tilia-control-select tilia-route-search-point-input";
+      input.value = formatPointInputValue(point);
+      input.setAttribute("aria-label", `${label} coordinates`);
+      input.addEventListener("input", () => {
+        onChange(parsePointInputValue(input.value));
+      });
+      row.appendChild(input);
 
-      return wrap;
+      const removeButton = document.createElement("button");
+      removeButton.type = "button";
+      removeButton.className = "tilia-route-search-point-action";
+      removeButton.textContent = kind === "via" ? "-" : "×";
+      removeButton.title = kind === "via" ? `Remove ${label}` : `Clear ${label}`;
+      removeButton.setAttribute("aria-label", removeButton.title);
+      removeButton.addEventListener("click", onRemove);
+      row.appendChild(removeButton);
+
+      return row;
+    }
+
+    function createAddViaRow(onAdd) {
+      const row = document.createElement("div");
+      row.className = "tilia-route-search-add-row";
+
+      const addButton = document.createElement("button");
+      addButton.type = "button";
+      addButton.className = "tilia-route-search-add-via";
+      addButton.textContent = "+";
+      addButton.title = "Add via point";
+      addButton.setAttribute("aria-label", "Add via point");
+      addButton.addEventListener("click", onAdd);
+      row.appendChild(addButton);
+
+      return row;
     }
 
     async function runSearch() {
@@ -258,6 +433,7 @@ export const routeSearchPlugin = {
             profile: state.profile,
             routeIndex: index,
             routeCount: limitedRoutes.length,
+            waypoints: getOrderedPoints(state),
           });
           const entry = core.addGpxSource(source, {
             fitToView: index === 0,
@@ -320,12 +496,6 @@ export const routeSearchPlugin = {
         body.appendChild(meta);
 
         item.appendChild(body);
-
-        const fitButton = createButton("Zoom", "tilia-route-search-inline-action");
-        fitButton.addEventListener("click", () => {
-          core.fitEntryToView(result.entryId);
-        });
-        item.appendChild(fitButton);
         list.appendChild(item);
       }
       root.appendChild(list);
@@ -341,7 +511,10 @@ export const routeSearchPlugin = {
       title.textContent = "Route Search";
       header.appendChild(title);
 
-      const closeButton = createButton("Close", "tilia-route-search-close");
+      const closeButton = document.createElement("button");
+      closeButton.type = "button";
+      closeButton.className = "tilia-side-panel-close tilia-route-search-close";
+      closeButton.textContent = "Close";
       closeButton.addEventListener("click", () => {
         panel.classList.add("tilia-route-search-panel-hidden");
         hideContextMenu();
@@ -351,61 +524,90 @@ export const routeSearchPlugin = {
 
       const content = document.createElement("div");
       content.className = "tilia-route-search-content";
-      const intro = document.createElement("p");
-      intro.className = "tilia-route-search-intro";
-      intro.textContent = "Search routes through Phloem, then add them as editable GPX-like layers.";
-      content.appendChild(intro);
 
-      const profileLabel = document.createElement("label");
-      profileLabel.className = "tilia-route-search-label";
+      const profileSection = document.createElement("div");
+      profileSection.className = "tilia-route-search-profile-section";
+      const profileLabel = document.createElement("p");
+      profileLabel.className = "tilia-route-search-section-title";
       profileLabel.textContent = "Profile";
-      content.appendChild(profileLabel);
+      profileSection.appendChild(profileLabel);
 
-      const profileSelect = createSelect(
-        profileOptions.map((profile) => ({ value: profile, label: profile, selected: profile === state.profile })),
-        "tilia-route-search-select",
-      );
-      profileSelect.addEventListener("change", () => {
-        state.profile = profileSelect.value;
-      });
-      content.appendChild(profileSelect);
+      const profileList = document.createElement("div");
+      profileList.className = "tilia-route-search-profile-list";
+      for (const profile of profileOptions) {
+        const profileButton = createButton(formatProfileLabel(profile), "tilia-route-search-profile-option");
+        if (profile === state.profile) {
+          profileButton.classList.add("tilia-route-search-profile-option-active");
+        }
+        profileButton.addEventListener("click", () => {
+          state.profile = profile;
+          renderPanel();
+        });
+        profileList.appendChild(profileButton);
+      }
+      profileSection.appendChild(profileList);
+      content.appendChild(profileSection);
 
-      content.appendChild(createPointSection({
+      const points = document.createElement("div");
+      points.className = "tilia-route-search-points";
+
+      points.appendChild(createPointRow({
         label: "Start",
+        kind: "origin",
         point: state.origin,
         onChange(nextPoint) {
           state.origin = nextPoint;
+          syncPointMarkers();
+        },
+        onRemove() {
+          state.origin = createEmptyPoint();
+          hideContextMenu();
+          renderPanel();
+          syncPointMarkers();
         },
       }));
 
       state.viaPoints.forEach((point, index) => {
-        content.appendChild(createPointSection({
+        points.appendChild(createPointRow({
           label: `Via ${index + 1}`,
+          kind: "via",
+          index,
           point,
           onChange(nextPoint) {
             state.viaPoints[index] = nextPoint;
+            syncPointMarkers();
           },
           onRemove() {
             state.viaPoints.splice(index, 1);
             renderPanel();
+            syncPointMarkers();
           },
         }));
       });
 
-      const addViaButton = createButton("+ Add Via Point", "tilia-route-search-add-via");
-      addViaButton.addEventListener("click", () => {
-        state.viaPoints.push(createEmptyPoint());
-        renderPanel();
-      });
-      content.appendChild(addViaButton);
-
-      content.appendChild(createPointSection({
-        label: "Destination",
+      points.appendChild(createPointRow({
+        label: "Goal",
+        kind: "destination",
         point: state.destination,
         onChange(nextPoint) {
           state.destination = nextPoint;
+          syncPointMarkers();
+        },
+        onRemove() {
+          state.destination = createEmptyPoint();
+          hideContextMenu();
+          renderPanel();
+          syncPointMarkers();
         },
       }));
+
+      points.appendChild(createAddViaRow(() => {
+        state.viaPoints.push(createEmptyPoint());
+        renderPanel();
+        syncPointMarkers();
+      }));
+
+      content.appendChild(points);
 
       if (state.errorMessage) {
         const errorNode = document.createElement("p");
@@ -431,13 +633,14 @@ export const routeSearchPlugin = {
         state.viaPoints = [];
         state.errorMessage = "";
         renderPanel();
+        syncPointMarkers();
       });
       actions.appendChild(clearButton);
       content.appendChild(actions);
 
       const hint = document.createElement("p");
       hint.className = "tilia-route-search-hint";
-      hint.textContent = "Right-click the map while this panel is open to set the start, via, or destination point.";
+      hint.textContent = "Right-click the map while this panel is open to set points. Registered points stay visible on the map and can be adjusted by dragging their markers.";
       content.appendChild(hint);
 
       renderResults(content);
@@ -445,6 +648,7 @@ export const routeSearchPlugin = {
     }
 
     renderPanel();
+  syncPointMarkers();
 
     const control = installMapControl({
       map,
@@ -494,6 +698,7 @@ export const routeSearchPlugin = {
         hideContextMenu();
         mountedMenu?.unmount?.();
         mountedPanel?.unmount?.();
+        markerLayer.remove?.();
         contextMenu.remove?.();
         panel.remove?.();
         control.remove?.();
