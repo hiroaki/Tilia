@@ -1,0 +1,163 @@
+.tilia-route-search-panel {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  width: min(360px, calc(100vw - 32px));
+  max-height: calc(100% - 24px);
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #d6d3d1;
+  border-radius: 12px;
+  background: #fffffff2;
+  box-shadow: 0 16px 40px #0000001a;
+  backdrop-filter: blur(8px);
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.tilia-route-search-panel-hidden,
+.tilia-route-search-menu-hidden {
+  display: none;
+}
+
+.tilia-route-search-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid #e7e5e4;
+  background: #fafaf9;
+}
+
+.tilia-route-search-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1c1917;
+}
+
+.tilia-route-search-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px 16px;
+  overflow: auto;
+}
+
+.tilia-route-search-intro,
+.tilia-route-search-hint,
+.tilia-route-search-empty,
+.tilia-route-search-result-meta {
+  margin: 0;
+  color: #57534e;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.tilia-route-search-label,
+.tilia-route-search-section-title {
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.tilia-route-search-point {
+  display: grid;
+  gap: 6px;
+}
+
+.tilia-route-search-point-header,
+.tilia-route-search-result {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.tilia-route-search-point-row,
+.tilia-route-search-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.tilia-route-search-input,
+.tilia-route-search-select,
+.tilia-route-search-search,
+.tilia-route-search-clear,
+.tilia-route-search-add-via,
+.tilia-route-search-close,
+.tilia-route-search-inline-action,
+.tilia-route-search-menu-action {
+  width: 100%;
+}
+
+.tilia-route-search-add-via {
+  margin-top: -2px;
+}
+
+.tilia-route-search-error {
+  margin: 0;
+  color: #b91c1c;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.tilia-route-search-results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.tilia-route-search-result {
+  border: 1px solid #e7e5e4;
+  border-radius: 8px;
+  padding: 10px;
+  background: #fff;
+}
+
+.tilia-route-search-result-body {
+  display: grid;
+  gap: 4px;
+}
+
+.tilia-route-search-result-title {
+  color: #1c1917;
+  font-size: 13px;
+}
+
+.tilia-route-search-menu {
+  position: absolute;
+  min-width: 180px;
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid #d6d3d1;
+  border-radius: 10px;
+  background: #fffffff4;
+  box-shadow: 0 12px 32px #00000024;
+  backdrop-filter: blur(8px);
+  box-sizing: border-box;
+}
+
+.tilia-route-search-menu-title {
+  color: #44403c;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+@media (max-width: 700px) {
+  .tilia-route-search-panel {
+    left: 12px;
+    right: 12px;
+    width: auto;
+  }
+
+  .tilia-route-search-point-row,
+  .tilia-route-search-actions {
+    grid-template-columns: 1fr;
+  }
+}
