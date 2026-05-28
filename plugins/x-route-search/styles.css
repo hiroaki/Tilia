@@ -15,8 +15,8 @@
   box-sizing: border-box;
 }
 
-.tilia-route-search-panel-hidden,
-.tilia-route-search-menu-hidden {
+.tilia-route-search-panel.tilia-route-search-panel-hidden,
+.tilia-route-search-menu.tilia-route-search-menu-hidden {
   display: none;
 }
 
