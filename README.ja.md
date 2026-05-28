@@ -134,6 +134,7 @@ Tilia を利用するには、Leaflet の JavaScript と CSS をページに読�
 |----|------|------|
 | `x-track-editor` | `tilia-panel`, `tilia-status` | GPX レイヤーの複製（working copy）を作り、トラックポイントを編集して新規レイヤーとして保存する |
 | `x-gpx-export` | `tilia-panel`, `tilia-status` | 選択した GPX レイヤーをローカル `.gpx` ファイルとして書き出す |
+| `x-route-search` | `tilia-status` | 左側フォームから Phloem `POST /route` を呼び出し、返却ルートを新しい GPX 風レイヤーとして取り込む |
 
 `app.use()` でサードパーティ・カスタムプラグインも追加できます。プラグインの作成にビルドツールは不要です。詳細は [docs/API.ja.md](docs/API.ja.md) を参照。
 
