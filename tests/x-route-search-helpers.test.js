@@ -156,4 +156,11 @@ describe("x-route-search helpers", () => {
       ],
     })).toThrow(/invalid route point/i);
   });
+
+  it("throws when route points input is not an array", () => {
+    expect(() => createPhloemRequestBody({
+      profile: "car",
+      points: null,
+    })).toThrow(/must be an array/i);
+  });
 });

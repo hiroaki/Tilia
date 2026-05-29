@@ -80,4 +80,23 @@ describe("x-route-search client", () => {
       fetchImpl,
     })).rejects.toThrow(/timed out/i);
   });
+
+  it("throws a clear error for successful but non-JSON responses", async () => {
+    const fetchImpl = vi.fn(async () => new Response("ok", {
+      status: 200,
+      headers: {
+        "content-type": "text/plain",
+      },
+    }));
+
+    await expect(requestPhloemRoutes({
+      endpoint: "http://127.0.0.1:3000/route",
+      profile: "car",
+      points: [{ lat: 35.68, lon: 139.76 }, { lat: 35.69, lon: 139.77 }],
+      fetchImpl,
+    })).rejects.toMatchObject({
+      code: "invalid_response",
+      status: 200,
+    });
+  });
 });

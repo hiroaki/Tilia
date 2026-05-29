@@ -51,6 +51,13 @@ export async function requestPhloemRoutes({
     });
     const payload = await parseJsonResponse(response);
 
+    if (response.ok && payload == null) {
+      const error = new Error("Route response was empty or not valid JSON");
+      error.code = "invalid_response";
+      error.status = response.status;
+      throw error;
+    }
+
     if (!response.ok) {
       const message = payload?.error?.message || `HTTP ${response.status}`;
       const error = new Error(message);

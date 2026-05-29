@@ -199,7 +199,10 @@ export const routeSearchPlugin = {
     const endpoint = options.endpoint || "http://127.0.0.1:3000/route";
     const apiKey = options.apiKey || "";
     const timeoutMs = Number(options.timeoutMs) > 0 ? Number(options.timeoutMs) : 5000;
-    const importLimit = Number(options.importLimit) > 0 ? Math.min(3, Number(options.importLimit)) : 3;
+    const parsedImportLimit = Number(options.importLimit);
+    const importLimit = Number.isFinite(parsedImportLimit) && parsedImportLimit > 0
+      ? Math.min(3, Math.max(1, Math.floor(parsedImportLimit)))
+      : 3;
     const profileOptions = Array.isArray(options.profileOptions) && options.profileOptions.length > 0
       ? options.profileOptions.map((profile) => String(profile))
       : [String(options.defaultProfile || "car")];

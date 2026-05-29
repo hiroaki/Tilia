@@ -172,6 +172,10 @@ export function createImportedRouteSource(route, { profile = "", routeIndex = 0,
 }
 
 export function createPhloemRequestBody({ profile, points, options = {} }) {
+  if (!Array.isArray(points)) {
+    throw new Error("Route points must be an array");
+  }
+
   const normalizedPoints = points.map((point, index) => {
     const lat = parseCoordinateValue(point?.lat);
     const lon = parseCoordinateValue(point?.lon);
