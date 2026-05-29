@@ -169,7 +169,7 @@ function getOrderedPoints(state) {
 function validateRoutePoints(state) {
   const ordered = getOrderedPoints(state);
   if (!isCompletePoint(state.origin) || !isCompletePoint(state.destination)) {
-    return "Origin and goal both require valid coordinates (lat: -90..90, lon: -180..180).";
+    return "Start and Goal both require valid coordinates (lat: -90..90, lon: -180..180).";
   }
   if (ordered.some((point) => !isCompletePoint(point))) {
     return "Every route point must use valid coordinates (lat: -90..90, lon: -180..180).";

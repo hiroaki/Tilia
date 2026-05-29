@@ -2,6 +2,7 @@
   position: absolute;
   top: 12px;
   left: 12px;
+  padding: 0;
   width: min(360px, calc(100vw - 32px));
   max-height: calc(100% - 24px);
   display: flex;
