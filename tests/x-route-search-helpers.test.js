@@ -90,6 +90,32 @@ describe("x-route-search helpers", () => {
     });
   });
 
+  it("ignores blank and out-of-range waypoint inputs", () => {
+    const source = createImportedRouteSource({
+      geometry: {
+        type: "LineString",
+        coordinates: [[139.7596, 35.665521], [139.765893, 35.671989]],
+      },
+      distance_meters: 1000,
+      duration_seconds: 120,
+      provider: "graphhopper",
+      warnings: [],
+    }, {
+      profile: "car",
+      waypoints: [
+        { lat: "", lon: "" },
+        { lat: "  ", lon: "139.76" },
+        { lat: 91, lon: 139.76 },
+        { lat: 35.66, lon: 181 },
+        { lat: 35.665521, lon: 139.7596 },
+      ],
+    });
+
+    expect(source.waypoints).toEqual([
+      { lat: 35.665521, lon: 139.7596, name: "Goal" },
+    ]);
+  });
+
   it("builds a Phloem request body and auth headers", () => {
     expect(createPhloemRequestBody({
       profile: "car",

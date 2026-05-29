@@ -2,6 +2,7 @@ import { DivIcon, DomEvent, FeatureGroup, Marker } from "leaflet";
 import { createButton, createPanel, installMapControl } from "../../src/map/controls.js";
 import { TILIA_CONTROL_PRIORITY, TILIA_UI_LAYER } from "../../src/ui/protocol.js";
 import { requestPhloemRoutes } from "./client.js";
+import { isValidLatitude, isValidLongitude, parseCoordinateValue } from "./coordinates.js";
 import { createImportedRouteSource } from "./helpers.js";
 
 function createEmptyPoint() {
@@ -16,7 +17,9 @@ function copyPoint(point = null) {
 }
 
 function isCompletePoint(point) {
-  return Number.isFinite(Number(point?.lat)) && Number.isFinite(Number(point?.lon));
+  const lat = parseCoordinateValue(point?.lat);
+  const lon = parseCoordinateValue(point?.lon);
+  return isValidLatitude(lat) && isValidLongitude(lon);
 }
 
 function formatCoordinate(value) {
@@ -151,7 +154,7 @@ function listMarkerPoints(state) {
     points.push({
       key: "destination",
       kind: "destination",
-      label: "Destination",
+      label: "Goal",
       point: state.destination,
     });
   }
@@ -166,10 +169,10 @@ function getOrderedPoints(state) {
 function validateRoutePoints(state) {
   const ordered = getOrderedPoints(state);
   if (!isCompletePoint(state.origin) || !isCompletePoint(state.destination)) {
-    return "Origin and destination both require latitude and longitude.";
+    return "Origin and goal both require valid coordinates (lat: -90..90, lon: -180..180).";
   }
   if (ordered.some((point) => !isCompletePoint(point))) {
-    return "Every route point must include both latitude and longitude.";
+    return "Every route point must use valid coordinates (lat: -90..90, lon: -180..180).";
   }
   return null;
 }

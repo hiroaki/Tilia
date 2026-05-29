@@ -1,3 +1,5 @@
+import { isValidLatitude, isValidLongitude, parseCoordinateValue } from "./coordinates.js";
+
 function isFiniteCoordinate(value) {
   return Number.isFinite(value);
 }
@@ -98,9 +100,9 @@ function createRouteSourceName({ profile, routeIndex, routeCount, distanceMeters
 }
 
 function normalizeWaypointPoint(point) {
-  const lat = Number(point?.lat);
-  const lon = Number(point?.lon);
-  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+  const lat = parseCoordinateValue(point?.lat);
+  const lon = parseCoordinateValue(point?.lon);
+  if (!isValidLatitude(lat) || !isValidLongitude(lon)) {
     return null;
   }
   return { lat, lon };

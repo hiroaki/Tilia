@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { requestPhloemRoutes } from "../plugins/x-route-search/client.js";
 
-function createJsonResponse(payload, { ok = true, status = 200 } = {}) {
+function createJsonResponse(payload, { status = 200 } = {}) {
   return new Response(JSON.stringify(payload), {
     status,
     headers: {
