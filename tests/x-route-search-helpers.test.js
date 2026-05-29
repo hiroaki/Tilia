@@ -50,6 +50,16 @@ describe("x-route-search helpers", () => {
     expect(routes).toHaveLength(2);
   });
 
+  it("returns no routes when maxRoutes is zero", () => {
+    const routes = normalizeRouteResponse({
+      routes: [
+        { geometry: { type: "LineString", coordinates: [[1, 2], [3, 4]] } },
+      ],
+    }, 0);
+
+    expect(routes).toEqual([]);
+  });
+
   it("builds an imported route source compatible with GPX entry paths", () => {
     const source = createImportedRouteSource({
       geometry: {
@@ -136,5 +146,14 @@ describe("x-route-search helpers", () => {
       "Content-Type": "application/json",
       Authorization: "Bearer secret",
     });
+  });
+
+  it("throws when route points include invalid coordinates", () => {
+    expect(() => createPhloemRequestBody({
+      profile: "car",
+      points: [
+        { lat: "", lon: "139.76" },
+      ],
+    })).toThrow(/invalid route point/i);
   });
 });

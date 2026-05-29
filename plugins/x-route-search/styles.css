@@ -57,13 +57,10 @@
 }
 
 .tilia-route-search-section-title {
+  margin: 0;
   color: #0f172a;
   font-size: 12px;
   font-weight: 600;
-}
-
-.tilia-route-search-section-title {
-  margin: 0;
 }
 
 .tilia-route-search-profile-section,

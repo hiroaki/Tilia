@@ -651,7 +651,7 @@ export const routeSearchPlugin = {
     }
 
     renderPanel();
-  syncPointMarkers();
+    syncPointMarkers();
 
     const control = installMapControl({
       map,

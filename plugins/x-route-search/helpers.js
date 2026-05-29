@@ -78,6 +78,13 @@ function formatRouteNameDuration(durationSeconds) {
 }
 
 export function normalizeRouteResponse(payload, maxRoutes = 3) {
+  const normalizedMaxRoutes = Number.isFinite(Number(maxRoutes))
+    ? Math.max(0, Math.floor(Number(maxRoutes)))
+    : 0;
+  if (normalizedMaxRoutes === 0) {
+    return [];
+  }
+
   const routes = Array.isArray(payload?.routes)
     ? payload.routes
     : payload?.route
@@ -87,7 +94,7 @@ export function normalizeRouteResponse(payload, maxRoutes = 3) {
   return routes
     .map(normalizeSingleRoute)
     .filter(Boolean)
-    .slice(0, Math.max(1, maxRoutes));
+    .slice(0, normalizedMaxRoutes);
 }
 
 function createRouteSourceName({ profile, routeIndex, routeCount, distanceMeters, durationSeconds }) {
@@ -165,12 +172,18 @@ export function createImportedRouteSource(route, { profile = "", routeIndex = 0,
 }
 
 export function createPhloemRequestBody({ profile, points, options = {} }) {
+  const normalizedPoints = points.map((point, index) => {
+    const lat = parseCoordinateValue(point?.lat);
+    const lon = parseCoordinateValue(point?.lon);
+    if (!isValidLatitude(lat) || !isValidLongitude(lon)) {
+      throw new Error(`Invalid route point at index ${index}`);
+    }
+    return { lat, lon };
+  });
+
   return {
     profile,
-    points: points.map((point) => ({
-      lat: Number(point.lat),
-      lon: Number(point.lon),
-    })),
+    points: normalizedPoints,
     options,
   };
 }
