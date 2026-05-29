@@ -137,6 +137,7 @@ The repository also includes optional third-party style plugins under `plugins/`
 |----|----------|-------------|
 | `x-track-editor` | `tilia-panel`, `tilia-status` | Creates a working copy of a GPX layer, edits track points, and saves the edited result as a new layer |
 | `x-gpx-export` | `tilia-panel`, `tilia-status` | Exports a selected GPX layer to a local `.gpx` file |
+| `x-route-search` | `tilia-status` | Opens a left-side route search form, queries Phloem `POST /route`, and imports returned routes as new GPX-like layers |
 
 Third-party and custom plugins can be added via `app.use()`. No build tools are required to use or create plugins. See [docs/API.md](docs/API.md).
 

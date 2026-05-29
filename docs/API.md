@@ -238,6 +238,22 @@ These plugins are provided in this repository under `plugins/` as third-party st
 |----|----------|-------------|
 | `x-track-editor` | `tilia-panel`, `tilia-status` | Starts a GPX editing session from a working copy, edits track points, and keeps the edited copy as a new layer on save |
 | `x-gpx-export` | `tilia-panel`, `tilia-status` | Exports a selected GPX layer to a `.gpx` download |
+| `x-route-search` | `tilia-status` | Shows a left-side route form, calls Phloem `POST /route`, and imports route results as new GPX-like layers |
+
+#### `x-route-search` options
+
+`x-route-search` accepts plugin options through `app.use("x-route-search", options)` or `pluginOptions["x-route-search"]`:
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `endpoint` | `string` | `"http://127.0.0.1:3000/route"` | Phloem route endpoint URL |
+| `apiKey` | `string` | `""` | Optional API key; sent as `Authorization: Bearer <key>` |
+| `defaultProfile` | `string` | `"car"` | Initial route profile shown in the form |
+| `profileOptions` | `string[]` | `[defaultProfile]` | Allowed profile values in the profile selector |
+| `timeoutMs` | `number` | `5000` | Request timeout for Phloem calls |
+| `importLimit` | `number` | `3` | Maximum number of routes imported per search (capped at 3) |
+| `position` | `string` | `"topleft"` | Map control button position |
+| `priority` | `string` | `"normal"` | Map control button priority |
 
 ### Photo timestamp interpretation modes
 

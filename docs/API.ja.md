@@ -238,6 +238,22 @@ unsub();
 |----|------|------|
 | `x-track-editor` | `tilia-panel`, `tilia-status` | GPX の working copy から編集セッションを開始し、トラックポイントを編集して保存時に新規レイヤーとして残す |
 | `x-gpx-export` | `tilia-panel`, `tilia-status` | 選択した GPX レイヤーを `.gpx` としてダウンロード出力する |
+| `x-route-search` | `tilia-status` | 左側フォームを表示して Phloem `POST /route` を呼び出し、結果ルートを新しい GPX 風レイヤーとして取り込む |
+
+#### `x-route-search` のオプション
+
+`x-route-search` は `app.use("x-route-search", options)` または `pluginOptions["x-route-search"]` で次のオプションを受け取ります。
+
+| オプション | 型 | 既定値 | 説明 |
+|------------|----|--------|------|
+| `endpoint` | `string` | `"http://127.0.0.1:3000/route"` | Phloem の route エンドポイント URL |
+| `apiKey` | `string` | `""` | 任意の API キー。`Authorization: Bearer <key>` で送信 |
+| `defaultProfile` | `string` | `"car"` | フォーム初期表示のルートプロファイル |
+| `profileOptions` | `string[]` | `[defaultProfile]` | プロファイル選択肢 |
+| `timeoutMs` | `number` | `5000` | Phloem 呼び出しのタイムアウト (ms) |
+| `importLimit` | `number` | `3` | 1 回の検索で取り込むルート数上限（最大 3） |
+| `position` | `string` | `"topleft"` | マップ上のコントロールボタン配置 |
+| `priority` | `string` | `"normal"` | マップ上のコントロールボタン優先度 |
 
 ### 写真タイムスタンプ解釈モード
 
