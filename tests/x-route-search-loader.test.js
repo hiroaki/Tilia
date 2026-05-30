@@ -4,9 +4,9 @@ import {
   formatProfileLabel,
   normalizeProfileId,
   resolveRouteProfileOptions,
-} from "../plugins/x-route-search/loader.js";
+} from "../plugins/x-route-search/profiles.js";
 
-describe("x-route-search loader", () => {
+describe("x-route-search profiles", () => {
   it("normalizes profile identifiers to lowercase", () => {
     expect(normalizeProfileId(" Foot ")).toBe("foot");
   });
@@ -16,7 +16,6 @@ describe("x-route-search loader", () => {
       defaultProfile: "foot",
       profileOptions: ["bike", "Dangerous", "FOOT", "car", ""],
     })).toEqual({
-      defaultProfile: "foot",
       profileOptions: ["bike", "foot", "car"],
       initialProfile: "foot",
     });
@@ -27,19 +26,27 @@ describe("x-route-search loader", () => {
       defaultProfile: "foot",
       profileOptions: ["unsafe", "walk-fast"],
     })).toEqual({
-      defaultProfile: "foot",
       profileOptions: ["foot", "car", "bike"],
       initialProfile: "foot",
     });
   });
 
-  it("falls back invalid defaultProfile to car", () => {
+  it("falls back invalid defaultProfile to car when no configured options are usable", () => {
     expect(resolveRouteProfileOptions({
       defaultProfile: "helicopter",
     })).toEqual({
-      defaultProfile: "car",
       profileOptions: ["car", "bike", "foot"],
       initialProfile: "car",
+    });
+  });
+
+  it("uses the first configured option when defaultProfile is invalid", () => {
+    expect(resolveRouteProfileOptions({
+      defaultProfile: "helicopter",
+      profileOptions: ["bike", "foot"],
+    })).toEqual({
+      profileOptions: ["bike", "foot"],
+      initialProfile: "bike",
     });
   });
 

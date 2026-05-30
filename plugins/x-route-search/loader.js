@@ -4,6 +4,7 @@ import { TILIA_CONTROL_PRIORITY, TILIA_UI_LAYER } from "../../src/ui/protocol.js
 import { requestPhloemRoutes } from "./client.js";
 import { isValidLatitude, isValidLongitude, parseCoordinateValue } from "./coordinates.js";
 import { createImportedRouteSource } from "./helpers.js";
+import { formatProfileLabel, resolveRouteProfileOptions } from "./profiles.js";
 
 function createEmptyPoint() {
   return { lat: "", lon: "" };
@@ -108,59 +109,6 @@ function createMenuActionLabel(kind) {
   return "Via";
 }
 
-const KNOWN_ROUTE_PROFILE_LABELS = Object.freeze({
-  car: "Car",
-  bike: "Bike",
-  foot: "Foot",
-});
-
-const KNOWN_ROUTE_PROFILE_IDS = Object.freeze(Object.keys(KNOWN_ROUTE_PROFILE_LABELS));
-const KNOWN_ROUTE_PROFILE_SET = new Set(KNOWN_ROUTE_PROFILE_IDS);
-
-export function normalizeProfileId(profile) {
-  return String(profile ?? "").trim().toLowerCase();
-}
-
-function isKnownProfileId(profile) {
-  return KNOWN_ROUTE_PROFILE_SET.has(profile);
-}
-
-export function resolveRouteProfileOptions(options = {}) {
-  const normalizedDefaultProfile = normalizeProfileId(options.defaultProfile || "car");
-  const defaultProfile = isKnownProfileId(normalizedDefaultProfile) ? normalizedDefaultProfile : "car";
-  const configuredProfileOptions = Array.isArray(options.profileOptions)
-    ? Array.from(new Set(options.profileOptions
-      .map((profile) => normalizeProfileId(profile))
-      .filter((profile) => isKnownProfileId(profile))))
-    : [];
-  const profileOptions = configuredProfileOptions.length > 0
-    ? configuredProfileOptions
-    : Array.from(new Set([defaultProfile, ...KNOWN_ROUTE_PROFILE_IDS]));
-  const initialProfile = profileOptions.includes(defaultProfile)
-    ? defaultProfile
-    : profileOptions[0] || "car";
-
-  return {
-    defaultProfile,
-    profileOptions,
-    initialProfile,
-  };
-}
-
-export function formatProfileLabel(profile) {
-  const value = normalizeProfileId(profile);
-  if (!value) {
-    return "Profile";
-  }
-
-  // Keep known profile labels centralized so this can be swapped to i18n lookup later.
-  if (KNOWN_ROUTE_PROFILE_LABELS[value]) {
-    return KNOWN_ROUTE_PROFILE_LABELS[value];
-  }
-
-  return value.charAt(0).toUpperCase() + value.slice(1);
-}
-
 function createPointMarkerIcon(kind, text) {
   return new DivIcon({
     className: `tilia-route-search-marker-icon tilia-route-search-marker-${kind}`,
@@ -248,7 +196,7 @@ export const routeSearchPlugin = {
     const importLimit = Number.isFinite(parsedImportLimit) && parsedImportLimit > 0
       ? Math.min(3, Math.max(1, Math.floor(parsedImportLimit)))
       : 3;
-    const { defaultProfile, profileOptions, initialProfile } = resolveRouteProfileOptions(options);
+    const { profileOptions, initialProfile } = resolveRouteProfileOptions(options);
 
     const state = {
       profile: initialProfile,
