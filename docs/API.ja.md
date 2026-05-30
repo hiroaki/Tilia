@@ -249,13 +249,13 @@ unsub();
 | `endpoint` | `string` | `"http://127.0.0.1:3000/route"` | Phloem の route エンドポイント URL |
 | `apiKey` | `string` | `""` | 任意の API キー。`Authorization: Bearer <key>` で送信 |
 | `defaultProfile` | `string` | `"car"` | フォーム初期表示のルートプロファイル |
-| `profileOptions` | `string[]` | `[defaultProfile, "bike", "foot"]` | プロファイル選択肢（例: `car` / `bike` / `foot`。バックエンド定義のカスタム値も可） |
+| `profileOptions` | `string[]` | `[defaultProfile, "car", "bike", "foot"]` | プロファイル選択肢（例: `car` / `bike` / `foot`。バックエンド定義のカスタム値も可） |
 | `timeoutMs` | `number` | `5000` | Phloem 呼び出しのタイムアウト (ms) |
 | `importLimit` | `number` | `3` | 1 回の検索で取り込むルート数上限（最大 3） |
 | `position` | `string` | `"topleft"` | マップ上のコントロールボタン配置 |
+| `priority` | `string` | `"normal"` | マップ上のコントロールボタン優先度 |
 
 既知のプロファイルは現在、選択 UI で `Car` / `Bike` / `Foot` の直接ラベルで表示されます。ラベル整形は将来的に I18n 翻訳へ差し替えやすいよう、1 箇所に集約する設計方針です。
-| `priority` | `string` | `"normal"` | マップ上のコントロールボタン優先度 |
 
 ### 写真タイムスタンプ解釈モード
 

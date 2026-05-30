@@ -217,7 +217,7 @@ export const routeSearchPlugin = {
     const defaultProfile = String(options.defaultProfile || "car");
     const profileOptions = Array.isArray(options.profileOptions) && options.profileOptions.length > 0
       ? options.profileOptions.map((profile) => String(profile))
-      : Array.from(new Set([defaultProfile, "bike", "foot"]));
+      : Array.from(new Set([defaultProfile, "car", "bike", "foot"]));
 
     const state = {
       profile: profileOptions[0],
