@@ -113,6 +113,17 @@ function formatProfileLabel(profile) {
   if (!value) {
     return "Profile";
   }
+
+  // Keep known profile labels centralized so this can be swapped to i18n lookup later.
+  const profileLabels = {
+    car: "Car",
+    bike: "Bike",
+    foot: "Foot",
+  };
+  if (profileLabels[value]) {
+    return profileLabels[value];
+  }
+
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
@@ -203,9 +214,10 @@ export const routeSearchPlugin = {
     const importLimit = Number.isFinite(parsedImportLimit) && parsedImportLimit > 0
       ? Math.min(3, Math.max(1, Math.floor(parsedImportLimit)))
       : 3;
+    const defaultProfile = String(options.defaultProfile || "car");
     const profileOptions = Array.isArray(options.profileOptions) && options.profileOptions.length > 0
       ? options.profileOptions.map((profile) => String(profile))
-      : [String(options.defaultProfile || "car")];
+      : Array.from(new Set([defaultProfile, "bike", "foot"]));
 
     const state = {
       profile: profileOptions[0],
