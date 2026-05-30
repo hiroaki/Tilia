@@ -249,13 +249,13 @@ These plugins are provided in this repository under `plugins/` as third-party st
 | `endpoint` | `string` | `"http://127.0.0.1:3000/route"` | Phloem route endpoint URL |
 | `apiKey` | `string` | `""` | Optional API key; sent as `Authorization: Bearer <key>` |
 | `defaultProfile` | `string` | `"car"` | Initial route profile shown in the form |
-| `profileOptions` | `string[]` | `[defaultProfile, "car", "bike", "foot"]` | Allowed profile values in the profile selector (for example `car`, `bike`, `foot`, or backend-defined custom values) |
+| `profileOptions` | `string[]` | `[defaultProfile, "car", "bike", "foot"]` | Allowed profile values in the profile selector (`car`, `bike`, `foot`). Unknown values are ignored. |
 | `timeoutMs` | `number` | `5000` | Request timeout for Phloem calls |
 | `importLimit` | `number` | `3` | Maximum number of routes imported per search (capped at 3) |
 | `position` | `string` | `"topleft"` | Map control button position |
 | `priority` | `string` | `"normal"` | Map control button priority |
 
-Profile identifiers are normalized to lowercase before requests are sent to Phloem.
+Profile identifiers are normalized to lowercase before requests are sent to Phloem, and only the built-in identifiers `car`, `bike`, and `foot` are accepted by the selector setup.
 Known profiles currently render with direct labels (`Car`, `Bike`, `Foot`) in the selector. Label formatting is intentionally centralized and display-only so it can be swapped to i18n-backed translation later without changing the request contract.
 
 ### Photo timestamp interpretation modes
