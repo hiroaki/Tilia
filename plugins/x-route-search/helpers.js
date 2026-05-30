@@ -1,5 +1,7 @@
 import { isValidLatitude, isValidLongitude, parseCoordinateValue } from "./coordinates.js";
 
+const KNOWN_ROUTE_PROFILE_SET = new Set(["car", "bike", "foot"]);
+
 function isFiniteCoordinate(value) {
   return Number.isFinite(value);
 }
@@ -172,6 +174,11 @@ export function createImportedRouteSource(route, { profile = "", routeIndex = 0,
 }
 
 export function createPhloemRequestBody({ profile, points, options = {} }) {
+  const normalizedProfile = String(profile ?? "").trim().toLowerCase();
+  if (!KNOWN_ROUTE_PROFILE_SET.has(normalizedProfile)) {
+    throw new Error("Invalid route profile");
+  }
+
   if (!Array.isArray(points)) {
     throw new Error("Route points must be an array");
   }
@@ -186,7 +193,7 @@ export function createPhloemRequestBody({ profile, points, options = {} }) {
   });
 
   return {
-    profile,
+    profile: normalizedProfile,
     points: normalizedPoints,
     options,
   };

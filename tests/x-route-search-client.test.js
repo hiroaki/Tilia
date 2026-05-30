@@ -127,4 +127,17 @@ describe("x-route-search client", () => {
       profile,
     });
   });
+
+  it("rejects unknown profiles before issuing a request", async () => {
+    const fetchImpl = vi.fn();
+
+    await expect(requestPhloemRoutes({
+      endpoint: "http://127.0.0.1:3000/route",
+      profile: "horse",
+      points: [{ lat: 35.68, lon: 139.76 }, { lat: 35.69, lon: 139.77 }],
+      fetchImpl,
+    })).rejects.toThrow(/invalid route profile/i);
+
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
 });

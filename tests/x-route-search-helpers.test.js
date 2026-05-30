@@ -181,6 +181,28 @@ describe("x-route-search helpers", () => {
     });
   });
 
+  it("normalizes known profile identifiers to lowercase in request body", () => {
+    expect(createPhloemRequestBody({
+      profile: "Foot",
+      points: [
+        { lat: "35.68", lon: "139.76" },
+        { lat: 35.69, lon: 139.77 },
+      ],
+    })).toMatchObject({
+      profile: "foot",
+    });
+  });
+
+  it("throws when route profile is unknown", () => {
+    expect(() => createPhloemRequestBody({
+      profile: "horse",
+      points: [
+        { lat: "35.68", lon: "139.76" },
+        { lat: 35.69, lon: 139.77 },
+      ],
+    })).toThrow(/invalid route profile/i);
+  });
+
   it("throws when route points include invalid coordinates", () => {
     expect(() => createPhloemRequestBody({
       profile: "car",
