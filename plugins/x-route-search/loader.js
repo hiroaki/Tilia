@@ -108,8 +108,12 @@ function createMenuActionLabel(kind) {
   return "Via";
 }
 
+function normalizeProfileId(profile) {
+  return String(profile ?? "").trim().toLowerCase();
+}
+
 function formatProfileLabel(profile) {
-  const value = String(profile || "").trim();
+  const value = normalizeProfileId(profile);
   if (!value) {
     return "Profile";
   }
@@ -214,13 +218,19 @@ export const routeSearchPlugin = {
     const importLimit = Number.isFinite(parsedImportLimit) && parsedImportLimit > 0
       ? Math.min(3, Math.max(1, Math.floor(parsedImportLimit)))
       : 3;
-    const defaultProfile = String(options.defaultProfile || "car");
-    const profileOptions = Array.isArray(options.profileOptions) && options.profileOptions.length > 0
-      ? options.profileOptions.map((profile) => String(profile))
+    const defaultProfile = normalizeProfileId(options.defaultProfile || "car") || "car";
+    const configuredProfileOptions = Array.isArray(options.profileOptions)
+      ? Array.from(new Set(options.profileOptions.map((profile) => normalizeProfileId(profile)).filter(Boolean)))
+      : [];
+    const profileOptions = configuredProfileOptions.length > 0
+      ? configuredProfileOptions
       : Array.from(new Set([defaultProfile, "car", "bike", "foot"]));
+    const initialProfile = profileOptions.includes(defaultProfile)
+      ? defaultProfile
+      : profileOptions[0] || "car";
 
     const state = {
-      profile: profileOptions[0],
+      profile: initialProfile,
       origin: createEmptyPoint(),
       destination: createEmptyPoint(),
       viaPoints: [],

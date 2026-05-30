@@ -255,7 +255,8 @@ These plugins are provided in this repository under `plugins/` as third-party st
 | `position` | `string` | `"topleft"` | Map control button position |
 | `priority` | `string` | `"normal"` | Map control button priority |
 
-Known profiles currently render with direct labels (`Car`, `Bike`, `Foot`) in the selector. Label formatting is intentionally centralized so it can be swapped to i18n-backed translation later.
+Profile identifiers are normalized to lowercase before requests are sent to Phloem.
+Known profiles currently render with direct labels (`Car`, `Bike`, `Foot`) in the selector. Label formatting is intentionally centralized and display-only so it can be swapped to i18n-backed translation later without changing the request contract.
 
 ### Photo timestamp interpretation modes
 
