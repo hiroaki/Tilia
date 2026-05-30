@@ -148,6 +148,61 @@ describe("x-route-search helpers", () => {
     });
   });
 
+  it.each(["bike", "foot"])("includes %s in imported route names", (profile) => {
+    const source = createImportedRouteSource({
+      geometry: {
+        type: "LineString",
+        coordinates: [[139.7596, 35.665521], [139.765893, 35.671989]],
+      },
+      distance_meters: 971.364,
+      duration_seconds: 74.15,
+      provider: "graphhopper",
+      warnings: [],
+    }, {
+      profile,
+      waypoints: [
+        { lat: 35.665521, lon: 139.7596 },
+        { lat: 35.671989, lon: 139.765893 },
+      ],
+    });
+
+    expect(source?.name).toContain(`(${profile}-`);
+  });
+
+  it.each(["bike", "foot"])("keeps %s in request body", (profile) => {
+    expect(createPhloemRequestBody({
+      profile,
+      points: [
+        { lat: "35.68", lon: "139.76" },
+        { lat: 35.69, lon: 139.77 },
+      ],
+    })).toMatchObject({
+      profile,
+    });
+  });
+
+  it("normalizes known profile identifiers to lowercase in request body", () => {
+    expect(createPhloemRequestBody({
+      profile: "Foot",
+      points: [
+        { lat: "35.68", lon: "139.76" },
+        { lat: 35.69, lon: 139.77 },
+      ],
+    })).toMatchObject({
+      profile: "foot",
+    });
+  });
+
+  it("throws when route profile is unknown", () => {
+    expect(() => createPhloemRequestBody({
+      profile: "horse",
+      points: [
+        { lat: "35.68", lon: "139.76" },
+        { lat: 35.69, lon: 139.77 },
+      ],
+    })).toThrow(/invalid route profile/i);
+  });
+
   it("throws when route points include invalid coordinates", () => {
     expect(() => createPhloemRequestBody({
       profile: "car",

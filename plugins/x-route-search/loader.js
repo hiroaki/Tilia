@@ -4,6 +4,7 @@ import { TILIA_CONTROL_PRIORITY, TILIA_UI_LAYER } from "../../src/ui/protocol.js
 import { requestPhloemRoutes } from "./client.js";
 import { isValidLatitude, isValidLongitude, parseCoordinateValue } from "./coordinates.js";
 import { createImportedRouteSource } from "./helpers.js";
+import { formatProfileLabel, resolveRouteProfileOptions } from "./profiles.js";
 
 function createEmptyPoint() {
   return { lat: "", lon: "" };
@@ -108,14 +109,6 @@ function createMenuActionLabel(kind) {
   return "Via";
 }
 
-function formatProfileLabel(profile) {
-  const value = String(profile || "").trim();
-  if (!value) {
-    return "Profile";
-  }
-  return value.charAt(0).toUpperCase() + value.slice(1);
-}
-
 function createPointMarkerIcon(kind, text) {
   return new DivIcon({
     className: `tilia-route-search-marker-icon tilia-route-search-marker-${kind}`,
@@ -203,12 +196,10 @@ export const routeSearchPlugin = {
     const importLimit = Number.isFinite(parsedImportLimit) && parsedImportLimit > 0
       ? Math.min(3, Math.max(1, Math.floor(parsedImportLimit)))
       : 3;
-    const profileOptions = Array.isArray(options.profileOptions) && options.profileOptions.length > 0
-      ? options.profileOptions.map((profile) => String(profile))
-      : [String(options.defaultProfile || "car")];
+    const { profileOptions, initialProfile } = resolveRouteProfileOptions(options);
 
     const state = {
-      profile: profileOptions[0],
+      profile: initialProfile,
       origin: createEmptyPoint(),
       destination: createEmptyPoint(),
       viaPoints: [],

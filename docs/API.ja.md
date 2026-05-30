@@ -249,7 +249,7 @@ unsub();
 | `endpoint` | `string` | `"http://127.0.0.1:3000/route"` | Phloem の route エンドポイント URL |
 | `apiKey` | `string` | `""` | 任意の API キー。`Authorization: Bearer <key>` で送信 |
 | `defaultProfile` | `string` | `"car"` | フォーム初期表示のルートプロファイル |
-| `profileOptions` | `string[]` | `[defaultProfile]` | プロファイル選択肢 |
+| `profileOptions` | `string[]` | `[defaultProfile, "car", "bike", "foot"]` | プロファイル選択肢（`car` / `bike` / `foot` のみ。未知の値は無視されます） |
 | `timeoutMs` | `number` | `5000` | Phloem 呼び出しのタイムアウト (ms) |
 | `importLimit` | `number` | `3` | 1 回の検索で取り込むルート数上限（最大 3） |
 | `position` | `string` | `"topleft"` | マップ上のコントロールボタン配置 |
