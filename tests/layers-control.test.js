@@ -28,7 +28,7 @@ class MockNode {
     this.type = "";
     this.id = "";
     this.textContent = "";
-    this.innerHTML = "";
+    this._innerHTML = "";
     this.eventListeners = new Map();
     this.classList = {
       add: (...tokens) => {
@@ -40,6 +40,19 @@ class MockNode {
       },
       contains: (token) => this.className.split(/\s+/).filter(Boolean).includes(token),
     };
+
+    Object.defineProperty(this, "innerHTML", {
+      get: () => this._innerHTML,
+      set: (value) => {
+        this._innerHTML = String(value);
+        if (this._innerHTML === "") {
+          for (const child of this.children) {
+            child.parentNode = null;
+          }
+          this.children = [];
+        }
+      },
+    });
   }
 
   setAttribute(name, value) {
@@ -104,6 +117,16 @@ function findByClassName(root, className) {
     }
   }
   return null;
+}
+
+function findAllByClassName(root, className, matches = []) {
+  if (root.className.split(/\s+/).includes(className)) {
+    matches.push(root);
+  }
+  for (const child of root.children) {
+    findAllByClassName(child, className, matches);
+  }
+  return matches;
 }
 
 function findCheckboxById(root, id) {
@@ -308,5 +331,60 @@ describe("createTrackStyleSwatch", () => {
     expect(tracksToggle.disabled).toBe(true);
     expect(waypointsToggle.disabled).toBe(true);
     expect(clearButton.disabled).toBe(true);
+  });
+
+  it("clears previously rendered layer cards before rebuilding the list", async () => {
+    const panel = {
+      togglePanel: vi.fn(),
+    };
+    const core = {
+      state: {
+        entries: [
+          {
+            id: 1,
+            kind: "gpx",
+            visible: true,
+            source: {
+              name: "sample.gpx",
+              trackPoints: [[35.0, 135.0], [35.1, 135.1]],
+              waypoints: [{ lat: 35.0, lon: 135.0, name: "Start" }],
+            },
+            presentation: { trackStylePresetIndex: 0 },
+          },
+        ],
+      },
+      getGpxVisibility: vi.fn(() => ({ tracks: true, waypoints: true })),
+      setGpxTracksVisibility: vi.fn(),
+      setGpxWaypointsVisibility: vi.fn(),
+      setEntryVisibility: vi.fn(),
+      removeEntry: vi.fn(),
+      fitEntryToView: vi.fn(),
+      updatePhotoTimeMode: vi.fn(),
+      subscribeInteractions: vi.fn(),
+      selectWaypoint: vi.fn(),
+      selectPhoto: vi.fn(),
+      clearAll: vi.fn(),
+    };
+    const { installLayersControl } = await import("../src/plugins/ui/layers-control.js");
+
+    installLayersControl({
+      map: {},
+      core,
+      panel,
+      onStatus: vi.fn(),
+      onError: vi.fn(),
+    });
+
+    const launcher = getLastInstalledLauncher();
+    launcher.click();
+    const renderPanel = panel.togglePanel.mock.calls[0][0].render;
+    const content = renderPanel();
+    const list = findByClassName(content, "tilia-layer-list");
+
+    expect(findAllByClassName(list, "tilia-layer-item")).toHaveLength(1);
+
+    renderPanel();
+
+    expect(findAllByClassName(list, "tilia-layer-item")).toHaveLength(1);
   });
 });
