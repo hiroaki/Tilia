@@ -2,6 +2,10 @@ export function createAppState() {
   return {
     nextEntryId: 1,
     nextTrackStylePresetIndex: 0,
+    gpxVisibility: {
+      tracks: true,
+      waypoints: true,
+    },
     entries: [],
     sources: [],
     layers: [],

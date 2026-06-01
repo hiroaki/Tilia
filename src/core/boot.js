@@ -72,6 +72,46 @@ function resolveTrackPresentation(state, existingPresentation = null) {
   };
 }
 
+function isLayerAttached(group, layer) {
+  if (!group || !layer || typeof group.hasLayer !== "function") {
+    return false;
+  }
+  return group.hasLayer(layer);
+}
+
+function setLayerAttached(group, layer, attached) {
+  if (!group || !layer) {
+    return;
+  }
+
+  const currentlyAttached = isLayerAttached(group, layer);
+  if (attached && !currentlyAttached && typeof group.addLayer === "function") {
+    group.addLayer(layer);
+  }
+  if (!attached && currentlyAttached && typeof group.removeLayer === "function") {
+    group.removeLayer(layer);
+  }
+}
+
+function applyGpxEntryVisibility(state, entry) {
+  if (!entry || entry.kind !== "gpx") {
+    return entry;
+  }
+
+  const entryVisible = entry.visible !== false;
+  const { tracks, waypoints } = state.gpxVisibility;
+  const group = entry.layer;
+  const trackLayer = entry.interactions?.trackLayer;
+  const waypointLayers = entry.interactions?.waypoints || [];
+
+  setLayerAttached(group, trackLayer, entryVisible && tracks !== false);
+  for (const waypoint of waypointLayers) {
+    setLayerAttached(group, waypoint?.layer, entryVisible && waypoints !== false);
+  }
+
+  return entry;
+}
+
 function addGpxEntry({ state, map, interactionHub }, source, options = {}) {
   const normalizedSource = normalizeGpxSource(source);
   const presentation = resolveTrackPresentation(state, options.presentation);
@@ -86,6 +126,8 @@ function addGpxEntry({ state, map, interactionHub }, source, options = {}) {
     presentation,
     visible: options.visible !== false,
   });
+
+  applyGpxEntryVisibility(state, entry);
 
   if (entry.visible !== false) {
     overlay.layer.addTo(map);
@@ -161,8 +203,25 @@ export function createTiliaCore(map, options = {}) {
     getDefaultPhotoTimeMode() {
       return defaultPhotoTimeMode;
     },
+    getGpxVisibility() {
+      return { ...state.gpxVisibility };
+    },
     setDefaultPhotoTimeMode(mode) {
       defaultPhotoTimeMode = assertPhotoTimeMode(mode);
+    },
+    setGpxTracksVisibility(visible) {
+      state.gpxVisibility.tracks = visible !== false;
+      for (const entry of state.entries) {
+        applyGpxEntryVisibility(state, entry);
+      }
+      return this.getGpxVisibility();
+    },
+    setGpxWaypointsVisibility(visible) {
+      state.gpxVisibility.waypoints = visible !== false;
+      for (const entry of state.entries) {
+        applyGpxEntryVisibility(state, entry);
+      }
+      return this.getGpxVisibility();
     },
     addGpxSource(source, options = {}) {
       return addGpxEntry({ state, map, interactionHub }, source, options);
@@ -179,17 +238,19 @@ export function createTiliaCore(map, options = {}) {
         trackStyle: getTrackStylePreset(presentation.trackStylePresetIndex),
       });
       const nextVisible = options.visible ?? entry.visible !== false;
-      if (nextVisible) {
-        nextOverlay.layer.addTo(map);
-      }
+      replaceEntryPresentation(state, entryId, {
+        visible: nextVisible,
+      });
       entry.layer.remove();
-
       replaceEntryPresentation(state, entryId, {
         layer: nextOverlay.layer,
         interactions: nextOverlay.interactions,
         presentation,
-        visible: nextVisible,
       });
+      applyGpxEntryVisibility(state, entry);
+      if (nextVisible) {
+        nextOverlay.layer.addTo(map);
+      }
       replaceEntrySource(state, entryId, normalizedSource);
       interactionHub.syncEntry(entry);
 
@@ -235,6 +296,7 @@ export function createTiliaCore(map, options = {}) {
       }
 
       entry.visible = visible;
+      applyGpxEntryVisibility(state, entry);
       if (visible) {
         entry.layer.addTo(map);
       } else {

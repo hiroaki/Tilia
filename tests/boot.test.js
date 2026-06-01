@@ -64,10 +64,46 @@ vi.mock("../src/core/selection-hub.js", () => ({
 import { createTiliaCore } from "../src/core/boot.js";
 
 function createLayer(id) {
+  const layers = new Set();
   return {
     id,
     addTo: vi.fn(),
     remove: vi.fn(),
+    addLayer: vi.fn((layer) => {
+      layers.add(layer);
+    }),
+    removeLayer: vi.fn((layer) => {
+      layers.delete(layer);
+    }),
+    hasLayer: vi.fn((layer) => layers.has(layer)),
+  };
+}
+
+function createGpxOverlay(id, options = {}) {
+  const layer = createLayer(id);
+  const trackLayer = options.trackLayer === null ? null : (options.trackLayer || { id: `${id}-track` });
+  const waypointLayers = (options.waypoints || []).map((waypoint, index) => ({
+    layer: waypoint.layer || { id: `${id}-waypoint-${index}` },
+    waypoint: waypoint.waypoint || { name: `Waypoint ${index + 1}` },
+  }));
+
+  if (trackLayer) {
+    layer.addLayer(trackLayer);
+  }
+  for (const waypoint of waypointLayers) {
+    layer.addLayer(waypoint.layer);
+  }
+
+  layer.addLayer.mockClear();
+  layer.removeLayer.mockClear();
+  layer.hasLayer.mockClear();
+
+  return {
+    layer,
+    interactions: {
+      trackLayer,
+      waypoints: waypointLayers,
+    },
   };
 }
 
@@ -102,10 +138,9 @@ describe("createTiliaCore", () => {
       elevationProfile: [],
       waypoints: [{ name: "Start", lat: 35.0, lon: 135.0 }],
     };
-    const overlay = {
-      layer: createLayer("gpx-layer"),
-      interactions: { trackLayer: { id: "track" }, waypoints: [] },
-    };
+    const overlay = createGpxOverlay("gpx-layer", {
+      waypoints: [{}, {}],
+    });
     bootMocks.parseGpxFile.mockResolvedValue(gpxSource);
     bootMocks.buildGpxOverlay.mockReturnValue(overlay);
     const map = { closePopup: bootMocks.closePopup };
@@ -383,6 +418,72 @@ describe("createTiliaCore", () => {
     expect(bootMocks.fitMapToGroup).toHaveBeenLastCalledWith(map, overlay.layer);
     expect(core.setEntryVisibility(999, false)).toBeNull();
     expect(core.fitEntryToView(999)).toBeNull();
+  });
+
+  it("applies global GPX track and waypoint visibility to loaded and new entries", () => {
+    const firstOverlay = createGpxOverlay("gpx-layer-1", {
+      waypoints: [{}, {}],
+    });
+    const secondOverlay = createGpxOverlay("gpx-layer-2", {
+      waypoints: [{}],
+    });
+    bootMocks.buildGpxOverlay
+      .mockReturnValueOnce(firstOverlay)
+      .mockReturnValueOnce(secondOverlay);
+    const map = { closePopup: bootMocks.closePopup };
+    const core = createTiliaCore(map);
+
+    const firstEntry = core.addGpxSource({
+      name: "first.gpx",
+      trackPointDetails: [
+        { lat: 35.0, lon: 135.0, elevation: 10, timestamp: Date.parse("2024-01-01T00:00:00Z") },
+        { lat: 35.1, lon: 135.1, elevation: 12, timestamp: Date.parse("2024-01-01T00:05:00Z") },
+      ],
+      waypoints: [
+        { lat: 35.0, lon: 135.0, name: "Start" },
+        { lat: 35.1, lon: 135.1, name: "End" },
+      ],
+    }, { fitToView: false });
+
+    expect(core.getGpxVisibility()).toEqual({ tracks: true, waypoints: true });
+
+    expect(core.setGpxTracksVisibility(false)).toEqual({ tracks: false, waypoints: true });
+    expect(firstOverlay.layer.removeLayer).toHaveBeenCalledWith(firstOverlay.interactions.trackLayer);
+    expect(firstOverlay.layer.hasLayer(firstOverlay.interactions.trackLayer)).toBe(false);
+    expect(firstOverlay.layer.hasLayer(firstOverlay.interactions.waypoints[0].layer)).toBe(true);
+
+    expect(core.setGpxWaypointsVisibility(false)).toEqual({ tracks: false, waypoints: false });
+    expect(firstOverlay.layer.removeLayer).toHaveBeenCalledWith(firstOverlay.interactions.waypoints[0].layer);
+    expect(firstOverlay.layer.removeLayer).toHaveBeenCalledWith(firstOverlay.interactions.waypoints[1].layer);
+    expect(firstOverlay.layer.hasLayer(firstOverlay.interactions.waypoints[0].layer)).toBe(false);
+    expect(firstOverlay.layer.hasLayer(firstOverlay.interactions.waypoints[1].layer)).toBe(false);
+
+    const secondEntry = core.addGpxSource({
+      name: "second.gpx",
+      trackPointDetails: [
+        { lat: 36.0, lon: 136.0, elevation: 3, timestamp: Date.parse("2024-01-01T01:00:00Z") },
+        { lat: 36.1, lon: 136.1, elevation: 4, timestamp: Date.parse("2024-01-01T01:05:00Z") },
+      ],
+      waypoints: [{ lat: 36.0, lon: 136.0, name: "Only" }],
+    }, { fitToView: false });
+
+    expect(firstEntry.visible).toBe(true);
+    expect(secondEntry.visible).toBe(true);
+    expect(secondOverlay.layer.hasLayer(secondOverlay.interactions.trackLayer)).toBe(false);
+    expect(secondOverlay.layer.hasLayer(secondOverlay.interactions.waypoints[0].layer)).toBe(false);
+
+    core.setEntryVisibility(firstEntry.id, false);
+    expect(core.setGpxTracksVisibility(true)).toEqual({ tracks: true, waypoints: false });
+    expect(firstOverlay.layer.hasLayer(firstOverlay.interactions.trackLayer)).toBe(false);
+
+    core.setEntryVisibility(firstEntry.id, true);
+    expect(firstOverlay.layer.hasLayer(firstOverlay.interactions.trackLayer)).toBe(true);
+    expect(firstOverlay.layer.hasLayer(firstOverlay.interactions.waypoints[0].layer)).toBe(false);
+
+    expect(core.setGpxWaypointsVisibility(true)).toEqual({ tracks: true, waypoints: true });
+    expect(firstOverlay.layer.hasLayer(firstOverlay.interactions.waypoints[0].layer)).toBe(true);
+    expect(secondOverlay.layer.hasLayer(secondOverlay.interactions.trackLayer)).toBe(true);
+    expect(secondOverlay.layer.hasLayer(secondOverlay.interactions.waypoints[0].layer)).toBe(true);
   });
 
   it("adds and updates normalized GPX sources without going through file dispatch", () => {
