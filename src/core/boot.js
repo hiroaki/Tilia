@@ -1,5 +1,6 @@
 import {
   addEntry,
+  claimNextTrackStylePresetIndex,
   clearEntries,
   clearLayers,
   clearSources,
@@ -14,6 +15,7 @@ import { createInputRegistry } from "./input-registry.js";
 import { parseGpxFile } from "../gpx/parse.js";
 import { normalizeGpxSource } from "../gpx/source.js";
 import { buildGpxOverlay, buildPhotoOverlay, fitMapToGroup } from "../map/layers.js";
+import { getTrackStylePreset, TRACK_STYLE_PRESETS } from "../map/track-style-presets.js";
 import { parsePhotoFile } from "../photo/exif.js";
 import { inferPhotoLocationFromGpx } from "../photo/infer-location.js";
 import { assertPhotoTimeMode, formatPhotoTimeModeLabel } from "./photo-time-utils.js";
@@ -59,14 +61,29 @@ function resolvePhotoSource(state, photo, options = {}) {
   };
 }
 
+function resolveTrackPresentation(state, existingPresentation = null) {
+  const trackStylePresetIndex = Number.isInteger(existingPresentation?.trackStylePresetIndex)
+    ? existingPresentation.trackStylePresetIndex
+    : claimNextTrackStylePresetIndex(state, TRACK_STYLE_PRESETS.length);
+
+  return {
+    ...(existingPresentation || {}),
+    trackStylePresetIndex,
+  };
+}
+
 function addGpxEntry({ state, map, interactionHub }, source, options = {}) {
   const normalizedSource = normalizeGpxSource(source);
-  const overlay = buildGpxOverlay(normalizedSource);
+  const presentation = resolveTrackPresentation(state, options.presentation);
+  const overlay = buildGpxOverlay(normalizedSource, {
+    trackStyle: getTrackStylePreset(presentation.trackStylePresetIndex),
+  });
   const entry = addEntry(state, {
     kind: "gpx",
     source: normalizedSource,
     layer: overlay.layer,
     interactions: overlay.interactions,
+    presentation,
     visible: options.visible !== false,
   });
 
@@ -157,7 +174,10 @@ export function createTiliaCore(map, options = {}) {
       }
 
       const normalizedSource = normalizeGpxSource(nextSource);
-      const nextOverlay = buildGpxOverlay(normalizedSource);
+      const presentation = resolveTrackPresentation(state, entry.presentation);
+      const nextOverlay = buildGpxOverlay(normalizedSource, {
+        trackStyle: getTrackStylePreset(presentation.trackStylePresetIndex),
+      });
       const nextVisible = options.visible ?? entry.visible !== false;
       if (nextVisible) {
         nextOverlay.layer.addTo(map);
@@ -167,6 +187,7 @@ export function createTiliaCore(map, options = {}) {
       replaceEntryPresentation(state, entryId, {
         layer: nextOverlay.layer,
         interactions: nextOverlay.interactions,
+        presentation,
         visible: nextVisible,
       });
       replaceEntrySource(state, entryId, normalizedSource);

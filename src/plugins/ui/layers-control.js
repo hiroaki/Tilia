@@ -1,5 +1,6 @@
 import { createButton, createPanel, createSelect, installMapControl } from "../../map/controls.js";
 import { createPhotoThumbnailNode } from "../../map/layers.js";
+import { getTrackStylePreset } from "../../map/track-style-presets.js";
 import {
   buildFixedOffsetTimeMode,
   formatPhotoTimeModeLabel,
@@ -18,24 +19,58 @@ function formatDateTime(value) {
   return date.toLocaleString();
 }
 
+function getEntryTrackStyle(entry) {
+  if (entry?.kind !== "gpx") {
+    return null;
+  }
+
+  return getTrackStylePreset(entry.presentation?.trackStylePresetIndex ?? 0);
+}
+
+export function createTrackStyleSwatch(entry) {
+  const trackStyle = getEntryTrackStyle(entry);
+  if (!trackStyle) {
+    return null;
+  }
+
+  const swatch = document.createElement("span");
+  swatch.className = "tilia-layer-style-chip";
+  swatch.style.backgroundColor = trackStyle.color;
+  swatch.title = `${trackStyle.id} track style`;
+  swatch.setAttribute("aria-hidden", "true");
+  return swatch;
+}
+
 function createLayerToggle(entry, onVisibilityChange) {
-  const label = document.createElement("label");
-  label.className = "tilia-layer-toggle";
+  const wrap = document.createElement("div");
+  wrap.className = "tilia-layer-toggle";
 
   const checkbox = document.createElement("input");
   checkbox.type = "checkbox";
+  checkbox.id = `tilia-layer-toggle-${entry.id}`;
   checkbox.checked = entry.visible !== false;
   checkbox.addEventListener("change", () => {
     onVisibilityChange(entry, checkbox.checked);
   });
 
-  const text = document.createElement("span");
+  const nameWrap = document.createElement("div");
+  nameWrap.className = "tilia-layer-name-wrap";
+
+  const swatch = createTrackStyleSwatch(entry);
+  if (swatch) {
+    nameWrap.appendChild(swatch);
+  }
+
+  const text = document.createElement("label");
   text.className = "tilia-layer-name";
+  text.htmlFor = checkbox.id;
   text.textContent = entry.source?.name || `Layer ${entry.id}`;
 
-  label.appendChild(checkbox);
-  label.appendChild(text);
-  return label;
+  nameWrap.appendChild(text);
+
+  wrap.appendChild(checkbox);
+  wrap.appendChild(nameWrap);
+  return wrap;
 }
 
 function createPhotoModeField(entry, onModeChange) {
