@@ -41,6 +41,26 @@ export function createTrackStyleSwatch(entry) {
   return swatch;
 }
 
+function createGlobalGpxVisibilityToggle({ id, label, className, onChange }) {
+  const wrap = document.createElement("label");
+  wrap.className = `tilia-layer-bulk-toggle ${className}`.trim();
+
+  const checkbox = document.createElement("input");
+  checkbox.type = "checkbox";
+  checkbox.id = id;
+  checkbox.addEventListener("change", () => {
+    onChange(checkbox.checked);
+  });
+
+  const text = document.createElement("span");
+  text.textContent = label;
+
+  wrap.appendChild(checkbox);
+  wrap.appendChild(text);
+
+  return { wrap, checkbox };
+}
+
 function createLayerToggle(entry, onVisibilityChange) {
   const wrap = document.createElement("div");
   wrap.className = "tilia-layer-toggle";
@@ -256,6 +276,8 @@ function createLayerCard(entry, handlers) {
 export function installLayersControl({ map, core, panel, onStatus, onError, onEntriesChanged = null, position = "topleft", priority = "normal" }) {
   let listNode = null;
   let clearAllButton = null;
+  let tracksToggle = null;
+  let waypointsToggle = null;
 
   function buildLayerContent() {
     const content = document.createElement("div");
@@ -267,6 +289,37 @@ export function installLayersControl({ map, core, panel, onStatus, onError, onEn
 
     const actions = document.createElement("div");
     actions.className = "tilia-layer-actions";
+
+    const bulkToggles = document.createElement("div");
+    bulkToggles.className = "tilia-layer-bulk-toggles";
+
+    const trackToggleField = createGlobalGpxVisibilityToggle({
+      id: "tilia-gpx-tracks-toggle",
+      label: "Tracks",
+      className: "tilia-layer-bulk-toggle-tracks",
+      onChange(checked) {
+        core.setGpxTracksVisibility(checked);
+        render();
+        onStatus(`${checked ? "Showing" : "Hiding"} tracks for all GPX layers`);
+      },
+    });
+    tracksToggle = trackToggleField.checkbox;
+    bulkToggles.appendChild(trackToggleField.wrap);
+
+    const waypointToggleField = createGlobalGpxVisibilityToggle({
+      id: "tilia-gpx-waypoints-toggle",
+      label: "Waypoints",
+      className: "tilia-layer-bulk-toggle-waypoints",
+      onChange(checked) {
+        core.setGpxWaypointsVisibility(checked);
+        render();
+        onStatus(`${checked ? "Showing" : "Hiding"} waypoints for all GPX layers`);
+      },
+    });
+    waypointsToggle = waypointToggleField.checkbox;
+    bulkToggles.appendChild(waypointToggleField.wrap);
+
+    actions.appendChild(bulkToggles);
 
     clearAllButton = createButton("Delete all", "tilia-layer-clear-button");
     clearAllButton.addEventListener("click", () => {
@@ -293,6 +346,19 @@ export function installLayersControl({ map, core, panel, onStatus, onError, onEn
   function render() {
     if (!listNode) {
       return;
+    }
+
+    const hasGpxEntries = core.state.entries.some((entry) => entry.kind === "gpx");
+    const gpxVisibility = core.getGpxVisibility();
+
+    if (tracksToggle) {
+      tracksToggle.checked = gpxVisibility.tracks !== false;
+      tracksToggle.disabled = !hasGpxEntries;
+    }
+
+    if (waypointsToggle) {
+      waypointsToggle.checked = gpxVisibility.waypoints !== false;
+      waypointsToggle.disabled = !hasGpxEntries;
     }
 
     if (clearAllButton) {
