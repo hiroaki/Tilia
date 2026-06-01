@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   addEntry,
+  claimNextTrackStylePresetIndex,
   clearEntries,
   clearLayers,
   clearSources,
@@ -66,6 +67,7 @@ describe("state helpers", () => {
     const updatedPresentation = replaceEntryPresentation(state, entry.id, {
       layer: { id: "layer-after" },
       interactions: { id: "interactions-after" },
+      presentation: { trackStylePresetIndex: 3 },
       visible: false,
     });
     const updatedSource = replaceEntrySource(state, entry.id, { name: "after.gpx" });
@@ -74,12 +76,23 @@ describe("state helpers", () => {
     expect(updatedSource).toBe(entry);
     expect(entry.layer).toEqual({ id: "layer-after" });
     expect(entry.interactions).toEqual({ id: "interactions-after" });
+    expect(entry.presentation).toEqual({ trackStylePresetIndex: 3 });
     expect(entry.visible).toBe(false);
     expect(entry.source).toEqual({ name: "after.gpx" });
     expect(state.layers).toEqual([{ id: "layer-after" }]);
     expect(state.sources).toEqual([{ name: "after.gpx" }]);
     expect(replaceEntryPresentation(state, 999, { visible: true })).toBeNull();
     expect(replaceEntrySource(state, 999, { name: "missing.gpx" })).toBeNull();
+  });
+
+  it("claims the next track style preset index and wraps by preset count", () => {
+    const state = createAppState();
+
+    expect(claimNextTrackStylePresetIndex(state, 3)).toBe(0);
+    expect(claimNextTrackStylePresetIndex(state, 3)).toBe(1);
+    expect(claimNextTrackStylePresetIndex(state, 3)).toBe(2);
+    expect(claimNextTrackStylePresetIndex(state, 3)).toBe(0);
+    expect(state.nextTrackStylePresetIndex).toBe(1);
   });
 
   it("clears mirrored collections and records the latest error", () => {

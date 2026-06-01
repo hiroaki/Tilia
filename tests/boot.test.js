@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { getTrackStylePreset } from "../src/map/track-style-presets.js";
 
 const bootMocks = vi.hoisted(() => ({
   syncEntry: vi.fn(),
@@ -117,7 +118,9 @@ describe("createTiliaCore", () => {
       name: "sample.gpx",
       type: "gpx",
       trackPoints: [[35.0, 135.0], [35.1, 135.1]],
-    }));
+    }), {
+      trackStyle: getTrackStylePreset(0),
+    });
     expect(overlay.layer.addTo).toHaveBeenCalledWith(map);
     expect(bootMocks.fitMapToGroup).toHaveBeenCalledWith(map, overlay.layer);
     expect(result.summary).toBe("2 track points, 1 waypoints");
@@ -131,9 +134,49 @@ describe("createTiliaCore", () => {
       }),
       layer: overlay.layer,
       interactions: overlay.interactions,
+      presentation: {
+        trackStylePresetIndex: 0,
+      },
       visible: true,
     });
     expect(bootMocks.syncEntry).toHaveBeenCalledWith(core.state.entries[0]);
+  });
+
+  it("rotates track style presets across newly added GPX entries", () => {
+    bootMocks.buildGpxOverlay
+      .mockReturnValueOnce({
+        layer: createLayer("gpx-layer-1"),
+        interactions: { trackLayer: { id: "track-1" }, waypoints: [] },
+      })
+      .mockReturnValueOnce({
+        layer: createLayer("gpx-layer-2"),
+        interactions: { trackLayer: { id: "track-2" }, waypoints: [] },
+      });
+    const core = createTiliaCore({ closePopup: bootMocks.closePopup });
+
+    const firstEntry = core.addGpxSource({
+      name: "first.gpx",
+      trackPointDetails: [
+        { lat: 35.0, lon: 135.0 },
+        { lat: 35.1, lon: 135.1 },
+      ],
+    });
+    const secondEntry = core.addGpxSource({
+      name: "second.gpx",
+      trackPointDetails: [
+        { lat: 36.0, lon: 136.0 },
+        { lat: 36.1, lon: 136.1 },
+      ],
+    });
+
+    expect(firstEntry.presentation).toEqual({ trackStylePresetIndex: 0 });
+    expect(secondEntry.presentation).toEqual({ trackStylePresetIndex: 1 });
+    expect(bootMocks.buildGpxOverlay).toHaveBeenNthCalledWith(1, expect.any(Object), {
+      trackStyle: getTrackStylePreset(0),
+    });
+    expect(bootMocks.buildGpxOverlay).toHaveBeenNthCalledWith(2, expect.any(Object), {
+      trackStyle: getTrackStylePreset(1),
+    });
   });
 
   it("dispatches JPEG files, infers location for non-GPS photos, and tracks the selected mode", async () => {
@@ -366,9 +409,13 @@ describe("createTiliaCore", () => {
     }, { fitToView: false });
 
     expect(entry).toMatchObject({ kind: "gpx", visible: true });
+    expect(entry.presentation).toEqual({ trackStylePresetIndex: 0 });
     expect(entry.source.trackPoints).toEqual([[35.0, 135.0], [35.1, 135.1]]);
     expect(firstOverlay.layer.addTo).toHaveBeenCalledWith(map);
     expect(bootMocks.fitMapToGroup).not.toHaveBeenCalled();
+    expect(bootMocks.buildGpxOverlay).toHaveBeenNthCalledWith(1, expect.any(Object), {
+      trackStyle: getTrackStylePreset(0),
+    });
 
     const updated = core.updateGpxSource(entry.id, {
       ...entry.source,
@@ -382,6 +429,10 @@ describe("createTiliaCore", () => {
     expect(firstOverlay.layer.remove).toHaveBeenCalledTimes(1);
     expect(secondOverlay.layer.addTo).toHaveBeenCalledWith(map);
     expect(updated.source.trackPoints).toEqual([[35.0, 135.0], [35.2, 135.2]]);
+    expect(updated.presentation).toEqual({ trackStylePresetIndex: 0 });
+    expect(bootMocks.buildGpxOverlay).toHaveBeenNthCalledWith(2, expect.any(Object), {
+      trackStyle: getTrackStylePreset(0),
+    });
     expect(bootMocks.fitMapToGroup).toHaveBeenCalledWith(map, secondOverlay.layer);
     expect(core.updateGpxSource(999, entry.source)).toBeNull();
   });

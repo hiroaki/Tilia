@@ -1,4 +1,5 @@
 import { FeatureGroup, Marker, Polyline, LatLngBounds } from "leaflet";
+import { getTrackStylePreset } from "./track-style-presets.js";
 
 function formatCoordinate(value) {
   return Number.isFinite(value) ? value.toFixed(6) : "-";
@@ -174,17 +175,14 @@ export function createTrackPointPopupContent(parsed, point) {
   return createPopupContent(parsed?.name || "Track", rows);
 }
 
-export function buildGpxOverlay(parsed) {
+export function buildGpxOverlay(parsed, options = {}) {
   const group = new FeatureGroup();
   let trackLayer = null;
   const waypoints = [];
+  const trackStyle = options.trackStyle || getTrackStylePreset(0);
 
   if (parsed.trackPoints.length > 1) {
-    trackLayer = new Polyline(parsed.trackPoints, {
-      color: "#0f766e",
-      weight: 4,
-      opacity: 0.9,
-    });
+    trackLayer = new Polyline(parsed.trackPoints, trackStyle);
     group.addLayer(trackLayer);
   }
 

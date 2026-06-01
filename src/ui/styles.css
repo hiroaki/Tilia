@@ -474,10 +474,28 @@
   min-width: 0;
 }
 
+.tilia-layer-name-wrap {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+
+.tilia-layer-style-chip {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  flex: 0 0 1em;
+  border: 1px solid #00000026;
+  border-radius: 2px;
+  box-sizing: border-box;
+}
+
 .tilia-layer-name {
   font-size: 12px;
   font-weight: 600;
   color: #1c1917;
+  cursor: pointer;
   overflow-wrap: anywhere;
 }
 
