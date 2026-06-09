@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Tilia Editor</title>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@2.0.0-alpha.1/dist/leaflet.css"
+    />
+    <style>
+      :root {
+        --bg: #f5f5f4;
+      }
+
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: var(--bg);
+        color: var(--text);
+        font-family: "Hiragino Sans", "Yu Gothic", sans-serif;
+      }
+
+      .app {
+        height: 100%;
+      }
+
+      .app.drop-active {
+        box-shadow: inset 0 0 0 4px #0f766e66;
+      }
+
+      #map {
+        height: 100%;
+        width: 100%;
+      }
+    </style>
+    <script type="importmap">
+      {
+        "imports": {
+          "leaflet": "https://unpkg.com/leaflet@2.0.0-alpha.1/dist/leaflet.js",
+          "exifr": "https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/lite.esm.js"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <div id="app-root" class="app">
+      <div id="map"></div>
+    </div>
+
+    <script type="module">
+      import { createDefaultTiliaApp } from "../../src/index.js";
+      import { GeoJSON } from "leaflet";
+
+      const app = createDefaultTiliaApp("map", {
+        plugins: [
+          "tilia-panel",
+          "tilia-status",
+          "tilia-layers",
+          "tilia-dropzone",
+          "x-gpx-export",
+          "x-route-search",
+          "x-track-editor",
+        ],
+        pluginOptions: {
+          "x-route-search": {
+            endpoint: "https://phloem.hwat.jp/route",
+            apiKey: "",
+            defaultProfile: "foot",
+            profileOptions: ["foot"],
+            timeoutMs: 5000,
+            importLimit: 3,
+            position: "topleft",
+            priority: "normal"
+          }
+        },
+        baseMapOptions: {
+          baseLayers: [
+            {
+              id: "gsi-pale",
+              label: "GSI Pale",
+              provider: "gsi",
+              category: "street",
+              url: "https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png",
+              options: {
+                attribution: "<a href=\"https://maps.gsi.go.jp/development/ichiran.html\">国土地理院</a>",
+              },
+              attributionLabel: "国土地理院",
+              visibleInSelector: true
+            }
+          ],
+          selectedBaseLayerId: "gsi-pale"
+        }
+      });
+
+      fetch("./chiyoda-ku.geojson")
+      .then((res) => res.json())
+      .then((geojsonData) => {
+        const map = app.getMap();
+        const layer = new GeoJSON(geojsonData,{
+          style: {
+            color: "#ff9999",
+            weight: 4,
+            fillOpacity: 0.1
+          }
+        }).addTo(map);
+        map.fitBounds(layer.getBounds());
+      });
+    </script>
+  </body>
+</html>
