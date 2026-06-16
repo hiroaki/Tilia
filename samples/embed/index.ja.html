@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="ja">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
@@ -145,24 +145,24 @@
   </head>
   <body>
     <div class="app">
-      <p><a href="./index.ja.html">日本語</a></p>
+      <p><a href="./index.html">English</a></p>
 
       <header class="page-header">
-        <h1 class="page-title">Tilia embed example: repeated maps from data attributes</h1>
+        <h1 class="page-title">Tilia 埋め込み例: データ属性から繰り返し地図を表示</h1>
         <p class="page-copy">
-          This sample treats Tilia as an embeddable library rather than as the standalone viewer.
-          Each content block owns its own map instance, and only the <code>data-*</code> URLs change.
-          That makes the same template reusable in a CMS or blog page.
+          このサンプルでは、Tilia をスタンドアロンのビューワーではなく、埋め込み可能なライブラリとして扱います。
+          各コンテンツブロックは独自の地図インスタンスを持ち、変更されるのは <code>data-*</code> URL のみです。
+          これにより、同じテンプレートを CMS やブログページで再利用できます。
         </p>
       </header>
 
       <main class="story-list">
         <article class="story-card story-card-gpx" data-tilia-gpx-url="./biwakososui.gpx">
           <div class="story-media">
-            <p class="story-kicker">Track embed</p>
-            <h2 class="story-heading">Walking the Lake Biwa Canal</h2>
+            <p class="story-kicker">トラック埋め込み</p>
+            <h2 class="story-heading">琵琶湖疏水を歩く</h2>
             <p class="story-description">
-              This block reads a GPX URL from its own <code>data-tilia-gpx-url</code> attribute and renders the track without any viewer-specific wrapper.
+              このブロックは自身の <code>data-tilia-gpx-url</code> 属性から GPX URL を読み取り、ビューワー固有のラッパーなしでトラックを表示します。
             </p>
           </div>
           <div class="story-map-wrap">
@@ -179,11 +179,11 @@
               alt="Sample photo IMG_2889"
               data-tilia-photo-url="./IMG_2889.JPG"
             />
-            <p class="story-kicker">Photo embed</p>
-            <h2 class="story-heading">Photo map from IMG_2889.JPG</h2>
+            <p class="story-kicker">写真埋め込み</p>
+            <h2 class="story-heading">IMG_2889.JPG からの写真地図</h2>
             <p class="story-description">
-              The image element itself carries the source URL in <code>data-tilia-photo-url</code>.
-              Tilia reads the photo file and places its marker next to the image.
+              画像要素自体が <code>data-tilia-photo-url</code> にソース URL を持っています。
+              Tilia は写真ファイルを読み取り、そのマーカーを画像の隣に配置します。
             </p>
           </div>
           <div class="story-map-wrap">
@@ -203,14 +203,10 @@
               alt="Sample photo IMG_2892"
               data-tilia-photo-url="./IMG_2892.JPG"
             />
-            <p class="story-kicker">Photo embed</p>
-            <h2 class="story-heading">Photo map from IMG_2892.JPG</h2>
+            <p class="story-kicker">写真埋め込み</p>
+            <h2 class="story-heading">IMG_2892.JPG からの写真地図</h2>
             <p class="story-description">
-              This second image keeps its own <code>data-tilia-photo-url</code> value, but also adds a card-level
-              <code>data-tilia-gpx-url</code>. Tilia loads the track first and then infers the photo location from the
-              GPX timeline when the image itself does not carry GPS coordinates. Because EXIF timestamps do not store
-              their timezone, this sample sets the photo time mode to <code>+09:00</code> in the map initialization
-              code so the photo timestamp is interpreted against the GPX track in the intended timezone.
+              この2枚目の画像は自身の <code>data-tilia-photo-url</code> 値を保持していますが、カードレベルで <code>data-tilia-gpx-url</code> も追加しています。Tilia はまずトラックを読み込み、画像自体に GPS 座標がない場合は GPX タイムラインから写真の位置を推測します。EXIF タイムスタンプはタイムゾーンを保存しないため、このサンプルでは地図初期化コードで写真の時間モードを <code>+09:00</code> に設定し、写真のタイムスタンプが意図したタイムゾーンで GPX トラックに対して解釈されるようにしています。
             </p>
           </div>
           <div class="story-map-wrap">
