@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <title>Tilia Editor Sample</title>
+  <meta charset="utf-8" />
+  <link rel="stylesheet" href="../markdown.css">
+</head>
+<body>
+
+<article id="markdown-body" class="markdown-body"><p><a href="./guide.html">English</a></p>
+<h1>Tilia - Phloem 構築ガイド</h1>
+<p>このガイドでは、Phloem を利用して Tilia のルート検索機能を実行できる環境を構築します。Docker を利用する方法と、ソースコードから起動する方法の両方を説明します。</p>
+<p>ガイドの内容に従って進めることで、ブラウザから Tilia のサンプルを開き、GraphHopper を利用したルート検索を実行できるようになります。</p>
+<p>Phloem は、Tilia と GraphHopper などのルーティングエンジンの間に配置する API ゲートウェイで、 Tilia と並行して開発しているものです：</p>
+<ul>
+<li><a href="https://github.com/hiroaki/Phloem">https://github.com/hiroaki/Phloem</a></li>
+</ul>
+<p>Tilia は基本的にクライアントサイドのみで動作しますが、ルート検索の機能はバックエンドでルーティングエンジンを動かす必要があります。 Phloem とルーティングエンジンをセットアップすることで、 Tilia からルート検索のリクエストを送ることができるようになります。</p>
+<h2>0. 構成</h2>
+<p>基本的な構成は以下のようになります：</p>
+<pre class="notranslate" style="position: relative;"><code class="notranslate">
+        +---------------------+ 
+        | Tilia (クライアント)  |
+        +---------------------+
+                  |
+                  | ルート検索リクエスト
+                  v
+        +---------------------+
+        | Phloem (ゲートウェイ) |
+        +---------------------+
+                  |
+                  | ルート検索リクエスト（転送）
+                  v 
+        +---------------------+
+        | GraphHopper         |
+        | (ルーティングエンジン) |
+        +---------------------+
+</code><button class="copy-button" aria-label="Copy code to clipboard"><svg class="copy-icon" aria-hidden="true" fill="none" height="18" shape-rendering="geometricPrecision" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewBox="0 0 24 24" width="18" style="color:" currentcolor";"=""><path d="M8 17.929H6c-1.105 0-2-.912-2-2.036V5.036C4 3.91 4.895 3 6 3h8c1.105 0 2 .911 2 2.036v1.866m-6 .17h8c1.105 0 2 .91 2 2.035v10.857C20 21.09 19.105 22 18 22h-8c-1.105 0-2-.911-2-2.036V9.107c0-1.124.895-2.036 2-2.036z"></path></svg></button></pre>
+<p>Phloem は Tilia からのルート検索リクエストを受け取り、それを GraphHopper に転送してルート検索を行います。GraphHopper からのレスポンスを受け取った後、レスポンスの内容を調整し、Tilia に返します。</p>
+<h2>1. GraphHopper の用意</h2>
+<p>GraphHopper は道路ネットワーク上の経路探索を行うルーティングエンジンです。 GraphHopper をバックエンドに利用するためには、GraphHopper 公式 API を利用するか、または自前で GraphHopper のサーバーを構築して利用することができます。</p>
+<p>ただし自前で用意する場合、 GraphHopper はディスク容量やメモリを大量に消費するため、十分なリソースを持つマシンが必要になります。</p>
+<h3>GraphHopper 公式 API を利用する</h3>
+<p>GraphHopper 公式 API を利用するならば、セットアップは特にありません。 GraphHopper のアカウントを作成し、 API キーを取得してください。 Phloem の起動時に、環境変数にそれを設定することになります。</p>
+<h3>自前の GraphHopper サーバーを利用する</h3>
+<p>または GraphHopper のサーバーを自前で立てて、それを利用することもできます。 GraphHopper のセットアップについては、公式のドキュメントを参照してください：</p>
+<ul>
+<li><a href="https://github.com/graphhopper/graphhopper#installation">https://github.com/graphhopper/graphhopper#installation</a></li>
+</ul>
+<p>Phloem のリポジトリ内にも GraphHopper を Docker で起動するための設定ファイルが含まれています：</p>
+<ul>
+<li><a href="https://github.com/hiroaki/Phloem/tree/main/tools/routing/graphhopper">https://github.com/hiroaki/Phloem/tree/main/tools/routing/graphhopper</a></li>
+</ul>
+<h2>2. Phloem のセットアップ</h2>
+<p>Phloem は Ruby on Rails で実装された、クライアントとルーティングエンジンの橋渡しをする API ゲートウェイです。実行環境に Ruby がインストールされていない場合や、Rails に不慣れな場合でも、 Docker イメージを利用して、ワンライナーでセットアップすることができます。</p>
+<h3>Docker を利用する場合</h3>
+<p>このガイドでは、コンテナはカレントディレクトリにある <code class="notranslate">public</code> をボリュームマウントして利用します。<code class="notranslate">public</code> ディレクトリが既にある場合は、既存のファイルと混在することを避けるため、空の状態にしてから開始してください。 Phloem は <code class="notranslate">public</code> 配下のすべてのファイルを HTTP サーバー経由で配信します。</p>
+<p>コンテナの実行については、GraphHopper 公式 API を利用する場合と、自前の GraphHopper サーバーを利用する場合で、環境変数の設定が異なります。</p>
+<ul>
+<li>
+<p><strong>GraphHopper 公式 API を利用する場合</strong></p>
+<p>必須の環境変数 <code class="notranslate">GRAPH_HOPPER_API_KEY</code> をセットした上で、以下のコマンドを実行してください。これで Phloem が起動し、ルート検索のリクエストを受け付けるようになります。</p>
+<p>前述の通り、Free プランの API キーを利用する場合は、追加で <code class="notranslate">GRAPH_HOPPER_RESTRICTED_PLAN</code> を <code class="notranslate">true</code> に設定してください。</p>
+<div class="highlight highlight-source-shell"><pre class="notranslate" style="position: relative;"><span class="pl-k">export</span> GRAPH_HOPPER_API_KEY=<span class="pl-k">&lt;</span>Your GraphHopper API key<span class="pl-k">&gt;</span>
+
+docker run --rm \
+  -p 3000:3000 \
+  -e ROUTING_PROVIDER=graphhopper \
+  -e GRAPH_HOPPER_BASE_URL=https://graphhopper.com/api/1 \
+  -e GRAPH_HOPPER_API_KEY \
+  -e GRAPH_HOPPER_RESTRICTED_PLAN=true \
+  -e SECRET_KEY_BASE_DUMMY=1 \
+  -v <span class="pl-s"><span class="pl-pds">"</span><span class="pl-s"><span class="pl-pds">$(</span>pwd<span class="pl-pds">)</span></span>/public:/rails/public<span class="pl-pds">"</span></span> \
+  ghcr.io/hiroaki/phloem:latest<button class="copy-button" aria-label="Copy code to clipboard"><svg class="copy-icon" aria-hidden="true" fill="none" height="18" shape-rendering="geometricPrecision" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewBox="0 0 24 24" width="18" style="color:" currentcolor";"=""><path d="M8 17.929H6c-1.105 0-2-.912-2-2.036V5.036C4 3.91 4.895 3 6 3h8c1.105 0 2 .911 2 2.036v1.866m-6 .17h8c1.105 0 2 .91 2 2.035v10.857C20 21.09 19.105 22 18 22h-8c-1.105 0-2-.911-2-2.036V9.107c0-1.124.895-2.036 2-2.036z"></path></svg></button></pre></div>
+</li>
+<li>
+<p><strong>自前の GraphHopper サーバーを利用する場合</strong></p>
+<p>自前の GraphHopper サーバーを利用する場合は、 <code class="notranslate">GRAPH_HOPPER_API_KEY</code> と <code class="notranslate">GRAPH_HOPPER_RESTRICTED_PLAN</code> による設定は不要になります。 API のベース URL を、 Phloem の起動時の環境変数 <code class="notranslate">GRAPH_HOPPER_BASE_URL</code> に設定してください。</p>
+<div class="highlight highlight-source-shell"><pre class="notranslate" style="position: relative;">docker run --rm \
+  -p 3000:3000 \
+  -e ROUTING_PROVIDER=graphhopper \
+  -e GRAPH_HOPPER_BASE_URL=http://localhost:8989 \
+  -e SECRET_KEY_BASE_DUMMY=1 \
+  -v <span class="pl-s"><span class="pl-pds">"</span><span class="pl-s"><span class="pl-pds">$(</span>pwd<span class="pl-pds">)</span></span>/public:/rails/public<span class="pl-pds">"</span></span> \
+  ghcr.io/hiroaki/phloem:latest<button class="copy-button" aria-label="Copy code to clipboard"><svg class="copy-icon" aria-hidden="true" fill="none" height="18" shape-rendering="geometricPrecision" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewBox="0 0 24 24" width="18" style="color:" currentcolor";"=""><path d="M8 17.929H6c-1.105 0-2-.912-2-2.036V5.036C4 3.91 4.895 3 6 3h8c1.105 0 2 .911 2 2.036v1.866m-6 .17h8c1.105 0 2 .91 2 2.035v10.857C20 21.09 19.105 22 18 22h-8c-1.105 0-2-.911-2-2.036V9.107c0-1.124.895-2.036 2-2.036z"></path></svg></button></pre></div>
+</li>
+</ul>
+<p>この例ではフォアグラウンドで起動するので、ターミナルはこのままにしておいてください。サーバーを停止させるには <code class="notranslate">Ctrl + C</code> を入力します。</p>
+<h3>Docker を利用しない場合</h3>
+<p>Docker を利用しない場合は、Phloem の開発環境を整備することになります。 Ruby と Bundler がインストールされている必要があります。また SQLite3 も必要です。 Phloem はステートを持たない設計ですが、 この DB は Rails のキャッシュのために利用されます。</p>
+<p>Phloem の開発では次のバージョンで動作確認を行なっています：</p>
+<ul>
+<li>Ruby 3.4.9</li>
+<li>Bundler 4.0.8</li>
+</ul>
+<p>他のバージョンで動作させる場合は、リポジトリのトップディレクトリにある <code class="notranslate">.ruby-version</code> を調整または削除し、また必要に応じて Gemfile を調整してください。</p>
+<h4>初回セットアップ</h4>
+<p>初回のみ、次の手順で Phloem の開発環境をセットアップしてください。 Phloem のリポジトリをクローンし、必要な Ruby ライブラリ（gem）をインストールし、そして DB を準備します。</p>
+<div class="highlight highlight-source-shell"><pre class="notranslate" style="position: relative;">git clone git@github.com:hiroaki/Phloem.git
+<span class="pl-c1">cd</span> Phloem
+bundle install
+bin/rails db:prepare<button class="copy-button" aria-label="Copy code to clipboard"><svg class="copy-icon" aria-hidden="true" fill="none" height="18" shape-rendering="geometricPrecision" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewBox="0 0 24 24" width="18" style="color:" currentcolor";"=""><path d="M8 17.929H6c-1.105 0-2-.912-2-2.036V5.036C4 3.91 4.895 3 6 3h8c1.105 0 2 .911 2 2.036v1.866m-6 .17h8c1.105 0 2 .91 2 2.035v10.857C20 21.09 19.105 22 18 22h-8c-1.105 0-2-.911-2-2.036V9.107c0-1.124.895-2.036 2-2.036z"></path></svg></button></pre></div>
+<h4>サーバーの起動</h4>
+<p>サーバーの設定はすべて環境変数にセットします。</p>
+<ul>
+<li>
+<p><strong>GraphHopper 公式 API を利用する場合</strong></p>
+<pre class="notranslate" style="position: relative;"><code class="notranslate">export GRAPH_HOPPER_BASE_URL=https://graphhopper.com/api/1
+export GRAPH_HOPPER_API_KEY=&lt;Your GraphHopper API key&gt;
+export GRAPH_HOPPER_RESTRICTED_PLAN=true # 制限のある API キーを利用する場合に追加
+</code><button class="copy-button" aria-label="Copy code to clipboard"><svg class="copy-icon" aria-hidden="true" fill="none" height="18" shape-rendering="geometricPrecision" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewBox="0 0 24 24" width="18" style="color:" currentcolor";"=""><path d="M8 17.929H6c-1.105 0-2-.912-2-2.036V5.036C4 3.91 4.895 3 6 3h8c1.105 0 2 .911 2 2.036v1.866m-6 .17h8c1.105 0 2 .91 2 2.035v10.857C20 21.09 19.105 22 18 22h-8c-1.105 0-2-.911-2-2.036V9.107c0-1.124.895-2.036 2-2.036z"></path></svg></button></pre>
+</li>
+<li>
+<p><strong>自前の GraphHopper サーバーを利用する場合</strong></p>
+<pre class="notranslate" style="position: relative;"><code class="notranslate">export GRAPH_HOPPER_BASE_URL=http://localhost:8989
+</code><button class="copy-button" aria-label="Copy code to clipboard"><svg class="copy-icon" aria-hidden="true" fill="none" height="18" shape-rendering="geometricPrecision" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewBox="0 0 24 24" width="18" style="color:" currentcolor";"=""><path d="M8 17.929H6c-1.105 0-2-.912-2-2.036V5.036C4 3.91 4.895 3 6 3h8c1.105 0 2 .911 2 2.036v1.866m-6 .17h8c1.105 0 2 .91 2 2.035v10.857C20 21.09 19.105 22 18 22h-8c-1.105 0-2-.911-2-2.036V9.107c0-1.124.895-2.036 2-2.036z"></path></svg></button></pre>
+</li>
+</ul>
+<p>環境変数の設定ができたら、次のコマンドで Phloem サーバーを起動してください。</p>
+<pre class="notranslate" style="position: relative;"><code class="notranslate">bin/rails server -p 3000
+</code><button class="copy-button" aria-label="Copy code to clipboard"><svg class="copy-icon" aria-hidden="true" fill="none" height="18" shape-rendering="geometricPrecision" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewBox="0 0 24 24" width="18" style="color:" currentcolor";"=""><path d="M8 17.929H6c-1.105 0-2-.912-2-2.036V5.036C4 3.91 4.895 3 6 3h8c1.105 0 2 .911 2 2.036v1.866m-6 .17h8c1.105 0 2 .91 2 2.035v10.857C20 21.09 19.105 22 18 22h-8c-1.105 0-2-.911-2-2.036V9.107c0-1.124.895-2.036 2-2.036z"></path></svg></button></pre>
+<p>この例ではフォアグラウンドで起動するので、ターミナルはこのままにしておいてください。サーバーを停止させるには <code class="notranslate">Ctrl + C</code> を入力します。</p>
+<h2>3. 起動確認</h2>
+<h3>ヘルスチェック</h3>
+<p>Phloem が正しく起動しているかを確認するために、次のエンドポイントにリクエストを送ってみてください：</p>
+<pre class="notranslate" style="position: relative;"><code class="notranslate">curl -i http://localhost:3000/up
+</code><button class="copy-button" aria-label="Copy code to clipboard"><svg class="copy-icon" aria-hidden="true" fill="none" height="18" shape-rendering="geometricPrecision" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewBox="0 0 24 24" width="18" style="color:" currentcolor";"=""><path d="M8 17.929H6c-1.105 0-2-.912-2-2.036V5.036C4 3.91 4.895 3 6 3h8c1.105 0 2 .911 2 2.036v1.866m-6 .17h8c1.105 0 2 .91 2 2.035v10.857C20 21.09 19.105 22 18 22h-8c-1.105 0-2-.911-2-2.036V9.107c0-1.124.895-2.036 2-2.036z"></path></svg></button></pre>
+<p>"200 OK" のレスポンスと共に、次のような HTML コンテンツが返ってくれば、Phloem サーバーは正常に起動しています。</p>
+<pre class="notranslate" style="position: relative;"><code class="notranslate">&lt;!DOCTYPE html&gt;&lt;html&gt;&lt;body style="background-color: green"&gt;&lt;/body&gt;&lt;/html&gt;
+</code><button class="copy-button" aria-label="Copy code to clipboard"><svg class="copy-icon" aria-hidden="true" fill="none" height="18" shape-rendering="geometricPrecision" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewBox="0 0 24 24" width="18" style="color:" currentcolor";"=""><path d="M8 17.929H6c-1.105 0-2-.912-2-2.036V5.036C4 3.91 4.895 3 6 3h8c1.105 0 2 .911 2 2.036v1.866m-6 .17h8c1.105 0 2 .91 2 2.035v10.857C20 21.09 19.105 22 18 22h-8c-1.105 0-2-.911-2-2.036V9.107c0-1.124.895-2.036 2-2.036z"></path></svg></button></pre>
+<h3>GraphHopper へのリクエストの転送確認</h3>
+<p>Phloem が Tilia からのルート検索リクエストを受け取り、GraphHopper に転送しているかを確認するために、次のエンドポイントにリクエストを送ってみてください（自前で GraphHopper サーバーを立てている場合は、 <code class="notranslate">profile</code> や <code class="notranslate">points</code> の内容を適宜調整してください）：</p>
+<pre class="notranslate" style="position: relative;"><code class="notranslate">curl -X POST http://localhost:3000/route \
+  -H "Content-Type: application/json" \
+  -d '{
+    "profile": "car",
+    "points": [
+      { "lat": 35.68, "lon": 139.76 },
+      { "lat": 35.69, "lon": 139.77 }
+    ],
+    "options": {}
+  }'
+</code><button class="copy-button" aria-label="Copy code to clipboard"><svg class="copy-icon" aria-hidden="true" fill="none" height="18" shape-rendering="geometricPrecision" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewBox="0 0 24 24" width="18" style="color:" currentcolor";"=""><path d="M8 17.929H6c-1.105 0-2-.912-2-2.036V5.036C4 3.91 4.895 3 6 3h8c1.105 0 2 .911 2 2.036v1.866m-6 .17h8c1.105 0 2 .91 2 2.035v10.857C20 21.09 19.105 22 18 22h-8c-1.105 0-2-.911-2-2.036V9.107c0-1.124.895-2.036 2-2.036z"></path></svg></button></pre>
+<p>次のような JSON レスポンスが返ってくれば、Phloem が GraphHopper にリクエストを転送し、レスポンスを受け取っていることが確認できます。</p>
+<pre class="notranslate" style="position: relative;"><code class="notranslate">{"route":{"geometry":{"type":"LineString","coordinates":[[139.75998,35.680005],[139.759657,35.679062],[...(途中省略)...],[139.770004,35.689999]]},"distance_meters":2703.289,"duration_seconds":244.55,"provider":"graphhopper","warnings":[]}}
+</code><button class="copy-button" aria-label="Copy code to clipboard"><svg class="copy-icon" aria-hidden="true" fill="none" height="18" shape-rendering="geometricPrecision" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewBox="0 0 24 24" width="18" style="color:" currentcolor";"=""><path d="M8 17.929H6c-1.105 0-2-.912-2-2.036V5.036C4 3.91 4.895 3 6 3h8c1.105 0 2 .911 2 2.036v1.866m-6 .17h8c1.105 0 2 .91 2 2.035v10.857C20 21.09 19.105 22 18 22h-8c-1.105 0-2-.911-2-2.036V9.107c0-1.124.895-2.036 2-2.036z"></path></svg></button></pre>
+<h2>4. Tilia のセットアップ</h2>
+<p>Phloem のトップ・ディレクトリには <code class="notranslate">public</code> ディレクトリがあります。この <code class="notranslate">public</code> ディレクトリに、Tilia プロジェクトの次のフォルダをすべて複製して置いてください。ここに置いたファイルが Phloem の HTTP サーバー経由で配信されます。</p>
+<ul>
+<li><code class="notranslate">plugins</code></li>
+<li><code class="notranslate">samples</code></li>
+<li><code class="notranslate">src</code></li>
+</ul>
+<p>ルート検索の機能を実装している HTML のサンプルが、 <code class="notranslate">samples/editor/localhost.html</code> にあります。このサンプルは、Phloem をローカルで起動することを前提にした設定になっています。これをテキストエディタで開き、 <code class="notranslate">pluginOptions</code> を設定している箇所を確認してください：</p>
+<pre class="notranslate" style="position: relative;"><code class="notranslate">pluginOptions: {
+  "x-route-search": {
+    endpoint: "http://localhost:3000/route",
+    defaultProfile: "car",
+    profileOptions: ["car", "bike", "foot"]
+  }
+}
+</code><button class="copy-button" aria-label="Copy code to clipboard"><svg class="copy-icon" aria-hidden="true" fill="none" height="18" shape-rendering="geometricPrecision" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewBox="0 0 24 24" width="18" style="color:" currentcolor";"=""><path d="M8 17.929H6c-1.105 0-2-.912-2-2.036V5.036C4 3.91 4.895 3 6 3h8c1.105 0 2 .911 2 2.036v1.866m-6 .17h8c1.105 0 2 .91 2 2.035v10.857C20 21.09 19.105 22 18 22h-8c-1.105 0-2-.911-2-2.036V9.107c0-1.124.895-2.036 2-2.036z"></path></svg></button></pre>
+<p><code class="notranslate">endpoint</code> が Phloem の <code class="notranslate">/route</code> エンドポイントを指していることを確認してください。もし Phloem を別の URL で起動している場合はこの URL を変更します。</p>
+<p>また必要に応じて <code class="notranslate">defaultProfile</code> および <code class="notranslate">profileOptions</code> を、GraphHopper のルート検索で利用するプロファイルに合わせて調整します。例えば、GraphHopper 公式 API の Free プランを利用している場合は、 <code class="notranslate">car</code>, <code class="notranslate">bike</code> および <code class="notranslate">foot</code> のみが利用できますので、それらを Tilia 上で選択できるようにします。自前で GraphHopper サーバーを構築している場合は、利用可能なプロファイルに合わせてこれらの値を調整してください。</p>
+<h2>5. Tilia のルート検索機能の利用</h2>
+<p>ブラウザで、先ほど <code class="notranslate">public</code> ディレクトリに配置したサンプルへ HTTP 経由でアクセスします：</p>
+<ul>
+<li><a href="http://localhost:3000/samples/editor/localhost.html" rel="nofollow">http://localhost:3000/samples/editor/localhost.html</a></li>
+</ul>
+<p>地図ページが表示されたら、画面の左側にあるルート検索の "R" ボタンをクリックし、ルート検索パネルを開きます。</p>
+<p>ルート検索の出発地と目的地を入力し、 "Search Routes" ボタンをクリックして検索を実行します。地図上で右クリックして各地点を指定でき、また一度入力した地点も、マーカーをドラッグして移動することができます。</p>
+<p>ルート検索結果は Tilia の内部的にひとつの GPX データとして保存され、レイヤーパネル "L" の中のリストの一つとして表示されますので、レイヤーパネルを開いてみてください。</p>
+<div class="markdown-alert markdown-alert-tip"><p class="markdown-alert-title"><svg data-component="Octicon" class="octicon octicon-light-bulb mr-2" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="M8 1.5c-2.363 0-4 1.69-4 3.75 0 .984.424 1.625.984 2.304l.214.253c.223.264.47.556.673.848.284.411.537.896.621 1.49a.75.75 0 0 1-1.484.211c-.04-.282-.163-.547-.37-.847a8.456 8.456 0 0 0-.542-.68c-.084-.1-.173-.205-.268-.32C3.201 7.75 2.5 6.766 2.5 5.25 2.5 2.31 4.863 0 8 0s5.5 2.31 5.5 5.25c0 1.516-.701 2.5-1.328 3.259-.095.115-.184.22-.268.319-.207.245-.383.453-.541.681-.208.3-.33.565-.37.847a.751.751 0 0 1-1.485-.212c.084-.593.337-1.078.621-1.489.203-.292.45-.584.673-.848.075-.088.147-.173.213-.253.561-.679.985-1.32.985-2.304 0-2.06-1.637-3.75-4-3.75ZM5.75 12h4.5a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1 0-1.5ZM6 15.25a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5h-2.5a.75.75 0 0 1-.75-.75Z"></path></svg>Tip</p><p>検索を実行するたびに新しいデータが追加されます。これは複数の検索結果の比較のための、意図的な設計です。</p>
+</div>
+<h2>6. トラブルシュート</h2>
+<ul>
+<li>
+<p><strong>検索を実行したとき、パネル上に "Failed to fetch" が表示される</strong></p>
+<p>サーバーの動作ログを確認してみてください。もし次のようなエラーが表示されている場合は、 Phloem が CORS のプリフライトリクエストを正しく処理できていない可能性があります。</p>
+<pre class="notranslate" style="position: relative;"><code class="notranslate">Started OPTIONS "/route" for 192.168.65.1 at 2026-06-14 03:13:29 +0000
+ActionController::RoutingError (No route matches [OPTIONS] "/route"):
+</code><button class="copy-button" aria-label="Copy code to clipboard"><svg class="copy-icon" aria-hidden="true" fill="none" height="18" shape-rendering="geometricPrecision" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewBox="0 0 24 24" width="18" style="color:" currentcolor";"=""><path d="M8 17.929H6c-1.105 0-2-.912-2-2.036V5.036C4 3.91 4.895 3 6 3h8c1.105 0 2 .911 2 2.036v1.866m-6 .17h8c1.105 0 2 .91 2 2.035v10.857C20 21.09 19.105 22 18 22h-8c-1.105 0-2-.911-2-2.036V9.107c0-1.124.895-2.036 2-2.036z"></path></svg></button></pre>
+<p>たとえば URL の <code class="notranslate">http://127.0.0.1</code> と <code class="notranslate">http://localhost</code> は同じマシンを指すものの、ブラウザはこれらを別のオリジンとみなし、CORS の制約が働いてしまうため、リクエストが失敗してしまいます。 Phloem を起動する際の URL と、 Tilia の <code class="notranslate">endpoint</code> に設定する URL は、同じオリジンになるようにしてください。</p>
+</li>
+<li>
+<p><strong>検索を実行したとき、パネル上に "Free packages cannot use flexible mode" が表示される</strong></p>
+<p>GraphHopper 公式 API の Free プランを利用する場合は機能に制限があるため、それを示す環境変数 <code class="notranslate">GRAPH_HOPPER_RESTRICTED_PLAN</code> を <code class="notranslate">true</code> に設定して Phloem を再起動してください。</p>
+</li>
+<li>
+<p><strong>検索を実行したとき、パネル上に "Request validation failed" が表示される</strong></p>
+<p>このメッセージは汎用メッセージですので、原因はさまざま考えられますが、リクエストの内容に不備があることを示しています。典型的にはプロファイルの値が誤っている可能性がありますので、ルート検索プラグインの設定オプション <code class="notranslate">pluginOptions</code> の <code class="notranslate">profileOptions</code> と <code class="notranslate">defaultProfile</code> の値を確認してみてください。</p>
+</li>
+<li>
+<p><strong>検索を実行したとき、パネル上に "Too many points for Routing API: 7, allowed: 5" が表示される</strong></p>
+<p>セットアップの問題ではありません。GraphHopper 公式 API の Free プランを利用している場合は、ルート検索のリクエストに含めることができる地点の数に制限がありますが、それを超えていることを示しています。</p>
+</li>
+</ul></article>
+</body>
+</html>
