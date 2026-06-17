@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <title>Tilia - Extensible web mapping framework for building interactive maps and geospatial applications.</title>
+  <meta charset="utf-8" />
+  <link rel="stylesheet" href="./markdown.css">
+</head>
+<body>
+<article id="markdown-body" class="markdown-body"><p><a href="./index.html">English</a></p>
+<h1>Tilia - サンプル</h1>
+<p>Tilia は、Web 上でインタラクティブな地図や地理空間アプリケーションを構築するための、拡張可能なフレームワークです。静的ファイルのみで動作します（ルート検索機能を除く）。</p>
+<p>リポジトリ： <a href="https://github.com/hiroaki/Tilia"></a><a href="https://github.com/hiroaki/Tilia">https://github.com/hiroaki/Tilia</a></p>
+<p>次のリンクから、動作するサンプルを試すことができます：</p>
+<ul>
+<li><a href="./embed/index.ja.html">埋め込みのサンプル</a><br>
+地図をページに埋め込む利用法です。テンプレートに Tilia の地図を埋め込み、データだけ差し替えることで、複数のコンテンツに対応できます。</li>
+<li><a href="./viewer/">ビューワーのサンプル</a><br>
+地図アプリの基盤とする利用法です。このサンプルでは GPX と JPG ファイルをドラッグ＆ドロップで入力できます。</li>
+<li><a href="./editor/chiyoda-ku.html">エディタのサンプル</a><br>
+ルート検索と、トラックの編集機能について試すことができます。また結果を GPX ファイルとしてダウンロードすることもできます。</li>
+</ul>
+<p>Tilia の各機能はプラグインで提供されるため、すべての機能を単一のアプリケーションに組み合わせることもできます。ただしここでは特徴に応じた機能に絞った構成にしています。</p>
+<h2>ルート検索のバックエンドについて</h2>
+<p>Tilia は基本的にクライアントサイドのみで動作しますが、ルート検索の機能はクライアントサイドで完結させることが難しいため、バックエンドでルーティングエンジンを動かす必要があります。</p>
+<p>現在のバージョンでは、バックエンドに繋ぐための API ゲートウェイとして <a href="https://github.com/hiroaki/Phloem">Phloem</a> プロジェクトを作成し、それを使用しています。 Phloem は、Tilia のルート検索機能を提供するためのファサードとなり、内部のアダプタを通じてルーティングエンジンにリクエストを転送します。</p>
+<p>またこのサンプルのバックエンドで働くルーティングエンジンにはセルフホストされた GraphHopper インスタンスを利用しています。ただし GraphHopper はメモリを大量に消費してしまうため、限られたサーバーリソース上でデモを公開するにあたり少ないメモリで動作するように、ルート検索のためのデータを東京都千代田区の範囲に限り、また徒歩でのルート検索に限定しています。従って、 <strong>エディタのサンプルを使用の際には、ルート検索の出発地と目的地が両方とも千代田区内にあることを確認してください</strong>。（サンプルではポリゴンでその範囲を示しています）</p>
+<p>世界のさまざまな地域を対象にしたルート検索を行いたい場合は、 GraphHopper 公式の API サービスを利用することが現実的です。アカウントを作成し API キーを取得すれば、それを Phloem に設定するだけで Tilia からルート検索を利用できます。 Phloem サーバーを構築する必要がありますが、 Docker を利用できる環境であればコマンドラインひとつで Phloem を起動できます。詳しくは <a href="./editor/guide.ja.html">Phloem 構築ガイド</a>を参照してください。</p>
+<h2>使用データについて</h2>
+<p>千代田区の境界データについては、次のデータセットを使用しています。</p>
+<ul>
+<li>『歴史的行政区域データセットβ版』（CODH作成） doi:10.20676/00000447</li>
+<li>データ元： <a href="https://geoshape.ex.nii.ac.jp/city/resource/13101A1968.html" rel="nofollow">https://geoshape.ex.nii.ac.jp/city/resource/13101A1968.html</a></li>
+<li>使用データ： 「行政区域境界の歴史的変遷」→「2023-01-01」の <a href="https://geoshape.ex.nii.ac.jp/city/geojson/20230101/13/13101A1968.geojson" rel="nofollow">GeoJSONファイル</a></li>
+<li>ライセンス: <a href="https://creativecommons.org/licenses/by/4.0/" rel="nofollow">CC BY 4.0</a></li>
+</ul></article>
+</body>
+</html>
