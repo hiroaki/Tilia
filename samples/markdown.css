@@ -260,13 +260,9 @@ color: var(--alert-caution-color);
 /* code */
 
 .markdown-body code,
-.markdown-body pre,
 .markdown-body kbd,
 .markdown-body samp {
 font-family: var(--fontStack-monospace);
-}
-
-.markdown-body code {
 padding: .2em .4em;
 margin: 0;
 font-size: 85%;
@@ -277,6 +273,7 @@ border-radius: 6px;
 }
 
 .markdown-body pre {
+font-family: var(--fontStack-monospace);
 margin-bottom: 16px;
 padding: 16px;
 overflow: auto;
@@ -289,12 +286,16 @@ background-color: var(--bgColor-muted);
 border-radius: 6px;
 }
 
-.markdown-body pre code {
+.markdown-body pre code,
+.markdown-body pre kbd,
+.markdown-body pre samp {
 padding: 0;
+margin: 0;
 font-size: inherit;
 line-height: inherit;
 white-space: pre;
 background: transparent;
+color: inherit;
 }
 
 /* tables */
