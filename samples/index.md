@@ -7,7 +7,7 @@ Tilia is an extensible framework for building interactive maps and geospatial ap
 Repository: <a href="https://github.com/hiroaki/Tilia">https://github.com/hiroaki/Tilia</a>
 
 You can try working samples from the following links:
-- [Embed Sample](./embed/)
+- [Embed Sample](./embed/index.html)
   This shows how to embed a map in a page. By embedding a Tilia map in a template and replacing only the data, the same template can be reused for different content.
 - [Viewer Sample](./viewer/)
   This shows how to use Tilia as the foundation for a map application. This sample allows you to drag and drop GPX and JPG files.
