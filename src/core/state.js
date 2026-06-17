@@ -1,11 +1,30 @@
 export function createAppState() {
   return {
     nextEntryId: 1,
+    nextTrackStylePresetIndex: 0,
+    gpxVisibility: {
+      tracks: true,
+      waypoints: true,
+    },
     entries: [],
     sources: [],
     layers: [],
     lastError: null,
   };
+}
+
+export function claimNextTrackStylePresetIndex(state, presetCount) {
+  const nextIndex = Number.isInteger(state.nextTrackStylePresetIndex)
+    ? state.nextTrackStylePresetIndex
+    : 0;
+
+  if (!Number.isInteger(presetCount) || presetCount <= 0) {
+    state.nextTrackStylePresetIndex = 0;
+    return 0;
+  }
+
+  state.nextTrackStylePresetIndex = (nextIndex + 1) % presetCount;
+  return nextIndex % presetCount;
 }
 
 export function addEntry(state, entry) {
@@ -63,6 +82,12 @@ export function replaceEntryPresentation(state, entryId, presentation) {
   }
   if (Object.hasOwn(presentation, "visible")) {
     entry.visible = presentation.visible;
+  }
+  if (presentation.presentation) {
+    entry.presentation = {
+      ...(entry.presentation || {}),
+      ...presentation.presentation,
+    };
   }
   return entry;
 }

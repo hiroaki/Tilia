@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { getTrackStylePreset } from "../src/map/track-style-presets.js";
 
 const bootMocks = vi.hoisted(() => ({
   syncEntry: vi.fn(),
@@ -63,10 +64,46 @@ vi.mock("../src/core/selection-hub.js", () => ({
 import { createTiliaCore } from "../src/core/boot.js";
 
 function createLayer(id) {
+  const layers = new Set();
   return {
     id,
     addTo: vi.fn(),
     remove: vi.fn(),
+    addLayer: vi.fn((layer) => {
+      layers.add(layer);
+    }),
+    removeLayer: vi.fn((layer) => {
+      layers.delete(layer);
+    }),
+    hasLayer: vi.fn((layer) => layers.has(layer)),
+  };
+}
+
+function createGpxOverlay(id, options = {}) {
+  const layer = createLayer(id);
+  const trackLayer = options.trackLayer === null ? null : (options.trackLayer || { id: `${id}-track` });
+  const waypointLayers = (options.waypoints || []).map((waypoint, index) => ({
+    layer: waypoint.layer || { id: `${id}-waypoint-${index}` },
+    waypoint: waypoint.waypoint || { name: `Waypoint ${index + 1}` },
+  }));
+
+  if (trackLayer) {
+    layer.addLayer(trackLayer);
+  }
+  for (const waypoint of waypointLayers) {
+    layer.addLayer(waypoint.layer);
+  }
+
+  layer.addLayer.mockClear();
+  layer.removeLayer.mockClear();
+  layer.hasLayer.mockClear();
+
+  return {
+    layer,
+    interactions: {
+      trackLayer,
+      waypoints: waypointLayers,
+    },
   };
 }
 
@@ -101,10 +138,9 @@ describe("createTiliaCore", () => {
       elevationProfile: [],
       waypoints: [{ name: "Start", lat: 35.0, lon: 135.0 }],
     };
-    const overlay = {
-      layer: createLayer("gpx-layer"),
-      interactions: { trackLayer: { id: "track" }, waypoints: [] },
-    };
+    const overlay = createGpxOverlay("gpx-layer", {
+      waypoints: [{}, {}],
+    });
     bootMocks.parseGpxFile.mockResolvedValue(gpxSource);
     bootMocks.buildGpxOverlay.mockReturnValue(overlay);
     const map = { closePopup: bootMocks.closePopup };
@@ -113,19 +149,69 @@ describe("createTiliaCore", () => {
     const result = await core.registry.dispatch(core.context, { name: "sample.gpx" });
 
     expect(bootMocks.parseGpxFile).toHaveBeenCalledWith({ name: "sample.gpx" });
-    expect(bootMocks.buildGpxOverlay).toHaveBeenCalledWith(gpxSource);
+    expect(bootMocks.buildGpxOverlay).toHaveBeenCalledWith(expect.objectContaining({
+      name: "sample.gpx",
+      type: "gpx",
+      trackPoints: [[35.0, 135.0], [35.1, 135.1]],
+    }), {
+      trackStyle: getTrackStylePreset(0),
+    });
     expect(overlay.layer.addTo).toHaveBeenCalledWith(map);
     expect(bootMocks.fitMapToGroup).toHaveBeenCalledWith(map, overlay.layer);
     expect(result.summary).toBe("2 track points, 1 waypoints");
     expect(core.state.entries).toHaveLength(1);
     expect(core.state.entries[0]).toMatchObject({
       kind: "gpx",
-      source: gpxSource,
+      source: expect.objectContaining({
+        name: "sample.gpx",
+        type: "gpx",
+        trackPoints: [[35.0, 135.0], [35.1, 135.1]],
+      }),
       layer: overlay.layer,
       interactions: overlay.interactions,
+      presentation: {
+        trackStylePresetIndex: 0,
+      },
       visible: true,
     });
     expect(bootMocks.syncEntry).toHaveBeenCalledWith(core.state.entries[0]);
+  });
+
+  it("rotates track style presets across newly added GPX entries", () => {
+    bootMocks.buildGpxOverlay
+      .mockReturnValueOnce({
+        layer: createLayer("gpx-layer-1"),
+        interactions: { trackLayer: { id: "track-1" }, waypoints: [] },
+      })
+      .mockReturnValueOnce({
+        layer: createLayer("gpx-layer-2"),
+        interactions: { trackLayer: { id: "track-2" }, waypoints: [] },
+      });
+    const core = createTiliaCore({ closePopup: bootMocks.closePopup });
+
+    const firstEntry = core.addGpxSource({
+      name: "first.gpx",
+      trackPointDetails: [
+        { lat: 35.0, lon: 135.0 },
+        { lat: 35.1, lon: 135.1 },
+      ],
+    });
+    const secondEntry = core.addGpxSource({
+      name: "second.gpx",
+      trackPointDetails: [
+        { lat: 36.0, lon: 136.0 },
+        { lat: 36.1, lon: 136.1 },
+      ],
+    });
+
+    expect(firstEntry.presentation).toEqual({ trackStylePresetIndex: 0 });
+    expect(secondEntry.presentation).toEqual({ trackStylePresetIndex: 1 });
+    expect(bootMocks.buildGpxOverlay).toHaveBeenNthCalledWith(1, expect.any(Object), {
+      trackStyle: getTrackStylePreset(0),
+    });
+    expect(bootMocks.buildGpxOverlay).toHaveBeenNthCalledWith(2, expect.any(Object), {
+      trackStyle: getTrackStylePreset(1),
+    });
   });
 
   it("dispatches JPEG files, infers location for non-GPS photos, and tracks the selected mode", async () => {
@@ -332,6 +418,124 @@ describe("createTiliaCore", () => {
     expect(bootMocks.fitMapToGroup).toHaveBeenLastCalledWith(map, overlay.layer);
     expect(core.setEntryVisibility(999, false)).toBeNull();
     expect(core.fitEntryToView(999)).toBeNull();
+  });
+
+  it("applies global GPX track and waypoint visibility to loaded and new entries", () => {
+    const firstOverlay = createGpxOverlay("gpx-layer-1", {
+      waypoints: [{}, {}],
+    });
+    const secondOverlay = createGpxOverlay("gpx-layer-2", {
+      waypoints: [{}],
+    });
+    bootMocks.buildGpxOverlay
+      .mockReturnValueOnce(firstOverlay)
+      .mockReturnValueOnce(secondOverlay);
+    const map = { closePopup: bootMocks.closePopup };
+    const core = createTiliaCore(map);
+
+    const firstEntry = core.addGpxSource({
+      name: "first.gpx",
+      trackPointDetails: [
+        { lat: 35.0, lon: 135.0, elevation: 10, timestamp: Date.parse("2024-01-01T00:00:00Z") },
+        { lat: 35.1, lon: 135.1, elevation: 12, timestamp: Date.parse("2024-01-01T00:05:00Z") },
+      ],
+      waypoints: [
+        { lat: 35.0, lon: 135.0, name: "Start" },
+        { lat: 35.1, lon: 135.1, name: "End" },
+      ],
+    }, { fitToView: false });
+
+    expect(core.getGpxVisibility()).toEqual({ tracks: true, waypoints: true });
+
+    expect(core.setGpxTracksVisibility(false)).toEqual({ tracks: false, waypoints: true });
+    expect(firstOverlay.layer.removeLayer).toHaveBeenCalledWith(firstOverlay.interactions.trackLayer);
+    expect(firstOverlay.layer.hasLayer(firstOverlay.interactions.trackLayer)).toBe(false);
+    expect(firstOverlay.layer.hasLayer(firstOverlay.interactions.waypoints[0].layer)).toBe(true);
+
+    expect(core.setGpxWaypointsVisibility(false)).toEqual({ tracks: false, waypoints: false });
+    expect(firstOverlay.layer.removeLayer).toHaveBeenCalledWith(firstOverlay.interactions.waypoints[0].layer);
+    expect(firstOverlay.layer.removeLayer).toHaveBeenCalledWith(firstOverlay.interactions.waypoints[1].layer);
+    expect(firstOverlay.layer.hasLayer(firstOverlay.interactions.waypoints[0].layer)).toBe(false);
+    expect(firstOverlay.layer.hasLayer(firstOverlay.interactions.waypoints[1].layer)).toBe(false);
+
+    const secondEntry = core.addGpxSource({
+      name: "second.gpx",
+      trackPointDetails: [
+        { lat: 36.0, lon: 136.0, elevation: 3, timestamp: Date.parse("2024-01-01T01:00:00Z") },
+        { lat: 36.1, lon: 136.1, elevation: 4, timestamp: Date.parse("2024-01-01T01:05:00Z") },
+      ],
+      waypoints: [{ lat: 36.0, lon: 136.0, name: "Only" }],
+    }, { fitToView: false });
+
+    expect(firstEntry.visible).toBe(true);
+    expect(secondEntry.visible).toBe(true);
+    expect(secondOverlay.layer.hasLayer(secondOverlay.interactions.trackLayer)).toBe(false);
+    expect(secondOverlay.layer.hasLayer(secondOverlay.interactions.waypoints[0].layer)).toBe(false);
+
+    core.setEntryVisibility(firstEntry.id, false);
+    expect(core.setGpxTracksVisibility(true)).toEqual({ tracks: true, waypoints: false });
+    expect(firstOverlay.layer.hasLayer(firstOverlay.interactions.trackLayer)).toBe(false);
+
+    core.setEntryVisibility(firstEntry.id, true);
+    expect(firstOverlay.layer.hasLayer(firstOverlay.interactions.trackLayer)).toBe(true);
+    expect(firstOverlay.layer.hasLayer(firstOverlay.interactions.waypoints[0].layer)).toBe(false);
+
+    expect(core.setGpxWaypointsVisibility(true)).toEqual({ tracks: true, waypoints: true });
+    expect(firstOverlay.layer.hasLayer(firstOverlay.interactions.waypoints[0].layer)).toBe(true);
+    expect(secondOverlay.layer.hasLayer(secondOverlay.interactions.trackLayer)).toBe(true);
+    expect(secondOverlay.layer.hasLayer(secondOverlay.interactions.waypoints[0].layer)).toBe(true);
+  });
+
+  it("adds and updates normalized GPX sources without going through file dispatch", () => {
+    const firstOverlay = {
+      layer: createLayer("gpx-layer-1"),
+      interactions: { trackLayer: { id: "track-1" }, waypoints: [] },
+    };
+    const secondOverlay = {
+      layer: createLayer("gpx-layer-2"),
+      interactions: { trackLayer: { id: "track-2" }, waypoints: [] },
+    };
+    bootMocks.buildGpxOverlay
+      .mockReturnValueOnce(firstOverlay)
+      .mockReturnValueOnce(secondOverlay);
+    const map = { closePopup: bootMocks.closePopup };
+    const core = createTiliaCore(map);
+
+    const entry = core.addGpxSource({
+      name: "draft.gpx",
+      trackPointDetails: [
+        { lat: 35.0, lon: 135.0, elevation: 10, timestamp: Date.parse("2024-01-01T00:00:00Z") },
+        { lat: 35.1, lon: 135.1, elevation: null, timestamp: null },
+      ],
+    }, { fitToView: false });
+
+    expect(entry).toMatchObject({ kind: "gpx", visible: true });
+    expect(entry.presentation).toEqual({ trackStylePresetIndex: 0 });
+    expect(entry.source.trackPoints).toEqual([[35.0, 135.0], [35.1, 135.1]]);
+    expect(firstOverlay.layer.addTo).toHaveBeenCalledWith(map);
+    expect(bootMocks.fitMapToGroup).not.toHaveBeenCalled();
+    expect(bootMocks.buildGpxOverlay).toHaveBeenNthCalledWith(1, expect.any(Object), {
+      trackStyle: getTrackStylePreset(0),
+    });
+
+    const updated = core.updateGpxSource(entry.id, {
+      ...entry.source,
+      trackPointDetails: [
+        { lat: 35.0, lon: 135.0, elevation: 10, timestamp: Date.parse("2024-01-01T00:00:00Z") },
+        { lat: 35.2, lon: 135.2, elevation: 20, timestamp: Date.parse("2024-01-01T00:05:00Z") },
+      ],
+    }, { fitToView: true });
+
+    expect(updated).toBe(entry);
+    expect(firstOverlay.layer.remove).toHaveBeenCalledTimes(1);
+    expect(secondOverlay.layer.addTo).toHaveBeenCalledWith(map);
+    expect(updated.source.trackPoints).toEqual([[35.0, 135.0], [35.2, 135.2]]);
+    expect(updated.presentation).toEqual({ trackStylePresetIndex: 0 });
+    expect(bootMocks.buildGpxOverlay).toHaveBeenNthCalledWith(2, expect.any(Object), {
+      trackStyle: getTrackStylePreset(0),
+    });
+    expect(bootMocks.fitMapToGroup).toHaveBeenCalledWith(map, secondOverlay.layer);
+    expect(core.updateGpxSource(999, entry.source)).toBeNull();
   });
 
   it("removes selected entries and clears all layers, sources, and photo previews", async () => {

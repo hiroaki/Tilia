@@ -1,0 +1,24 @@
+.tilia-gpx-export-panel {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.tilia-gpx-export-intro {
+  margin: 0;
+  color: #475569;
+  font-size: 0.87rem;
+}
+
+.tilia-gpx-export-label {
+  color: #0f172a;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.tilia-gpx-export-select {
+  width: 100%;
+}
+
+.tilia-gpx-export-action {
+  width: fit-content;
+}

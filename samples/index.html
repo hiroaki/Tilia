@@ -1,50 +1,38 @@
-<html lang="ja">
-  <head>
-    <title>Tilia - Extensible web mapping framework for building interactive maps and geospatial applications.</title>
-    <meta charset="utf-8" />
-  </head>
-
-  <body>
-    <h1>Tilia</h1>
-
-    <p>
-      Tilia is an extensible framework for building interactive maps and geospatial applications on the web.
-      It works entirely with static files.
-    </p>
-
-    <p>
-      Repository: <a href="https://github.com/hiroaki/Tilia">https://github.com/hiroaki/Tilia</a>
-    </p>
-
-    <p>
-      You can try working samples from the following links:
-    </p>
-
-    <ul>
-      <li><a href="./embed/">Embed Sample</a><br>This shows how to embed a map in a page. By embedding a Tilia map in a template and swapping only the data, you can support multiple pieces of content.</li>
-      <li><a href="./viewer/">Viewer Sample</a><br>This shows how to use Tilia as the foundation for a map application. This sample allows you to drag and drop GPX and JPG files.</li>
-    </ul>
-
-    <hr>
-
-    <h1>Tilia</h1>
-
-    <p>
-      Tilia は、Web 上でインタラクティブな地図や地理空間アプリケーションを構築するための、拡張可能なフレームワークです。
-      静的ファイルのみで動作します。
-    </p>
-
-    <p>
-      リポジトリ： <a href="https://github.com/hiroaki/Tilia">https://github.com/hiroaki/Tilia</a>
-    </p>
-
-    <p>
-      次のリンクから、動作するサンプルを試すことができます：
-    </p>
-
-    <ul>
-      <li><a href="./embed/">埋め込みのサンプル</a><br>地図をページに埋め込む利用法です。テンプレートに Tilia の地図を埋め込み、データだけ差し替えることで、複数のコンテンツに対応できます。</li>
-      <li><a href="./viewer/">ビューワーのサンプル</a><br>地図アプリの基盤とする利用法です。このサンプルでは GPX と JPG ファイルをドラッグ＆ドロップで入力できます。</li>
-    </ul>
-  </body>
+<!doctype html>
+<html lang="en">
+<head>
+  <title>Tilia - Extensible web mapping framework for building interactive maps and geospatial applications.</title>
+  <meta charset="utf-8" />
+  <link rel="stylesheet" href="./markdown.css">
+</head>
+<body>
+<article id="markdown-body" class="markdown-body"><p><a href="./index.ja.html">日本語</a></p>
+<h1>Tilia - Samples</h1>
+<p>Tilia is an extensible framework for building interactive maps and geospatial applications on the web. It works with only static files (except for the route searching feature).</p>
+<p>Repository: <a href="https://github.com/hiroaki/Tilia"></a><a href="https://github.com/hiroaki/Tilia">https://github.com/hiroaki/Tilia</a></p>
+<p>You can try working samples from the following links:</p>
+<ul>
+<li><a href="./embed/index.html">Embed Sample</a><br>
+This shows how to embed a map in a page. By embedding a Tilia map in a template and replacing only the data, the same template can be reused for different content.</li>
+<li><a href="./viewer/">Viewer Sample</a><br>
+This shows how to use Tilia as the foundation for a map application. This sample allows you to drag and drop GPX and JPG files.</li>
+<li><a href="./editor/chiyoda-ku.html">Editor Sample</a><br>
+This sample allows you to try route searching and track editing features. You can also download the result as a GPX file.</li>
+</ul>
+<p>Since each feature of Tilia is provided as a plugin, all features can be combined into a single application. However, the samples are configured to focus on a specific set of features for each use case.</p>
+<h2>About the backend for route searching</h2>
+<p>Tilia basically works only on the client side, but since it is difficult to complete the route search function on the client side, you need to run a routing engine on the backend.</p>
+<p>In the current version, we created a project called <a href="https://github.com/hiroaki/Phloem">Phloem</a> as a gateway between Tilia and the routing engine. Phloem acts as a routing facade for Tilia and forwards requests to the routing engine through an internal adapter.</p>
+<p>Also, the routing engine working on the backend of this sample uses a self-hosted GraphHopper instance. However, since GraphHopper consumes a lot of memory, and the demo is hosted on limited server resources, the routing data is limited to the Chiyoda-ku area of Tokyo, and route searches are restricted to walking routes only. Therefore, <strong>when using the editor sample, please ensure that both the start and destination are within Chiyoda-ku</strong>. (The sample shows that range with a polygon)</p>
+<p>If you want to perform route searches for various regions of the world, it is realistic to use the GraphHopper official API service. By creating an account and obtaining an API key, you can set it in Phloem and use route searching from Tilia. You need to build a Phloem server, but if you can use Docker, you can start Phloem with a single command line. For details, please refer to the <a href="./editor/guide.html">Phloem Setup Guide</a>.</p>
+<h2>About the data used</h2>
+<p>For the boundary data of Chiyoda-ku, we used the following dataset.</p>
+<ul>
+<li>"Historical Administrative Area Dataset β version" (created by CODH) doi:10.20676/00000447</li>
+<li>Data source: <a href="https://geoshape.ex.nii.ac.jp/city/resource/13101A1968.html" rel="nofollow">https://geoshape.ex.nii.ac.jp/city/resource/13101A1968.html</a></li>
+<li>Data used: "Historical changes in administrative boundaries" → "2023-01-01" <a href="https://geoshape.ex.nii.ac.jp/city/geojson/20230101/13/13101A1968.geojson" rel="nofollow">GeoJSON file</a></li>
+<li>License: <a href="https://creativecommons.org/licenses/by/4.0/" rel="nofollow">CC BY 4.0</a></li>
+</ul></article>
+</body>
 </html>
+  

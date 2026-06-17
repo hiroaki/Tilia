@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>Tilia Editor Sample</title>
+  <meta charset="utf-8" />
+  <link rel="stylesheet" href="../markdown.css">
+</head>
+<body>
+<article id="markdown-body" class="markdown-body"><p><a href="./guide.ja.html">日本語</a></p>
+<h1>Tilia - Phloem Setup Guide</h1>
+<p>This guide will walk you through setting up an environment to use Tilia's route search functionality with Phloem. It covers both using Docker and running from source code.</p>
+<p>By following the steps in this guide, you will be able to open Tilia's sample in your browser and perform route searches using GraphHopper.</p>
+<p>Phloem is an API gateway implemented in Ruby on Rails that bridges the client and the routing engine. It is developed alongside Tilia:</p>
+<ul>
+<li><a href="https://github.com/hiroaki/Phloem">https://github.com/hiroaki/Phloem</a></li>
+</ul>
+<p>Tilia primarily operates on the client side, but route search functionality requires a backend routing engine. By setting up Phloem and a routing engine, you can send route search requests from Tilia.</p>
+<h2>0. Architecture</h2>
+<p>The basic architecture is as follows:</p>
+<pre class="notranslate" style="position: relative;"><code class="notranslate">
+        +---------------------+ 
+        | Tilia (Client)      |
+        +---------------------+
+                  |
+                  | Route Search Request
+                  v
+        +---------------------+
+        | Phloem (Gateway)    |
+        +---------------------+
+                  |
+                  | Route Search Request (Forwarded)
+                  v 
+        +---------------------+
+        | GraphHopper         |
+        | (Routing Engine)    |
+        +---------------------+
+</code><button class="copy-button" aria-label="Copy code to clipboard"><svg class="copy-icon" aria-hidden="true" fill="none" height="18" shape-rendering="geometricPrecision" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewBox="0 0 24 24" width="18" style="color:" currentcolor";"=""><path d="M8 17.929H6c-1.105 0-2-.912-2-2.036V5.036C4 3.91 4.895 3 6 3h8c1.105 0 2 .911 2 2.036v1.866m-6 .17h8c1.105 0 2 .91 2 2.035v10.857C20 21.09 19.105 22 18 22h-8c-1.105 0-2-.911-2-2.036V9.107c0-1.124.895-2.036 2-2.036z"></path></svg></button></pre>
+<p>Phloem receives route search requests from Tilia, forwards them to GraphHopper for route calculation, and then adjusts the response before returning it to Tilia.</p>
+<h2>1. Preparing GraphHopper</h2>
+<p>GraphHopper is a routing engine that performs route searches on road networks. To use GraphHopper as a backend, you can either use the official GraphHopper API or set up your own GraphHopper server.</p>
+<p>However, if you choose to set up your own server, GraphHopper requires a significant amount of disk space and memory, so you will need a machine with sufficient resources.</p>
+<h3>Using the Official GraphHopper API</h3>
+<p>If you use the official GraphHopper API, no setup is required. Create a GraphHopper account and obtain an API key. You will need to set this key as an environment variable when starting Phloem.</p>
+<h3>Using Your Own GraphHopper Server</h3>
+<p>Alternatively, you can set up your own GraphHopper server and use it. For instructions on setting up GraphHopper, refer to the official documentation:</p>
+<ul>
+<li><a href="https://github.com/graphhopper/graphhopper#installation">https://github.com/graphhopper/graphhopper#installation</a></li>
+</ul>
+<p>Phloem's repository also includes configuration files for starting GraphHopper with Docker:</p>
+<ul>
+<li><a href="https://github.com/hiroaki/Phloem/tree/main/tools/routing/graphhopper">https://github.com/hiroaki/Phloem/tree/main/tools/routing/graphhopper</a></li>
+</ul>
+<h2>2. Setting Up Phloem</h2>
+<p>Phloem is an API gateway implemented in Ruby on Rails that bridges the client and the routing engine. Even if Ruby is not installed on your system or you are not familiar with Rails, you can use the Docker image to set up Phloem with a single command.</p>
+<h3>Using Docker</h3>
+<p>In this guide, the container will mount the <code class="notranslate">public</code> directory in the current directory as a volume. If the <code class="notranslate">public</code> directory already exists, make sure it is empty to avoid conflicts with existing files. Phloem serves all files under <code class="notranslate">public</code> via an HTTP server.</p>
+<p>The environment variables for running the container differ depending on whether you are using the official GraphHopper API or your own GraphHopper server.</p>
+<ul>
+<li>
+<p><strong>Using the Official GraphHopper API</strong></p>
+<p>Set the required environment variable <code class="notranslate">GRAPH_HOPPER_API_KEY</code> and then run the following command. This will start Phloem and it will be ready to accept route search requests.</p>
+<p>As mentioned earlier, if you are using a Free plan API key, also set <code class="notranslate">GRAPH_HOPPER_RESTRICTED_PLAN</code> to <code class="notranslate">true</code>.</p>
+<div class="highlight highlight-source-shell"><pre class="notranslate" style="position: relative;"><span class="pl-k">export</span> GRAPH_HOPPER_API_KEY=<span class="pl-k">&lt;</span>Your GraphHopper API key<span class="pl-k">&gt;</span>
+
+docker run --rm \
+  -p 3000:3000 \
+  -e ROUTING_PROVIDER=graphhopper \
+  -e GRAPH_HOPPER_BASE_URL=https://graphhopper.com/api/1 \
+  -e GRAPH_HOPPER_API_KEY \
+  -e GRAPH_HOPPER_RESTRICTED_PLAN=true \
+  -e SECRET_KEY_BASE_DUMMY=1 \
+  -v <span class="pl-s"><span class="pl-pds">"</span><span class="pl-s"><span class="pl-pds">$(</span>pwd<span class="pl-pds">)</span></span>/public:/rails/public<span class="pl-pds">"</span></span> \
+  ghcr.io/hiroaki/phloem:latest<button class="copy-button" aria-label="Copy code to clipboard"><svg class="copy-icon" aria-hidden="true" fill="none" height="18" shape-rendering="geometricPrecision" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewBox="0 0 24 24" width="18" style="color:" currentcolor";"=""><path d="M8 17.929H6c-1.105 0-2-.912-2-2.036V5.036C4 3.91 4.895 3 6 3h8c1.105 0 2 .911 2 2.036v1.866m-6 .17h8c1.105 0 2 .91 2 2.035v10.857C20 21.09 19.105 22 18 22h-8c-1.105 0-2-.911-2-2.036V9.107c0-1.124.895-2.036 2-2.036z"></path></svg></button></pre></div>
+</li>
+<li>
+<p><strong>Using Your Own GraphHopper Server</strong></p>
+<p>If you are using your own GraphHopper server, you do not need to set <code class="notranslate">GRAPH_HOPPER_API_KEY</code> or <code class="notranslate">GRAPH_HOPPER_RESTRICTED_PLAN</code>. Set the API base URL in the environment variable <code class="notranslate">GRAPH_HOPPER_BASE_URL</code> when starting Phloem. For example, if your GraphHopper server is running locally on port 8989, you can start Phloem with the following command:</p>
+<div class="highlight highlight-source-shell"><pre class="notranslate" style="position: relative;">docker run --rm \
+  -p 3000:3000 \
+  -e ROUTING_PROVIDER=graphhopper \
+  -e GRAPH_HOPPER_BASE_URL=http://localhost:8989 \
+  -e SECRET_KEY_BASE_DUMMY=1 \
+  -v <span class="pl-s"><span class="pl-pds">"</span><span class="pl-s"><span class="pl-pds">$(</span>pwd<span class="pl-pds">)</span></span>/public:/rails/public<span class="pl-pds">"</span></span> \
+  ghcr.io/hiroaki/phloem:latest<button class="copy-button" aria-label="Copy code to clipboard"><svg class="copy-icon" aria-hidden="true" fill="none" height="18" shape-rendering="geometricPrecision" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewBox="0 0 24 24" width="18" style="color:" currentcolor";"=""><path d="M8 17.929H6c-1.105 0-2-.912-2-2.036V5.036C4 3.91 4.895 3 6 3h8c1.105 0 2 .911 2 2.036v1.866m-6 .17h8c1.105 0 2 .91 2 2.035v10.857C20 21.09 19.105 22 18 22h-8c-1.105 0-2-.911-2-2.036V9.107c0-1.124.895-2.036 2-2.036z"></path></svg></button></pre></div>
+</li>
+</ul>
+<p>In this example, the server will start in the foreground, so keep the terminal open. To stop the server, press <code class="notranslate">Ctrl + C</code>.</p>
+<h3>Without Using Docker</h3>
+<p>If you are not using Docker, you will need to set up the development environment for Phloem. You must have Ruby and Bundler installed. SQLite3 is also required. Phloem is designed to be stateless, but this database is used for Rails caching.</p>
+<p>Phloem has been tested with the following versions:</p>
+<ul>
+<li>Ruby 3.4.9</li>
+<li>Bundler 4.0.8</li>
+</ul>
+<p>If you want to run it with other versions, adjust or remove the <code class="notranslate">.ruby-version</code> file in the top directory of the repository, and modify the Gemfile as needed.</p>
+<h4>Initial Setup</h4>
+<p>For the first time only, follow these steps to set up the development environment for Phloem. Clone the Phloem repository, install the necessary Ruby libraries (gems), and prepare the database.</p>
+<div class="highlight highlight-source-shell"><pre class="notranslate" style="position: relative;">git clone git@github.com:hiroaki/Phloem.git
+<span class="pl-c1">cd</span> Phloem
+bundle install
+bin/rails db:prepare<button class="copy-button" aria-label="Copy code to clipboard"><svg class="copy-icon" aria-hidden="true" fill="none" height="18" shape-rendering="geometricPrecision" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewBox="0 0 24 24" width="18" style="color:" currentcolor";"=""><path d="M8 17.929H6c-1.105 0-2-.912-2-2.036V5.036C4 3.91 4.895 3 6 3h8c1.105 0 2 .911 2 2.036v1.866m-6 .17h8c1.105 0 2 .91 2 2.035v10.857C20 21.09 19.105 22 18 22h-8c-1.105 0-2-.911-2-2.036V9.107c0-1.124.895-2.036 2-2.036z"></path></svg></button></pre></div>
+<h4>Starting the Server</h4>
+<p>Set all server configurations using environment variables. The required environment variables differ depending on whether you are using the official GraphHopper API or your own GraphHopper server.</p>
+<ul>
+<li>
+<p><strong>Using the Official GraphHopper API</strong></p>
+<pre class="notranslate" style="position: relative;"><code class="notranslate">export GRAPH_HOPPER_BASE_URL=https://graphhopper.com/api/1
+export GRAPH_HOPPER_API_KEY=&lt;Your GraphHopper API key&gt;
+export GRAPH_HOPPER_RESTRICTED_PLAN=true # Add this if using a restricted API key
+</code><button class="copy-button" aria-label="Copy code to clipboard"><svg class="copy-icon" aria-hidden="true" fill="none" height="18" shape-rendering="geometricPrecision" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewBox="0 0 24 24" width="18" style="color:" currentcolor";"=""><path d="M8 17.929H6c-1.105 0-2-.912-2-2.036V5.036C4 3.91 4.895 3 6 3h8c1.105 0 2 .911 2 2.036v1.866m-6 .17h8c1.105 0 2 .91 2 2.035v10.857C20 21.09 19.105 22 18 22h-8c-1.105 0-2-.911-2-2.036V9.107c0-1.124.895-2.036 2-2.036z"></path></svg></button></pre>
+</li>
+<li>
+<p><strong>Using Your Own GraphHopper Server</strong></p>
+<pre class="notranslate" style="position: relative;"><code class="notranslate">export GRAPH_HOPPER_BASE_URL=http://localhost:8989
+</code><button class="copy-button" aria-label="Copy code to clipboard"><svg class="copy-icon" aria-hidden="true" fill="none" height="18" shape-rendering="geometricPrecision" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewBox="0 0 24 24" width="18" style="color:" currentcolor";"=""><path d="M8 17.929H6c-1.105 0-2-.912-2-2.036V5.036C4 3.91 4.895 3 6 3h8c1.105 0 2 .911 2 2.036v1.866m-6 .17h8c1.105 0 2 .91 2 2.035v10.857C20 21.09 19.105 22 18 22h-8c-1.105 0-2-.911-2-2.036V9.107c0-1.124.895-2.036 2-2.036z"></path></svg></button></pre>
+</li>
+</ul>
+<p>Once the environment variables are set, start the Phloem server with the following command:</p>
+<pre class="notranslate" style="position: relative;"><code class="notranslate">bin/rails server -p 3000
+</code><button class="copy-button" aria-label="Copy code to clipboard"><svg class="copy-icon" aria-hidden="true" fill="none" height="18" shape-rendering="geometricPrecision" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewBox="0 0 24 24" width="18" style="color:" currentcolor";"=""><path d="M8 17.929H6c-1.105 0-2-.912-2-2.036V5.036C4 3.91 4.895 3 6 3h8c1.105 0 2 .911 2 2.036v1.866m-6 .17h8c1.105 0 2 .91 2 2.035v10.857C20 21.09 19.105 22 18 22h-8c-1.105 0-2-.911-2-2.036V9.107c0-1.124.895-2.036 2-2.036z"></path></svg></button></pre>
+<p>In this example, the server will start in the foreground, so keep the terminal open. To stop the server, press <code class="notranslate">Ctrl + C</code>.</p>
+<h2>3. Checking the Server</h2>
+<h3>Health Check</h3>
+<p>To verify that Phloem is running correctly, send a request to the following endpoint:</p>
+<pre class="notranslate" style="position: relative;"><code class="notranslate">curl -i http://localhost:3000/up
+</code><button class="copy-button" aria-label="Copy code to clipboard"><svg class="copy-icon" aria-hidden="true" fill="none" height="18" shape-rendering="geometricPrecision" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewBox="0 0 24 24" width="18" style="color:" currentcolor";"=""><path d="M8 17.929H6c-1.105 0-2-.912-2-2.036V5.036C4 3.91 4.895 3 6 3h8c1.105 0 2 .911 2 2.036v1.866m-6 .17h8c1.105 0 2 .91 2 2.035v10.857C20 21.09 19.105 22 18 22h-8c-1.105 0-2-.911-2-2.036V9.107c0-1.124.895-2.036 2-2.036z"></path></svg></button></pre>
+<p>If the server is running correctly, you should receive a "200 OK" response along with the following HTML content:</p>
+<pre class="notranslate" style="position: relative;"><code class="notranslate">&lt;!DOCTYPE html&gt;&lt;html&gt;&lt;body style="background-color: green"&gt;&lt;/body&gt;&lt;/html&gt;
+</code><button class="copy-button" aria-label="Copy code to clipboard"><svg class="copy-icon" aria-hidden="true" fill="none" height="18" shape-rendering="geometricPrecision" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewBox="0 0 24 24" width="18" style="color:" currentcolor";"=""><path d="M8 17.929H6c-1.105 0-2-.912-2-2.036V5.036C4 3.91 4.895 3 6 3h8c1.105 0 2 .911 2 2.036v1.866m-6 .17h8c1.105 0 2 .91 2 2.035v10.857C20 21.09 19.105 22 18 22h-8c-1.105 0-2-.911-2-2.036V9.107c0-1.124.895-2.036 2-2.036z"></path></svg></button></pre>
+<h3>Verifying Requests to GraphHopper</h3>
+<p>To verify that Phloem is receiving route search requests from Tilia and forwarding them to GraphHopper, send a request to the following endpoint (if you are running your own GraphHopper server, adjust the <code class="notranslate">profile</code> and <code class="notranslate">points</code> accordingly):</p>
+<pre class="notranslate" style="position: relative;"><code class="notranslate">curl -X POST http://localhost:3000/route \
+  -H "Content-Type: application/json" \
+  -d '{
+    "profile": "car",
+    "points": [
+      { "lat": 35.68, "lon": 139.76 },
+      { "lat": 35.69, "lon": 139.77 }
+    ],
+    "options": {}
+  }'
+</code><button class="copy-button" aria-label="Copy code to clipboard"><svg class="copy-icon" aria-hidden="true" fill="none" height="18" shape-rendering="geometricPrecision" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewBox="0 0 24 24" width="18" style="color:" currentcolor";"=""><path d="M8 17.929H6c-1.105 0-2-.912-2-2.036V5.036C4 3.91 4.895 3 6 3h8c1.105 0 2 .911 2 2.036v1.866m-6 .17h8c1.105 0 2 .91 2 2.035v10.857C20 21.09 19.105 22 18 22h-8c-1.105 0-2-.911-2-2.036V9.107c0-1.124.895-2.036 2-2.036z"></path></svg></button></pre>
+<p>If you receive a JSON response like the following, it confirms that Phloem is successfully forwarding requests to GraphHopper and receiving responses.</p>
+<pre class="notranslate" style="position: relative;"><code class="notranslate">{"route":{"geometry":{"type":"LineString","coordinates":[[139.75998,35.680005],[139.759657,35.679062],[...(truncated)...],[139.770004,35.689999]]},"distance_meters":2703.289,"duration_seconds":244.55,"provider":"graphhopper","warnings":[]}}
+</code><button class="copy-button" aria-label="Copy code to clipboard"><svg class="copy-icon" aria-hidden="true" fill="none" height="18" shape-rendering="geometricPrecision" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewBox="0 0 24 24" width="18" style="color:" currentcolor";"=""><path d="M8 17.929H6c-1.105 0-2-.912-2-2.036V5.036C4 3.91 4.895 3 6 3h8c1.105 0 2 .911 2 2.036v1.866m-6 .17h8c1.105 0 2 .91 2 2.035v10.857C20 21.09 19.105 22 18 22h-8c-1.105 0-2-.911-2-2.036V9.107c0-1.124.895-2.036 2-2.036z"></path></svg></button></pre>
+<h2>4. Setting Up Tilia</h2>
+<p>Phloem's top-level directory contains a <code class="notranslate">public</code> directory. Copy the following folders from your Tilia project into this <code class="notranslate">public</code> directory. The files placed here will be served via Phloem's HTTP server.</p>
+<ul>
+<li><code class="notranslate">plugins</code></li>
+<li><code class="notranslate">samples</code></li>
+<li><code class="notranslate">src</code></li>
+</ul>
+<p>A sample HTML file implementing the route search feature is located at <code class="notranslate">samples/editor/localhost.html</code>. This sample is configured to work with a locally running Phloem server. Open this file in a text editor and check the <code class="notranslate">pluginOptions</code> settings:</p>
+<pre class="notranslate" style="position: relative;"><code class="notranslate">pluginOptions: {
+  "x-route-search": {
+    endpoint: "http://localhost:3000/route",
+    defaultProfile: "car",
+    profileOptions: ["car", "bike", "foot"]
+  }
+}
+</code><button class="copy-button" aria-label="Copy code to clipboard"><svg class="copy-icon" aria-hidden="true" fill="none" height="18" shape-rendering="geometricPrecision" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewBox="0 0 24 24" width="18" style="color:" currentcolor";"=""><path d="M8 17.929H6c-1.105 0-2-.912-2-2.036V5.036C4 3.91 4.895 3 6 3h8c1.105 0 2 .911 2 2.036v1.866m-6 .17h8c1.105 0 2 .91 2 2.035v10.857C20 21.09 19.105 22 18 22h-8c-1.105 0-2-.911-2-2.036V9.107c0-1.124.895-2.036 2-2.036z"></path></svg></button></pre>
+<p>Make sure that the <code class="notranslate">endpoint</code> points to Phloem's <code class="notranslate">/route</code> endpoint. If you are running Phloem on a different URL, update this URL accordingly.</p>
+<p>Also, adjust the <code class="notranslate">defaultProfile</code> and <code class="notranslate">profileOptions</code> as needed to match the profiles available for route search in GraphHopper. For example, if you are using the Free plan of the official GraphHopper API, only <code class="notranslate">car</code>, <code class="notranslate">bike</code>, and <code class="notranslate">foot</code> are available, so make sure these are selectable in Tilia. If you are running your own GraphHopper server, adjust these values according to the available profiles.</p>
+<h2>5. Using Tilia's Route Search Feature</h2>
+<p>In your browser, access the sample you placed in the <code class="notranslate">public</code> directory via HTTP:</p>
+<ul>
+<li><a href="http://localhost:3000/samples/editor/localhost.html" rel="nofollow">http://localhost:3000/samples/editor/localhost.html</a></li>
+</ul>
+<p>Once the map page is displayed, click the "R" button on the left side of the screen to open the route search panel.</p>
+<p>Enter the start and end points for the route search, and click the "Search Routes" button to execute the search. You can specify each point by right-clicking on the map, and you can also move the points by dragging the markers.</p>
+<p>The route search results are internally saved as a single GPX data in Tilia and displayed as one of the items in the layer panel "L", so open the layer panel to see them.</p>
+<div class="markdown-alert markdown-alert-tip"><p class="markdown-alert-title"><svg data-component="Octicon" class="octicon octicon-light-bulb mr-2" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path d="M8 1.5c-2.363 0-4 1.69-4 3.75 0 .984.424 1.625.984 2.304l.214.253c.223.264.47.556.673.848.284.411.537.896.621 1.49a.75.75 0 0 1-1.484.211c-.04-.282-.163-.547-.37-.847a8.456 8.456 0 0 0-.542-.68c-.084-.1-.173-.205-.268-.32C3.201 7.75 2.5 6.766 2.5 5.25 2.5 2.31 4.863 0 8 0s5.5 2.31 5.5 5.25c0 1.516-.701 2.5-1.328 3.259-.095.115-.184.22-.268.319-.207.245-.383.453-.541.681-.208.3-.33.565-.37.847a.751.751 0 0 1-1.485-.212c.084-.593.337-1.078.621-1.489.203-.292.45-.584.673-.848.075-.088.147-.173.213-.253.561-.679.985-1.32.985-2.304 0-2.06-1.637-3.75-4-3.75ZM5.75 12h4.5a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1 0-1.5ZM6 15.25a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5h-2.5a.75.75 0 0 1-.75-.75Z"></path></svg>Tip</p><p>Each time you execute a search, new data is added. This is an intentional design for comparing multiple search results. If you want to clear the search results, you can delete the corresponding items from the layer panel.</p>
+</div>
+<h2>6. Troubleshooting</h2>
+<ul>
+<li>
+<p><strong>When executing a search, "Failed to fetch" is displayed on the panel</strong></p>
+<p>Check the server's operation log. If you see an error like the following, Phloem may not be handling CORS preflight requests correctly.</p>
+<pre class="notranslate" style="position: relative;"><code class="notranslate">Started OPTIONS "/route" for 192.168.65.1 at 2026-06-14 03:13:29 +0000
+ActionController::RoutingError (No route matches [OPTIONS] "/route"):
+</code><button class="copy-button" aria-label="Copy code to clipboard"><svg class="copy-icon" aria-hidden="true" fill="none" height="18" shape-rendering="geometricPrecision" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewBox="0 0 24 24" width="18" style="color:" currentcolor";"=""><path d="M8 17.929H6c-1.105 0-2-.912-2-2.036V5.036C4 3.91 4.895 3 6 3h8c1.105 0 2 .911 2 2.036v1.866m-6 .17h8c1.105 0 2 .91 2 2.035v10.857C20 21.09 19.105 22 18 22h-8c-1.105 0-2-.911-2-2.036V9.107c0-1.124.895-2.036 2-2.036z"></path></svg></button></pre>
+<p>For example, the URLs <code class="notranslate">http://127.0.0.1</code> and <code class="notranslate">http://localhost</code> refer to the same machine, but the browser treats them as different origins, causing CORS restrictions to apply and the request to fail. Make sure that the URL used to start Phloem and the URL set in Tilia's <code class="notranslate">endpoint</code> are the same origin.</p>
+</li>
+<li>
+<p><strong>When executing a search, "Free packages cannot use flexible mode" is displayed on the panel</strong></p>
+<p>If you are using the Free plan of the official GraphHopper API, there are limitations on the features available. To indicate this, set the environment variable <code class="notranslate">GRAPH_HOPPER_RESTRICTED_PLAN</code> to <code class="notranslate">true</code> and restart Phloem.</p>
+</li>
+<li>
+<p><strong>When executing a search, "Request validation failed" is displayed on the panel</strong></p>
+<p>This is a generic error message, so there are various possible causes, but it indicates that there is an issue with the request content. Typically, the profile values may be incorrect, so check the values of <code class="notranslate">profileOptions</code> and <code class="notranslate">defaultProfile</code> in the route search plugin's <code class="notranslate">pluginOptions</code>.</p>
+</li>
+<li>
+<p><strong>When executing a search, "Too many points for Routing API: 7, allowed: 5" is displayed on the panel</strong></p>
+<p>This is not a setup issue. If you are using the Free plan of the official GraphHopper API, there is a limit on the number of points that can be included in a route search request, and this message indicates that the limit has been exceeded. If you need to search for routes with more points, consider using your own GraphHopper server or upgrading to a paid plan that allows more points.</p>
+</li>
+</ul></article>
+</body>
+</html>
