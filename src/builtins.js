@@ -1,6 +1,7 @@
 import { installDropzonePlugin } from "./plugins/input/dropzone.js";
 import { installFileImportControl } from "./plugins/input/file-import.js";
 import { installUrlImportControl } from "./plugins/input/url-import.js";
+import { installQueryImportPlugin } from "./plugins/input/query-import.js";
 import { installElevationPanelControl } from "./plugins/ui/elevation-panel.js";
 import { installBaseMapControl } from "./plugins/ui/base-map-control.js";
 import { installLayersControl } from "./plugins/ui/layers-control.js";
@@ -120,6 +121,20 @@ export const urlImport = definePlugin({
 	},
 });
 
+export const queryImport = definePlugin({
+	id: "tilia-query-import",
+	setup(app, options = {}) {
+		return installQueryImportPlugin({
+			registry: app.registry,
+			context: app.context,
+			onStatus: app.setStatus,
+			onError: app.setError,
+			onItemLoaded: () => app.refreshView(),
+			...resolveBuiltinUiOptions("tilia-query-import", options),
+		});
+	},
+});
+
 export const settings = definePlugin({
 	id: "tilia-settings",
 	requires: ["tilia-panel", "tilia-status"],
@@ -159,6 +174,7 @@ export const builtins = Object.freeze({
 	elevation,
 	fileImport,
 	urlImport,
+	queryImport,
 	settings,
 	dropzone,
 	"tilia-panel": panel,
@@ -168,6 +184,7 @@ export const builtins = Object.freeze({
 	"tilia-elevation": elevation,
 	"tilia-file-import": fileImport,
 	"tilia-url-import": urlImport,
+	"tilia-query-import": queryImport,
 	"tilia-settings": settings,
 	"tilia-dropzone": dropzone,
 });

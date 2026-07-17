@@ -46,7 +46,7 @@ export async function importRemoteUrl({
     onStatus("URL import failed: only http:// and https:// URLs are supported");
     return;
   }
-  console.log(`Importing remote URL: ${parsedUrl.toString()}`);
+
   try {
     const timeoutController = createTimeoutController(timeoutMs);
 
@@ -129,16 +129,16 @@ export function installUrlImportPlugin({
   }
 
   const runImport = () =>
-  importRemoteUrl({
-    url: urlInput.value,
-    registry,
-    context,
-    onStatus,
-    onError,
-    onItemLoaded,
-    timeoutMs,
-    maxBytes,
-  });
+    importRemoteUrl({
+      url: urlInput.value,
+      registry,
+      context,
+      onStatus,
+      onError,
+      onItemLoaded,
+      timeoutMs,
+      maxBytes,
+    });
 
   loadButton.addEventListener("click", runImport);
   urlInput.addEventListener("keydown", (event) => {
