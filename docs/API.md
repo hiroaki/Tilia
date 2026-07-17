@@ -227,6 +227,7 @@ Install by passing a string ID to `app.use()`, or by listing in `options.plugins
 | `tilia-elevation` | `tilia-panel`, `tilia-status` | Interactive elevation profile chart in the side panel; hover highlights the corresponding track point on the map |
 | `tilia-file-import` | — | Map control (top-left) with a file picker; accepts `.gpx`, `.jpg`, `.jpeg`; supports multiple files at once |
 | `tilia-url-import` | — | Map control that opens a URL input; fetches via HTTP/HTTPS with CORS; filename inferred from `Content-Disposition` or the URL path; `timeoutMs` aborts slow fetches and `maxBytes` rejects oversized remote files |
+| `tilia-query-import` | — | Same as `tilia-url-import`, but without a form or control; instead, it reads the input URL from the query parameter `gpx` |
 | `tilia-settings` | `tilia-panel`, `tilia-status` | Settings panel with a single control: the default photo timestamp interpretation mode applied to newly loaded photos |
 | `tilia-dropzone` | — | Makes the entire map container a drag-and-drop target; visual highlight shown during drag |
 
