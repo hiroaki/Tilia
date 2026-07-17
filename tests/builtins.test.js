@@ -4,6 +4,7 @@ const builtinMocks = vi.hoisted(() => ({
   installDropzonePlugin: vi.fn(),
   installFileImportControl: vi.fn(),
   installUrlImportControl: vi.fn(),
+  installQueryImportPlugin: vi.fn(),
   installElevationPanelControl: vi.fn(),
   installBaseMapControl: vi.fn(),
   installLayersControl: vi.fn(),
@@ -22,6 +23,10 @@ vi.mock("../src/plugins/input/file-import.js", () => ({
 
 vi.mock("../src/plugins/input/url-import.js", () => ({
   installUrlImportControl: builtinMocks.installUrlImportControl,
+}));
+
+vi.mock("../src/plugins/input/query-import.js", () => ({
+  installQueryImportPlugin: builtinMocks.installQueryImportPlugin,
 }));
 
 vi.mock("../src/plugins/ui/elevation-panel.js", () => ({
@@ -56,6 +61,7 @@ import {
   fileImport,
   layers,
   panel,
+  queryImport,
   settings,
   status,
   urlImport,
@@ -94,6 +100,7 @@ describe("built-in plugins", () => {
     expect(builtins.elevation).toBe(elevation);
     expect(builtins.fileImport).toBe(fileImport);
     expect(builtins.urlImport).toBe(urlImport);
+    expect(builtins.queryImport).toBe(queryImport);
     expect(builtins.settings).toBe(settings);
     expect(builtins.dropzone).toBe(dropzone);
     expect(builtins["tilia-panel"]).toBe(panel);
@@ -103,6 +110,7 @@ describe("built-in plugins", () => {
     expect(builtins["tilia-elevation"]).toBe(elevation);
     expect(builtins["tilia-file-import"]).toBe(fileImport);
     expect(builtins["tilia-url-import"]).toBe(urlImport);
+    expect(builtins["tilia-query-import"]).toBe(queryImport);
     expect(builtins["tilia-settings"]).toBe(settings);
     expect(builtins["tilia-dropzone"]).toBe(dropzone);
   });
@@ -190,13 +198,16 @@ describe("built-in plugins", () => {
     const app = createAppStub();
     const fileImportApi = { id: "file-import-api" };
     const urlImportApi = { id: "url-import-api" };
+    const queryImportApi = { id: "query-import-api" };
     const settingsApi = { id: "settings-api" };
     builtinMocks.installFileImportControl.mockReturnValue(fileImportApi);
     builtinMocks.installUrlImportControl.mockReturnValue(urlImportApi);
+    builtinMocks.installQueryImportPlugin.mockReturnValue(queryImportApi);
     builtinMocks.installSettingsPanelControl.mockReturnValue(settingsApi);
 
     expect(fileImport.setup(app, { accept: ".gpx" })).toBe(fileImportApi);
     expect(urlImport.setup(app, { timeoutMs: 5000 })).toBe(urlImportApi);
+    expect(queryImport.setup(app, { parameterName: "track" })).toBe(queryImportApi);
     expect(settings.setup(app, { allowUtc: true })).toBe(settingsApi);
     expect(builtinMocks.installFileImportControl).toHaveBeenCalledWith(expect.objectContaining({
       map: app.map,
@@ -213,6 +224,13 @@ describe("built-in plugins", () => {
       onStatus: app.setStatus,
       onError: app.setError,
       timeoutMs: 5000,
+    }));
+    expect(builtinMocks.installQueryImportPlugin).toHaveBeenCalledWith(expect.objectContaining({
+      registry: app.registry,
+      context: app.context,
+      onStatus: app.setStatus,
+      onError: app.setError,
+      parameterName: "track",
     }));
     expect(builtinMocks.installSettingsPanelControl).toHaveBeenCalledWith(expect.objectContaining({
       map: app.map,
