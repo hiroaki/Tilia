@@ -125,6 +125,7 @@ Tilia を利用するには、Leaflet の JavaScript と CSS をページに読�
 | `tilia-elevation` | `tilia-panel`, `tilia-status` | GPX トラックのインタラクティブな高度プロファイルチャート |
 | `tilia-file-import` | — | `.gpx` / `.jpg` / `.jpeg` を選択できるファイル選択コントロール |
 | `tilia-url-import` | — | HTTP/HTTPS URL から取得する URL 入力コントロール（サーバー側 CORS 許可が必要）。timeout とサイズ上限を設定可能 |
+| `tilia-query-import` | — | `tilia-url-import` と同じですが、コントロールを持たず、代わりにクエリーパラメータ `gpx` にセットされている URL を入力とします |
 | `tilia-settings` | `tilia-panel`, `tilia-status` | 写真タイムスタンプ解釈のデフォルトモード（Auto / ローカル / UTC / 固定オフセット） |
 | `tilia-dropzone` | — | 地図全体をドロップ対象にするドラッグ＆ドロップ機能 |
 
