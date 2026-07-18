@@ -7,19 +7,32 @@
 </head>
 <body>
 <article id="markdown-body" class="markdown-body"><p><a href="./index.ja.html">日本語</a></p>
-<h1>Tilia - Samples</h1>
+<h1>Tilia</h1>
 <p>Tilia is an extensible framework for building interactive maps and geospatial applications on the web. It works with only static files (except for the route searching feature).</p>
 <p>Repository: <a href="https://github.com/hiroaki/Tilia"></a><a href="https://github.com/hiroaki/Tilia">https://github.com/hiroaki/Tilia</a></p>
-<p>You can try working samples from the following links:</p>
-<ul>
-<li><a href="./embed/index.html">Embed Sample</a><br>
-This shows how to embed a map in a page. By embedding a Tilia map in a template and replacing only the data, the same template can be reused for different content.</li>
-<li><a href="./viewer/">Viewer Sample</a><br>
-This shows how to use Tilia as the foundation for a map application. This sample allows you to drag and drop GPX and JPG files.</li>
-<li><a href="./editor/chiyoda-ku.html">Editor Sample</a><br>
-This sample allows you to try route searching and track editing features. You can also download the result as a GPX file.</li>
-</ul>
+<h2>Samples</h2>
 <p>Since each feature of Tilia is provided as a plugin, all features can be combined into a single application. However, the samples are configured to focus on a specific set of features for each use case.</p>
+<p>You can try the working samples from the following links.</p>
+<h3>Embedded Sample</h3>
+<p>This shows how to embed a map in a page. By embedding a Tilia map in a template and replacing only the data, the same template can be reused for different content.</p>
+<ul>
+<li><a href="./embed/index.html">./embed/index.html</a></li>
+</ul>
+<h3>Viewer Sample</h3>
+<p>This shows how to use Tilia as the foundation for a map application. This sample allows you to drag and drop GPX and JPG files.</p>
+<ul>
+<li><a href="./viewer/index.html">./viewer/index.html</a></li>
+</ul>
+<p>If you incorporate a plugin that accepts query parameters, you can switch the initially displayed GPX file by specifying a query.</p>
+<ul>
+<li><a href="./viewer/index.html?gpx=../gpx/awaji-sa.gpx">./viewer/index.html?gpx=../gpx/awaji-sa.gpx</a> (Awaji Service Area)</li>
+<li><a href="./viewer/index.html?gpx=../gpx/tateyama.gpx">./viewer/index.html?gpx=../gpx/tateyama.gpx</a> (Tateyama Hiking)</li>
+</ul>
+<h3>Editor Sample</h3>
+<p>This sample allows you to try out the route searching and track editing features (note: there are some limitations, see "About the backend for route searching" below). You can also download the results as a GPX file.</p>
+<ul>
+<li><a href="./editor/chiyoda-ku.html">./editor/chiyoda-ku.html</a></li>
+</ul>
 <h2>About the backend for route searching</h2>
 <p>Tilia basically works only on the client side, but since it is difficult to complete the route search function on the client side, you need to run a routing engine on the backend.</p>
 <p>In the current version, we created a project called <a href="https://github.com/hiroaki/Phloem">Phloem</a> as a gateway between Tilia and the routing engine. Phloem acts as a routing facade for Tilia and forwards requests to the routing engine through an internal adapter.</p>

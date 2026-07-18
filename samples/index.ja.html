@@ -7,19 +7,32 @@
 </head>
 <body>
 <article id="markdown-body" class="markdown-body"><p><a href="./index.html">English</a></p>
-<h1>Tilia - サンプル</h1>
+<h1>Tilia</h1>
 <p>Tilia は、Web 上でインタラクティブな地図や地理空間アプリケーションを構築するための、拡張可能なフレームワークです。静的ファイルのみで動作します（ルート検索機能を除く）。</p>
 <p>リポジトリ： <a href="https://github.com/hiroaki/Tilia"></a><a href="https://github.com/hiroaki/Tilia">https://github.com/hiroaki/Tilia</a></p>
-<p>次のリンクから、動作するサンプルを試すことができます：</p>
-<ul>
-<li><a href="./embed/index.ja.html">埋め込みのサンプル</a><br>
-地図をページに埋め込む利用法です。テンプレートに Tilia の地図を埋め込み、データだけ差し替えることで、複数のコンテンツに対応できます。</li>
-<li><a href="./viewer/">ビューワーのサンプル</a><br>
-地図アプリの基盤とする利用法です。このサンプルでは GPX と JPG ファイルをドラッグ＆ドロップで入力できます。</li>
-<li><a href="./editor/chiyoda-ku.html">エディタのサンプル</a><br>
-ルート検索と、トラックの編集機能について試すことができます。また結果を GPX ファイルとしてダウンロードすることもできます。</li>
-</ul>
+<h2>サンプル</h2>
 <p>Tilia の各機能はプラグインで提供されるため、すべての機能を単一のアプリケーションに組み合わせることもできます。ただしここでは特徴に応じた機能に絞った構成にしています。</p>
+<p>次のリンクから、動作するサンプルを試すことができます。</p>
+<h3>埋め込みのサンプル</h3>
+<p>地図をページに埋め込む利用法です。例えば、テンプレートに Tilia の地図を埋め込み、データだけ差し替えることで、複数のコンテンツに対応できます。</p>
+<ul>
+<li><a href="./embed/index.ja.html">./embed/index.ja.html</a></li>
+</ul>
+<h3>ビューワーのサンプル</h3>
+<p>地図アプリの基盤とする利用法です。このサンプルでは GPX と JPG ファイルをドラッグ＆ドロップで入力できます。</p>
+<ul>
+<li><a href="./viewer/index.html">./viewer/index.html</a></li>
+</ul>
+<p>クエリーパラメータを受け付けるプラグインを組み込めば、クエリを指定することで初期表示させる GPX ファイルを切り替えることができます。</p>
+<ul>
+<li><a href="./viewer/index.html?gpx=../gpx/awaji-sa.gpx">./viewer/index.html?gpx=../gpx/awaji-sa.gpx</a>（淡路サービスエリア）</li>
+<li><a href="./viewer/index.html?gpx=../gpx/tateyama.gpx">./viewer/index.html?gpx=../gpx/tateyama.gpx</a>（立山ハイキング）</li>
+</ul>
+<h3>エディタのサンプル</h3>
+<p>ルート検索と、トラックの編集機能について試すことができます（注意：制約があります。後述「ルート検索のバックエンドについて」を参照してください）。また結果を GPX ファイルとしてダウンロードすることもできます。</p>
+<ul>
+<li><a href="./editor/chiyoda-ku.html">./editor/chiyoda-ku.html</a></li>
+</ul>
 <h2>ルート検索のバックエンドについて</h2>
 <p>Tilia は基本的にクライアントサイドのみで動作しますが、ルート検索の機能はクライアントサイドで完結させることが難しいため、バックエンドでルーティングエンジンを動かす必要があります。</p>
 <p>現在のバージョンでは、バックエンドに繋ぐための API ゲートウェイとして <a href="https://github.com/hiroaki/Phloem">Phloem</a> プロジェクトを作成し、それを使用しています。 Phloem は、Tilia のルート検索機能を提供するためのファサードとなり、内部のアダプタを通じてルーティングエンジンにリクエストを転送します。</p>

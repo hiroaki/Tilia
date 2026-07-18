@@ -34,10 +34,10 @@ ruby -run -e httpd . -p 8010
 npm run serve -- 8010
 ```
 
-付属の viewer を開きます:
+サンプルのインデックス・ページを開いてください：
 
 ```
-http://localhost:8010/samples/viewer/index.html
+http://localhost:8010/samples/
 ```
 
 

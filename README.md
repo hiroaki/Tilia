@@ -35,10 +35,10 @@ ruby -run -e httpd . -p 8010
 npm run serve -- 8010
 ```
 
-Open the ready-made viewer:
+Open the sample index page:
 
 ```
-http://localhost:8010/samples/viewer/index.html
+http://localhost:8010/samples/
 ```
 
 

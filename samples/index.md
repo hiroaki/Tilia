@@ -1,20 +1,35 @@
 [日本語](./index.ja.html)
 
-# Tilia - Samples
+# Tilia
 
 Tilia is an extensible framework for building interactive maps and geospatial applications on the web. It works with only static files (except for the route searching feature).
 
 Repository: <a href="https://github.com/hiroaki/Tilia">https://github.com/hiroaki/Tilia</a>
 
-You can try working samples from the following links:
-- [Embed Sample](./embed/index.html)
-  This shows how to embed a map in a page. By embedding a Tilia map in a template and replacing only the data, the same template can be reused for different content.
-- [Viewer Sample](./viewer/)
-  This shows how to use Tilia as the foundation for a map application. This sample allows you to drag and drop GPX and JPG files.
-- [Editor Sample](./editor/chiyoda-ku.html)
-  This sample allows you to try route searching and track editing features. You can also download the result as a GPX file.
+## Samples
 
 Since each feature of Tilia is provided as a plugin, all features can be combined into a single application. However, the samples are configured to focus on a specific set of features for each use case.
+
+You can try the working samples from the following links.
+
+### Embedded Sample
+
+This shows how to embed a map in a page. By embedding a Tilia map in a template and replacing only the data, the same template can be reused for different content.
+- [./embed/index.html](./embed/index.html)
+
+### Viewer Sample
+
+This shows how to use Tilia as the foundation for a map application. This sample allows you to drag and drop GPX and JPG files.
+- [./viewer/index.html](./viewer/index.html)
+
+If you incorporate a plugin that accepts query parameters, you can switch the initially displayed GPX file by specifying a query.
+- [./viewer/index.html?gpx=../gpx/awaji-sa.gpx](./viewer/index.html?gpx=../gpx/awaji-sa.gpx) (Awaji Service Area)
+- [./viewer/index.html?gpx=../gpx/tateyama.gpx](./viewer/index.html?gpx=../gpx/tateyama.gpx) (Tateyama Hiking)
+
+### Editor Sample
+
+This sample allows you to try out the route searching and track editing features (note: there are some limitations, see "About the backend for route searching" below). You can also download the results as a GPX file.
+- [./editor/chiyoda-ku.html](./editor/chiyoda-ku.html)
 
 
 ## About the backend for route searching
