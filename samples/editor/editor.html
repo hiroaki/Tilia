@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Tilia Editor</title>
+<link
+  rel="stylesheet"
+  href="https://unpkg.com/leaflet@2.0.0-alpha.1/dist/leaflet.css"
+/>
+<link rel="stylesheet" href="./editor.css" />
+<script type="importmap">
+  {
+    "imports": {
+      "leaflet": "https://unpkg.com/leaflet@2.0.0-alpha.1/dist/leaflet.js",
+      "exifr": "https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/lite.esm.js"
+    }
+  }
+</script>
+</head>
+<body>
+  <div class="container">
+    <div class="left">
+      <div class="lang-switch" role="group" aria-label="Language">
+        <button type="button" class="lang-switch-button" data-lang="en" aria-pressed="false">EN</button>
+        <button type="button" class="lang-switch-button" data-lang="ja" aria-pressed="false">日本語</button>
+      </div>
+
+      <section>
+        <h2 data-i18n="editor_title">Editor Sample</h2>
+        <p class="lead" data-i18n="editor_lead">Route search, track editing, and export in one workflow.</p>
+        <p class="section-label" data-i18n="workflow_label">Workflow</p>
+        <ul class="workflow-list">
+          <li><span class="key">R</span> <span data-i18n="workflow_r">Create a track via route search</span></li>
+          <li><span class="key">L</span> <span data-i18n="workflow_l">Review the result in layers</span></li>
+          <li><span class="key">T</span> <span data-i18n="workflow_t">Edit the track geometry</span></li>
+          <li><span class="key">G</span> <span data-i18n="workflow_g">Export as GPX</span></li>
+        </ul>
+      </section>
+
+      <section class="ratelimit">
+        <h4 data-i18n="usage_limits_title">Usage Limits</h4>
+        <p data-i18n="usage_limits_lead">Reference information for the route provider.</p>
+        <div class="ratelimit-group">
+          <p class="ratelimit-group-title" data-i18n="plan_limits_title">Plan Limits</p>
+          <div class="ratelimit-grid">
+            <div class="ratelimit-row"><span data-i18n="max_daily_credits">Max Daily Credits</span><span>500</span></div>
+            <div class="ratelimit-row"><span data-i18n="max_locations">Max Locations</span><span>5</span></div>
+            <div class="ratelimit-row"><span data-i18n="max_vehicles">Max Vehicles</span><span>1</span></div>
+          </div>
+        </div>
+
+        <div class="ratelimit-group">
+          <p class="ratelimit-group-title" data-i18n="last_usage_title">Last Recorded Usage</p>
+          <div class="ratelimit-grid">
+            <div class="ratelimit-row"><span data-i18n="as_of">As of</span><span id="ratelimit-captured_at"></span></div>
+            <div class="ratelimit-row"><span data-i18n="credits_used_today">Credits Used Today</span><span><span id="ratelimit-used"></span> / <span id="ratelimit-limit"></span></span></div>
+            <div class="ratelimit-row"><span data-i18n="reset_in">Reset In</span><span><span id="ratelimit-reset_hours"></span>h <span id="ratelimit-reset_mins"></span>m</span></div>
+          </div>
+        </div>
+      </section>
+    </div>
+    <div class="right">
+      <div id="app-root" class="app">
+        <div id="map"></div>
+      </div>
+    </div>
+  </div>
+  <script type="module">
+import { setupEditorI18n } from "./editor-i18n.js";
+import { setupEditorUsage } from "./editor-usage.js";
+import { createEditorApp } from "./editor.js";
+
+const PHLOEM_URL_BASE = "https://phloem.hwat.jp";
+setupEditorI18n();
+setupEditorUsage(PHLOEM_URL_BASE);
+createEditorApp(PHLOEM_URL_BASE);
+  </script>
+</body>
+</html>
