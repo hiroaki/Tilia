@@ -29,7 +29,7 @@ If you incorporate a plugin that accepts query parameters, you can switch the in
 ### Editor Sample
 
 This sample allows you to try out the route searching and track editing features (note: there are some limitations, see "About the backend for route searching" below). You can also download the results as a GPX file.
-- [./editor/chiyoda-ku.html](./editor/chiyoda-ku.html)
+- [./editor/editor.html](./editor/editor.html)
 
 
 ## About the backend for route searching
@@ -38,6 +38,7 @@ Tilia basically works only on the client side, but since it is difficult to comp
 
 In the current version, we created a project called [Phloem](https://github.com/hiroaki/Phloem) as a gateway between Tilia and the routing engine. Phloem acts as a routing facade for Tilia and forwards requests to the routing engine through an internal adapter.
 
+<!--
 Also, the routing engine working on the backend of this sample uses a self-hosted GraphHopper instance. However, since GraphHopper consumes a lot of memory, and the demo is hosted on limited server resources, the routing data is limited to the Chiyoda-ku area of Tokyo, and route searches are restricted to walking routes only. Therefore, **when using the editor sample, please ensure that both the start and destination are within Chiyoda-ku**. (The sample shows that range with a polygon)
 
 If you want to perform route searches for various regions of the world, it is realistic to use the GraphHopper official API service. By creating an account and obtaining an API key, you can set it in Phloem and use route searching from Tilia. You need to build a Phloem server, but if you can use Docker, you can start Phloem with a single command line. For details, please refer to the [Phloem Setup Guide](./editor/guide.html).
@@ -49,3 +50,8 @@ For the boundary data of Chiyoda-ku, we used the following dataset.
 - Data source: https://geoshape.ex.nii.ac.jp/city/resource/13101A1968.html
 - Data used: "Historical changes in administrative boundaries" → "2023-01-01" [GeoJSON file](https://geoshape.ex.nii.ac.jp/city/geojson/20230101/13/13101A1968.geojson)
 - License: [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
+-->
+
+The routing engine uses the official GraphHopper API service. However, the account used for this sample is a free account, which has limitations on the number of requests per day and the number of points that can be specified for route searching (the limitation is per API service account, not per user). If you exceed the limit, route searching will fail and an error will be displayed. If you exceed the limit, please wait for a while and try again.
+
+You can also self-host GraphHopper for use with Phloem. However, since GraphHopper consumes a lot of memory, it is more practical to use the official GraphHopper API service for route searching in various regions of the world. By creating an account and obtaining an API key, you can set it in Phloem and use route searching from Tilia. You need to build a Phloem server, but if you can use Docker, you can start Phloem with a single command line. For details, please refer to the [Phloem Setup Guide](./editor/guide.html).
