@@ -1,5 +1,6 @@
 import { FeatureGroup, Marker, Polyline, LatLngBounds } from "leaflet";
 import { getTrackStylePreset } from "./track-style-presets.js";
+import { getTrackModeCoordinates } from "../gpx/interpretation.js";
 
 function formatCoordinate(value) {
   return Number.isFinite(value) ? value.toFixed(6) : "-";
@@ -177,13 +178,16 @@ export function createTrackPointPopupContent(parsed, point) {
 
 export function buildGpxOverlay(parsed, options = {}) {
   const group = new FeatureGroup();
-  let trackLayer = null;
+  const trackLayers = [];
   const waypoints = [];
   const trackStyle = options.trackStyle || getTrackStylePreset(0);
 
-  if (parsed.trackPoints.length > 1) {
-    trackLayer = new Polyline(parsed.trackPoints, trackStyle);
-    group.addLayer(trackLayer);
+  for (let trackIndex = 0; trackIndex < (parsed.tracks || []).length; trackIndex += 1) {
+    const coordinates = getTrackModeCoordinates(parsed.tracks[trackIndex]);
+    if (coordinates.length < 2) continue;
+    const layer = new Polyline(coordinates, trackStyle);
+    group.addLayer(layer);
+    trackLayers.push({ layer, trackIndex });
   }
 
   for (const wpt of parsed.waypoints) {
@@ -199,7 +203,7 @@ export function buildGpxOverlay(parsed, options = {}) {
     layer: group,
     interactions: {
       kind: "gpx",
-      trackLayer,
+      trackLayers,
       waypoints,
     },
   };

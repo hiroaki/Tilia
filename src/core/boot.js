@@ -14,6 +14,7 @@ import { createSelectionHub } from "./selection-hub.js";
 import { createInputRegistry } from "./input-registry.js";
 import { parseGpxFile } from "../gpx/parse.js";
 import { normalizeGpxSource } from "../gpx/source.js";
+import { countTrackPoints } from "../gpx/interpretation.js";
 import { buildGpxOverlay, buildPhotoOverlay, fitMapToGroup } from "../map/layers.js";
 import { getTrackStylePreset, TRACK_STYLE_PRESETS } from "../map/track-style-presets.js";
 import { parsePhotoFile } from "../photo/exif.js";
@@ -101,10 +102,12 @@ function applyGpxEntryVisibility(state, entry) {
   const entryVisible = entry.visible !== false;
   const { tracks, waypoints } = state.gpxVisibility;
   const group = entry.layer;
-  const trackLayer = entry.interactions?.trackLayer;
+  const trackLayers = entry.interactions?.trackLayers || [];
   const waypointLayers = entry.interactions?.waypoints || [];
 
-  setLayerAttached(group, trackLayer, entryVisible && tracks !== false);
+  for (const trackHandle of trackLayers) {
+    setLayerAttached(group, trackHandle?.layer, entryVisible && tracks !== false);
+  }
   for (const waypoint of waypointLayers) {
     setLayerAttached(group, waypoint?.layer, entryVisible && waypoints !== false);
   }
@@ -159,7 +162,7 @@ export function createTiliaCore(map, options = {}) {
 
       return {
         ...parsed,
-        summary: `${parsed.trackPoints.length} track points, ${parsed.waypoints.length} waypoints`,
+        summary: `${countTrackPoints(parsed)} track points, ${parsed.waypoints.length} waypoints`,
       };
     },
   );

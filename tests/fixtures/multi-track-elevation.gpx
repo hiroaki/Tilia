@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Tilia test fixture" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk>
+    <name>First</name>
+    <trkseg>
+      <trkpt lat="35.0000" lon="135.0000"><ele>100</ele></trkpt>
+      <trkpt lat="35.0300" lon="135.0300"><ele>120</ele></trkpt>
+    </trkseg>
+    <trkseg>
+      <trkpt lat="35.0600" lon="135.0600"><ele>110</ele></trkpt>
+    </trkseg>
+  </trk>
+  <trk>
+    <name>Second</name>
+    <trkseg>
+      <trkpt lat="35.1000" lon="135.0000"><ele>200</ele></trkpt>
+      <trkpt lat="35.2000" lon="135.1000"><ele>220</ele></trkpt>
+    </trkseg>
+  </trk>
+</gpx>

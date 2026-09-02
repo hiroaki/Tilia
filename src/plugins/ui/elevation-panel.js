@@ -1,6 +1,17 @@
 import { CircleMarker } from "leaflet";
 import { createButton, createPanel, installMapControl } from "../../map/controls.js";
 import { createTrackPointPopupContent } from "../../map/layers.js";
+import { getNearestTrackModePoint, getTrackModeElevationLayout } from "../../gpx/interpretation.js";
+
+function getEntryProfileLayout(entry) {
+  return getTrackModeElevationLayout(entry?.source);
+}
+
+function locatorsEqual(left, right) {
+  return left?.trackIndex === right?.trackIndex
+    && left?.segmentIndex === right?.segmentIndex
+    && left?.pointIndex === right?.pointIndex;
+}
 
 function formatDistance(distanceMeters) {
   if (!Number.isFinite(distanceMeters)) {
@@ -12,20 +23,31 @@ function formatDistance(distanceMeters) {
   return `${Math.round(distanceMeters)} m`;
 }
 
-function summarizeProfile(profile) {
+function getLayoutPoints(layout) {
+  return layout.tracks.flatMap((track) => track.points);
+}
+
+function findLayoutPoint(layout, point) {
+  return getLayoutPoints(layout).find((candidate) => locatorsEqual(candidate.locator, point?.locator)) || null;
+}
+
+function summarizeProfileLayout(layout) {
+  const profiles = layout.tracks.map((track) => track.points);
+  const points = getLayoutPoints(layout);
   let minElevation = Number.POSITIVE_INFINITY;
   let maxElevation = Number.NEGATIVE_INFINITY;
   let totalAscent = 0;
 
-  for (let index = 0; index < profile.length; index += 1) {
-    const point = profile[index];
-    minElevation = Math.min(minElevation, point.elevation);
-    maxElevation = Math.max(maxElevation, point.elevation);
-
-    if (index > 0) {
-      const delta = point.elevation - profile[index - 1].elevation;
-      if (delta > 0) {
-        totalAscent += delta;
+  for (const profile of profiles) {
+    for (let index = 0; index < profile.length; index += 1) {
+      const point = profile[index];
+      minElevation = Math.min(minElevation, point.elevation);
+      maxElevation = Math.max(maxElevation, point.elevation);
+      if (index > 0) {
+        const delta = point.elevation - profile[index - 1].elevation;
+        if (delta > 0) {
+          totalAscent += delta;
+        }
       }
     }
   }
@@ -34,7 +56,8 @@ function summarizeProfile(profile) {
     minElevation,
     maxElevation,
     totalAscent,
-    totalDistance: profile[profile.length - 1]?.distanceMeters || 0,
+    totalDistance: layout.totalDistanceMeters,
+    points,
   };
 }
 
@@ -63,32 +86,32 @@ function getNearestProfileIndex(profile, distanceMeters) {
   return nearestIndex;
 }
 
-function getNearestProfilePoint(profile, latlng) {
-  if (!latlng || profile.length === 0) {
-    return profile[0] || null;
-  }
+function getTrackRenderRanges(layout, chartLayout) {
+  const { width, paddingX } = chartLayout;
+  const chartWidth = width - paddingX * 2;
+  const gapWidth = layout.tracks.length > 1 ? Math.min(4, chartWidth / (layout.tracks.length * 4)) : 0;
+  const totalGapWidth = gapWidth * Math.max(layout.tracks.length - 1, 0);
+  const availableWidth = Math.max(chartWidth - totalGapWidth, 0);
+  const totalDistance = layout.totalDistanceMeters;
+  let nextX = paddingX;
 
-  let nearestPoint = profile[0];
-  let nearestDistance = Number.POSITIVE_INFINITY;
-
-  for (const point of profile) {
-    const deltaLat = point.lat - latlng.lat;
-    const deltaLon = point.lon - latlng.lng;
-    const distance = (deltaLat * deltaLat) + (deltaLon * deltaLon);
-    if (distance < nearestDistance) {
-      nearestDistance = distance;
-      nearestPoint = point;
-    }
-  }
-
-  return nearestPoint;
+  return layout.tracks.map((track) => {
+    const distance = track.distanceEndMeters - track.distanceStartMeters;
+    const trackWidth = totalDistance > 0 ? availableWidth * (distance / totalDistance) : availableWidth / Math.max(layout.tracks.length, 1);
+    const range = { ...track, startX: nextX, endX: nextX + trackWidth, width: trackWidth };
+    nextX = range.endX + gapWidth;
+    return range;
+  });
 }
 
-function getChartPointPosition(point, chartLayout, ranges) {
+function getChartPointPosition(point, trackRange, chartLayout, ranges) {
   const { width, height, paddingX, paddingTop, paddingBottom } = chartLayout;
   const chartWidth = width - paddingX * 2;
   const chartHeight = height - paddingTop - paddingBottom;
-  const x = paddingX + (point.distanceMeters / ranges.distanceRange) * chartWidth;
+  const trackDistance = trackRange.distanceEndMeters - trackRange.distanceStartMeters;
+  const x = trackDistance > 0
+    ? trackRange.startX + (point.distanceMeters / trackDistance) * trackRange.width
+    : trackRange.startX + trackRange.width / 2;
   const y = paddingTop + chartHeight - ((point.elevation - ranges.minElevation) / ranges.elevationRange) * chartHeight;
 
   return {
@@ -103,19 +126,25 @@ function getChartPointPosition(point, chartLayout, ranges) {
   };
 }
 
-function getPointAtClientX(profile, svg, clientX, width, paddingX, distanceRange) {
+function getPointAtClientX(trackRanges, svg, clientX, width) {
   const rect = svg.getBoundingClientRect();
   if (rect.width === 0) {
     return null;
   }
 
   const relativeX = ((clientX - rect.left) / rect.width) * width;
-  const clampedX = Math.max(paddingX, Math.min(width - paddingX, relativeX));
-  const selectedDistance = ((clampedX - paddingX) / (width - paddingX * 2)) * distanceRange;
-  return profile[getNearestProfileIndex(profile, selectedDistance)] || null;
+  const range = trackRanges.find((candidate) => relativeX >= candidate.startX && relativeX <= candidate.endX);
+  if (!range || range.points.length === 0) {
+    return null;
+  }
+  const trackDistance = range.distanceEndMeters - range.distanceStartMeters;
+  const selectedDistance = trackDistance > 0
+    ? ((relativeX - range.startX) / range.width) * trackDistance
+    : 0;
+  return range.points[getNearestProfileIndex(range.points, selectedDistance)] || null;
 }
 
-function createProfileSvg(profile, activePoint, { onPointSelect, onPointHover, onPointerLeave }) {
+function createProfileSvg(layout, activePoint, { onPointSelect, onPointHover, onPointerLeave }) {
   const namespace = "http://www.w3.org/2000/svg";
   const wrap = document.createElement("div");
   wrap.className = "tilia-elevation-chart-wrap";
@@ -124,12 +153,13 @@ function createProfileSvg(profile, activePoint, { onPointSelect, onPointHover, o
   const svg = document.createElementNS(namespace, "svg");
   const chartLayout = getChartLayout();
   const { width, height, paddingX, paddingTop, paddingBottom } = chartLayout;
-  const { minElevation, maxElevation, totalDistance } = summarizeProfile(profile);
+  const { minElevation, maxElevation, totalDistance } = summarizeProfileLayout(layout);
   const ranges = {
     minElevation,
     elevationRange: Math.max(maxElevation - minElevation, 1),
     distanceRange: Math.max(totalDistance, 1),
   };
+  const trackRanges = getTrackRenderRanges(layout, chartLayout);
 
   svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
   svg.setAttribute("preserveAspectRatio", "none");
@@ -146,53 +176,57 @@ function createProfileSvg(profile, activePoint, { onPointSelect, onPointHover, o
   baseLine.setAttribute("stroke-width", "1");
   svg.appendChild(baseLine);
 
-  const polyline = document.createElementNS(namespace, "polyline");
-  const points = profile.map((point) => {
-    const position = getChartPointPosition(point, chartLayout, ranges);
-    return `${position.x},${position.y}`;
-  });
-  polyline.setAttribute("points", points.join(" "));
-  polyline.setAttribute("fill", "none");
-  polyline.setAttribute("stroke", "#0f766e");
-  polyline.setAttribute("stroke-width", "2");
-  polyline.setAttribute("stroke-linejoin", "round");
-  polyline.setAttribute("stroke-linecap", "round");
-  svg.appendChild(polyline);
-
-  if (activePoint) {
-    const activePosition = getChartPointPosition(activePoint, chartLayout, ranges);
-
-    const overlay = document.createElement("div");
-    overlay.className = "tilia-elevation-guide-overlay";
-
-    const guide = document.createElement("div");
-    guide.className = "tilia-elevation-guide-line";
-    guide.style.left = `${activePosition.leftPercent}%`;
-    guide.style.top = `${activePosition.topPaddingPercent}%`;
-    guide.style.bottom = `${activePosition.bottomPaddingPercent}%`;
-
-    const marker = document.createElement("div");
-    marker.className = "tilia-elevation-guide-marker";
-    marker.style.left = `${activePosition.leftPercent}%`;
-    marker.style.top = `${activePosition.topPercent}%`;
-
-    overlay.appendChild(guide);
-    overlay.appendChild(marker);
-    surface.appendChild(overlay);
+  for (const trackRange of trackRanges) {
+    if (trackRange.points.length < 2) continue;
+    const polyline = document.createElementNS(namespace, "polyline");
+    polyline.setAttribute("data-track-index", String(trackRange.trackIndex));
+    polyline.setAttribute("points", trackRange.points.map((point) => {
+      const position = getChartPointPosition(point, trackRange, chartLayout, ranges);
+      return `${position.x},${position.y}`;
+    }).join(" "));
+    polyline.setAttribute("fill", "none");
+    polyline.setAttribute("stroke", "#0f766e");
+    polyline.setAttribute("stroke-width", "2");
+    polyline.setAttribute("stroke-linejoin", "round");
+    polyline.setAttribute("stroke-linecap", "round");
+    svg.appendChild(polyline);
   }
 
+  const overlay = document.createElement("div");
+  overlay.className = "tilia-elevation-guide-overlay";
+  overlay.hidden = true;
+  const guide = document.createElement("div");
+  guide.className = "tilia-elevation-guide-line";
+  const marker = document.createElement("div");
+  marker.className = "tilia-elevation-guide-marker";
+  overlay.append(guide, marker);
+  surface.appendChild(overlay);
+
+  function setActivePoint(point) {
+    const trackRange = trackRanges.find((candidate) => candidate.trackIndex === point?.locator?.trackIndex);
+    if (!point || !trackRange) {
+      overlay.hidden = true;
+      return;
+    }
+    const position = getChartPointPosition(point, trackRange, chartLayout, ranges);
+    guide.style.left = `${position.leftPercent}%`;
+    guide.style.top = `${position.topPaddingPercent}%`;
+    guide.style.bottom = `${position.bottomPaddingPercent}%`;
+    marker.style.left = `${position.leftPercent}%`;
+    marker.style.top = `${position.topPercent}%`;
+    overlay.hidden = false;
+  }
+  setActivePoint(activePoint);
+
   svg.addEventListener("click", (event) => {
-    const point = getPointAtClientX(profile, svg, event.clientX, width, paddingX, ranges.distanceRange);
+    const point = getPointAtClientX(trackRanges, svg, event.clientX, width);
     if (point) {
       onPointSelect(point);
     }
   });
 
   svg.addEventListener("pointermove", (event) => {
-    const point = getPointAtClientX(profile, svg, event.clientX, width, paddingX, ranges.distanceRange);
-    if (point) {
-      onPointHover(point);
-    }
+    onPointHover(getPointAtClientX(trackRanges, svg, event.clientX, width));
   });
 
   svg.addEventListener("pointerleave", () => {
@@ -216,7 +250,7 @@ function createProfileSvg(profile, activePoint, { onPointSelect, onPointHover, o
   wrap.appendChild(surface);
   wrap.appendChild(footer);
 
-  return wrap;
+  return { node: wrap, setActivePoint };
 }
 
 export function installElevationPanelControl({ map, core, panel, onStatus, position = "topleft", priority = "normal" }) {
@@ -227,6 +261,7 @@ export function installElevationPanelControl({ map, core, panel, onStatus, posit
   let activeRevealVersion = 0;
   let activePopupRevealVersion = 0;
   let popupPinned = false;
+  let activeChart = null;
 
   function getTrackEntries() {
     return core.state.entries.filter((entry) => entry.kind === "gpx");
@@ -315,12 +350,12 @@ export function installElevationPanelControl({ map, core, panel, onStatus, posit
       return;
     }
     const currentPoint = hoveredPointByEntryId.get(entry.id);
-    if (currentPoint === point) {
+    if (locatorsEqual(currentPoint?.locator, point.locator)) {
       return;
     }
     hoveredPointByEntryId.set(entry.id, point);
     syncFocusedPoint();
-    panel.rerenderPanel("elevation");
+    activeChart?.setActivePoint(point);
   }
 
   function clearPointHover(entry) {
@@ -329,7 +364,7 @@ export function installElevationPanelControl({ map, core, panel, onStatus, posit
     }
     hoveredPointByEntryId.delete(entry.id);
     syncFocusedPoint();
-    panel.rerenderPanel("elevation");
+    activeChart?.setActivePoint(selectedPointByEntryId.get(entry.id) || null);
   }
 
   function clearRevealState() {
@@ -399,8 +434,9 @@ export function installElevationPanelControl({ map, core, panel, onStatus, posit
           return content;
         }
 
-        const profile = selectedEntry.source.elevationProfile || [];
-        if (profile.length < 2) {
+        const layout = getEntryProfileLayout(selectedEntry);
+        const profile = getLayoutPoints(layout);
+        if (!layout.tracks.some((track) => track.points.length >= 2)) {
           clearActivePointMarker();
           clearSelectedPoint(selectedEntry.id);
           const missing = document.createElement("p");
@@ -411,23 +447,25 @@ export function installElevationPanelControl({ map, core, panel, onStatus, posit
           return content;
         }
 
-        let selectedPoint = selectedPointByEntryId.get(selectedEntry.id) || null;
-        if (selectedPoint && !profile.includes(selectedPoint)) {
+        let selectedPoint = findLayoutPoint(layout, selectedPointByEntryId.get(selectedEntry.id));
+        if (!selectedPoint && selectedPointByEntryId.has(selectedEntry.id)) {
           selectedPoint = null;
           clearSelectedPoint(selectedEntry.id);
         }
 
-        let hoveredPoint = hoveredPointByEntryId.get(selectedEntry.id) || null;
-        if (hoveredPoint && !profile.includes(hoveredPoint)) {
+        let hoveredPoint = findLayoutPoint(layout, hoveredPointByEntryId.get(selectedEntry.id));
+        if (!hoveredPoint && hoveredPointByEntryId.has(selectedEntry.id)) {
           hoveredPoint = null;
           clearHoveredPoint(selectedEntry.id);
         }
 
-        main.appendChild(createProfileSvg(profile, hoveredPoint || selectedPoint, {
+        const chart = createProfileSvg(layout, hoveredPoint || selectedPoint, {
           onPointSelect: (point) => selectPoint(selectedEntry, point, { revealOnMap: true }),
           onPointHover: (point) => hoverPoint(selectedEntry, point),
           onPointerLeave: () => clearPointHover(selectedEntry),
-        }));
+        });
+        activeChart = chart;
+        main.appendChild(chart.node);
 
         content.appendChild(main);
 
@@ -440,30 +478,22 @@ export function installElevationPanelControl({ map, core, panel, onStatus, posit
     core.selectTrack(entry);
     selectedEntryId = entry.id;
     clearHoveredPoint();
-    const profile = entry.source?.elevationProfile || [];
-    if (profile.length > 0) {
-      const existingPoint = selectedPointByEntryId.get(entry.id) || null;
-      const selectedPoint = latlng ? (getNearestProfilePoint(profile, latlng) || profile[0]) : existingPoint;
-      if (selectedPoint) {
-        selectedPointByEntryId.set(entry.id, selectedPoint);
-        if (options.revealOnMap) {
-          const revealVersion = beginReveal(selectedPoint);
-          openRevealPopup(entry, selectedPoint, revealVersion);
-        }
-      } else {
-        clearSelectedPoint(entry.id);
-      }
-    } else {
-      clearSelectedPoint(entry.id);
+    const selectedPoint = options.point || (latlng
+      ? getNearestTrackModePoint(entry.source?.tracks?.[options.trackIndex], options.trackIndex, latlng)
+      : selectedPointByEntryId.get(entry.id) || null);
+    if (selectedPoint) {
+      selectPoint(entry, selectedPoint, { revealOnMap: options.revealOnMap === true });
+      return;
     }
+    clearSelectedPoint(entry.id);
     if (options.openPanel) {
       panel.openPanel(createPanelSpec());
     } else {
       panel.rerenderPanel("elevation");
     }
-    const selectedPoint = selectedPointByEntryId.get(entry.id);
-    if (selectedPoint) {
-      onStatus(`Selected ${entry.source.name} point at ${formatDistance(selectedPoint.distanceMeters)}`);
+    const currentSelection = selectedPointByEntryId.get(entry.id);
+    if (currentSelection) {
+      onStatus(`Selected ${entry.source.name} point at ${formatDistance(currentSelection.distanceMeters)}`);
     } else {
       onStatus(`Selected ${entry.source.name} elevation profile`);
     }
@@ -513,8 +543,8 @@ export function installElevationPanelControl({ map, core, panel, onStatus, posit
   });
 
   core.subscribeInteractions({
-    onTrackLayer({ entry, layer }) {
-      layer.on("click", (event) => activateEntry(entry, event.latlng, { revealOnMap: true }));
+    onTrackLayer({ entry, layer, trackIndex }) {
+      layer.on("click", (event) => activateEntry(entry, event.latlng, { revealOnMap: true, trackIndex }));
 
       const bindDomClick = () => {
         const element = layer.getElement?.();
