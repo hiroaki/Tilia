@@ -486,11 +486,7 @@ export function installElevationPanelControl({ map, core, panel, onStatus, posit
       return;
     }
     clearSelectedPoint(entry.id);
-    if (options.openPanel) {
-      panel.openPanel(createPanelSpec());
-    } else {
-      panel.rerenderPanel("elevation");
-    }
+    panel.rerenderPanel("elevation");
     const currentSelection = selectedPointByEntryId.get(entry.id);
     if (currentSelection) {
       onStatus(`Selected ${entry.source.name} point at ${formatDistance(currentSelection.distanceMeters)}`);
@@ -530,11 +526,14 @@ export function installElevationPanelControl({ map, core, panel, onStatus, posit
       button.title = "Elevation";
       button.setAttribute("aria-label", "Elevation");
       button.addEventListener("click", () => {
-        const entry = getSelectedEntry();
-        if (entry) {
-          activateEntry(entry, null, { openPanel: true });
+        if (panel.isOpen("elevation")) {
+          panel.closePanel("elevation");
         } else {
-          panel.togglePanel(createPanelSpec());
+          panel.openPanel(createPanelSpec());
+          const entry = getSelectedEntry();
+          if (entry) {
+            activateEntry(entry, null);
+          }
         }
       });
       wrap.appendChild(button);
