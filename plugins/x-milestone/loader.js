@@ -1,4 +1,5 @@
 import { DivIcon, Marker } from "leaflet";
+import { getTrackDistanceSummary, getTrackModePointDetails } from "../../src/gpx/interpretation.js";
 
 const defaultIntervalDefinition = Object.freeze({
 	mapping: {
@@ -99,10 +100,11 @@ function createMilestoneMarker(milestone, options) {
 	});
 }
 
-function createTrackState(entry, layer) {
+function createTrackState(entry, layer, trackIndex) {
 	return {
 		entry,
 		layer,
+		trackIndex,
 		markers: [],
 		milestoneCache: new Map(),
 		currentInterval: null,
@@ -139,7 +141,8 @@ export const milestonePlugin = {
 			if (destroyed) {
 				return;
 			}
-			const trackPointDetails = trackState.entry.source?.trackPointDetails;
+			const track = trackState.entry.source?.tracks?.[trackState.trackIndex];
+			const trackPointDetails = getTrackModePointDetails(track, trackState.trackIndex);
 			if (!Array.isArray(trackPointDetails) || trackPointDetails.length < 2) {
 				clearTrackMarkers(trackState);
 				return;
@@ -150,7 +153,7 @@ export const milestonePlugin = {
 				return;
 			}
 
-			const fullLengthMeters = Number(trackPointDetails[trackPointDetails.length - 1]?.distanceMeters);
+			const fullLengthMeters = getTrackDistanceSummary(track).totalDistanceMeters;
 			if (!Number.isFinite(fullLengthMeters) || fullLengthMeters < config.intervalDefinition.minIntervalMeters) {
 				clearTrackMarkers(trackState);
 				return;
@@ -181,10 +184,10 @@ export const milestonePlugin = {
 			if (destroyed) {
 				return;
 			}
-			for (const [entryId, trackState] of tracks) {
-				if (!app.state.entries.some((entry) => entry.id === entryId)) {
+			for (const [trackKey, trackState] of tracks) {
+				if (!app.state.entries.some((entry) => entry.id === trackState.entry.id)) {
 					clearTrackMarkers(trackState);
-					tracks.delete(entryId);
+					tracks.delete(trackKey);
 					continue;
 				}
 				renderTrack(trackState);
@@ -192,9 +195,9 @@ export const milestonePlugin = {
 		}
 
 		const unsubscribeInteractions = app.subscribeInteractions({
-			onTrackLayer({ entry, layer }) {
-				const trackState = createTrackState(entry, layer);
-				tracks.set(entry.id, trackState);
+			onTrackLayer({ entry, layer, trackIndex }) {
+				const trackState = createTrackState(entry, layer, trackIndex);
+				tracks.set(`${entry.id}:${trackIndex}`, trackState);
 				layer.on("add", () => renderTrack(trackState));
 				layer.on("remove", () => clearTrackMarkers(trackState));
 				renderTrack(trackState);
