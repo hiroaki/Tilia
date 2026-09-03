@@ -87,10 +87,14 @@ describe("x-route-search helpers", () => {
         { lat: 35.668, lon: 139.762, name: "Via 1" },
         { lat: 35.671989, lon: 139.765893, name: "Goal" },
       ],
-      trackPointDetails: [
-        { lat: 35.665521, lon: 139.7596, elevation: null, timestamp: null },
-        { lat: 35.671989, lon: 139.765893, elevation: null, timestamp: null },
-      ],
+      tracks: [expect.objectContaining({
+        segments: [{
+          points: [
+            { lat: 35.665521, lon: 139.7596, elevation: null, timestamp: null },
+            { lat: 35.671989, lon: 139.765893, elevation: null, timestamp: null },
+          ],
+        }],
+      })],
       routeSummary: {
         provider: "graphhopper",
         distanceMeters: 971.364,
@@ -98,6 +102,8 @@ describe("x-route-search helpers", () => {
         warnings: [],
       },
     });
+    expect(source.tracks[0].name).toBeUndefined();
+    expect(source).not.toHaveProperty("trackPointDetails");
   });
 
   it("ignores blank and out-of-range waypoint inputs", () => {
