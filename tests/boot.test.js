@@ -81,14 +81,14 @@ function createLayer(id) {
 
 function createGpxOverlay(id, options = {}) {
   const layer = createLayer(id);
-  const trackLayer = options.trackLayer === null ? null : (options.trackLayer || { id: `${id}-track` });
+  const trackLayers = options.trackLayers || [{ layer: { id: `${id}-track` }, trackIndex: 0 }];
   const waypointLayers = (options.waypoints || []).map((waypoint, index) => ({
     layer: waypoint.layer || { id: `${id}-waypoint-${index}` },
     waypoint: waypoint.waypoint || { name: `Waypoint ${index + 1}` },
   }));
 
-  if (trackLayer) {
-    layer.addLayer(trackLayer);
+  for (const trackHandle of trackLayers) {
+    layer.addLayer(trackHandle.layer);
   }
   for (const waypoint of waypointLayers) {
     layer.addLayer(waypoint.layer);
@@ -101,7 +101,7 @@ function createGpxOverlay(id, options = {}) {
   return {
     layer,
     interactions: {
-      trackLayer,
+      trackLayers,
       waypoints: waypointLayers,
     },
   };
@@ -132,10 +132,7 @@ describe("createTiliaCore", () => {
     const gpxSource = {
       type: "gpx",
       name: "sample.gpx",
-      trackPoints: [[35.0, 135.0], [35.1, 135.1]],
-      trackPointDetails: [],
-      trackTimeline: [],
-      elevationProfile: [],
+      tracks: [{ segments: [{ points: [{ lat: 35, lon: 135 }, { lat: 35.1, lon: 135.1 }] }] }],
       waypoints: [{ name: "Start", lat: 35.0, lon: 135.0 }],
     };
     const overlay = createGpxOverlay("gpx-layer", {
@@ -152,7 +149,7 @@ describe("createTiliaCore", () => {
     expect(bootMocks.buildGpxOverlay).toHaveBeenCalledWith(expect.objectContaining({
       name: "sample.gpx",
       type: "gpx",
-      trackPoints: [[35.0, 135.0], [35.1, 135.1]],
+      tracks: [expect.objectContaining({ segments: [expect.objectContaining({ points: [expect.objectContaining({ lat: 35, lon: 135 }), expect.objectContaining({ lat: 35.1, lon: 135.1 })] })] })],
     }), {
       trackStyle: getTrackStylePreset(0),
     });
@@ -165,7 +162,7 @@ describe("createTiliaCore", () => {
       source: expect.objectContaining({
         name: "sample.gpx",
         type: "gpx",
-        trackPoints: [[35.0, 135.0], [35.1, 135.1]],
+        tracks: [expect.objectContaining({ segments: [expect.objectContaining({ points: [expect.objectContaining({ lat: 35, lon: 135 }), expect.objectContaining({ lat: 35.1, lon: 135.1 })] })] })],
       }),
       layer: overlay.layer,
       interactions: overlay.interactions,
@@ -435,10 +432,7 @@ describe("createTiliaCore", () => {
 
     const firstEntry = core.addGpxSource({
       name: "first.gpx",
-      trackPointDetails: [
-        { lat: 35.0, lon: 135.0, elevation: 10, timestamp: Date.parse("2024-01-01T00:00:00Z") },
-        { lat: 35.1, lon: 135.1, elevation: 12, timestamp: Date.parse("2024-01-01T00:05:00Z") },
-      ],
+      tracks: [{ segments: [{ points: [{ lat: 35, lon: 135, elevation: 10, timestamp: Date.parse("2024-01-01T00:00:00Z") }, { lat: 35.1, lon: 135.1, elevation: 12, timestamp: Date.parse("2024-01-01T00:05:00Z") }] }] }],
       waypoints: [
         { lat: 35.0, lon: 135.0, name: "Start" },
         { lat: 35.1, lon: 135.1, name: "End" },
@@ -448,8 +442,8 @@ describe("createTiliaCore", () => {
     expect(core.getGpxVisibility()).toEqual({ tracks: true, waypoints: true });
 
     expect(core.setGpxTracksVisibility(false)).toEqual({ tracks: false, waypoints: true });
-    expect(firstOverlay.layer.removeLayer).toHaveBeenCalledWith(firstOverlay.interactions.trackLayer);
-    expect(firstOverlay.layer.hasLayer(firstOverlay.interactions.trackLayer)).toBe(false);
+    expect(firstOverlay.layer.removeLayer).toHaveBeenCalledWith(firstOverlay.interactions.trackLayers[0].layer);
+    expect(firstOverlay.layer.hasLayer(firstOverlay.interactions.trackLayers[0].layer)).toBe(false);
     expect(firstOverlay.layer.hasLayer(firstOverlay.interactions.waypoints[0].layer)).toBe(true);
 
     expect(core.setGpxWaypointsVisibility(false)).toEqual({ tracks: false, waypoints: false });
@@ -460,40 +454,37 @@ describe("createTiliaCore", () => {
 
     const secondEntry = core.addGpxSource({
       name: "second.gpx",
-      trackPointDetails: [
-        { lat: 36.0, lon: 136.0, elevation: 3, timestamp: Date.parse("2024-01-01T01:00:00Z") },
-        { lat: 36.1, lon: 136.1, elevation: 4, timestamp: Date.parse("2024-01-01T01:05:00Z") },
-      ],
+      tracks: [{ segments: [{ points: [{ lat: 36, lon: 136, elevation: 3, timestamp: Date.parse("2024-01-01T01:00:00Z") }, { lat: 36.1, lon: 136.1, elevation: 4, timestamp: Date.parse("2024-01-01T01:05:00Z") }] }] }],
       waypoints: [{ lat: 36.0, lon: 136.0, name: "Only" }],
     }, { fitToView: false });
 
     expect(firstEntry.visible).toBe(true);
     expect(secondEntry.visible).toBe(true);
-    expect(secondOverlay.layer.hasLayer(secondOverlay.interactions.trackLayer)).toBe(false);
+    expect(secondOverlay.layer.hasLayer(secondOverlay.interactions.trackLayers[0].layer)).toBe(false);
     expect(secondOverlay.layer.hasLayer(secondOverlay.interactions.waypoints[0].layer)).toBe(false);
 
     core.setEntryVisibility(firstEntry.id, false);
     expect(core.setGpxTracksVisibility(true)).toEqual({ tracks: true, waypoints: false });
-    expect(firstOverlay.layer.hasLayer(firstOverlay.interactions.trackLayer)).toBe(false);
+    expect(firstOverlay.layer.hasLayer(firstOverlay.interactions.trackLayers[0].layer)).toBe(false);
 
     core.setEntryVisibility(firstEntry.id, true);
-    expect(firstOverlay.layer.hasLayer(firstOverlay.interactions.trackLayer)).toBe(true);
+    expect(firstOverlay.layer.hasLayer(firstOverlay.interactions.trackLayers[0].layer)).toBe(true);
     expect(firstOverlay.layer.hasLayer(firstOverlay.interactions.waypoints[0].layer)).toBe(false);
 
     expect(core.setGpxWaypointsVisibility(true)).toEqual({ tracks: true, waypoints: true });
     expect(firstOverlay.layer.hasLayer(firstOverlay.interactions.waypoints[0].layer)).toBe(true);
-    expect(secondOverlay.layer.hasLayer(secondOverlay.interactions.trackLayer)).toBe(true);
+    expect(secondOverlay.layer.hasLayer(secondOverlay.interactions.trackLayers[0].layer)).toBe(true);
     expect(secondOverlay.layer.hasLayer(secondOverlay.interactions.waypoints[0].layer)).toBe(true);
   });
 
   it("adds and updates normalized GPX sources without going through file dispatch", () => {
     const firstOverlay = {
       layer: createLayer("gpx-layer-1"),
-      interactions: { trackLayer: { id: "track-1" }, waypoints: [] },
+      interactions: { trackLayers: [{ layer: { id: "track-1" }, trackIndex: 0 }], waypoints: [] },
     };
     const secondOverlay = {
       layer: createLayer("gpx-layer-2"),
-      interactions: { trackLayer: { id: "track-2" }, waypoints: [] },
+      interactions: { trackLayers: [{ layer: { id: "track-2" }, trackIndex: 0 }], waypoints: [] },
     };
     bootMocks.buildGpxOverlay
       .mockReturnValueOnce(firstOverlay)
@@ -503,15 +494,12 @@ describe("createTiliaCore", () => {
 
     const entry = core.addGpxSource({
       name: "draft.gpx",
-      trackPointDetails: [
-        { lat: 35.0, lon: 135.0, elevation: 10, timestamp: Date.parse("2024-01-01T00:00:00Z") },
-        { lat: 35.1, lon: 135.1, elevation: null, timestamp: null },
-      ],
+      tracks: [{ segments: [{ points: [{ lat: 35, lon: 135, elevation: 10, timestamp: Date.parse("2024-01-01T00:00:00Z") }, { lat: 35.1, lon: 135.1, elevation: null, timestamp: null }] }] }],
     }, { fitToView: false });
 
     expect(entry).toMatchObject({ kind: "gpx", visible: true });
     expect(entry.presentation).toEqual({ trackStylePresetIndex: 0 });
-    expect(entry.source.trackPoints).toEqual([[35.0, 135.0], [35.1, 135.1]]);
+    expect(entry.source.tracks[0].segments[0].points).toHaveLength(2);
     expect(firstOverlay.layer.addTo).toHaveBeenCalledWith(map);
     expect(bootMocks.fitMapToGroup).not.toHaveBeenCalled();
     expect(bootMocks.buildGpxOverlay).toHaveBeenNthCalledWith(1, expect.any(Object), {
@@ -520,16 +508,13 @@ describe("createTiliaCore", () => {
 
     const updated = core.updateGpxSource(entry.id, {
       ...entry.source,
-      trackPointDetails: [
-        { lat: 35.0, lon: 135.0, elevation: 10, timestamp: Date.parse("2024-01-01T00:00:00Z") },
-        { lat: 35.2, lon: 135.2, elevation: 20, timestamp: Date.parse("2024-01-01T00:05:00Z") },
-      ],
+      tracks: [{ segments: [{ points: [{ lat: 35, lon: 135, elevation: 10, timestamp: Date.parse("2024-01-01T00:00:00Z") }, { lat: 35.2, lon: 135.2, elevation: 20, timestamp: Date.parse("2024-01-01T00:05:00Z") }] }] }],
     }, { fitToView: true });
 
     expect(updated).toBe(entry);
     expect(firstOverlay.layer.remove).toHaveBeenCalledTimes(1);
     expect(secondOverlay.layer.addTo).toHaveBeenCalledWith(map);
-    expect(updated.source.trackPoints).toEqual([[35.0, 135.0], [35.2, 135.2]]);
+    expect(updated.source.tracks[0].segments[0].points[1]).toMatchObject({ lat: 35.2, lon: 135.2 });
     expect(updated.presentation).toEqual({ trackStylePresetIndex: 0 });
     expect(bootMocks.buildGpxOverlay).toHaveBeenNthCalledWith(2, expect.any(Object), {
       trackStyle: getTrackStylePreset(0),

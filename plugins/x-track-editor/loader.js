@@ -1,6 +1,7 @@
 import { DivIcon, Marker } from "leaflet";
 import { createButton, createPanel, createSelect, installMapControl } from "../../src/map/controls.js";
 import { cloneGpxSource, updateTrackPoint } from "../../src/gpx/source.js";
+import { getTrackPointEntries } from "../../src/gpx/interpretation.js";
 import {
   createEditorSourceName,
   formatTimestampForDateTimeLocal,
@@ -16,7 +17,7 @@ function getEntryById(core, entryId) {
 }
 
 function getNearestTrackPointIndex(source, latlng) {
-  const details = source?.trackPointDetails || [];
+  const details = getTrackPointEntries(source);
   if (!latlng || details.length === 0) {
     return -1;
   }
@@ -24,7 +25,7 @@ function getNearestTrackPointIndex(source, latlng) {
   let nearestIndex = 0;
   let nearestDistance = Number.POSITIVE_INFINITY;
   for (let index = 0; index < details.length; index += 1) {
-    const point = details[index];
+    const point = details[index].point;
     const deltaLat = point.lat - latlng.lat;
     const deltaLon = point.lon - latlng.lng;
     const distance = (deltaLat * deltaLat) + (deltaLon * deltaLon);
@@ -97,7 +98,7 @@ export const trackEditorPlugin = {
         return;
       }
 
-      const point = draftEntry.source?.trackPointDetails?.[activeSession.selectedPointIndex] || null;
+      const point = getTrackPointEntries(draftEntry.source)[activeSession.selectedPointIndex]?.point || null;
       if (!point) {
         clearDragHandle();
         return;
@@ -141,7 +142,7 @@ export const trackEditorPlugin = {
           }
 
           const moved = dragHandle.getLatLng();
-          updateDraftPoint(activeSession.selectedPointIndex, {
+          updateDraftPoint(getTrackPointEntries(draftEntry.source)[activeSession.selectedPointIndex]?.locator, {
             lat: moved.lat,
             lon: moved.lng,
           });
@@ -169,12 +170,12 @@ export const trackEditorPlugin = {
       return selectedEntryId;
     }
 
-    function updateDraftPoint(index, patch) {
+    function updateDraftPoint(locator, patch) {
       const draftEntry = getDraftEntry();
       if (!draftEntry) {
         return;
       }
-      const nextSource = updateTrackPoint(draftEntry.source, index, patch);
+      const nextSource = updateTrackPoint(draftEntry.source, locator, patch);
       core.updateGpxSource(draftEntry.id, nextSource, { fitToView: false });
       syncDragHandle();
       app.refreshView();
@@ -300,8 +301,8 @@ export const trackEditorPlugin = {
       root.appendChild(secondaryActions);
 
       const draftEntry = getDraftEntry();
-      const details = draftEntry?.source?.trackPointDetails || [];
-      const selectedPoint = details[activeSession?.selectedPointIndex || 0] || null;
+      const details = getTrackPointEntries(draftEntry?.source);
+      const selectedPoint = details[activeSession?.selectedPointIndex || 0]?.point || null;
 
       const pointMeta = document.createElement("div");
       pointMeta.className = "tilia-track-editor-point-meta";
@@ -351,7 +352,7 @@ export const trackEditorPlugin = {
           return;
         }
 
-        updateDraftPoint(activeSession.selectedPointIndex, {
+        updateDraftPoint(details[activeSession.selectedPointIndex]?.locator, {
           elevation: nextElevation,
           timestamp: nextTimestamp,
         });
@@ -468,7 +469,7 @@ export const trackEditorPlugin = {
       }
 
       const draftEntry = getDraftEntry();
-      const details = draftEntry?.source?.trackPointDetails || [];
+      const details = getTrackPointEntries(draftEntry?.source);
       if (details.length === 0) {
         return;
       }
