@@ -393,16 +393,9 @@ export function installElevationPanelControl({ map, core, panel, onStatus, posit
   }
 
   function selectPoint(entry, point, options = {}) {
-    clearHoveredPoint(entry.id);
-    selectedPointByEntryId.set(entry.id, point);
-    if (options.revealOnMap) {
-      const revealVersion = beginReveal(point);
-      openRevealPopup(entry, point, revealVersion);
-    } else {
-      syncFocusedPoint();
-    }
-    panel.rerenderPanel("elevation");
-    onStatus(`Selected ${entry.source.name} point at ${formatDistance(point.distanceMeters)}`);
+    return core.selectTrackPoint(entry, point, {
+      panTo: options.revealOnMap === true,
+    });
   }
 
   function createPanelSpec() {
@@ -541,22 +534,25 @@ export function installElevationPanelControl({ map, core, panel, onStatus, posit
     },
   });
 
-  core.subscribeInteractions({
-    onTrackLayer({ entry, layer, trackIndex }) {
-      layer.on("click", (event) => activateEntry(entry, event.latlng, { revealOnMap: true, trackIndex }));
-
-      const bindDomClick = () => {
-        const element = layer.getElement?.();
-        if (!element || element.dataset.tiliaElevationBound === "1") {
-          return;
-        }
-        element.dataset.tiliaElevationBound = "1";
-        element.addEventListener("click", () => activateEntry(entry));
-      };
-
-      bindDomClick();
-      layer.on("add", bindDomClick);
-    },
+  const unsubscribeSelection = core.subscribeSelection((selection) => {
+    if (selection?.kind !== "track-point") {
+      return;
+    }
+    const entry = selection.entry;
+    selectedEntryId = entry.id;
+    clearHoveredPoint(entry.id);
+    const point = findLayoutPoint(getEntryProfileLayout(entry), selection.point);
+    if (point) {
+      selectedPointByEntryId.set(entry.id, point);
+      focusPoint(point);
+    } else {
+      clearSelectedPoint(entry.id);
+      clearActivePointMarker();
+    }
+    if (panel.isOpen("elevation")) {
+      panel.rerenderPanel("elevation");
+    }
+    onStatus(`Selected ${entry.source.name} point at ${formatDistance(selection.point.distanceMeters)}`);
   });
 
   map.on("popupopen", (event) => {
@@ -589,5 +585,10 @@ export function installElevationPanelControl({ map, core, panel, onStatus, posit
   });
 
   refresh();
-  return { refresh };
+  return {
+    refresh,
+    destroy() {
+      unsubscribeSelection();
+    },
+  };
 }
