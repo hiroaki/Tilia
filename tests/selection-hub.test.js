@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 const popupMocks = vi.hoisted(() => ({
   createPhotoPopupContent: vi.fn((photo) => ({ kind: "photo-popup", photo })),
+  createTrackPointPopupContent: vi.fn((source, point) => ({ kind: "track-point-popup", source, point })),
   createWaypointPopupContent: vi.fn((sourceName, waypoint) => ({
     kind: "waypoint-popup",
     sourceName,
@@ -11,6 +12,7 @@ const popupMocks = vi.hoisted(() => ({
 
 vi.mock("../src/map/layers.js", () => ({
   createPhotoPopupContent: popupMocks.createPhotoPopupContent,
+  createTrackPointPopupContent: popupMocks.createTrackPointPopupContent,
   createWaypointPopupContent: popupMocks.createWaypointPopupContent,
 }));
 
@@ -90,6 +92,18 @@ describe("createSelectionHub", () => {
       },
     );
     expect(selection).toEqual({ kind: "photo", entry });
+  });
+
+  it("opens a track-point popup and records a structural point selection", () => {
+    const map = { panTo: vi.fn(), openPopup: vi.fn() };
+    const hub = createSelectionHub(map);
+    const entry = { source: { name: "Track" } };
+    const point = { lat: 35.0, lon: 135.0, elevation: null, locator: { trackIndex: 1, segmentIndex: 0, pointIndex: 2 } };
+
+    expect(hub.selectTrackPoint(entry, point)).toEqual({ kind: "track-point", entry, point });
+    expect(popupMocks.createTrackPointPopupContent).toHaveBeenCalledWith(entry.source, point);
+    expect(map.panTo).toHaveBeenCalledWith([35.0, 135.0]);
+    expect(map.openPopup).toHaveBeenCalledTimes(1);
   });
 
   it("skips popup opening when openPopup is disabled or when popup inputs are incomplete", () => {
