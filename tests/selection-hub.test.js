@@ -106,6 +106,25 @@ describe("createSelectionHub", () => {
     expect(map.openPopup).toHaveBeenCalledTimes(1);
   });
 
+  it("clears the active selection when the popup that owns it closes", () => {
+    const popup = { close: vi.fn() };
+    const map = {
+      panTo: vi.fn(),
+      openPopup: vi.fn(() => popup),
+      on: vi.fn(),
+    };
+    const hub = createSelectionHub(map);
+    const entry = { source: { name: "Track" } };
+    const point = { lat: 35.0, lon: 135.0, elevation: null, locator: { trackIndex: 1, segmentIndex: 0, pointIndex: 2 } };
+
+    hub.selectTrackPoint(entry, point);
+    expect(hub.getSelection()).toEqual({ kind: "track-point", entry, point });
+
+    map.on.mock.calls.find(([event]) => event === "popupclose")?.[1]({ popup });
+
+    expect(hub.getSelection()).toBeNull();
+  });
+
   it("skips popup opening when openPopup is disabled or when popup inputs are incomplete", () => {
     const map = {
       panTo: vi.fn(),
