@@ -132,6 +132,30 @@ function bindGpxTrackPointInteractions(entry, selectionHub) {
   }
 }
 
+function bindGpxWaypointInteractions(entry, selectionHub) {
+  for (const waypointHandle of entry?.interactions?.waypoints || []) {
+    const layer = waypointHandle?.layer;
+    if (!layer || typeof layer.on !== "function" || layer._tiliaWaypointSelectionBound) {
+      continue;
+    }
+    layer._tiliaWaypointSelectionBound = true;
+    layer.on("click", () => {
+      selectionHub.selectWaypoint(entry, waypointHandle.waypoint);
+    });
+  }
+}
+
+function bindPhotoMarkerInteraction(entry, selectionHub) {
+  const marker = entry?.interactions?.marker;
+  if (!marker || typeof marker.on !== "function" || marker._tiliaPhotoSelectionBound) {
+    return;
+  }
+  marker._tiliaPhotoSelectionBound = true;
+  marker.on("click", () => {
+    selectionHub.selectPhoto(entry);
+  });
+}
+
 function addGpxEntry({ state, map, interactionHub, selectionHub }, source, options = {}) {
   const normalizedSource = normalizeGpxSource(source);
   const presentation = resolveTrackPresentation(state, options.presentation);
@@ -149,6 +173,7 @@ function addGpxEntry({ state, map, interactionHub, selectionHub }, source, optio
 
   applyGpxEntryVisibility(state, entry);
   bindGpxTrackPointInteractions(entry, selectionHub);
+  bindGpxWaypointInteractions(entry, selectionHub);
 
   if (entry.visible !== false) {
     overlay.layer.addTo(map);
@@ -207,6 +232,7 @@ export function createTiliaCore(map, options = {}) {
         photoTimeMode: resolvedPhoto.photoTimeMode,
         visible: true,
       });
+      bindPhotoMarkerInteraction(entry, selectionHub);
       interactionHub.syncEntry(entry);
 
       return {
@@ -270,6 +296,7 @@ export function createTiliaCore(map, options = {}) {
       });
       applyGpxEntryVisibility(state, entry);
       bindGpxTrackPointInteractions(entry, selectionHub);
+      bindGpxWaypointInteractions(entry, selectionHub);
       if (nextVisible) {
         nextOverlay.layer.addTo(map);
       }
@@ -303,6 +330,7 @@ export function createTiliaCore(map, options = {}) {
         interactions: nextOverlay.interactions,
         visible: nextVisible,
       });
+      bindPhotoMarkerInteraction(entry, selectionHub);
       replaceEntrySource(state, entryId, nextSource);
       entry.requestedPhotoTimeMode = nextSource.requestedPhotoTimeMode;
       entry.photoTimeMode = nextSource.photoTimeMode;
