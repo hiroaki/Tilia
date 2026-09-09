@@ -1,18 +1,3 @@
-function distanceMeters(from, to) {
-  const earthRadius = 6371000;
-  const toRadians = (value) => (value * Math.PI) / 180;
-  const deltaLat = toRadians(to.lat - from.lat);
-  const deltaLon = toRadians(to.lon - from.lon);
-  const lat1 = toRadians(from.lat);
-  const lat2 = toRadians(to.lat);
-
-  const a =
-    Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2)
-    + Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLon / 2) * Math.sin(deltaLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return earthRadius * c;
-}
-
 function coerceTimestamp(value) {
   if (value == null || value === "") {
     return null;
@@ -50,150 +35,87 @@ function normalizeWaypoint(waypoint) {
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
     return null;
   }
-  return {
-    lat,
-    lon,
-    name: waypoint?.name ? String(waypoint.name) : "",
-  };
+  return { lat, lon, name: waypoint?.name ? String(waypoint.name) : "" };
 }
 
-function detailFromTrackPoint(trackPoint, index) {
-  const lat = Number(trackPoint?.[0]);
-  const lon = Number(trackPoint?.[1]);
+function normalizePoint(point) {
+  const lat = Number(point?.lat);
+  const lon = Number(point?.lon);
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
     return null;
   }
   return {
     lat,
     lon,
-    elevation: null,
-    distanceMeters: index === 0 ? 0 : null,
-    timestamp: null,
+    elevation: coerceElevation(point?.elevation),
+    timestamp: coerceTimestamp(point?.timestamp),
   };
 }
 
-export function buildDerivedTrackFields(trackPointDetails = []) {
-  const nextDetails = [];
-  const trackPoints = [];
-  const trackTimeline = [];
-  const elevationProfile = [];
-  let previousPoint = null;
-  let cumulativeDistance = 0;
+function normalizeSegment(segment) {
+  const points = Array.isArray(segment?.points) ? segment.points.map(normalizePoint).filter(Boolean) : [];
+  return points.length > 0 ? { points } : null;
+}
 
-  for (const detail of trackPointDetails) {
-    const lat = Number(detail?.lat);
-    const lon = Number(detail?.lon);
-    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
-      continue;
-    }
-
-    const currentPoint = { lat, lon };
-    if (previousPoint) {
-      cumulativeDistance += distanceMeters(previousPoint, currentPoint);
-    }
-    previousPoint = currentPoint;
-
-    const elevation = coerceElevation(detail?.elevation);
-    const timestamp = coerceTimestamp(detail?.timestamp);
-    const normalizedDetail = {
-      lat,
-      lon,
-      elevation,
-      distanceMeters: cumulativeDistance,
-      timestamp,
-    };
-
-    nextDetails.push(normalizedDetail);
-    trackPoints.push([lat, lon]);
-
-    if (timestamp !== null) {
-      trackTimeline.push({ timestamp, lat, lon });
-    }
-    if (normalizedDetail.elevation !== null) {
-      elevationProfile.push({
-        lat,
-        lon,
-        elevation: normalizedDetail.elevation,
-        distanceMeters: cumulativeDistance,
-        timestamp,
-      });
-    }
+function normalizeTrack(track) {
+  const segments = Array.isArray(track?.segments) ? track.segments.map(normalizeSegment).filter(Boolean) : [];
+  if (segments.length === 0) {
+    return null;
   }
-
-  trackTimeline.sort((left, right) => left.timestamp - right.timestamp);
-
   return {
-    trackPoints,
-    trackPointDetails: nextDetails,
-    trackTimeline,
-    elevationProfile,
+    name: track?.name == null || track.name === "" ? undefined : String(track.name),
+    segments,
   };
 }
 
 export function normalizeGpxSource(source = {}) {
-  const sourceDetails = Array.isArray(source.trackPointDetails) && source.trackPointDetails.length > 0
-    ? source.trackPointDetails
-    : Array.isArray(source.trackPoints)
-      ? source.trackPoints.map(detailFromTrackPoint).filter(Boolean)
-      : [];
-  const derived = buildDerivedTrackFields(sourceDetails);
-
   return {
     type: "gpx",
     name: source?.name ? String(source.name) : "track.gpx",
-    ...derived,
-    waypoints: Array.isArray(source.waypoints)
-      ? source.waypoints.map(normalizeWaypoint).filter(Boolean)
-      : [],
+    tracks: Array.isArray(source.tracks) ? source.tracks.map(normalizeTrack).filter(Boolean) : [],
+    waypoints: Array.isArray(source.waypoints) ? source.waypoints.map(normalizeWaypoint).filter(Boolean) : [],
   };
 }
 
 export function cloneGpxSource(source = {}) {
   return normalizeGpxSource({
     ...source,
-    trackPointDetails: Array.isArray(source.trackPointDetails)
-      ? source.trackPointDetails.map((detail) => ({
-        lat: detail?.lat,
-        lon: detail?.lon,
-        elevation: detail?.elevation,
-        distanceMeters: detail?.distanceMeters,
-        timestamp: detail?.timestamp,
-      }))
-      : undefined,
-    waypoints: Array.isArray(source.waypoints)
-      ? source.waypoints.map((waypoint) => ({
-        lat: waypoint?.lat,
-        lon: waypoint?.lon,
-        name: waypoint?.name,
-      }))
-      : undefined,
+    tracks: Array.isArray(source.tracks) ? source.tracks.map((track) => ({
+      name: track?.name,
+      segments: Array.isArray(track?.segments) ? track.segments.map((segment) => ({
+        points: Array.isArray(segment?.points) ? segment.points.map((point) => ({ ...point })) : [],
+      })) : [],
+    })) : [],
+    waypoints: Array.isArray(source.waypoints) ? source.waypoints.map((waypoint) => ({ ...waypoint })) : [],
   });
 }
 
-export function updateTrackPoint(source, index, patch = {}) {
+export function updateTrackPoint(source, locator, patch = {}) {
   const normalized = normalizeGpxSource(source);
-  if (!Number.isInteger(index) || index < 0 || index >= normalized.trackPointDetails.length) {
+  const { trackIndex, segmentIndex, pointIndex } = locator || {};
+  if (!normalized.tracks[trackIndex]?.segments[segmentIndex]?.points[pointIndex]) {
     return normalized;
   }
 
   const nextLat = Object.hasOwn(patch, "lat") ? coerceCoordinate(patch.lat) : null;
   const nextLon = Object.hasOwn(patch, "lon") ? coerceCoordinate(patch.lon) : null;
-
-  const nextDetails = normalized.trackPointDetails.map((detail, detailIndex) => {
-    if (detailIndex !== index) {
-      return { ...detail };
-    }
-    return {
-      ...detail,
-      ...(nextLat !== null ? { lat: nextLat } : {}),
-      ...(nextLon !== null ? { lon: nextLon } : {}),
-      ...(Object.hasOwn(patch, "elevation") ? { elevation: patch.elevation } : {}),
-      ...(Object.hasOwn(patch, "timestamp") ? { timestamp: patch.timestamp } : {}),
-    };
-  });
-
-  return normalizeGpxSource({
-    ...normalized,
-    trackPointDetails: nextDetails,
-  });
+  const tracks = normalized.tracks.map((track, currentTrackIndex) => ({
+    ...track,
+    segments: track.segments.map((segment, currentSegmentIndex) => ({
+      ...segment,
+      points: segment.points.map((point, currentPointIndex) => {
+        if (currentTrackIndex !== trackIndex || currentSegmentIndex !== segmentIndex || currentPointIndex !== pointIndex) {
+          return point;
+        }
+        return {
+          ...point,
+          ...(nextLat !== null ? { lat: nextLat } : {}),
+          ...(nextLon !== null ? { lon: nextLon } : {}),
+          ...(Object.hasOwn(patch, "elevation") ? { elevation: coerceElevation(patch.elevation) } : {}),
+          ...(Object.hasOwn(patch, "timestamp") ? { timestamp: coerceTimestamp(patch.timestamp) } : {}),
+        };
+      }),
+    })),
+  }));
+  return normalizeGpxSource({ ...normalized, tracks });
 }

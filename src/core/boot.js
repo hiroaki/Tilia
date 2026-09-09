@@ -14,6 +14,7 @@ import { createSelectionHub } from "./selection-hub.js";
 import { createInputRegistry } from "./input-registry.js";
 import { parseGpxFile } from "../gpx/parse.js";
 import { normalizeGpxSource } from "../gpx/source.js";
+import { countTrackPoints, getNearestTrackModePoint } from "../gpx/interpretation.js";
 import { buildGpxOverlay, buildPhotoOverlay, fitMapToGroup } from "../map/layers.js";
 import { getTrackStylePreset, TRACK_STYLE_PRESETS } from "../map/track-style-presets.js";
 import { parsePhotoFile } from "../photo/exif.js";
@@ -101,10 +102,12 @@ function applyGpxEntryVisibility(state, entry) {
   const entryVisible = entry.visible !== false;
   const { tracks, waypoints } = state.gpxVisibility;
   const group = entry.layer;
-  const trackLayer = entry.interactions?.trackLayer;
+  const trackLayers = entry.interactions?.trackLayers || [];
   const waypointLayers = entry.interactions?.waypoints || [];
 
-  setLayerAttached(group, trackLayer, entryVisible && tracks !== false);
+  for (const trackHandle of trackLayers) {
+    setLayerAttached(group, trackHandle?.layer, entryVisible && tracks !== false);
+  }
   for (const waypoint of waypointLayers) {
     setLayerAttached(group, waypoint?.layer, entryVisible && waypoints !== false);
   }
@@ -112,7 +115,48 @@ function applyGpxEntryVisibility(state, entry) {
   return entry;
 }
 
-function addGpxEntry({ state, map, interactionHub }, source, options = {}) {
+function bindGpxTrackPointInteractions(entry, selectionHub) {
+  for (const trackHandle of entry?.interactions?.trackLayers || []) {
+    const layer = trackHandle?.layer;
+    if (!layer || layer._tiliaTrackPointSelectionBound) {
+      continue;
+    }
+    layer._tiliaTrackPointSelectionBound = true;
+    layer.on("click", (event) => {
+      const trackIndex = trackHandle.trackIndex;
+      const point = getNearestTrackModePoint(entry.source?.tracks?.[trackIndex], trackIndex, event.latlng);
+      if (point) {
+        selectionHub.selectTrackPoint(entry, point);
+      }
+    });
+  }
+}
+
+function bindGpxWaypointInteractions(entry, selectionHub) {
+  for (const waypointHandle of entry?.interactions?.waypoints || []) {
+    const layer = waypointHandle?.layer;
+    if (!layer || typeof layer.on !== "function" || layer._tiliaWaypointSelectionBound) {
+      continue;
+    }
+    layer._tiliaWaypointSelectionBound = true;
+    layer.on("click", () => {
+      selectionHub.selectWaypoint(entry, waypointHandle.waypoint);
+    });
+  }
+}
+
+function bindPhotoMarkerInteraction(entry, selectionHub) {
+  const marker = entry?.interactions?.marker;
+  if (!marker || typeof marker.on !== "function" || marker._tiliaPhotoSelectionBound) {
+    return;
+  }
+  marker._tiliaPhotoSelectionBound = true;
+  marker.on("click", () => {
+    selectionHub.selectPhoto(entry);
+  });
+}
+
+function addGpxEntry({ state, map, interactionHub, selectionHub }, source, options = {}) {
   const normalizedSource = normalizeGpxSource(source);
   const presentation = resolveTrackPresentation(state, options.presentation);
   const overlay = buildGpxOverlay(normalizedSource, {
@@ -128,6 +172,8 @@ function addGpxEntry({ state, map, interactionHub }, source, options = {}) {
   });
 
   applyGpxEntryVisibility(state, entry);
+  bindGpxTrackPointInteractions(entry, selectionHub);
+  bindGpxWaypointInteractions(entry, selectionHub);
 
   if (entry.visible !== false) {
     overlay.layer.addTo(map);
@@ -152,14 +198,14 @@ export function createTiliaCore(map, options = {}) {
     (input) => input?.name?.toLowerCase().endsWith(".gpx"),
     async (ctx, file) => {
       const parsed = await parseGpxFile(file);
-      const entry = addGpxEntry({ state: ctx.state, map: ctx.map, interactionHub }, parsed, {
+      const entry = addGpxEntry({ state: ctx.state, map: ctx.map, interactionHub, selectionHub }, parsed, {
         fitToView: true,
         visible: true,
       });
 
       return {
         ...parsed,
-        summary: `${parsed.trackPoints.length} track points, ${parsed.waypoints.length} waypoints`,
+        summary: `${countTrackPoints(parsed)} track points, ${parsed.waypoints.length} waypoints`,
       };
     },
   );
@@ -186,6 +232,7 @@ export function createTiliaCore(map, options = {}) {
         photoTimeMode: resolvedPhoto.photoTimeMode,
         visible: true,
       });
+      bindPhotoMarkerInteraction(entry, selectionHub);
       interactionHub.syncEntry(entry);
 
       return {
@@ -224,7 +271,7 @@ export function createTiliaCore(map, options = {}) {
       return this.getGpxVisibility();
     },
     addGpxSource(source, options = {}) {
-      return addGpxEntry({ state, map, interactionHub }, source, options);
+      return addGpxEntry({ state, map, interactionHub, selectionHub }, source, options);
     },
     updateGpxSource(entryId, nextSource, options = {}) {
       const entry = state.entries.find((candidate) => candidate.id === entryId);
@@ -248,6 +295,8 @@ export function createTiliaCore(map, options = {}) {
         presentation,
       });
       applyGpxEntryVisibility(state, entry);
+      bindGpxTrackPointInteractions(entry, selectionHub);
+      bindGpxWaypointInteractions(entry, selectionHub);
       if (nextVisible) {
         nextOverlay.layer.addTo(map);
       }
@@ -281,6 +330,7 @@ export function createTiliaCore(map, options = {}) {
         interactions: nextOverlay.interactions,
         visible: nextVisible,
       });
+      bindPhotoMarkerInteraction(entry, selectionHub);
       replaceEntrySource(state, entryId, nextSource);
       entry.requestedPhotoTimeMode = nextSource.requestedPhotoTimeMode;
       entry.photoTimeMode = nextSource.photoTimeMode;
@@ -346,6 +396,9 @@ export function createTiliaCore(map, options = {}) {
     },
     selectTrack(entry) {
       return selectionHub.selectTrack(entry);
+    },
+    selectTrackPoint(entry, point, options) {
+      return selectionHub.selectTrackPoint(entry, point, options);
     },
     selectWaypoint(entry, waypoint, options) {
       return selectionHub.selectWaypoint(entry, waypoint, options);

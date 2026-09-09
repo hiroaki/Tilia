@@ -6,7 +6,7 @@ function createGpxEntry(overrides = {}) {
   return {
     kind: "gpx",
     interactions: {
-      trackLayer: { id: "track-layer" },
+      trackLayers: [{ layer: { id: "track-layer-1" }, trackIndex: 0 }, { layer: { id: "track-layer-2" }, trackIndex: 1 }],
       waypoints: [
         {
           layer: { id: "waypoint-layer-1" },
@@ -42,10 +42,11 @@ describe("createInteractionHub", () => {
 
     hub.subscribe({ onTrackLayer, onWaypointLayer, onPhotoMarker });
 
-    expect(onTrackLayer).toHaveBeenCalledTimes(1);
-    expect(onTrackLayer).toHaveBeenCalledWith({
+    expect(onTrackLayer).toHaveBeenCalledTimes(2);
+    expect(onTrackLayer).toHaveBeenNthCalledWith(1, {
       entry: entries[0],
-      layer: entries[0].interactions.trackLayer,
+      layer: entries[0].interactions.trackLayers[0].layer,
+      trackIndex: 0,
     });
     expect(onWaypointLayer).toHaveBeenCalledTimes(2);
     expect(onWaypointLayer).toHaveBeenNthCalledWith(1, {
@@ -75,7 +76,7 @@ describe("createInteractionHub", () => {
     hub.syncEntry(entry);
     hub.syncEntry(entry);
 
-    expect(onTrackLayer).toHaveBeenCalledTimes(1);
+    expect(onTrackLayer).toHaveBeenCalledTimes(2);
     expect(onWaypointLayer).toHaveBeenCalledTimes(2);
   });
 
@@ -94,7 +95,7 @@ describe("createInteractionHub", () => {
   it("ignores missing handlers and incomplete interaction handles", () => {
     const entry = createGpxEntry({
       interactions: {
-        trackLayer: null,
+        trackLayers: [{ layer: null, trackIndex: 0 }],
         waypoints: [
           { layer: null, waypoint: { name: "missing" } },
         ],

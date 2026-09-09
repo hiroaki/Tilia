@@ -1,13 +1,20 @@
-import { createPhotoPopupContent, createWaypointPopupContent } from "../map/layers.js";
+import { createPhotoPopupContent, createTrackPointPopupContent, createWaypointPopupContent } from "../map/layers.js";
 
 export function createSelectionHub(map) {
   let activeSelection = null;
+  let activePopup = null;
   const subscribers = new Set();
 
   function notify() {
     for (const subscriber of subscribers) {
       subscriber(activeSelection);
     }
+  }
+
+  function clearSelectionState() {
+    activePopup = null;
+    activeSelection = null;
+    notify();
   }
 
   function openPopup({ latlng, content, panTo = false, className = "tilia-info-popup-window", closeOnClick = false }) {
@@ -17,17 +24,29 @@ export function createSelectionHub(map) {
     if (panTo) {
       map.panTo(latlng);
     }
-    map.openPopup(content, latlng, {
+    const popup = map.openPopup(content, latlng, {
       className,
       closeOnClick,
     });
+    activePopup = popup || activePopup;
+    return popup;
   }
 
   function setSelection(selection) {
     activeSelection = selection;
+    if (!selection) {
+      activePopup = null;
+    }
     notify();
     return activeSelection;
   }
+
+  map.on?.("popupclose", (event) => {
+    if (event?.popup !== activePopup) {
+      return;
+    }
+    clearSelectionState();
+  });
 
   return {
     getSelection() {
@@ -46,6 +65,16 @@ export function createSelectionHub(map) {
     openPopup,
     selectTrack(entry) {
       return setSelection({ kind: "track", entry });
+    },
+    selectTrackPoint(entry, point, options = {}) {
+      if (options.openPopup !== false) {
+        openPopup({
+          latlng: [point?.lat, point?.lon],
+          content: createTrackPointPopupContent(entry.source, point),
+          panTo: options.panTo !== false,
+        });
+      }
+      return setSelection({ kind: "track-point", entry, point });
     },
     selectWaypoint(entry, waypoint, options = {}) {
       if (options.openPopup !== false) {

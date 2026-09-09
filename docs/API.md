@@ -149,7 +149,8 @@ The base-map service is available directly as `app.baseMaps` and is also publish
 Processes one GPX file or JPEG image. `input` may be a `File`, a URL string, or an equivalent object accepted by the registered input handlers.
 
 **GPX files** (`.gpx`):
-- Draws the track as a polyline on the map
+- Preserves `<trk>` / `<trkseg>` / `<trkpt>` structure in the loaded source
+- Draws one logical polyline per `<trk>`; segments within that track are intentionally connected in Track mode
 - Places a marker for each waypoint (`<wpt>` element)
 - Parses elevation (`<ele>`) and timestamp (`<time>`) per track point
 - Automatically fits the map view to the loaded layer
@@ -171,8 +172,8 @@ Subscribe to events triggered when GPX layers and photo markers are added to the
 
 ```js
 const unsub = app.subscribeInteractions({
-  // Called for each GPX track layer
-  onTrackLayer({ entry, layer }) { /* layer is a Leaflet Polyline */ },
+  // Called for each logical GPX <trk> layer
+  onTrackLayer({ entry, layer, trackIndex }) { /* layer is a Leaflet Polyline */ },
 
   // Called for each GPX waypoint marker
   onWaypointLayer({ entry, layer, waypoint }) { /* layer is a Leaflet Marker */ },

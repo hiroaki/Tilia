@@ -1,24 +1,8 @@
 import { parseFixedOffsetMinutes } from "../core/photo-time-utils.js";
+import { getGlobalTimeline } from "../gpx/interpretation.js";
 
 function flattenGpxTimeline(sources) {
-  const timeline = [];
-
-  for (const source of sources) {
-    if (source?.type !== "gpx") {
-      continue;
-    }
-
-    const points = Array.isArray(source.trackTimeline) ? source.trackTimeline : [];
-    for (const point of points) {
-      if (!Number.isFinite(point.timestamp) || !Number.isFinite(point.lat) || !Number.isFinite(point.lon)) {
-        continue;
-      }
-      timeline.push(point);
-    }
-  }
-
-  timeline.sort((a, b) => a.timestamp - b.timestamp);
-  return timeline;
+  return getGlobalTimeline(sources);
 }
 
 function toModeAdjustedTimestamp(dateValue, mode) {

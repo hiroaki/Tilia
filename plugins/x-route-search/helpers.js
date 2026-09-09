@@ -156,12 +156,16 @@ export function createImportedRouteSource(route, { profile = "", routeIndex = 0,
       distanceMeters: normalizedRoute.distanceMeters,
       durationSeconds: normalizedRoute.durationSeconds,
     }),
-    trackPointDetails: normalizedRoute.geometry.coordinates.map((coordinate) => ({
-      lat: coordinate.lat,
-      lon: coordinate.lon,
-      elevation: null,
-      timestamp: null,
-    })),
+    tracks: [{
+      segments: [{
+        points: normalizedRoute.geometry.coordinates.map((coordinate) => ({
+          lat: coordinate.lat,
+          lon: coordinate.lon,
+          elevation: null,
+          timestamp: null,
+        })),
+      }],
+    }],
     waypoints: buildRouteWaypoints(waypoints),
     routeSummary: {
       provider: normalizedRoute.provider,

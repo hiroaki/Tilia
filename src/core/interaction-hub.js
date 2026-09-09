@@ -3,10 +3,12 @@ export function createInteractionHub(getEntries) {
 
   function bindEntry(subscriber, entry) {
     if (entry.kind === "gpx") {
-      const trackLayer = entry.interactions?.trackLayer;
-      if (trackLayer && subscriber.onTrackLayer && !subscriber.boundTrackLayers.has(trackLayer)) {
+      const trackLayers = entry.interactions?.trackLayers || [];
+      for (const trackHandle of trackLayers) {
+        const trackLayer = trackHandle?.layer;
+        if (!trackLayer || !subscriber.onTrackLayer || subscriber.boundTrackLayers.has(trackLayer)) continue;
         subscriber.boundTrackLayers.add(trackLayer);
-        subscriber.onTrackLayer({ entry, layer: trackLayer });
+        subscriber.onTrackLayer({ entry, layer: trackLayer, trackIndex: trackHandle.trackIndex });
       }
 
       const waypoints = entry.interactions?.waypoints || [];

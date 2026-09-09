@@ -1,6 +1,7 @@
 import { createButton, createPanel, createSelect, installMapControl } from "../../map/controls.js";
 import { createPhotoThumbnailNode } from "../../map/layers.js";
 import { getTrackStylePreset } from "../../map/track-style-presets.js";
+import { countTrackPoints } from "../../gpx/interpretation.js";
 import {
   buildFixedOffsetTimeMode,
   formatPhotoTimeModeLabel,
@@ -208,7 +209,7 @@ function createLayerMeta(entry) {
   }
 
   if (entry.kind === "gpx") {
-    const trackPoints = entry.source?.trackPoints?.length || 0;
+    const trackPoints = countTrackPoints(entry.source);
     const waypoints = entry.source?.waypoints?.length || 0;
     meta.textContent = `${trackPoints} track points / ${waypoints} waypoints`;
     return meta;
@@ -426,21 +427,6 @@ export function installLayersControl({ map, core, panel, onStatus, onError, onEn
       });
       wrap.appendChild(button);
       return wrap;
-    },
-  });
-
-  core.subscribeInteractions({
-    onWaypointLayer({ entry, waypoint, layer }) {
-      layer.on("click", () => {
-        core.selectWaypoint(entry, waypoint);
-        onStatus(`Selected waypoint ${waypoint?.name || entry.source.name}`);
-      });
-    },
-    onPhotoMarker({ entry, layer }) {
-      layer.on("click", () => {
-        core.selectPhoto(entry);
-        onStatus(`Selected photo ${entry.source.name}`);
-      });
     },
   });
 
