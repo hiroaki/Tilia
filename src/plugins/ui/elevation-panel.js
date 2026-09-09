@@ -535,7 +535,14 @@ export function installElevationPanelControl({ map, core, panel, onStatus, posit
   });
 
   const unsubscribeSelection = core.subscribeSelection((selection) => {
-    if (selection?.kind !== "track-point") {
+    if (!selection) {
+      clearRevealState();
+      if (panel.isOpen("elevation")) {
+        panel.rerenderPanel("elevation");
+      }
+      return;
+    }
+    if (selection.kind !== "track-point") {
       return;
     }
     const entry = selection.entry;
@@ -574,6 +581,7 @@ export function installElevationPanelControl({ map, core, panel, onStatus, posit
     const content = event.popup?.getContent?.();
     const closingRevealVersion = Number(content?.dataset?.tiliaRevealVersion || 0);
     if (!closingRevealVersion) {
+      clearRevealState();
       return;
     }
     setTimeout(() => {

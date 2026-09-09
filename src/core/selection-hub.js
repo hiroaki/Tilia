@@ -2,12 +2,19 @@ import { createPhotoPopupContent, createTrackPointPopupContent, createWaypointPo
 
 export function createSelectionHub(map) {
   let activeSelection = null;
+  let activePopup = null;
   const subscribers = new Set();
 
   function notify() {
     for (const subscriber of subscribers) {
       subscriber(activeSelection);
     }
+  }
+
+  function clearSelectionState() {
+    activePopup = null;
+    activeSelection = null;
+    notify();
   }
 
   function openPopup({ latlng, content, panTo = false, className = "tilia-info-popup-window", closeOnClick = false }) {
@@ -17,17 +24,29 @@ export function createSelectionHub(map) {
     if (panTo) {
       map.panTo(latlng);
     }
-    map.openPopup(content, latlng, {
+    const popup = map.openPopup(content, latlng, {
       className,
       closeOnClick,
     });
+    activePopup = popup || activePopup;
+    return popup;
   }
 
   function setSelection(selection) {
     activeSelection = selection;
+    if (!selection) {
+      activePopup = null;
+    }
     notify();
     return activeSelection;
   }
+
+  map.on?.("popupclose", (event) => {
+    if (event?.popup !== activePopup) {
+      return;
+    }
+    clearSelectionState();
+  });
 
   return {
     getSelection() {

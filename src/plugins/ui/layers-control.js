@@ -430,20 +430,5 @@ export function installLayersControl({ map, core, panel, onStatus, onError, onEn
     },
   });
 
-  core.subscribeInteractions({
-    onWaypointLayer({ entry, waypoint, layer }) {
-      layer.on("click", () => {
-        core.selectWaypoint(entry, waypoint);
-        onStatus(`Selected waypoint ${waypoint?.name || entry.source.name}`);
-      });
-    },
-    onPhotoMarker({ entry, layer }) {
-      layer.on("click", () => {
-        core.selectPhoto(entry);
-        onStatus(`Selected photo ${entry.source.name}`);
-      });
-    },
-  });
-
   return { render };
 }

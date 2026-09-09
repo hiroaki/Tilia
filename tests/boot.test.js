@@ -206,6 +206,48 @@ describe("createTiliaCore", () => {
     }));
   });
 
+  it("binds waypoint and photo clicks in the core selection flow", async () => {
+    const gpxOverlay = createGpxOverlay("gpx-layer", {
+      trackLayers: [],
+      waypoints: [{ layer: createLayer("waypoint-0"), waypoint: { name: "Start", lat: 35.0, lon: 135.0 } }],
+    });
+    const photoOverlay = {
+      layer: createLayer("photo-layer"),
+      interactions: { marker: createLayer("marker-0") },
+    };
+    const photo = {
+      name: "photo.jpg",
+      hasGps: true,
+      lat: 35.5,
+      lon: 135.5,
+    };
+    bootMocks.buildGpxOverlay.mockReturnValue(gpxOverlay);
+    bootMocks.buildPhotoOverlay.mockReturnValue(photoOverlay);
+    bootMocks.parsePhotoFile.mockResolvedValue(photo);
+    const map = { closePopup: bootMocks.closePopup };
+    const core = createTiliaCore(map);
+
+    const entry = core.addGpxSource({
+      name: "waypoints.gpx",
+      tracks: [],
+      waypoints: [{ name: "Start", lat: 35.0, lon: 135.0 }],
+    }, { fitToView: false });
+    gpxOverlay.interactions.waypoints[0].layer.emit("click");
+
+    await core.registry.dispatch(core.context, { name: "photo.jpg" });
+    photoOverlay.interactions.marker.emit("click");
+
+    expect(bootMocks.selectWaypoint).toHaveBeenCalledWith(entry, expect.objectContaining({
+      name: "Start",
+      lat: 35.0,
+      lon: 135.0,
+    }));
+    expect(bootMocks.selectPhoto).toHaveBeenCalledWith(expect.objectContaining({
+      kind: "photo",
+      source: expect.objectContaining({ name: "photo.jpg" }),
+    }));
+  });
+
   it("rotates track style presets across newly added GPX entries", () => {
     bootMocks.buildGpxOverlay
       .mockReturnValueOnce({
