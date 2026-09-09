@@ -19,6 +19,7 @@ const bootMocks = vi.hoisted(() => ({
   }),
   getSelection: vi.fn(() => bootMocks.selectionState),
   selectTrack: vi.fn((entry) => ({ kind: "track", entry })),
+  selectTrackPoint: vi.fn((entry, point) => ({ kind: "track-point", entry, point })),
   selectWaypoint: vi.fn((entry, waypoint) => ({ kind: "waypoint", entry, waypoint })),
   selectPhoto: vi.fn((entry) => ({ kind: "photo", entry })),
   openPopup: vi.fn(),
@@ -56,6 +57,7 @@ vi.mock("../src/core/selection-hub.js", () => ({
     clearSelection: bootMocks.clearSelection,
     openPopup: bootMocks.openPopup,
     selectTrack: bootMocks.selectTrack,
+    selectTrackPoint: bootMocks.selectTrackPoint,
     selectWaypoint: bootMocks.selectWaypoint,
     selectPhoto: bootMocks.selectPhoto,
   })),
@@ -65,6 +67,7 @@ import { createTiliaCore } from "../src/core/boot.js";
 
 function createLayer(id) {
   const layers = new Set();
+  const eventHandlers = new Map();
   return {
     id,
     addTo: vi.fn(),
@@ -76,12 +79,16 @@ function createLayer(id) {
       layers.delete(layer);
     }),
     hasLayer: vi.fn((layer) => layers.has(layer)),
+    on: vi.fn((eventName, handler) => eventHandlers.set(eventName, handler)),
+    emit(eventName, payload) {
+      eventHandlers.get(eventName)?.(payload);
+    },
   };
 }
 
 function createGpxOverlay(id, options = {}) {
   const layer = createLayer(id);
-  const trackLayers = options.trackLayers || [{ layer: { id: `${id}-track` }, trackIndex: 0 }];
+  const trackLayers = options.trackLayers || [{ layer: createLayer(`${id}-track`), trackIndex: 0 }];
   const waypointLayers = (options.waypoints || []).map((waypoint, index) => ({
     layer: waypoint.layer || { id: `${id}-waypoint-${index}` },
     waypoint: waypoint.waypoint || { name: `Waypoint ${index + 1}` },
@@ -122,6 +129,7 @@ describe("createTiliaCore", () => {
     bootMocks.clearSelection.mockClear();
     bootMocks.getSelection.mockClear();
     bootMocks.selectTrack.mockClear();
+    bootMocks.selectTrackPoint.mockClear();
     bootMocks.selectWaypoint.mockClear();
     bootMocks.selectPhoto.mockClear();
     bootMocks.openPopup.mockClear();
@@ -172,6 +180,30 @@ describe("createTiliaCore", () => {
       visible: true,
     });
     expect(bootMocks.syncEntry).toHaveBeenCalledWith(core.state.entries[0]);
+  });
+
+  it("selects canonical points within the clicked logical track layer", () => {
+    const overlay = createGpxOverlay("gpx-layer", {
+      trackLayers: [
+        { layer: createLayer("track-0"), trackIndex: 0 },
+        { layer: createLayer("track-1"), trackIndex: 1 },
+      ],
+    });
+    bootMocks.buildGpxOverlay.mockReturnValue(overlay);
+    const core = createTiliaCore({ closePopup: bootMocks.closePopup });
+    const entry = core.addGpxSource({
+      name: "multi.gpx",
+      tracks: [
+        { segments: [{ points: [{ lat: 35, lon: 135 }, { lat: 35.1, lon: 135.1 }] }] },
+        { segments: [{ points: [{ lat: 35, lon: 135 }, { lat: 35.2, lon: 135.2 }] }] },
+      ],
+    }, { fitToView: false });
+
+    overlay.interactions.trackLayers[1].layer.emit("click", { latlng: { lat: 35, lng: 135 } });
+
+    expect(bootMocks.selectTrackPoint).toHaveBeenCalledWith(entry, expect.objectContaining({
+      locator: { trackIndex: 1, segmentIndex: 0, pointIndex: 0 },
+    }));
   });
 
   it("rotates track style presets across newly added GPX entries", () => {
@@ -480,11 +512,11 @@ describe("createTiliaCore", () => {
   it("adds and updates normalized GPX sources without going through file dispatch", () => {
     const firstOverlay = {
       layer: createLayer("gpx-layer-1"),
-      interactions: { trackLayers: [{ layer: { id: "track-1" }, trackIndex: 0 }], waypoints: [] },
+      interactions: { trackLayers: [{ layer: createLayer("track-1"), trackIndex: 0 }], waypoints: [] },
     };
     const secondOverlay = {
       layer: createLayer("gpx-layer-2"),
-      interactions: { trackLayers: [{ layer: { id: "track-2" }, trackIndex: 0 }], waypoints: [] },
+      interactions: { trackLayers: [{ layer: createLayer("track-2"), trackIndex: 0 }], waypoints: [] },
     };
     bootMocks.buildGpxOverlay
       .mockReturnValueOnce(firstOverlay)

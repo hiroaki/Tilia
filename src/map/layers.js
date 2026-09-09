@@ -1,6 +1,6 @@
 import { FeatureGroup, Marker, Polyline, LatLngBounds } from "leaflet";
 import { getTrackStylePreset } from "./track-style-presets.js";
-import { getTrackModeCoordinates } from "../gpx/interpretation.js";
+import { countTrackPoints, getTrackModeCoordinates } from "../gpx/interpretation.js";
 
 function formatCoordinate(value) {
   return Number.isFinite(value) ? value.toFixed(6) : "-";
@@ -84,46 +84,6 @@ function createPopupContent(title, rows, detail = "") {
   return root;
 }
 
-function getNearestProfilePoint(profile, latlng) {
-  if (!latlng || profile.length === 0) {
-    return profile[0] || null;
-  }
-
-  let nearestPoint = profile[0];
-  let nearestDistance = Number.POSITIVE_INFINITY;
-  for (const point of profile) {
-    const deltaLat = point.lat - latlng.lat;
-    const deltaLon = point.lon - latlng.lng;
-    const distance = (deltaLat * deltaLat) + (deltaLon * deltaLon);
-    if (distance < nearestDistance) {
-      nearestDistance = distance;
-      nearestPoint = point;
-    }
-  }
-
-  return nearestPoint;
-}
-
-function getNearestTrackPoint(trackPointDetails, latlng) {
-  if (!latlng || trackPointDetails.length === 0) {
-    return trackPointDetails[0] || null;
-  }
-
-  let nearestPoint = trackPointDetails[0];
-  let nearestDistance = Number.POSITIVE_INFINITY;
-  for (const point of trackPointDetails) {
-    const deltaLat = point.lat - latlng.lat;
-    const deltaLon = point.lon - latlng.lng;
-    const distance = (deltaLat * deltaLat) + (deltaLon * deltaLon);
-    if (distance < nearestDistance) {
-      nearestDistance = distance;
-      nearestPoint = point;
-    }
-  }
-
-  return nearestPoint;
-}
-
 export function createWaypointPopupContent(sourceName, waypoint) {
   return createPopupContent(sourceName || "Waypoint", [
     ["Type", "Waypoint"],
@@ -149,13 +109,6 @@ export function createPhotoPopupContent(photo) {
   return content;
 }
 
-export function createTrackPopupContent(parsed, latlng = null) {
-  const trackPointDetails = parsed?.trackPointDetails || [];
-  const nearestPoint = getNearestTrackPoint(trackPointDetails, latlng)
-    || getNearestProfilePoint(parsed?.elevationProfile || [], latlng);
-  return createTrackPointPopupContent(parsed, nearestPoint);
-}
-
 export function createTrackPointPopupContent(parsed, point) {
   const rows = [
     ["Type", "trkpt"],
@@ -169,7 +122,7 @@ export function createTrackPointPopupContent(parsed, point) {
     rows.push(["Latitude", formatCoordinate(point.lat)]);
     rows.push(["Longitude", formatCoordinate(point.lon)]);
   } else {
-    rows.push(["Track points", String(parsed?.trackPoints?.length || 0)]);
+    rows.push(["Track points", String(countTrackPoints(parsed))]);
     rows.push(["Waypoints", String(parsed?.waypoints?.length || 0)]);
   }
 
