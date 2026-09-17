@@ -2,13 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const processInputItems = vi.hoisted(() => vi.fn());
 
-vi.mock("../src/plugins/input/file-import.js", async () => {
-  const actual = await vi.importActual("../src/plugins/input/file-import.js");
-  return {
-    ...actual,
-    processInputItems,
-  };
-});
+vi.mock("../src/core/input-processing.js", () => ({
+  processInputItems,
+}));
 
 import { installDropzonePlugin } from "../src/plugins/input/dropzone.js";
 
