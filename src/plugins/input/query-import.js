@@ -1,4 +1,4 @@
-import { importRemoteUrl } from "./url-import.js";
+import { importRemoteUrl } from "../../core/remote-url-import.js";
 import {
   DEFAULT_URL_IMPORT_MAX_BYTES,
   DEFAULT_URL_IMPORT_TIMEOUT_MS,

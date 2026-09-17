@@ -4,7 +4,7 @@ const queryImportMocks = vi.hoisted(() => ({
   importRemoteUrl: vi.fn(),
 }));
 
-vi.mock("../src/plugins/input/url-import.js", () => ({
+vi.mock("../src/core/remote-url-import.js", () => ({
   importRemoteUrl: queryImportMocks.importRemoteUrl,
 }));
 

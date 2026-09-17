@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { installFileImportPlugin, processInputItems } from "../src/plugins/input/file-import.js";
+import { processInputItems } from "../src/core/input-processing.js";
+import { installFileImportPlugin } from "../src/plugins/input/file-import.js";
 
 describe("processInputItems", () => {
   it("reports the last successful load summary and item callbacks", async () => {
