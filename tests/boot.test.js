@@ -551,6 +551,111 @@ describe("createTiliaCore", () => {
     expect(secondOverlay.layer.hasLayer(secondOverlay.interactions.waypoints[0].layer)).toBe(true);
   });
 
+  it("composes per-track visibility with entry and global GPX visibility", () => {
+    const firstOverlay = createGpxOverlay("gpx-layer-1", {
+      trackLayers: [
+        { layer: createLayer("first-track-0"), trackIndex: 0 },
+        { layer: createLayer("first-track-1"), trackIndex: 1 },
+      ],
+      waypoints: [{}],
+    });
+    const secondOverlay = createGpxOverlay("gpx-layer-2", {
+      trackLayers: [{ layer: createLayer("second-track-0"), trackIndex: 0 }],
+      waypoints: [{}],
+    });
+    const emptyOverlay = createGpxOverlay("gpx-layer-empty", { trackLayers: [] });
+    bootMocks.buildGpxOverlay
+      .mockReturnValueOnce(firstOverlay)
+      .mockReturnValueOnce(secondOverlay)
+      .mockReturnValueOnce(emptyOverlay);
+    const core = createTiliaCore({ closePopup: bootMocks.closePopup });
+    const firstEntry = core.addGpxSource({
+      name: "first.gpx",
+      tracks: [
+        { segments: [{ points: [{ lat: 35, lon: 135 }, { lat: 35.1, lon: 135.1 }] }] },
+        { segments: [{ points: [{ lat: 36, lon: 136 }, { lat: 36.1, lon: 136.1 }] }] },
+      ],
+      waypoints: [{ lat: 35, lon: 135, name: "First" }],
+    }, { fitToView: false });
+    const secondEntry = core.addGpxSource({
+      name: "second.gpx",
+      tracks: [{ segments: [{ points: [{ lat: 37, lon: 137 }, { lat: 37.1, lon: 137.1 }] }] }],
+      waypoints: [{ lat: 37, lon: 137, name: "Second" }],
+    }, { fitToView: false });
+    const emptyEntry = core.addGpxSource({
+      name: "empty.gpx",
+      tracks: [],
+    }, { fitToView: false });
+
+    expect(core.getGpxTrackVisibility(firstEntry.id, 0)).toBe(true);
+    expect(core.setGpxTrackVisibility(firstEntry.id, 1, false)).toBe(false);
+    expect(firstOverlay.layer.hasLayer(firstOverlay.interactions.trackLayers[0].layer)).toBe(true);
+    expect(firstOverlay.layer.hasLayer(firstOverlay.interactions.trackLayers[1].layer)).toBe(false);
+    expect(firstOverlay.layer.hasLayer(firstOverlay.interactions.waypoints[0].layer)).toBe(true);
+    expect(secondOverlay.layer.hasLayer(secondOverlay.interactions.trackLayers[0].layer)).toBe(true);
+
+    expect(core.setGpxTrackVisibility(firstEntry.id, 1, true)).toBe(true);
+    expect(firstOverlay.layer.hasLayer(firstOverlay.interactions.trackLayers[1].layer)).toBe(true);
+
+    core.setGpxTracksVisibility(false);
+    expect(core.setGpxTrackVisibility(firstEntry.id, 1, true)).toBe(true);
+    expect(firstOverlay.layer.hasLayer(firstOverlay.interactions.trackLayers[1].layer)).toBe(false);
+    expect(firstOverlay.layer.hasLayer(firstOverlay.interactions.waypoints[0].layer)).toBe(true);
+
+    core.setGpxTracksVisibility(true);
+    core.setEntryVisibility(firstEntry.id, false);
+    expect(core.setGpxTrackVisibility(firstEntry.id, 1, true)).toBe(true);
+    expect(firstOverlay.layer.hasLayer(firstOverlay.interactions.trackLayers[1].layer)).toBe(false);
+
+    core.setEntryVisibility(firstEntry.id, true);
+    core.setGpxTrackVisibility(firstEntry.id, 0, false);
+    expect(firstOverlay.layer.hasLayer(firstOverlay.interactions.trackLayers[0].layer)).toBe(false);
+    expect(firstOverlay.layer.hasLayer(firstOverlay.interactions.trackLayers[1].layer)).toBe(true);
+    expect(secondOverlay.layer.hasLayer(secondOverlay.interactions.trackLayers[0].layer)).toBe(true);
+
+    expect(core.getGpxTrackVisibility(999, 0)).toBeNull();
+    expect(core.setGpxTrackVisibility(firstEntry.id, 2, false)).toBeNull();
+    expect(core.setGpxTrackVisibility(secondEntry.id, -1, false)).toBeNull();
+    expect(core.getGpxTrackVisibility(emptyEntry.id, 0)).toBeNull();
+    expect(core.setGpxTrackVisibility(emptyEntry.id, 0, false)).toBeNull();
+  });
+
+  it("drops obsolete per-track visibility overrides when a GPX source is replaced or removed", () => {
+    const firstOverlay = createGpxOverlay("gpx-layer-1", {
+      trackLayers: [
+        { layer: createLayer("first-track-0"), trackIndex: 0 },
+        { layer: createLayer("first-track-1"), trackIndex: 1 },
+      ],
+    });
+    const replacementOverlay = createGpxOverlay("gpx-layer-2", {
+      trackLayers: [{ layer: createLayer("replacement-track-0"), trackIndex: 0 }],
+    });
+    bootMocks.buildGpxOverlay
+      .mockReturnValueOnce(firstOverlay)
+      .mockReturnValueOnce(replacementOverlay);
+    const core = createTiliaCore({ closePopup: bootMocks.closePopup });
+    const entry = core.addGpxSource({
+      name: "replace.gpx",
+      tracks: [
+        { segments: [{ points: [{ lat: 35, lon: 135 }, { lat: 35.1, lon: 135.1 }] }] },
+        { segments: [{ points: [{ lat: 36, lon: 136 }, { lat: 36.1, lon: 136.1 }] }] },
+      ],
+    }, { fitToView: false });
+
+    core.setGpxTrackVisibility(entry.id, 1, false);
+    core.updateGpxSource(entry.id, {
+      name: "replace.gpx",
+      tracks: [{ segments: [{ points: [{ lat: 35, lon: 135 }, { lat: 35.2, lon: 135.2 }] }] }],
+    }, { fitToView: false });
+
+    expect(core.getGpxTrackVisibility(entry.id, 0)).toBe(true);
+    expect(core.getGpxTrackVisibility(entry.id, 1)).toBeNull();
+    expect(entry.presentation.trackVisibility).toBeUndefined();
+
+    core.removeEntry(entry.id);
+    expect(core.getGpxTrackVisibility(entry.id, 0)).toBeNull();
+  });
+
   it("adds and updates normalized GPX sources without going through file dispatch", () => {
     const firstOverlay = {
       layer: createLayer("gpx-layer-1"),
