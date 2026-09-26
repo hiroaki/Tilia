@@ -1,6 +1,6 @@
 import { createButton, createPanel, createSelect, installMapControl } from "../../src/map/controls.js";
 import { createDraftDocument, findDraftPoint, toGpxSource } from "./draft.js";
-import { createActiveTrackLayers } from "./editing-layers.js";
+import { createDraftTrackLayers } from "./editing-layers.js";
 import { createPointForm, isFormTarget } from "./form.js";
 import { applyOperation, createHistory, createPointPatchOperation } from "./history.js";
 
@@ -61,66 +61,74 @@ export const trackEditorV2Plugin = {
       panel.rerenderPanel("track-editor-v2");
     }
 
-    function deactivateTrack() {
-      if (!session?.active) {
+    function endLocalEditing() {
+      const localEditing = session?.localEditing;
+      if (!localEditing) {
         return;
       }
-      session.active.layers.destroy();
-      core.setGpxTrackVisibility(session.originalEntryId, session.active.originalTrackIndex, session.active.previousVisibility);
-      session.active = null;
-      session.selected = null;
+      session.localEditing = null;
+      localEditing.layer.endEditing();
     }
 
-    function syncActiveTrack() {
-      if (session?.active) {
-        session.active.layers.sync(session.selected?.pointId || null);
+    // Vendored editor markers have no Leaflet click listener. In Leaflet v2,
+    // their click can therefore fall through to map click handling despite
+    // bubblingPointerEvents: false. Exclude their DOM targets from background
+    // clicks until upstream makes marker click targeting self-contained.
+    function isEditorMarkerClick(event) {
+      const target = event?.originalEvent?.target;
+      return typeof Element !== "undefined"
+        && target instanceof Element
+        && target.closest(".leaflet-partially-editable-polyline-point, .leaflet-partially-editable-polyline-new-point");
+    }
+
+    function startLocalEditing({ trackId, segmentId, layer, latlng }) {
+      if (!session) {
+        return;
+      }
+      if (session.localEditing?.layer !== layer) {
+        endLocalEditing();
+      }
+      layer.startEditing(latlng);
+      session.localEditing = { trackId, segmentId, layer };
+    }
+
+    function syncTrackLayers(trackId, pointId = null) {
+      const controller = session?.layersByTrackId.get(trackId);
+      if (!controller) {
+        return;
+      }
+      const restoreLocalEditing = session.localEditing?.trackId === trackId;
+      if (restoreLocalEditing) {
+        endLocalEditing();
+      }
+      const synced = controller.sync(pointId);
+      if (restoreLocalEditing && synced && pointId) {
+        session.localEditing = controller.startEditingPoint(pointId);
       }
     }
 
-    function activateTrack(entry, trackIndex) {
-      if (!session || entry.id !== session.originalEntryId) {
-        return;
-      }
-      // The normal visible Leaflet layer is the only activation route. This
-      // own-preference check also avoids bypassing a track hidden by the user.
-      if (core.getGpxTrackVisibility(entry.id, trackIndex) !== true) {
-        return;
-      }
-      const draftTrack = session.draft.tracks.find((track) => track.originalTrackIndex === trackIndex);
-      if (!draftTrack) {
-        return;
-      }
-      if (session.active?.trackId === draftTrack.id) {
-        return;
-      }
-
-      deactivateTrack();
-      const previousVisibility = core.getGpxTrackVisibility(entry.id, trackIndex);
-      if (previousVisibility !== true || core.setGpxTrackVisibility(entry.id, trackIndex, false) !== false) {
-        return;
-      }
-      map.closePopup?.();
-      session.active = {
+    function createTrackLayers(draftTrack) {
+      const controller = createDraftTrackLayers({
+        map,
+        draft: session.draft,
         trackId: draftTrack.id,
-        originalTrackIndex: trackIndex,
-        previousVisibility,
-        layers: createActiveTrackLayers({
-          map,
-          draft: session.draft,
-          trackId: draftTrack.id,
-          options: { editablePointRadius },
-          onOperation(operation) {
-            session.history.record(operation);
-            renderPanel();
-          },
-          onPointSelect(selection) {
-            session.selected = selection;
-            renderPanel();
-          },
-        }),
-      };
-      setStatus(`editing ${entry.source.name} track ${trackIndex + 1}`);
-      renderPanel();
+        options: { editablePointRadius },
+        onOperation(operation) {
+          session.history.record(operation);
+          renderPanel();
+        },
+        onPointSelect(selection) {
+          session.selected = selection;
+          renderPanel();
+        },
+        onLocalEditingRequest: startLocalEditing,
+        onLocalEditingEnd({ layer }) {
+          if (session?.localEditing?.layer === layer) {
+            session.localEditing = null;
+          }
+        },
+      });
+      session.layersByTrackId.set(draftTrack.id, controller);
     }
 
     function startEditing() {
@@ -136,10 +144,25 @@ export const trackEditorV2Plugin = {
         originalEntryId: entry.id,
         draft: createDraftDocument(entry.source),
         history: createHistory(),
-        active: null,
         selected: null,
+        layersByTrackId: new Map(),
+        hiddenTracks: [],
+        localEditing: null,
       };
-      setStatus("session started; click a visible track to edit it");
+      for (const draftTrack of session.draft.tracks) {
+        const trackIndex = draftTrack.originalTrackIndex;
+        if (core.getEffectiveGpxTrackVisibility(entry.id, trackIndex) !== true) {
+          continue;
+        }
+        const previousVisibility = core.getGpxTrackVisibility(entry.id, trackIndex);
+        if (core.setGpxTrackVisibility(entry.id, trackIndex, false) !== false) {
+          continue;
+        }
+        session.hiddenTracks.push({ trackIndex, previousVisibility });
+        createTrackLayers(draftTrack);
+      }
+      map.closePopup?.();
+      setStatus("session started; click a draft track segment to edit it");
       renderPanel();
     }
 
@@ -148,7 +171,13 @@ export const trackEditorV2Plugin = {
         return;
       }
       const finished = session;
-      deactivateTrack();
+      endLocalEditing();
+      for (const controller of finished.layersByTrackId.values()) {
+        controller.destroy();
+      }
+      for (const { trackIndex, previousVisibility } of finished.hiddenTracks) {
+        core.setGpxTrackVisibility(finished.originalEntryId, trackIndex, previousVisibility);
+      }
       session = null;
       if (save) {
         const originalEntry = getEntry(finished.originalEntryId);
@@ -183,7 +212,7 @@ export const trackEditorV2Plugin = {
       }
       applyOperation(session.draft, operation);
       session.history.record(operation);
-      syncActiveTrack();
+      syncTrackLayers(selection.trackId, selection.pointId);
       renderPanel();
     }
 
@@ -195,9 +224,10 @@ export const trackEditorV2Plugin = {
       if (!operation) {
         return;
       }
-      if (session.active?.trackId === operation.trackId) {
-        syncActiveTrack();
-      }
+      const selectedPointId = session.selected?.trackId === operation.trackId
+        ? session.selected.pointId
+        : null;
+      syncTrackLayers(operation.trackId, selectedPointId);
       renderPanel();
     }
 
@@ -210,8 +240,8 @@ export const trackEditorV2Plugin = {
       const intro = document.createElement("p");
       intro.className = "tilia-track-editor-v2-intro";
       intro.textContent = session
-        ? "Click a visible non-active track to switch editing targets."
-        : "Start a session, then click a visible track to edit its segments.";
+        ? "Click a draft track segment to edit its points."
+        : "Start a session to display editable draft track segments.";
       root.appendChild(intro);
 
       const source = createSelect(entries.map((entry) => ({
@@ -280,14 +310,12 @@ export const trackEditorV2Plugin = {
     });
 
     const unsubscribeInteractions = app.subscribeInteractions({
-      onTrackLayer({ entry, layer, trackIndex }) {
+      onTrackLayer({ entry, layer }) {
         const onClick = () => {
           if (!session) {
             selectedEntryId = entry.id;
             renderPanel();
-            return;
           }
-          activateTrack(entry, trackIndex);
         };
         layer.on("click", onClick);
         trackClickBindings.push({ layer, onClick });
@@ -300,7 +328,11 @@ export const trackEditorV2Plugin = {
       }
       renderPanel();
     });
-    const onMapClick = () => session?.active?.layers.endEditing();
+    const onMapClick = (event) => {
+      if (!isEditorMarkerClick(event)) {
+        endLocalEditing();
+      }
+    };
     map.on("click", onMapClick);
     const onKeyDown = (event) => {
       if (!session || isFormTarget(event.target) || !(event.ctrlKey || event.metaKey)) {

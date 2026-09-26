@@ -3,6 +3,7 @@ import { PartiallyEditablePolyline } from "./vendor/leaflet-partially-editable-p
 import {
   createInsertedDraftPoint,
   findDraftPoint,
+  findDraftSegment,
   findDraftTrack,
   toDraftCoordinates,
 } from "./draft.js";
@@ -17,12 +18,14 @@ function getPointAt(segment, index) {
   return segment?.points[index] || null;
 }
 
-export function createActiveTrackLayers({
+export function createDraftTrackLayers({
   map,
   draft,
   trackId,
   onOperation,
   onPointSelect,
+  onLocalEditingRequest,
+  onLocalEditingEnd,
   options = {},
 }) {
   let layerRecords = [];
@@ -41,8 +44,8 @@ export function createActiveTrackLayers({
 
   function clear() {
     for (const record of layerRecords) {
-      record.layer.off();
       record.layer.endEditing();
+      record.layer.off();
       record.layer.remove();
     }
     layerRecords = [];
@@ -64,14 +67,20 @@ export function createActiveTrackLayers({
       const record = { segmentId: segment.id, layer };
       layerRecords.push(record);
 
-      layer.on("click", (event) => {
-        layer.startEditing(event.latlng);
-      });
+      layer.on("click", (event) => onLocalEditingRequest?.({
+        trackId,
+        segmentId: segment.id,
+        layer,
+        latlng: event.latlng,
+      }));
       layer.on("editingstart", ({ index }) => {
         const point = getPointAt(segment, index);
         if (point) {
           selectPoint(segment.id, point.id);
         }
+      });
+      layer.on("editingend", () => {
+        onLocalEditingEnd?.({ trackId, segmentId: segment.id, layer });
       });
       layer.on("pointchange", ({ index, latlng }) => {
         const point = getPointAt(segment, index);
@@ -107,6 +116,13 @@ export function createActiveTrackLayers({
         }
         applyOperation(draft, operation);
         onOperation?.(operation);
+        const remainingSegment = findDraftSegment(draft, trackId, segment.id);
+        if (remainingSegment?.points.length) {
+          const replacementIndex = Math.min(index, remainingSegment.points.length - 1);
+          selectPoint(segment.id, remainingSegment.points[replacementIndex].id);
+          return;
+        }
+        selectPoint(null, null);
         build();
       });
       layer.addTo(map);
@@ -116,18 +132,30 @@ export function createActiveTrackLayers({
   function sync(pointId = selectedPointId) {
     build();
     if (!pointId) {
-      return;
+      return null;
     }
     for (const record of layerRecords) {
       const segment = findDraftTrack(draft, trackId)?.segments.find((candidate) => candidate.id === record.segmentId);
       const index = segment?.points.findIndex((point) => point.id === pointId) ?? -1;
       if (index >= 0) {
-        const point = segment.points[index];
-        record.layer.startEditing(new LatLng(point.lat, point.lon));
-        return;
+        return { record, point: segment.points[index] };
       }
     }
     selectPoint(null, null);
+    return null;
+  }
+
+  function startEditingPoint(pointId) {
+    for (const record of layerRecords) {
+      const segment = findDraftTrack(draft, trackId)?.segments.find((candidate) => candidate.id === record.segmentId);
+      const point = segment?.points.find((candidate) => candidate.id === pointId);
+      if (!point) {
+        continue;
+      }
+      record.layer.startEditing(new LatLng(point.lat, point.lon));
+      return { trackId, segmentId: record.segmentId, layer: record.layer };
+    }
+    return null;
   }
 
   function destroy() {
@@ -142,5 +170,5 @@ export function createActiveTrackLayers({
   }
 
   build();
-  return { destroy, endEditing, sync, getSelectedPointId: () => selectedPointId };
+  return { destroy, endEditing, sync, startEditingPoint, getSelectedPointId: () => selectedPointId };
 }
