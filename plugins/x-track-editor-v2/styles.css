@@ -1,0 +1,52 @@
+.tilia-track-editor-v2-panel,
+.tilia-track-editor-v2-form {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.tilia-track-editor-v2-intro,
+.tilia-track-editor-v2-point-meta {
+  margin: 0;
+  color: #475569;
+  font-size: 0.82rem;
+}
+
+.tilia-track-editor-v2-select,
+.tilia-track-editor-v2-input {
+  width: 100%;
+}
+
+.tilia-track-editor-v2-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.tilia-track-editor-v2-actions-primary .tilia-track-editor-v2-action {
+  flex: 1 1 30%;
+}
+
+.tilia-track-editor-v2-actions-history {
+  margin-top: 0.35rem;
+}
+
+.tilia-track-editor-v2-actions-history .tilia-track-editor-v2-action {
+  flex: 1 1 0;
+}
+
+.tilia-track-editor-v2-action {
+  flex: 1 1 6.2rem;
+}
+
+.tilia-track-editor-v2-is-editing .tilia-track-editor-v2-start {
+  background: #dc2626;
+  border-color: #b91c1c;
+  color: #fff;
+  opacity: 1;
+}
+
+.tilia-track-editor-v2-label {
+  color: #0f172a;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
