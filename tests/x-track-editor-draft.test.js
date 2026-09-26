@@ -4,14 +4,14 @@ import {
   createInsertedDraftPoint,
   findDraftSegment,
   toGpxSource,
-} from "../plugins/x-track-editor-v2/draft.js";
+} from "../plugins/x-track-editor/draft.js";
 import {
   applyOperation,
   createDeleteOperation,
   createHistory,
   createInsertOperation,
   createPointPatchOperation,
-} from "../plugins/x-track-editor-v2/history.js";
+} from "../plugins/x-track-editor/history.js";
 
 function createSource() {
   return {
@@ -24,7 +24,7 @@ function createSource() {
   };
 }
 
-describe("x-track-editor-v2 draft and history", () => {
+describe("x-track-editor draft and history", () => {
   it("creates a detached draft for every track and emits track-only GPX output", () => {
     const source = createSource();
     const draft = createDraftDocument(source);

@@ -13,40 +13,40 @@ async function loadGpx(page, name, fixture = "/tests/fixtures/sample-track.gpx")
 
 async function startDraftEditing(page, name = "sample-track.gpx", fixture) {
   await loadGpx(page, name, fixture);
-  await page.getByRole("button", { name: "Track editor v2" }).click();
+  await page.getByRole("button", { name: "Track editor" }).click();
   await page.getByRole("button", { name: "Start Edit" }).click();
   await page.locator(".leaflet-overlay-pane path").click();
   await expect(page.locator(".leaflet-partially-editable-polyline-point")).not.toHaveCount(0);
 }
 
-test("editor sample loads the separate v2 track editor control", async ({ page }) => {
+test("editor sample loads the track editor control", async ({ page }) => {
   await page.goto("/samples/editor/localhost.html");
-  await expect(page.getByRole("button", { name: "Track editor v2" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Track editor" })).toBeVisible();
 });
 
-test("editor v2 displays draft segments immediately when editing starts", async ({ page }) => {
+test("editor displays draft segments immediately when editing starts", async ({ page }) => {
   await page.goto("/samples/editor/localhost.html");
   await loadGpx(page, "sample-track.gpx");
 
   await expect(page.locator(".leaflet-overlay-pane path")).toHaveCount(1);
-  await page.getByRole("button", { name: "Track editor v2" }).click();
+  await page.getByRole("button", { name: "Track editor" }).click();
   await page.getByRole("button", { name: "Start Edit" }).click();
-  await expect(page.locator(".tilia-track-editor-v2-panel")).toHaveClass(/tilia-track-editor-v2-is-editing/);
+  await expect(page.locator(".tilia-track-editor-panel")).toHaveClass(/tilia-track-editor-is-editing/);
   await page.locator(".leaflet-overlay-pane path").click();
   await expect(page.locator(".leaflet-partially-editable-polyline-point")).not.toHaveCount(0);
 
-  const form = page.locator(".tilia-track-editor-v2-form");
+  const form = page.locator(".tilia-track-editor-form");
   await form.locator("input").first().fill("35.700000");
   await form.locator("input").first().blur();
   await page.getByRole("button", { name: "Save Copy" }).click();
   await expect(page.locator(".leaflet-overlay-pane path")).toHaveCount(2);
-  await expect(page.locator(".tilia-track-editor-v2-panel")).not.toHaveClass(/tilia-track-editor-v2-is-editing/);
+  await expect(page.locator(".tilia-track-editor-panel")).not.toHaveClass(/tilia-track-editor-is-editing/);
 });
 
 test("editor can start again after cancel without retaining draft layers", async ({ page }) => {
   await page.goto("/samples/editor/localhost.html");
   await loadGpx(page, "sample-track.gpx");
-  await page.getByRole("button", { name: "Track editor v2" }).click();
+  await page.getByRole("button", { name: "Track editor" }).click();
 
   await page.getByRole("button", { name: "Start Edit" }).click();
   await page.getByRole("button", { name: "Cancel" }).click();
@@ -79,7 +79,7 @@ test("editor marker drag updates the form and retains local editing", async ({ p
   await page.goto("/samples/editor/localhost.html");
   await startDraftEditing(page);
 
-  const formLatitude = page.locator(".tilia-track-editor-v2-form input").first();
+  const formLatitude = page.locator(".tilia-track-editor-form input").first();
   const originalLatitude = await formLatitude.inputValue();
   const marker = page.locator(".leaflet-partially-editable-polyline-point").first();
   const box = await marker.boundingBox();
@@ -114,13 +114,13 @@ test("clicking a normal track selects its GPX source without starting a session"
   await loadGpx(page, "second.gpx");
   await expect(page.locator(".leaflet-overlay-pane path")).toHaveCount(2);
 
-  await page.getByRole("button", { name: "Track editor v2" }).click();
-  const sourceSelect = page.locator(".tilia-track-editor-v2-select");
+  await page.getByRole("button", { name: "Track editor" }).click();
+  const sourceSelect = page.locator(".tilia-track-editor-select");
   await expect(sourceSelect).toHaveValue("1");
   await page.locator(".leaflet-overlay-pane path").nth(1).click();
 
   await expect(sourceSelect).toHaveValue("2");
-  await expect(page.locator(".tilia-track-editor-v2-panel")).not.toHaveClass(/tilia-track-editor-v2-is-editing/);
+  await expect(page.locator(".tilia-track-editor-panel")).not.toHaveClass(/tilia-track-editor-is-editing/);
   await expect(page.locator(".leaflet-partially-editable-polyline-point")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Start Edit" })).toBeEnabled();
 });
@@ -130,7 +130,7 @@ test("displays multiple draft tracks and transfers local editing between segment
   await loadGpx(page, "multi.gpx", "/tests/fixtures/multi-track-elevation.gpx");
   await expect(page.locator(".leaflet-overlay-pane path")).toHaveCount(2);
 
-  await page.getByRole("button", { name: "Track editor v2" }).click();
+  await page.getByRole("button", { name: "Track editor" }).click();
   await page.getByRole("button", { name: "Start Edit" }).click();
   const paths = page.locator(".leaflet-overlay-pane path");
   await expect(paths).toHaveCount(3);

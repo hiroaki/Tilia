@@ -25,7 +25,7 @@ export function isFormTarget(target) {
 
 function appendField(root, label, input) {
   const labelNode = document.createElement("label");
-  labelNode.className = "tilia-track-editor-v2-label";
+  labelNode.className = "tilia-track-editor-label";
   labelNode.textContent = label;
   root.append(labelNode, input);
 }
@@ -34,14 +34,14 @@ function createNumberInput(value, step) {
   const input = document.createElement("input");
   input.type = "number";
   input.step = step;
-  input.className = "tilia-control-select tilia-track-editor-v2-input";
+  input.className = "tilia-control-select tilia-track-editor-input";
   input.value = value == null ? "" : String(value);
   return input;
 }
 
 export function createPointForm(selection, onPatch) {
   const root = document.createElement("div");
-  root.className = "tilia-track-editor-v2-form";
+  root.className = "tilia-track-editor-form";
   if (!selection?.point) {
     root.textContent = "Select an editable point to edit its values.";
     return root;
@@ -54,7 +54,7 @@ export function createPointForm(selection, onPatch) {
   const timestamp = document.createElement("input");
   timestamp.type = "datetime-local";
   timestamp.step = "1";
-  timestamp.className = "tilia-control-select tilia-track-editor-v2-input";
+  timestamp.className = "tilia-control-select tilia-track-editor-input";
   timestamp.value = formatTimestampForDateTimeLocal(point.timestamp);
 
   function apply() {
