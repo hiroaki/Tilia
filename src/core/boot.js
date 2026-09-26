@@ -62,15 +62,50 @@ function resolvePhotoSource(state, photo, options = {}) {
   };
 }
 
-function resolveTrackPresentation(state, existingPresentation = null) {
+function normalizeTrackVisibility(trackVisibility, trackCount) {
+  if (!trackVisibility || typeof trackVisibility !== "object") {
+    return null;
+  }
+
+  const normalized = {};
+  for (const [trackIndex, visible] of Object.entries(trackVisibility)) {
+    const index = Number(trackIndex);
+    if (Number.isInteger(index) && index >= 0 && index < trackCount && visible === false) {
+      normalized[index] = false;
+    }
+  }
+  return Object.keys(normalized).length > 0 ? normalized : null;
+}
+
+function resolveTrackPresentation(state, existingPresentation = null, trackCount = 0) {
+  const { trackVisibility: existingTrackVisibility, ...presentation } = existingPresentation || {};
   const trackStylePresetIndex = Number.isInteger(existingPresentation?.trackStylePresetIndex)
     ? existingPresentation.trackStylePresetIndex
     : claimNextTrackStylePresetIndex(state, TRACK_STYLE_PRESETS.length);
+  const trackVisibility = normalizeTrackVisibility(existingTrackVisibility, trackCount);
 
   return {
-    ...(existingPresentation || {}),
+    ...presentation,
     trackStylePresetIndex,
+    ...(trackVisibility ? { trackVisibility } : {}),
   };
+}
+
+function isValidGpxTrackIndex(entry, trackIndex) {
+  return entry?.kind === "gpx"
+    && Number.isInteger(trackIndex)
+    && trackIndex >= 0
+    && trackIndex < (entry.source?.tracks?.length || 0);
+}
+
+function getGpxTrackVisibility(entry, trackIndex) {
+  return entry.presentation?.trackVisibility?.[trackIndex] !== false;
+}
+
+function getEffectiveGpxTrackVisibility(state, entry, trackIndex) {
+  return entry.visible !== false
+    && state.gpxVisibility.tracks !== false
+    && getGpxTrackVisibility(entry, trackIndex);
 }
 
 function isLayerAttached(group, layer) {
@@ -100,13 +135,15 @@ function applyGpxEntryVisibility(state, entry) {
   }
 
   const entryVisible = entry.visible !== false;
-  const { tracks, waypoints } = state.gpxVisibility;
+  const { waypoints } = state.gpxVisibility;
   const group = entry.layer;
   const trackLayers = entry.interactions?.trackLayers || [];
   const waypointLayers = entry.interactions?.waypoints || [];
 
   for (const trackHandle of trackLayers) {
-    setLayerAttached(group, trackHandle?.layer, entryVisible && tracks !== false);
+    const trackVisible = isValidGpxTrackIndex(entry, trackHandle?.trackIndex)
+      && getEffectiveGpxTrackVisibility(state, entry, trackHandle.trackIndex);
+    setLayerAttached(group, trackHandle?.layer, trackVisible);
   }
   for (const waypoint of waypointLayers) {
     setLayerAttached(group, waypoint?.layer, entryVisible && waypoints !== false);
@@ -158,7 +195,7 @@ function bindPhotoMarkerInteraction(entry, selectionHub) {
 
 function addGpxEntry({ state, map, interactionHub, selectionHub }, source, options = {}) {
   const normalizedSource = normalizeGpxSource(source);
-  const presentation = resolveTrackPresentation(state, options.presentation);
+  const presentation = resolveTrackPresentation(state, options.presentation, normalizedSource.tracks.length);
   const overlay = buildGpxOverlay(normalizedSource, {
     trackStyle: getTrackStylePreset(presentation.trackStylePresetIndex),
   });
@@ -270,6 +307,42 @@ export function createTiliaCore(map, options = {}) {
       }
       return this.getGpxVisibility();
     },
+    getGpxTrackVisibility(entryId, trackIndex) {
+      const entry = state.entries.find((candidate) => candidate.id === entryId);
+      if (!isValidGpxTrackIndex(entry, trackIndex)) {
+        return null;
+      }
+      return getGpxTrackVisibility(entry, trackIndex);
+    },
+    getEffectiveGpxTrackVisibility(entryId, trackIndex) {
+      const entry = state.entries.find((candidate) => candidate.id === entryId);
+      if (!isValidGpxTrackIndex(entry, trackIndex)) {
+        return null;
+      }
+      return getEffectiveGpxTrackVisibility(state, entry, trackIndex);
+    },
+    setGpxTrackVisibility(entryId, trackIndex, visible) {
+      const entry = state.entries.find((candidate) => candidate.id === entryId);
+      if (!isValidGpxTrackIndex(entry, trackIndex)) {
+        return null;
+      }
+
+      const nextTrackVisibility = { ...(entry.presentation?.trackVisibility || {}) };
+      if (visible === false) {
+        nextTrackVisibility[trackIndex] = false;
+      } else {
+        delete nextTrackVisibility[trackIndex];
+      }
+      const nextPresentation = { ...entry.presentation };
+      if (Object.keys(nextTrackVisibility).length > 0) {
+        nextPresentation.trackVisibility = nextTrackVisibility;
+      } else {
+        delete nextPresentation.trackVisibility;
+      }
+      entry.presentation = nextPresentation;
+      applyGpxEntryVisibility(state, entry);
+      return getGpxTrackVisibility(entry, trackIndex);
+    },
     addGpxSource(source, options = {}) {
       return addGpxEntry({ state, map, interactionHub, selectionHub }, source, options);
     },
@@ -280,7 +353,7 @@ export function createTiliaCore(map, options = {}) {
       }
 
       const normalizedSource = normalizeGpxSource(nextSource);
-      const presentation = resolveTrackPresentation(state, entry.presentation);
+      const presentation = resolveTrackPresentation(state, entry.presentation, normalizedSource.tracks.length);
       const nextOverlay = buildGpxOverlay(normalizedSource, {
         trackStyle: getTrackStylePreset(presentation.trackStylePresetIndex),
       });
@@ -294,6 +367,9 @@ export function createTiliaCore(map, options = {}) {
         interactions: nextOverlay.interactions,
         presentation,
       });
+      if (!presentation.trackVisibility) {
+        delete entry.presentation.trackVisibility;
+      }
       applyGpxEntryVisibility(state, entry);
       bindGpxTrackPointInteractions(entry, selectionHub);
       bindGpxWaypointInteractions(entry, selectionHub);
