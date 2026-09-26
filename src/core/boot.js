@@ -102,6 +102,12 @@ function getGpxTrackVisibility(entry, trackIndex) {
   return entry.presentation?.trackVisibility?.[trackIndex] !== false;
 }
 
+function getEffectiveGpxTrackVisibility(state, entry, trackIndex) {
+  return entry.visible !== false
+    && state.gpxVisibility.tracks !== false
+    && getGpxTrackVisibility(entry, trackIndex);
+}
+
 function isLayerAttached(group, layer) {
   if (!group || !layer || typeof group.hasLayer !== "function") {
     return false;
@@ -129,15 +135,15 @@ function applyGpxEntryVisibility(state, entry) {
   }
 
   const entryVisible = entry.visible !== false;
-  const { tracks, waypoints } = state.gpxVisibility;
+  const { waypoints } = state.gpxVisibility;
   const group = entry.layer;
   const trackLayers = entry.interactions?.trackLayers || [];
   const waypointLayers = entry.interactions?.waypoints || [];
 
   for (const trackHandle of trackLayers) {
     const trackVisible = isValidGpxTrackIndex(entry, trackHandle?.trackIndex)
-      && getGpxTrackVisibility(entry, trackHandle.trackIndex);
-    setLayerAttached(group, trackHandle?.layer, entryVisible && tracks !== false && trackVisible);
+      && getEffectiveGpxTrackVisibility(state, entry, trackHandle.trackIndex);
+    setLayerAttached(group, trackHandle?.layer, trackVisible);
   }
   for (const waypoint of waypointLayers) {
     setLayerAttached(group, waypoint?.layer, entryVisible && waypoints !== false);
@@ -307,6 +313,13 @@ export function createTiliaCore(map, options = {}) {
         return null;
       }
       return getGpxTrackVisibility(entry, trackIndex);
+    },
+    getEffectiveGpxTrackVisibility(entryId, trackIndex) {
+      const entry = state.entries.find((candidate) => candidate.id === entryId);
+      if (!isValidGpxTrackIndex(entry, trackIndex)) {
+        return null;
+      }
+      return getEffectiveGpxTrackVisibility(state, entry, trackIndex);
     },
     setGpxTrackVisibility(entryId, trackIndex, visible) {
       const entry = state.entries.find((candidate) => candidate.id === entryId);

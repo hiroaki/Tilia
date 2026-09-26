@@ -588,7 +588,9 @@ describe("createTiliaCore", () => {
     }, { fitToView: false });
 
     expect(core.getGpxTrackVisibility(firstEntry.id, 0)).toBe(true);
+    expect(core.getEffectiveGpxTrackVisibility(firstEntry.id, 0)).toBe(true);
     expect(core.setGpxTrackVisibility(firstEntry.id, 1, false)).toBe(false);
+    expect(core.getEffectiveGpxTrackVisibility(firstEntry.id, 1)).toBe(false);
     expect(firstOverlay.layer.hasLayer(firstOverlay.interactions.trackLayers[0].layer)).toBe(true);
     expect(firstOverlay.layer.hasLayer(firstOverlay.interactions.trackLayers[1].layer)).toBe(false);
     expect(firstOverlay.layer.hasLayer(firstOverlay.interactions.waypoints[0].layer)).toBe(true);
@@ -598,12 +600,15 @@ describe("createTiliaCore", () => {
     expect(firstOverlay.layer.hasLayer(firstOverlay.interactions.trackLayers[1].layer)).toBe(true);
 
     core.setGpxTracksVisibility(false);
+    expect(core.getGpxTrackVisibility(firstEntry.id, 0)).toBe(true);
+    expect(core.getEffectiveGpxTrackVisibility(firstEntry.id, 0)).toBe(false);
     expect(core.setGpxTrackVisibility(firstEntry.id, 1, true)).toBe(true);
     expect(firstOverlay.layer.hasLayer(firstOverlay.interactions.trackLayers[1].layer)).toBe(false);
     expect(firstOverlay.layer.hasLayer(firstOverlay.interactions.waypoints[0].layer)).toBe(true);
 
     core.setGpxTracksVisibility(true);
     core.setEntryVisibility(firstEntry.id, false);
+    expect(core.getEffectiveGpxTrackVisibility(firstEntry.id, 0)).toBe(false);
     expect(core.setGpxTrackVisibility(firstEntry.id, 1, true)).toBe(true);
     expect(firstOverlay.layer.hasLayer(firstOverlay.interactions.trackLayers[1].layer)).toBe(false);
 
@@ -614,6 +619,8 @@ describe("createTiliaCore", () => {
     expect(secondOverlay.layer.hasLayer(secondOverlay.interactions.trackLayers[0].layer)).toBe(true);
 
     expect(core.getGpxTrackVisibility(999, 0)).toBeNull();
+    expect(core.getEffectiveGpxTrackVisibility(999, 0)).toBeNull();
+    expect(core.getEffectiveGpxTrackVisibility(firstEntry.id, 2)).toBeNull();
     expect(core.setGpxTrackVisibility(firstEntry.id, 2, false)).toBeNull();
     expect(core.setGpxTrackVisibility(secondEntry.id, -1, false)).toBeNull();
     expect(core.getGpxTrackVisibility(emptyEntry.id, 0)).toBeNull();
