@@ -1,4 +1,4 @@
-import { processInputItems } from "./file-import.js";
+import { processInputItems } from "../../core/input-processing.js";
 
 export function installDropzonePlugin({ dropTarget, registry, context, onStatus, onError, onItemLoaded }) {
   if (!dropTarget) {

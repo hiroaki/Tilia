@@ -1,0 +1,18 @@
+.leaflet-partially-editable-polyline-point {
+  width: 10px;
+  height: 10px;
+  background: #fff;
+  border: 2px solid #3388ff;
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+
+.leaflet-partially-editable-polyline-new-point {
+  width: 8px;
+  height: 8px;
+  background: #3388ff;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  box-sizing: border-box;
+  opacity: 0.5;
+}

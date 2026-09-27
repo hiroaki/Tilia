@@ -1,56 +1,18 @@
-import { DivIcon, Marker } from "leaflet";
 import { createButton, createPanel, createSelect, installMapControl } from "../../src/map/controls.js";
-import { cloneGpxSource, updateTrackPoint } from "../../src/gpx/source.js";
-import { getTrackPointEntries } from "../../src/gpx/interpretation.js";
-import {
-  createEditorSourceName,
-  formatTimestampForDateTimeLocal,
-  parseDateTimeLocalToTimestamp,
-} from "./helpers.js";
+import { createDraftDocument, findDraftPoint, toGpxSource } from "./draft.js";
+import { createDraftTrackLayers } from "./editing-layers.js";
+import { createPointForm, isFormTarget } from "./form.js";
+import { applyOperation, createHistory, createPointPatchOperation } from "./history.js";
 
-function getTrackEntries(core) {
+function getGpxEntries(core) {
   return core.state.entries.filter((entry) => entry.kind === "gpx");
 }
 
-function getEntryById(core, entryId) {
-  return core.state.entries.find((entry) => entry.id === entryId) || null;
-}
-
-function getNearestTrackPointIndex(source, latlng) {
-  const details = getTrackPointEntries(source);
-  if (!latlng || details.length === 0) {
-    return -1;
-  }
-
-  let nearestIndex = 0;
-  let nearestDistance = Number.POSITIVE_INFINITY;
-  for (let index = 0; index < details.length; index += 1) {
-    const point = details[index].point;
-    const deltaLat = point.lat - latlng.lat;
-    const deltaLon = point.lon - latlng.lng;
-    const distance = (deltaLat * deltaLat) + (deltaLon * deltaLon);
-    if (distance < nearestDistance) {
-      nearestDistance = distance;
-      nearestIndex = index;
-    }
-  }
-
-  return nearestIndex;
-}
-
-function valuesEqual(left, right) {
-  return Object.is(left, right);
-}
-
-function isFormTarget(target) {
-  if (!(target instanceof HTMLElement)) {
-    return false;
-  }
-  const tagName = target.tagName;
-  if (tagName === "INPUT" || tagName === "TEXTAREA" || tagName === "SELECT") {
-    return true;
-  }
-  return target.isContentEditable === true;
+function createEditedSourceName(name = "track.gpx") {
+  const suffix = " (edited)";
+  return name.toLowerCase().endsWith(".gpx")
+    ? `${name.slice(0, -4)}${suffix}.gpx`
+    : `${name}${suffix}`;
 }
 
 export const trackEditorPlugin = {
@@ -58,6 +20,7 @@ export const trackEditorPlugin = {
   requires: ["tilia-panel", "tilia-status"],
   stylesheets: [
     new URL("./styles.css", import.meta.url).href,
+    new URL("./vendor/leaflet-partially-editable-polyline.css", import.meta.url).href,
   ],
   setup(app, options = {}) {
     const core = app.core;
@@ -65,342 +28,264 @@ export const trackEditorPlugin = {
     const panel = app.services["tilia-panel"];
     const position = options.position || "topleft";
     const priority = options.priority || "normal";
-
-    let activeSession = null;
+    const editablePointRadius = options.editablePointRadius ?? 100;
     let selectedEntryId = null;
-    let dragHandle = null;
-    let dragActive = false;
+    let session = null;
+    const trackClickBindings = [];
 
-    function setStatus(text) {
-      app.setStatus?.(text);
+    function setStatus(message) {
+      app.setStatus?.(`Track editor: ${message}`);
     }
 
-    function getDraftEntry() {
-      if (!activeSession) {
+    function getEntry(entryId) {
+      return core.state.entries.find((entry) => entry.id === entryId) || null;
+    }
+
+    function getSelectedEntry() {
+      const entries = getGpxEntries(core);
+      if (!entries.some((entry) => entry.id === selectedEntryId)) {
+        selectedEntryId = entries[0]?.id || null;
+      }
+      return getEntry(selectedEntryId);
+    }
+
+    function getSelection() {
+      if (!session?.selected) {
         return null;
       }
-      return getEntryById(core, activeSession.draftEntryId);
+      const point = findDraftPoint(session.draft, session.selected.trackId, session.selected.segmentId, session.selected.pointId);
+      return point ? { ...session.selected, point } : null;
     }
 
-    function clearDragHandle() {
-      if (!dragHandle) {
-        return;
-      }
-      dragHandle.remove();
-      dragHandle = null;
-      dragActive = false;
+    function renderPanel() {
+      panel.rerenderPanel("track-editor");
     }
 
-    function syncDragHandle() {
-      const draftEntry = getDraftEntry();
-      if (!activeSession || !draftEntry) {
-        clearDragHandle();
+    function endLocalEditing() {
+      const localEditing = session?.localEditing;
+      if (!localEditing) {
         return;
       }
+      session.localEditing = null;
+      localEditing.layer.endEditing();
+    }
 
-      const point = getTrackPointEntries(draftEntry.source)[activeSession.selectedPointIndex]?.point || null;
-      if (!point) {
-        clearDragHandle();
+    // Vendored editor markers have no Leaflet click listener. In Leaflet v2,
+    // their click can therefore fall through to map click handling despite
+    // bubblingPointerEvents: false. Exclude their DOM targets from background
+    // clicks until upstream makes marker click targeting self-contained.
+    function isEditorMarkerClick(event) {
+      const target = event?.originalEvent?.target;
+      return typeof Element !== "undefined"
+        && target instanceof Element
+        && target.closest(".leaflet-partially-editable-polyline-point, .leaflet-partially-editable-polyline-new-point");
+    }
+
+    function startLocalEditing({ trackId, segmentId, layer, latlng }) {
+      if (!session) {
         return;
       }
+      if (session.localEditing?.layer !== layer) {
+        endLocalEditing();
+      }
+      layer.startEditing(latlng);
+      session.localEditing = { trackId, segmentId, layer };
+    }
 
-      const latlng = [point.lat, point.lon];
-      if (dragHandle && dragActive) {
+    function syncTrackLayers(trackId, pointId = null) {
+      const controller = session?.layersByTrackId.get(trackId);
+      if (!controller) {
         return;
       }
+      const restoreLocalEditing = session.localEditing?.trackId === trackId;
+      if (restoreLocalEditing) {
+        endLocalEditing();
+      }
+      const synced = controller.sync(pointId);
+      if (restoreLocalEditing && synced && pointId) {
+        session.localEditing = controller.startEditingPoint(pointId);
+      }
+    }
 
-      if (!dragHandle) {
-        dragHandle = new Marker(latlng, {
-          draggable: true,
-          keyboard: false,
-          zIndexOffset: 1500,
-          icon: new DivIcon({
-            className: "tilia-track-editor-handle",
-            html: "",
-          }),
-        });
-
-        dragHandle.on("click", (event) => {
-          event.originalEvent?.preventDefault?.();
-          event.originalEvent?.stopPropagation?.();
-          map.closePopup();
-        });
-
-        dragHandle.on("dragstart", () => {
-          dragActive = true;
-          map.closePopup();
-        });
-
-        dragHandle.on("drag", () => {
-          map.closePopup();
-        });
-
-        dragHandle.on("dragend", () => {
-          if (!activeSession) {
-            dragActive = false;
-            return;
+    function createTrackLayers(draftTrack) {
+      const controller = createDraftTrackLayers({
+        map,
+        draft: session.draft,
+        trackId: draftTrack.id,
+        options: { editablePointRadius },
+        onOperation(operation) {
+          session.history.record(operation);
+          renderPanel();
+        },
+        onPointSelect(selection) {
+          session.selected = selection;
+          renderPanel();
+        },
+        onLocalEditingRequest: startLocalEditing,
+        onLocalEditingEnd({ layer }) {
+          if (session?.localEditing?.layer === layer) {
+            session.localEditing = null;
           }
-
-          const moved = dragHandle.getLatLng();
-          updateDraftPoint(getTrackPointEntries(draftEntry.source)[activeSession.selectedPointIndex]?.locator, {
-            lat: moved.lat,
-            lon: moved.lng,
-          });
-          dragActive = false;
-          setStatus("Track editor: moved selected point");
-          panel.rerenderPanel("track-editor");
-        });
-
-        dragHandle.addTo(map);
-      }
-
-      dragHandle.setLatLng(latlng);
-    }
-
-    function ensureSelectedEntryId() {
-      const tracks = getTrackEntries(core).filter((entry) => entry.id !== activeSession?.draftEntryId);
-      if (tracks.length === 0) {
-        selectedEntryId = null;
-        return null;
-      }
-      if (tracks.some((entry) => entry.id === selectedEntryId)) {
-        return selectedEntryId;
-      }
-      selectedEntryId = tracks[0].id;
-      return selectedEntryId;
-    }
-
-    function updateDraftPoint(locator, patch) {
-      const draftEntry = getDraftEntry();
-      if (!draftEntry) {
-        return;
-      }
-      const nextSource = updateTrackPoint(draftEntry.source, locator, patch);
-      core.updateGpxSource(draftEntry.id, nextSource, { fitToView: false });
-      syncDragHandle();
-      app.refreshView();
-    }
-
-    function stopEditing({ keepDraft }) {
-      if (!activeSession) {
-        return;
-      }
-
-      const originalEntry = getEntryById(core, activeSession.originalEntryId);
-      if (originalEntry) {
-        core.setEntryVisibility(originalEntry.id, true);
-      }
-
-      if (!keepDraft) {
-        core.removeEntry(activeSession.draftEntryId);
-      }
-
-      clearDragHandle();
-      activeSession = null;
-      app.refreshView();
-      panel.rerenderPanel("track-editor");
-    }
-
-    function startEditing(entryId) {
-      const originalEntry = getEntryById(core, entryId);
-      if (!originalEntry || originalEntry.kind !== "gpx") {
-        setStatus("Track editor: select a GPX track first");
-        return;
-      }
-      if (activeSession) {
-        stopEditing({ keepDraft: false });
-      }
-
-      const draftSource = cloneGpxSource(originalEntry.source);
-      draftSource.name = createEditorSourceName(originalEntry.source?.name || `Layer ${originalEntry.id}`);
-      const draftEntry = core.addGpxSource(draftSource, {
-        fitToView: false,
-        visible: true,
+        },
       });
-      core.setEntryVisibility(originalEntry.id, false);
-
-      activeSession = {
-        originalEntryId: originalEntry.id,
-        draftEntryId: draftEntry.id,
-        selectedPointIndex: 0,
-      };
-      selectedEntryId = originalEntry.id;
-      syncDragHandle();
-
-      setStatus(`Track editor: editing ${draftSource.name}`);
-      app.refreshView();
-      panel.rerenderPanel("track-editor");
+      session.layersByTrackId.set(draftTrack.id, controller);
     }
 
-    function buildEditorContent() {
+    function startEditing() {
+      const entry = getSelectedEntry();
+      if (!entry) {
+        setStatus("select a GPX layer first");
+        return;
+      }
+      if (session) {
+        return;
+      }
+      session = {
+        originalEntryId: entry.id,
+        draft: createDraftDocument(entry.source),
+        history: createHistory(),
+        selected: null,
+        layersByTrackId: new Map(),
+        hiddenTracks: [],
+        localEditing: null,
+      };
+      for (const draftTrack of session.draft.tracks) {
+        const trackIndex = draftTrack.originalTrackIndex;
+        if (core.getEffectiveGpxTrackVisibility(entry.id, trackIndex) !== true) {
+          continue;
+        }
+        const previousVisibility = core.getGpxTrackVisibility(entry.id, trackIndex);
+        if (core.setGpxTrackVisibility(entry.id, trackIndex, false) !== false) {
+          continue;
+        }
+        session.hiddenTracks.push({ trackIndex, previousVisibility });
+        createTrackLayers(draftTrack);
+      }
+      map.closePopup?.();
+      setStatus("session started; click a draft track segment to edit it");
+      renderPanel();
+    }
+
+    function finishSession({ save }) {
+      if (!session) {
+        return;
+      }
+      const finished = session;
+      endLocalEditing();
+      for (const controller of finished.layersByTrackId.values()) {
+        controller.destroy();
+      }
+      for (const { trackIndex, previousVisibility } of finished.hiddenTracks) {
+        core.setGpxTrackVisibility(finished.originalEntryId, trackIndex, previousVisibility);
+      }
+      session = null;
+      if (save) {
+        const originalEntry = getEntry(finished.originalEntryId);
+        if (!originalEntry) {
+          setStatus("discarded draft because its original layer was removed");
+          renderPanel();
+          return;
+        }
+        const sourceName = createEditedSourceName(originalEntry?.source?.name || finished.draft.name);
+        core.addGpxSource(toGpxSource(finished.draft, sourceName), { fitToView: false, visible: true });
+        app.refreshView();
+        setStatus("saved edited copy as a new layer");
+      } else {
+        setStatus("discarded draft");
+      }
+      renderPanel();
+    }
+
+    function applyFormPatch(patch) {
+      const selection = getSelection();
+      if (!session || !selection) {
+        return;
+      }
+      const operation = createPointPatchOperation(session.draft, {
+        trackId: selection.trackId,
+        segmentId: selection.segmentId,
+        pointId: selection.pointId,
+        patch,
+      });
+      if (!operation) {
+        return;
+      }
+      applyOperation(session.draft, operation);
+      session.history.record(operation);
+      syncTrackLayers(selection.trackId, selection.pointId);
+      renderPanel();
+    }
+
+    function applyHistory(direction) {
+      if (!session) {
+        return;
+      }
+      const operation = direction === "undo" ? session.history.undo(session.draft) : session.history.redo(session.draft);
+      if (!operation) {
+        return;
+      }
+      const selectedPointId = session.selected?.trackId === operation.trackId
+        ? session.selected.pointId
+        : null;
+      syncTrackLayers(operation.trackId, selectedPointId);
+      renderPanel();
+    }
+
+    function buildPanelContent() {
       const root = document.createElement("div");
       root.className = "tilia-track-editor-panel";
-      root.classList.toggle("tilia-track-editor-is-editing", activeSession != null);
-
+      root.classList.toggle("tilia-track-editor-is-editing", session != null);
+      const entries = getGpxEntries(core);
+      const selectedEntry = getSelectedEntry();
       const intro = document.createElement("p");
       intro.className = "tilia-track-editor-intro";
-      intro.textContent = "Create a working copy, edit track points, then save as a new layer.";
+      intro.textContent = session
+        ? "Click a draft track segment to edit its points."
+        : "Start a session to display editable draft track segments.";
       root.appendChild(intro);
 
-      const tracks = getTrackEntries(core).filter((entry) => entry.id !== activeSession?.draftEntryId);
-      const selectedId = ensureSelectedEntryId();
-
-      const sourceLabel = document.createElement("label");
-      sourceLabel.className = "tilia-track-editor-label";
-      sourceLabel.textContent = "Source track";
-      root.appendChild(sourceLabel);
-
-      const sourceSelect = createSelect(
-        tracks.map((entry) => ({
-          value: String(entry.id),
-          label: entry.source?.name || `Layer ${entry.id}`,
-          selected: entry.id === selectedId,
-        })),
-        "tilia-track-editor-select",
-      );
-      sourceSelect.disabled = activeSession != null;
-      sourceSelect.addEventListener("change", () => {
-        selectedEntryId = Number(sourceSelect.value);
+      const source = createSelect(entries.map((entry) => ({
+        value: String(entry.id),
+        label: entry.source?.name || `Layer ${entry.id}`,
+        selected: entry.id === selectedEntry?.id,
+      })), "tilia-track-editor-select");
+      source.disabled = session != null || entries.length === 0;
+      source.addEventListener("change", () => {
+        selectedEntryId = Number(source.value);
       });
-      root.appendChild(sourceSelect);
+      root.appendChild(source);
 
       const primaryActions = document.createElement("div");
       primaryActions.className = "tilia-track-editor-actions tilia-track-editor-actions-primary";
-
-      const startButton = createButton("Start Edit", "tilia-track-editor-action tilia-track-editor-start");
-      startButton.disabled = activeSession != null || selectedId == null;
-      startButton.addEventListener("click", () => {
-        startEditing(Number(sourceSelect.value));
-      });
-      primaryActions.appendChild(startButton);
-
+      const start = createButton("Start Edit", "tilia-track-editor-action tilia-track-editor-start");
+      start.disabled = session != null || !selectedEntry;
+      start.addEventListener("click", startEditing);
+      const save = createButton("Save Copy", "tilia-track-editor-action");
+      save.disabled = !session;
+      save.addEventListener("click", () => finishSession({ save: true }));
+      const cancel = createButton("Cancel", "tilia-track-editor-action");
+      cancel.disabled = !session;
+      cancel.addEventListener("click", () => finishSession({ save: false }));
+      primaryActions.append(start, save, cancel);
       root.appendChild(primaryActions);
 
-      const secondaryActions = document.createElement("div");
-      secondaryActions.className = "tilia-track-editor-actions tilia-track-editor-actions-secondary";
+      const historyActions = document.createElement("div");
+      historyActions.className = "tilia-track-editor-actions tilia-track-editor-actions-history";
+      const undo = createButton("Undo", "tilia-track-editor-action");
+      undo.disabled = !session?.history.canUndo();
+      undo.addEventListener("click", () => applyHistory("undo"));
+      const redo = createButton("Redo", "tilia-track-editor-action");
+      redo.disabled = !session?.history.canRedo();
+      redo.addEventListener("click", () => applyHistory("redo"));
+      historyActions.append(undo, redo);
+      root.appendChild(historyActions);
 
-      const saveButton = createButton("Save Copy", "tilia-track-editor-action");
-      saveButton.disabled = activeSession == null;
-      saveButton.addEventListener("click", () => {
-        if (!activeSession) {
-          return;
-        }
-        stopEditing({ keepDraft: true });
-        setStatus("Track editor: saved edited copy as a new layer");
-      });
-      secondaryActions.appendChild(saveButton);
-
-      const cancelButton = createButton("Cancel", "tilia-track-editor-action");
-      cancelButton.disabled = activeSession == null;
-      cancelButton.addEventListener("click", () => {
-        stopEditing({ keepDraft: false });
-        setStatus("Track editor: discarded working copy");
-      });
-      secondaryActions.appendChild(cancelButton);
-
-      root.appendChild(secondaryActions);
-
-      const draftEntry = getDraftEntry();
-      const details = getTrackPointEntries(draftEntry?.source);
-      const selectedPoint = details[activeSession?.selectedPointIndex || 0]?.point || null;
-
-      const pointMeta = document.createElement("div");
+      const selection = getSelection();
+      const pointMeta = document.createElement("p");
       pointMeta.className = "tilia-track-editor-point-meta";
-      pointMeta.textContent = selectedPoint
-        ? `Selected point #${(activeSession?.selectedPointIndex || 0) + 1} / ${details.length}`
-        : "No point selected";
+      pointMeta.textContent = selection ? "Selected track point" : "No editable point selected";
       root.appendChild(pointMeta);
-
-      const latInput = document.createElement("input");
-      latInput.type = "number";
-      latInput.step = "0.000001";
-      latInput.className = "tilia-control-select tilia-track-editor-input";
-      latInput.value = selectedPoint ? String(selectedPoint.lat) : "";
-      latInput.disabled = !selectedPoint;
-      latInput.readOnly = true;
-
-      const lonInput = document.createElement("input");
-      lonInput.type = "number";
-      lonInput.step = "0.000001";
-      lonInput.className = "tilia-control-select tilia-track-editor-input";
-      lonInput.value = selectedPoint ? String(selectedPoint.lon) : "";
-      lonInput.disabled = !selectedPoint;
-      lonInput.readOnly = true;
-
-      const eleInput = document.createElement("input");
-      eleInput.type = "number";
-      eleInput.step = "0.1";
-      eleInput.className = "tilia-control-select tilia-track-editor-input";
-      eleInput.value = selectedPoint?.elevation == null ? "" : String(selectedPoint.elevation);
-      eleInput.disabled = !selectedPoint;
-
-      const timeInput = document.createElement("input");
-      timeInput.type = "datetime-local";
-      timeInput.step = "1";
-      timeInput.className = "tilia-control-select tilia-track-editor-input";
-      timeInput.value = formatTimestampForDateTimeLocal(selectedPoint?.timestamp);
-      timeInput.disabled = !selectedPoint;
-
-      function applyScalarEdits() {
-        if (!activeSession || !selectedPoint) {
-          return;
-        }
-
-        const nextElevation = eleInput.value === "" ? null : Number(eleInput.value);
-        const nextTimestamp = parseDateTimeLocalToTimestamp(timeInput.value);
-        if (valuesEqual(nextElevation, selectedPoint.elevation) && valuesEqual(nextTimestamp, selectedPoint.timestamp)) {
-          return;
-        }
-
-        updateDraftPoint(details[activeSession.selectedPointIndex]?.locator, {
-          elevation: nextElevation,
-          timestamp: nextTimestamp,
-        });
-        setStatus("Track editor: updated selected point");
-        panel.rerenderPanel("track-editor");
-      }
-
-      eleInput.addEventListener("change", applyScalarEdits);
-      eleInput.addEventListener("blur", applyScalarEdits);
-      timeInput.addEventListener("change", applyScalarEdits);
-      timeInput.addEventListener("blur", applyScalarEdits);
-
-      const form = document.createElement("div");
-      form.className = "tilia-track-editor-form";
-
-      const latLabel = document.createElement("label");
-      latLabel.className = "tilia-track-editor-label";
-      latLabel.textContent = "Latitude";
-      form.appendChild(latLabel);
-      form.appendChild(latInput);
-
-      const lonLabel = document.createElement("label");
-      lonLabel.className = "tilia-track-editor-label";
-      lonLabel.textContent = "Longitude";
-      form.appendChild(lonLabel);
-      form.appendChild(lonInput);
-
-      const eleLabel = document.createElement("label");
-      eleLabel.className = "tilia-track-editor-label";
-      eleLabel.textContent = "Elevation (m)";
-      form.appendChild(eleLabel);
-      form.appendChild(eleInput);
-
-      const timeLabel = document.createElement("label");
-      timeLabel.className = "tilia-track-editor-label";
-      timeLabel.textContent = "Timestamp";
-      form.appendChild(timeLabel);
-      form.appendChild(timeInput);
-
-      root.appendChild(form);
-
-      const dragHint = document.createElement("p");
-      dragHint.className = "tilia-track-editor-hint";
-      dragHint.textContent = selectedPoint
-        ? "Drag the highlighted point handle on the map to move it. Use ArrowUp/ArrowDown to switch points."
-        : "Select a point to enable drag editing.";
-      root.appendChild(dragHint);
-
+      root.appendChild(createPointForm(selection, applyFormPatch));
       return root;
     }
 
@@ -414,13 +299,11 @@ export const trackEditorPlugin = {
         const button = createButton("T", "tilia-control-button-icon");
         button.title = "Track editor";
         button.setAttribute("aria-label", "Track editor");
-        button.addEventListener("click", () => {
-          panel.togglePanel({
-            panelId: "track-editor",
-            title: "Track Editor",
-            render: buildEditorContent,
-          });
-        });
+        button.addEventListener("click", () => panel.togglePanel({
+          panelId: "track-editor",
+          title: "Track Editor",
+          render: buildPanelContent,
+        }));
         wrap.appendChild(button);
         return wrap;
       },
@@ -428,104 +311,60 @@ export const trackEditorPlugin = {
 
     const unsubscribeInteractions = app.subscribeInteractions({
       onTrackLayer({ entry, layer }) {
-        layer.on("click", (event) => {
-          if (!activeSession) {
+        const onClick = () => {
+          if (!session) {
             selectedEntryId = entry.id;
-            panel.rerenderPanel("track-editor");
-            return;
+            renderPanel();
           }
-          if (entry.id !== activeSession.draftEntryId) {
-            return;
-          }
-
-          const draftEntry = getDraftEntry();
-          if (!draftEntry) {
-            return;
-          }
-          const nextIndex = getNearestTrackPointIndex(draftEntry.source, event.latlng);
-          if (nextIndex < 0) {
-            return;
-          }
-          event.originalEvent?.preventDefault?.();
-          event.originalEvent?.stopPropagation?.();
-          map.closePopup();
-          activeSession.selectedPointIndex = nextIndex;
-          syncDragHandle();
-          setStatus(`Track editor: selected point #${nextIndex + 1}`);
-          panel.rerenderPanel("track-editor");
-        });
+        };
+        layer.on("click", onClick);
+        trackClickBindings.push({ layer, onClick });
       },
     });
-
-    const onArrowNavigate = (event) => {
-      if (!activeSession) {
-        return;
-      }
-      if (event.key !== "ArrowUp" && event.key !== "ArrowDown") {
-        return;
-      }
-      if (isFormTarget(event.target)) {
-        return;
-      }
-
-      const draftEntry = getDraftEntry();
-      const details = getTrackPointEntries(draftEntry?.source);
-      if (details.length === 0) {
-        return;
-      }
-
-      event.preventDefault();
-      event.stopPropagation();
-
-      const delta = event.key === "ArrowDown" ? 1 : -1;
-      const current = activeSession.selectedPointIndex || 0;
-      const nextIndex = Math.max(0, Math.min(details.length - 1, current + delta));
-      if (nextIndex === current) {
-        return;
-      }
-
-      activeSession.selectedPointIndex = nextIndex;
-      syncDragHandle();
-      map.closePopup();
-      setStatus(`Track editor: selected point #${nextIndex + 1}`);
-      panel.rerenderPanel("track-editor");
-    };
-    map.getContainer().addEventListener("keydown", onArrowNavigate, true);
-
-    const onPopupOpen = () => {
-      if (activeSession) {
-        map.closePopup();
-      }
-    };
-    map.on("popupopen", onPopupOpen);
-
     const removeRefreshHandler = app.addRefreshHandler(() => {
-      if (activeSession && !getDraftEntry()) {
-        activeSession = null;
-        clearDragHandle();
+      if (session && !getEntry(session.originalEntryId)) {
+        finishSession({ save: false });
+        return;
       }
-      syncDragHandle();
-      panel.rerenderPanel("track-editor");
+      renderPanel();
     });
+    const onMapClick = (event) => {
+      if (!isEditorMarkerClick(event)) {
+        endLocalEditing();
+      }
+    };
+    map.on("click", onMapClick);
+    const onKeyDown = (event) => {
+      if (!session || isFormTarget(event.target) || !(event.ctrlKey || event.metaKey)) {
+        return;
+      }
+      const key = event.key.toLowerCase();
+      if (key === "z") {
+        event.preventDefault();
+        applyHistory(event.shiftKey ? "redo" : "undo");
+      } else if (key === "y" && event.ctrlKey) {
+        event.preventDefault();
+        applyHistory("redo");
+      }
+    };
+    map.getContainer().addEventListener("keydown", onKeyDown, true);
 
     return {
       startEditing,
-      cancelEditing() {
-        stopEditing({ keepDraft: false });
-      },
-      saveEditing() {
-        stopEditing({ keepDraft: true });
-      },
+      saveEditing() { finishSession({ save: true }); },
+      cancelEditing() { finishSession({ save: false }); },
+      undo() { applyHistory("undo"); },
+      redo() { applyHistory("redo"); },
       destroy() {
-        map.off("popupopen", onPopupOpen);
-        map.getContainer().removeEventListener("keydown", onArrowNavigate, true);
+        finishSession({ save: false });
+        for (const { layer, onClick } of trackClickBindings) {
+          layer.off("click", onClick);
+        }
         unsubscribeInteractions();
         removeRefreshHandler();
+        map.off("click", onMapClick);
+        map.getContainer().removeEventListener("keydown", onKeyDown, true);
         control.remove?.();
-        clearDragHandle();
-        if (activeSession) {
-          stopEditing({ keepDraft: false });
-        }
       },
     };
   },
