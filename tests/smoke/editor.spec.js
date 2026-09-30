@@ -63,6 +63,8 @@ test("editor markers do not end local editing, while a map-background click does
   await page.goto("/samples/editor/localhost.html");
   await startDraftEditing(page);
 
+  const formLatitude = page.locator(".tilia-track-editor-form input").first();
+  const selectedLatitude = await formLatitude.inputValue();
   const pointMarkers = page.locator(".leaflet-partially-editable-polyline-point");
   const newPointMarkers = page.locator(".leaflet-partially-editable-polyline-new-point");
   const markerCount = await pointMarkers.count();
@@ -73,6 +75,7 @@ test("editor markers do not end local editing, while a map-background click does
 
   await page.locator("#map").dispatchEvent("click");
   await expect(pointMarkers).toHaveCount(0);
+  await expect(formLatitude).toHaveValue(selectedLatitude);
 });
 
 test("editor marker drag updates the form and retains local editing", async ({ page }) => {
@@ -91,6 +94,32 @@ test("editor marker drag updates the form and retains local editing", async ({ p
 
   await expect(formLatitude).not.toHaveValue(originalLatitude);
   await expect(page.locator(".leaflet-partially-editable-polyline-point")).not.toHaveCount(0);
+});
+
+test("insert selects the new point, while undo and redo do not retain a stale selection", async ({ page }) => {
+  await page.goto("/samples/editor/localhost.html");
+  await startDraftEditing(page);
+
+  const insertionMarker = page.locator(".leaflet-partially-editable-polyline-new-point").first();
+  const box = await insertionMarker.boundingBox();
+  expect(box).not.toBeNull();
+  await page.mouse.move(box.x + (box.width / 2), box.y + (box.height / 2));
+  await page.mouse.down();
+  await page.mouse.move(box.x + (box.width / 2) + 15, box.y + (box.height / 2) - 15, { steps: 4 });
+  await page.mouse.up();
+
+  const formInputs = page.locator(".tilia-track-editor-form input");
+  await expect(formInputs).toHaveCount(4);
+  await expect(page.locator(".leaflet-partially-editable-polyline-point")).toHaveCount(4);
+
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expect(formInputs).toHaveCount(0);
+  await expect(page.locator(".tilia-track-editor-point-meta")).toHaveText("No editable point selected");
+  await expect(page.locator(".leaflet-partially-editable-polyline-point")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Redo" }).click();
+  await expect(formInputs).toHaveCount(0);
+  await expect(page.locator(".tilia-track-editor-point-meta")).toHaveText("No editable point selected");
 });
 
 test("editor point deletion retains local editing until the final structure is removed", async ({ page }) => {
@@ -136,9 +165,11 @@ test("displays multiple draft tracks and transfers local editing between segment
   await expect(paths).toHaveCount(3);
   await paths.first().click();
   await expect(page.locator(".leaflet-partially-editable-polyline-point")).not.toHaveCount(0);
+  const firstSelectionLatitude = await page.locator(".tilia-track-editor-form input").first().inputValue();
   const firstMarkerCount = await page.locator(".leaflet-partially-editable-polyline-point").count();
   await paths.nth(2).click();
   await expect(page.locator(".leaflet-partially-editable-polyline-point")).toHaveCount(firstMarkerCount);
+  await expect(page.locator(".tilia-track-editor-form input").first()).not.toHaveValue(firstSelectionLatitude);
   await page.getByRole("button", { name: "Cancel" }).click();
   await expect(page.locator(".leaflet-overlay-pane path")).toHaveCount(2);
 });

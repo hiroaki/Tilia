@@ -15,6 +15,14 @@ function createEditedSourceName(name = "track.gpx") {
     : `${name}${suffix}`;
 }
 
+function createEmptySelection() {
+  return {
+    trackId: null,
+    segmentId: null,
+    pointIds: new Set(),
+  };
+}
+
 export const trackEditorPlugin = {
   id: "x-track-editor",
   requires: ["tilia-panel", "tilia-status"],
@@ -49,12 +57,39 @@ export const trackEditorPlugin = {
       return getEntry(selectedEntryId);
     }
 
-    function getSelection() {
-      if (!session?.selected) {
+    function setPointSelection(selection) {
+      if (!session) {
+        return;
+      }
+      session.selection = selection
+        ? {
+          trackId: selection.trackId,
+          segmentId: selection.segmentId,
+          pointIds: new Set([selection.pointId]),
+        }
+        : createEmptySelection();
+    }
+
+    function getSelectedPointId(selection = session?.selection) {
+      if (!selection || selection.pointIds.size !== 1) {
         return null;
       }
-      const point = findDraftPoint(session.draft, session.selected.trackId, session.selected.segmentId, session.selected.pointId);
-      return point ? { ...session.selected, point } : null;
+      return selection.pointIds.values().next().value ?? null;
+    }
+
+    function getSelection() {
+      const selection = session?.selection;
+      const pointId = getSelectedPointId(selection);
+      if (!session || !selection || !pointId) {
+        return null;
+      }
+      const point = findDraftPoint(session.draft, selection.trackId, selection.segmentId, pointId);
+      return point ? {
+        trackId: selection.trackId,
+        segmentId: selection.segmentId,
+        pointId,
+        point,
+      } : null;
     }
 
     function renderPanel() {
@@ -118,7 +153,7 @@ export const trackEditorPlugin = {
           renderPanel();
         },
         onPointSelect(selection) {
-          session.selected = selection;
+          setPointSelection(selection);
           renderPanel();
         },
         onLocalEditingRequest: startLocalEditing,
@@ -144,7 +179,7 @@ export const trackEditorPlugin = {
         originalEntryId: entry.id,
         draft: createDraftDocument(entry.source),
         history: createHistory(),
-        selected: null,
+        selection: createEmptySelection(),
         layersByTrackId: new Map(),
         hiddenTracks: [],
         localEditing: null,
@@ -224,8 +259,8 @@ export const trackEditorPlugin = {
       if (!operation) {
         return;
       }
-      const selectedPointId = session.selected?.trackId === operation.trackId
-        ? session.selected.pointId
+      const selectedPointId = session.selection.trackId === operation.trackId
+        ? getSelectedPointId()
         : null;
       syncTrackLayers(operation.trackId, selectedPointId);
       renderPanel();

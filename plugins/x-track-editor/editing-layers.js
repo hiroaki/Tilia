@@ -29,16 +29,13 @@ export function createDraftTrackLayers({
   options = {},
 }) {
   let layerRecords = [];
-  let selectedPointId = null;
 
   function selectPoint(segmentId, pointId) {
     const point = findDraftPoint(draft, trackId, segmentId, pointId);
     if (!point) {
-      selectedPointId = null;
       onPointSelect?.(null);
       return;
     }
-    selectedPointId = point.id;
     onPointSelect?.({ trackId, segmentId, pointId: point.id, point });
   }
 
@@ -55,7 +52,6 @@ export function createDraftTrackLayers({
     clear();
     const track = findDraftTrack(draft, trackId);
     if (!track) {
-      selectPoint(null, null);
       return;
     }
 
@@ -129,7 +125,7 @@ export function createDraftTrackLayers({
     }
   }
 
-  function sync(pointId = selectedPointId) {
+  function sync(pointId = null) {
     build();
     if (!pointId) {
       return null;
@@ -160,7 +156,6 @@ export function createDraftTrackLayers({
 
   function destroy() {
     clear();
-    selectedPointId = null;
   }
 
   function endEditing() {
@@ -170,5 +165,5 @@ export function createDraftTrackLayers({
   }
 
   build();
-  return { destroy, endEditing, sync, startEditingPoint, getSelectedPointId: () => selectedPointId };
+  return { destroy, endEditing, sync, startEditingPoint };
 }
