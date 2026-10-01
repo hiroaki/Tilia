@@ -102,7 +102,7 @@ describe("x-track-editor selection helpers", () => {
       kind: "empty", count: 0, label: "No editable point selected",
     });
     expect(describePointSelection([{}])).toEqual({
-      kind: "single", count: 1, label: "Selected track point",
+      kind: "single", count: 1, label: "1 point selected",
     });
     expect(describePointSelection([{}, {}, {}])).toEqual({
       kind: "multiple", count: 3, label: "3 points selected",

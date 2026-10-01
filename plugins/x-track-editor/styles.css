@@ -1,5 +1,4 @@
-.tilia-track-editor-panel,
-.tilia-track-editor-form {
+.tilia-track-editor-panel {
   display: grid;
   gap: 0.55rem;
 }
@@ -11,8 +10,7 @@
   font-size: 0.82rem;
 }
 
-.tilia-track-editor-select,
-.tilia-track-editor-input {
+.tilia-track-editor-select {
   width: 100%;
 }
 
@@ -64,12 +62,6 @@
   opacity: 1;
 }
 
-.tilia-track-editor-label {
-  color: #0f172a;
-  font-size: 0.8rem;
-  font-weight: 600;
-}
-
 .tilia-track-editor-selection-ring {
   box-sizing: border-box;
   border: 3px solid #2563eb;
@@ -77,6 +69,102 @@
   background: transparent;
   box-shadow: 0 0 0 1px #fff;
   pointer-events: none !important;
+}
+
+.tilia-track-editor-selection-ring-focused {
+  border-width: 4px;
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 2px #fff;
+}
+
+.tilia-track-editor-inspector {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.tilia-track-editor-inspector-empty {
+  color: #475569;
+  font-size: 0.78rem;
+}
+
+.tilia-track-editor-inspector-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.08fr) minmax(0, 0.58fr) minmax(0, 0.82fr);
+  gap: 0.2rem;
+  align-items: center;
+}
+
+.tilia-track-editor-inspector-header {
+  padding: 0 0.25rem;
+  color: #64748b;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-align: right;
+}
+
+.tilia-track-editor-inspector-rows {
+  max-height: min(16rem, 40vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-radius: 0.35rem;
+}
+
+.tilia-track-editor-inspector-row {
+  padding: 0.16rem 0.2rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.tilia-track-editor-inspector-row:last-child {
+  border-bottom: 0;
+}
+
+.tilia-track-editor-inspector-row-focused {
+  background: #fef3c7;
+}
+
+.tilia-track-editor-cell,
+.tilia-track-editor-cell-input {
+  box-sizing: border-box;
+  min-width: 0;
+  width: 100%;
+  font: inherit;
+  font-size: 0.67rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.45;
+  text-align: right;
+}
+
+.tilia-track-editor-cell {
+  overflow: hidden;
+  padding: 0.08rem 0.1rem;
+  border: 1px solid transparent;
+  border-radius: 0.2rem;
+  background: transparent;
+  color: #0f172a;
+  text-overflow: clip;
+  white-space: nowrap;
+  cursor: text;
+}
+
+.tilia-track-editor-cell:hover,
+.tilia-track-editor-cell:focus-visible {
+  border-color: #93c5fd;
+  background: #eff6ff;
+  outline: none;
+}
+
+.tilia-track-editor-cell-input {
+  padding: 0.08rem 0.1rem;
+  border: 1px solid #2563eb;
+  border-radius: 0.2rem;
+  background: #fff;
+  outline: none;
+}
+
+.tilia-track-editor-cell-input-invalid {
+  border-color: #dc2626;
+  background: #fef2f2;
 }
 
 .tilia-track-editor-selection-shield {

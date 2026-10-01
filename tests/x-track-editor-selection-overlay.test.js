@@ -64,6 +64,12 @@ describe("x-track-editor selection overlay", () => {
     overlay.sync([{ point: { lat: 36, lon: 136 } }]);
     expect(group.layers).toHaveLength(1);
     expect(group.layers[0].latlng).toEqual([36, 136]);
+    overlay.sync([
+      { pointId: "resolver-a", point: { id: "draft-b", lat: 35, lon: 135 } },
+      { pointId: "resolver-b", point: { id: "draft-a", lat: 36, lon: 136 } },
+    ], { focusedPointId: "resolver-b" });
+    expect(group.layers[0].options.icon.options.className).toBe("tilia-track-editor-selection-ring");
+    expect(group.layers[1].options.icon.options.className).toContain("tilia-track-editor-selection-ring-focused");
     overlay.destroy();
     expect(group.layers).toEqual([]);
     expect(group.removed).toBe(true);

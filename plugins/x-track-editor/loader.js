@@ -1,7 +1,12 @@
 import { createButton, createPanel, createSelect, installMapControl } from "../../src/map/controls.js";
 import { createDraftDocument, findDraftSegment, toGpxSource } from "./draft.js";
 import { createDraftTrackLayers } from "./editing-layers.js";
-import { createPointForm, describePointSelection, isFormTarget } from "./form.js";
+import {
+  createPointInspector,
+  describePointSelection,
+  isFormTarget,
+  parsePointProperty,
+} from "./form.js";
 import {
   applyOperation,
   createHistory,
@@ -100,12 +105,6 @@ export const trackEditorPlugin = {
       }
     }
 
-    function getSelection() {
-      if (!session) return null;
-      const selectedPoints = resolveSelectedPoints(session.draft, session.selection);
-      return selectedPoints.length === 1 ? selectedPoints[0] : null;
-    }
-
     function renderPanel() {
       panel.rerenderPanel("track-editor");
     }
@@ -117,8 +116,21 @@ export const trackEditorPlugin = {
     function syncSelectionPresentation() {
       if (!session) return;
       const selectedPoints = resolveSelectedPoints(session.draft, session.selection);
-      session.selectionOverlay.sync(session.localEditing ? selectedPoints : []);
+      const selectedIds = new Set(selectedPoints.map(({ pointId }) => pointId));
+      if (!selectedIds.has(session.inspector.focusedPointId)) session.inspector.focusedPointId = null;
+      if (!selectedIds.has(session.inspector.editingCell?.pointId)) session.inspector.editingCell = null;
+      session.selectionOverlay.sync(session.localEditing ? selectedPoints : [], {
+        focusedPointId: session.inspector.focusedPointId,
+      });
       renderPanel();
+    }
+
+    function syncInspectorFocus() {
+      if (!session) return;
+      const selectedPoints = resolveSelectedPoints(session.draft, session.selection);
+      session.selectionOverlay.sync(session.localEditing ? selectedPoints : [], {
+        focusedPointId: session.inspector.focusedPointId,
+      });
     }
 
     function detachLocalEditing() {
@@ -289,6 +301,7 @@ export const trackEditorPlugin = {
         localEditing: null,
         selectionOverlay: createSelectionOverlay(map),
         rectangleSelection: null,
+        inspector: { focusedPointId: null, editingCell: null, scrollTop: 0 },
       };
       session.rectangleSelection = createRectangleSelection({
         map,
@@ -361,20 +374,34 @@ export const trackEditorPlugin = {
       renderPanel();
     }
 
-    function applyFormPatch(patch) {
-      const selection = getSelection();
-      if (!session || !selection) {
+    function commitInspectorCell() {
+      const editingCell = session?.inspector.editingCell;
+      if (!session || !editingCell) return;
+      const selection = resolveSelectedPoints(session.draft, session.selection)
+        .find(({ pointId }) => pointId === editingCell.pointId);
+      if (!selection) {
+        session.inspector.editingCell = null;
+        syncSelectionPresentation();
+        return;
+      }
+      const parsed = parsePointProperty(editingCell.property, editingCell.draftValue);
+      if (!parsed.valid) {
+        editingCell.error = "Enter a valid value.";
+        renderPanel();
         return;
       }
       const operation = createPointPatchOperation(session.draft, {
         trackId: selection.trackId,
         segmentId: selection.segmentId,
         pointId: selection.pointId,
-        patch,
+        patch: { [editingCell.property]: parsed.value },
       });
       if (!operation) {
+        session.inspector.editingCell = null;
+        renderPanel();
         return;
       }
+      session.inspector.editingCell = null;
       applyOperation(session.draft, operation);
       session.history.record(operation);
       syncTrackLayers(selection.trackId, captureRestoreHint());
@@ -523,9 +550,36 @@ export const trackEditorPlugin = {
         selectedPointActions.appendChild(deletePoints);
         root.appendChild(selectedPointActions);
       }
-      if (selectionPresentation.kind !== "multiple") {
-        root.appendChild(createPointForm(selectedPoints[0] || null, applyFormPatch));
-      }
+      root.appendChild(createPointInspector(selectedPoints, session?.inspector || {
+        focusedPointId: null, editingCell: null, scrollTop: 0,
+      }, {
+        onFocus(pointId) {
+          if (!session) return;
+          session.inspector.focusedPointId = pointId;
+          syncInspectorFocus();
+        },
+        onBeginEdit(editingCell) {
+          if (!session) return;
+          session.inspector.focusedPointId = editingCell.pointId;
+          session.inspector.editingCell = { ...editingCell, error: null };
+          syncInspectorFocus();
+          renderPanel();
+        },
+        onDraftChange(draftValue) {
+          if (!session?.inspector.editingCell) return;
+          session.inspector.editingCell.draftValue = draftValue;
+          session.inspector.editingCell.error = null;
+        },
+        onCommit: commitInspectorCell,
+        onCancel() {
+          if (!session) return;
+          session.inspector.editingCell = null;
+          renderPanel();
+        },
+        onScroll(scrollTop) {
+          if (session) session.inspector.scrollTop = scrollTop;
+        },
+      }));
       return root;
     }
 
