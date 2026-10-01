@@ -34,6 +34,16 @@
   flex: 1 1 0;
 }
 
+.tilia-track-editor-actions-selection .tilia-track-editor-action {
+  flex: 1 1 100%;
+}
+
+.tilia-track-editor-select-area-active {
+  background: #2563eb;
+  border-color: #1d4ed8;
+  color: #fff;
+}
+
 .tilia-track-editor-action {
   flex: 1 1 6.2rem;
 }
@@ -58,4 +68,21 @@
   background: transparent;
   box-shadow: 0 0 0 1px #fff;
   pointer-events: none !important;
+}
+
+.tilia-track-editor-selection-shield {
+  position: absolute;
+  inset: 0;
+  z-index: 750;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.tilia-track-editor-selection-rectangle {
+  position: absolute;
+  box-sizing: border-box;
+  border: 2px solid #2563eb;
+  background: rgb(37 99 235 / 15%);
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 80%);
+  pointer-events: none;
 }

@@ -11,6 +11,10 @@ import {
   resolveSelectedPoints,
 } from "./selection.js";
 import { createSelectionOverlay } from "./selection-overlay.js";
+import {
+  createRectangleSelection,
+  selectPointIdsInContainerBounds,
+} from "./rectangle-selection.js";
 
 function getGpxEntries(core) {
   return core.state.entries.filter((entry) => entry.kind === "gpx");
@@ -84,6 +88,10 @@ export const trackEditorPlugin = {
       panel.rerenderPanel("track-editor");
     }
 
+    function cancelRectangleSelection() {
+      session?.rectangleSelection.cancel();
+    }
+
     function syncSelectionPresentation() {
       if (!session) return;
       const selectedPoints = resolveSelectedPoints(session.draft, session.selection);
@@ -101,6 +109,7 @@ export const trackEditorPlugin = {
     }
 
     function endUserLocalEditing() {
+      cancelRectangleSelection();
       if (!session?.localEditing) {
         return;
       }
@@ -165,6 +174,7 @@ export const trackEditorPlugin = {
       if (!session) {
         return;
       }
+      cancelRectangleSelection();
       if (session.localEditing?.layer !== layer) {
         detachLocalEditing();
       }
@@ -178,6 +188,9 @@ export const trackEditorPlugin = {
       const controller = session?.layersByTrackId.get(trackId);
       if (!controller) {
         return;
+      }
+      if (session.rectangleSelection.isDragging()) {
+        cancelRectangleSelection();
       }
       const restoreLocalEditing = session.localEditing?.trackId === trackId;
       if (restoreLocalEditing) {
@@ -225,6 +238,7 @@ export const trackEditorPlugin = {
         onLocalEditingRequest: startLocalEditing,
         onLocalEditingEnd({ layer }) {
           if (session?.localEditing?.layer === layer) {
+            cancelRectangleSelection();
             session.localEditing = null;
             clearSelection();
             syncSelectionPresentation();
@@ -252,7 +266,30 @@ export const trackEditorPlugin = {
         hiddenTracks: [],
         localEditing: null,
         selectionOverlay: createSelectionOverlay(map),
+        rectangleSelection: null,
       };
+      session.rectangleSelection = createRectangleSelection({
+        map,
+        onComplete(bounds) {
+          const localEditing = session?.localEditing;
+          if (!localEditing) return "cancel";
+          const range = localEditing.layer.getEditablePointRange();
+          const domain = resolveEditablePointDomain(session.draft, localEditing, range);
+          if (!domain) return "cancel";
+          const pointIds = selectPointIdsInContainerBounds(map, domain, bounds);
+          if (pointIds.length === 0) return "retry";
+          session.selection = createPointSelection({
+            trackId: localEditing.trackId,
+            segmentId: localEditing.segmentId,
+            pointIds,
+          });
+          syncSelectionPresentation();
+          return "success";
+        },
+        onActiveChange() {
+          renderPanel();
+        },
+      });
       for (const draftTrack of session.draft.tracks) {
         const trackIndex = draftTrack.originalTrackIndex;
         if (core.getEffectiveGpxTrackVisibility(entry.id, trackIndex) !== true) {
@@ -275,6 +312,7 @@ export const trackEditorPlugin = {
         return;
       }
       const finished = session;
+      finished.rectangleSelection.destroy();
       detachLocalEditing();
       for (const controller of finished.layersByTrackId.values()) {
         controller.destroy();
@@ -380,6 +418,24 @@ export const trackEditorPlugin = {
       redo.addEventListener("click", () => applyHistory("redo"));
       historyActions.append(undo, redo);
       root.appendChild(historyActions);
+
+      const selectionActions = document.createElement("div");
+      selectionActions.className = "tilia-track-editor-actions tilia-track-editor-actions-selection";
+      const selectArea = createButton("Select area", "tilia-track-editor-action tilia-track-editor-select-area");
+      const rectangleSelectionActive = session?.rectangleSelection.isActive() === true;
+      selectArea.disabled = !session?.localEditing;
+      selectArea.classList.toggle("tilia-track-editor-select-area-active", rectangleSelectionActive);
+      selectArea.setAttribute("aria-pressed", String(rectangleSelectionActive));
+      selectArea.addEventListener("click", () => {
+        if (!session?.localEditing) return;
+        if (session.rectangleSelection.isActive()) {
+          session.rectangleSelection.cancel();
+        } else {
+          session.rectangleSelection.activate();
+        }
+      });
+      selectionActions.appendChild(selectArea);
+      root.appendChild(selectionActions);
 
       const selectedPoints = session ? resolveSelectedPoints(session.draft, session.selection) : [];
       const selectionPresentation = describePointSelection(selectedPoints);
