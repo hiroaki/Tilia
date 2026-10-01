@@ -2,7 +2,12 @@ import { createButton, createPanel, createSelect, installMapControl } from "../.
 import { createDraftDocument, findDraftSegment, toGpxSource } from "./draft.js";
 import { createDraftTrackLayers } from "./editing-layers.js";
 import { createPointForm, describePointSelection, isFormTarget } from "./form.js";
-import { applyOperation, createHistory, createPointPatchOperation } from "./history.js";
+import {
+  applyOperation,
+  createHistory,
+  createPointPatchOperation,
+  createPointsDeleteOperation,
+} from "./history.js";
 import {
   createEmptySelection,
   createPointSelection,
@@ -25,6 +30,23 @@ function createEditedSourceName(name = "track.gpx") {
   return name.toLowerCase().endsWith(".gpx")
     ? `${name.slice(0, -4)}${suffix}.gpx`
     : `${name}${suffix}`;
+}
+
+export function recoverSelectionConsistencyFailure({
+  details,
+  reportError = console.error,
+  cancelRectangleSelection,
+  detachLocalEditing,
+  clearSelection,
+  syncSelectionPresentation,
+  setStatus,
+}) {
+  reportError("Track editor selection consistency failure", details);
+  cancelRectangleSelection();
+  detachLocalEditing();
+  clearSelection();
+  syncSelectionPresentation();
+  setStatus("The selected points no longer match the current track; editing was reset. Select the track and try again");
 }
 
 export const trackEditorPlugin = {
@@ -358,6 +380,53 @@ export const trackEditorPlugin = {
       syncTrackLayers(selection.trackId, captureRestoreHint());
     }
 
+    function resetAfterSelectionConsistencyFailure(details) {
+      recoverSelectionConsistencyFailure({
+        details,
+        cancelRectangleSelection,
+        detachLocalEditing,
+        clearSelection,
+        syncSelectionPresentation,
+        setStatus,
+      });
+    }
+
+    function deleteSelectedPoints() {
+      if (!session || session.selection.pointIds.size === 0) return;
+      const { trackId, segmentId, pointIds } = session.selection;
+      const localEditing = session.localEditing;
+      if (!localEditing
+        || localEditing.trackId !== trackId
+        || localEditing.segmentId !== segmentId) {
+        resetAfterSelectionConsistencyFailure({
+          reason: "editing-context-mismatch",
+          selectionTrackId: trackId,
+          selectionSegmentId: segmentId,
+          editingTrackId: localEditing?.trackId || null,
+          editingSegmentId: localEditing?.segmentId || null,
+          expectedCount: pointIds.size,
+        });
+        return;
+      }
+
+      const { operation, error } = createPointsDeleteOperation(session.draft, {
+        trackId,
+        segmentId,
+        pointIds,
+      });
+      if (!operation) {
+        resetAfterSelectionConsistencyFailure(error);
+        return;
+      }
+
+      const restoreHint = captureRestoreHint();
+      cancelRectangleSelection();
+      applyOperation(session.draft, operation);
+      session.history.record(operation);
+      clearSelection();
+      syncTrackLayers(trackId, restoreHint);
+    }
+
     function applyHistory(direction) {
       if (!session) {
         return;
@@ -443,6 +512,17 @@ export const trackEditorPlugin = {
       pointMeta.className = "tilia-track-editor-point-meta";
       pointMeta.textContent = selectionPresentation.label;
       root.appendChild(pointMeta);
+      if (selectionPresentation.count > 0) {
+        const selectedPointActions = document.createElement("div");
+        selectedPointActions.className = "tilia-track-editor-actions tilia-track-editor-actions-selected-points";
+        const deletePoints = createButton(
+          `Delete ${selectionPresentation.count} ${selectionPresentation.count === 1 ? "point" : "points"}`,
+          "tilia-track-editor-action tilia-track-editor-delete-points",
+        );
+        deletePoints.addEventListener("click", deleteSelectedPoints);
+        selectedPointActions.appendChild(deletePoints);
+        root.appendChild(selectedPointActions);
+      }
       if (selectionPresentation.kind !== "multiple") {
         root.appendChild(createPointForm(selectedPoints[0] || null, applyFormPatch));
       }

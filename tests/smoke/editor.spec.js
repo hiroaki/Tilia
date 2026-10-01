@@ -32,6 +32,7 @@ test("editor displays draft segments immediately when editing starts", async ({ 
   await page.getByRole("button", { name: "Track editor" }).click();
   await page.getByRole("button", { name: "Start Edit" }).click();
   await expect(page.locator(".tilia-track-editor-panel")).toHaveClass(/tilia-track-editor-is-editing/);
+  await expect(page.getByRole("button", { name: /Delete \d+ points?/ })).toHaveCount(0);
   await page.locator(".leaflet-overlay-pane path").click();
   await expect(page.locator(".leaflet-partially-editable-polyline-point")).not.toHaveCount(0);
 
@@ -222,6 +223,16 @@ test("area selection replaces selection with one point and restores normal editi
   await expect(page.locator(".tilia-track-editor-selection-ring")).toHaveCount(1);
   await expect(page.locator(".tilia-track-editor-form input")).toHaveCount(4);
 
+  await page.getByRole("button", { name: "Delete 1 point" }).click();
+  await expect(pointMarkers).toHaveCount(2);
+  await expect(page.locator(".tilia-track-editor-selection-ring")).toHaveCount(0);
+  await expect(page.locator(".tilia-track-editor-form input")).toHaveCount(0);
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expect(pointMarkers).toHaveCount(3);
+  await expect(page.locator(".tilia-track-editor-selection-ring")).toHaveCount(0);
+  await page.getByRole("button", { name: "Redo" }).click();
+  await expect(pointMarkers).toHaveCount(2);
+
   await pointMarkers.last().dispatchEvent("click");
   await expect(page.locator(".tilia-track-editor-selection-ring")).toHaveCount(1);
 });
@@ -298,6 +309,55 @@ test("empty area selection retries, multiple selection succeeds, and Escape canc
   await expect(shield).toHaveCount(0);
   await expect(selectArea).toHaveAttribute("aria-pressed", "false");
   await expect(page.locator(".tilia-track-editor-selection-ring")).toHaveCount(2);
+
+  await page.getByRole("button", { name: "Delete 2 points" }).click();
+  await expect(pointMarkers).toHaveCount(1);
+  await expect(page.locator(".tilia-track-editor-selection-ring")).toHaveCount(0);
+  await expect(page.locator(".tilia-track-editor-point-meta")).toHaveText("No editable point selected");
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expect(pointMarkers).toHaveCount(3);
+  await expect(page.locator(".tilia-track-editor-selection-ring")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Undo" })).toBeDisabled();
+  await page.getByRole("button", { name: "Redo" }).click();
+  await expect(pointMarkers).toHaveCount(1);
+});
+
+test("bulk delete removes and Undo restores the final segment and track", async ({ page }) => {
+  await page.goto("/samples/editor/localhost.html");
+  await startDraftEditing(page);
+
+  const pointMarkers = page.locator(".leaflet-partially-editable-polyline-point");
+  const boxes = await Promise.all(Array.from(
+    { length: await pointMarkers.count() },
+    (_, index) => pointMarkers.nth(index).boundingBox(),
+  ));
+  const left = Math.min(...boxes.map((box) => box.x)) - 3;
+  const top = Math.min(...boxes.map((box) => box.y)) - 3;
+  const right = Math.max(...boxes.map((box) => box.x + box.width)) + 3;
+  const bottom = Math.max(...boxes.map((box) => box.y + box.height)) + 3;
+
+  await page.getByRole("button", { name: "Select area" }).click();
+  await page.mouse.move(left, top);
+  await page.mouse.down();
+  await page.mouse.move(right, bottom);
+  await page.mouse.up();
+  await expect(page.locator(".tilia-track-editor-selection-ring")).toHaveCount(3);
+  await page.getByRole("button", { name: "Delete 3 points" }).click();
+  await expect(pointMarkers).toHaveCount(0);
+  await expect(page.locator(".leaflet-overlay-pane path")).toHaveCount(0);
+  await expect(page.locator(".tilia-track-editor-selection-ring")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Select area" })).toBeDisabled();
+
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expect(page.locator(".leaflet-overlay-pane path")).toHaveCount(1);
+  await expect(pointMarkers).toHaveCount(0);
+  await expect(page.locator(".tilia-track-editor-selection-ring")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Select area" })).toBeDisabled();
+  await page.getByRole("button", { name: "Redo" }).click();
+  await expect(page.locator(".leaflet-overlay-pane path")).toHaveCount(0);
+  await page.getByRole("button", { name: "Undo" }).click();
+  await page.locator(".leaflet-overlay-pane path").click();
+  await expect(pointMarkers).toHaveCount(3);
 });
 
 test("editor point deletion retains local editing until the final structure is removed", async ({ page }) => {

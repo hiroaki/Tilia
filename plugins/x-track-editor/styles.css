@@ -44,6 +44,15 @@
   color: #fff;
 }
 
+.tilia-track-editor-actions-selected-points .tilia-track-editor-action {
+  flex: 1 1 100%;
+}
+
+.tilia-track-editor-delete-points {
+  border-color: #b91c1c;
+  color: #991b1b;
+}
+
 .tilia-track-editor-action {
   flex: 1 1 6.2rem;
 }
