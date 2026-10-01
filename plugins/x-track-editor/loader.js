@@ -1,7 +1,7 @@
 import { createButton, createPanel, createSelect, installMapControl } from "../../src/map/controls.js";
 import { createDraftDocument, findDraftSegment, toGpxSource } from "./draft.js";
 import { createDraftTrackLayers } from "./editing-layers.js";
-import { createPointForm, isFormTarget } from "./form.js";
+import { createPointForm, describePointSelection, isFormTarget } from "./form.js";
 import { applyOperation, createHistory, createPointPatchOperation } from "./history.js";
 import {
   createEmptySelection,
@@ -10,6 +10,7 @@ import {
   resolveEditablePointDomain,
   resolveSelectedPoints,
 } from "./selection.js";
+import { createSelectionOverlay } from "./selection-overlay.js";
 
 function getGpxEntries(core) {
   return core.state.entries.filter((entry) => entry.kind === "gpx");
@@ -83,6 +84,13 @@ export const trackEditorPlugin = {
       panel.rerenderPanel("track-editor");
     }
 
+    function syncSelectionPresentation() {
+      if (!session) return;
+      const selectedPoints = resolveSelectedPoints(session.draft, session.selection);
+      session.selectionOverlay.sync(session.localEditing ? selectedPoints : []);
+      renderPanel();
+    }
+
     function detachLocalEditing() {
       const localEditing = session?.localEditing;
       if (!localEditing) {
@@ -98,7 +106,7 @@ export const trackEditorPlugin = {
       }
       detachLocalEditing();
       clearSelection();
-      renderPanel();
+      syncSelectionPresentation();
     }
 
     function reconcileSelectionWithRange({ trackId, segmentId }, range) {
@@ -163,6 +171,7 @@ export const trackEditorPlugin = {
       clearSelection();
       layer.startEditing(latlng);
       session.localEditing = { trackId, segmentId, layer };
+      syncSelectionPresentation();
     }
 
     function syncTrackLayers(trackId, restoreHint = null) {
@@ -188,6 +197,7 @@ export const trackEditorPlugin = {
         }
       }
       reconcileSelectionWithDraft();
+      syncSelectionPresentation();
     }
 
     function createTrackLayers(draftTrack) {
@@ -206,18 +216,18 @@ export const trackEditorPlugin = {
           if (context.type === "pointinsert" || context.type === "pointdelete") {
             reconcileSelectionWithRange(context, context.range);
           }
-          renderPanel();
+          syncSelectionPresentation();
         },
         onPointSelect(selection) {
           setPointSelection(selection);
-          renderPanel();
+          syncSelectionPresentation();
         },
         onLocalEditingRequest: startLocalEditing,
         onLocalEditingEnd({ layer }) {
           if (session?.localEditing?.layer === layer) {
             session.localEditing = null;
             clearSelection();
-            renderPanel();
+            syncSelectionPresentation();
           }
         },
       });
@@ -241,6 +251,7 @@ export const trackEditorPlugin = {
         layersByTrackId: new Map(),
         hiddenTracks: [],
         localEditing: null,
+        selectionOverlay: createSelectionOverlay(map),
       };
       for (const draftTrack of session.draft.tracks) {
         const trackIndex = draftTrack.originalTrackIndex;
@@ -268,6 +279,7 @@ export const trackEditorPlugin = {
       for (const controller of finished.layersByTrackId.values()) {
         controller.destroy();
       }
+      finished.selectionOverlay.destroy();
       for (const { trackIndex, previousVisibility } of finished.hiddenTracks) {
         core.setGpxTrackVisibility(finished.originalEntryId, trackIndex, previousVisibility);
       }
@@ -306,7 +318,6 @@ export const trackEditorPlugin = {
       applyOperation(session.draft, operation);
       session.history.record(operation);
       syncTrackLayers(selection.trackId, captureRestoreHint());
-      renderPanel();
     }
 
     function applyHistory(direction) {
@@ -319,7 +330,6 @@ export const trackEditorPlugin = {
         return;
       }
       syncTrackLayers(operation.trackId, restoreHint);
-      renderPanel();
     }
 
     function buildPanelContent() {
@@ -371,12 +381,15 @@ export const trackEditorPlugin = {
       historyActions.append(undo, redo);
       root.appendChild(historyActions);
 
-      const selection = getSelection();
+      const selectedPoints = session ? resolveSelectedPoints(session.draft, session.selection) : [];
+      const selectionPresentation = describePointSelection(selectedPoints);
       const pointMeta = document.createElement("p");
       pointMeta.className = "tilia-track-editor-point-meta";
-      pointMeta.textContent = selection ? "Selected track point" : "No editable point selected";
+      pointMeta.textContent = selectionPresentation.label;
       root.appendChild(pointMeta);
-      root.appendChild(createPointForm(selection, applyFormPatch));
+      if (selectionPresentation.kind !== "multiple") {
+        root.appendChild(createPointForm(selectedPoints[0] || null, applyFormPatch));
+      }
       return root;
     }
 

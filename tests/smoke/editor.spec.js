@@ -39,6 +39,7 @@ test("editor displays draft segments immediately when editing starts", async ({ 
   await form.locator("input").first().fill("35.700000");
   await form.locator("input").first().blur();
   await page.getByRole("button", { name: "Save Copy" }).click();
+  await expect(page.locator(".tilia-track-editor-selection-ring")).toHaveCount(0);
   await expect(page.locator(".leaflet-overlay-pane path")).toHaveCount(2);
   await expect(page.locator(".tilia-track-editor-panel")).not.toHaveClass(/tilia-track-editor-is-editing/);
 });
@@ -68,6 +69,9 @@ test("point marker click selects it, midpoint click does not, and map background
   const newPointMarkers = page.locator(".leaflet-partially-editable-polyline-new-point");
   const markerCount = await pointMarkers.count();
   await pointMarkers.first().dispatchEvent("click");
+  const selectionRings = page.locator(".tilia-track-editor-selection-ring");
+  await expect(selectionRings).toHaveCount(1);
+  await expect(selectionRings).toHaveCSS("pointer-events", "none");
   const clickedLatitude = await formLatitude.inputValue();
   await expect(pointMarkers).toHaveCount(markerCount);
   await newPointMarkers.first().dispatchEvent("click");
@@ -79,6 +83,7 @@ test("point marker click selects it, midpoint click does not, and map background
 
   await page.locator("#map").dispatchEvent("click");
   await expect(pointMarkers).toHaveCount(0);
+  await expect(selectionRings).toHaveCount(0);
   await expect(page.locator(".tilia-track-editor-form input")).toHaveCount(0);
 });
 
@@ -88,6 +93,10 @@ test("editor marker drags preserve selection and update the form only for the se
 
   const pointMarkers = page.locator(".leaflet-partially-editable-polyline-point");
   await pointMarkers.first().dispatchEvent("click");
+  const selectionRing = page.locator(".tilia-track-editor-selection-ring");
+  await expect(selectionRing).toHaveCount(1);
+  const initialRingBox = await selectionRing.boundingBox();
+  expect(initialRingBox).not.toBeNull();
   const formLatitude = page.locator(".tilia-track-editor-form input").first();
   const selectedLatitude = await formLatitude.inputValue();
   const unselectedMarker = pointMarkers.last();
@@ -98,6 +107,7 @@ test("editor marker drags preserve selection and update the form only for the se
   await page.mouse.move(box.x + (box.width / 2) + 20, box.y + (box.height / 2) - 20, { steps: 4 });
   await page.mouse.up();
   await expect(formLatitude).toHaveValue(selectedLatitude);
+  expect(await selectionRing.boundingBox()).toEqual(initialRingBox);
 
   const selectedMarker = pointMarkers.first();
   box = await selectedMarker.boundingBox();
@@ -107,6 +117,11 @@ test("editor marker drags preserve selection and update the form only for the se
   await page.mouse.move(box.x + (box.width / 2) + 20, box.y + (box.height / 2) - 20, { steps: 4 });
   await page.mouse.up();
   await expect(formLatitude).not.toHaveValue(selectedLatitude);
+  await expect(selectionRing).toHaveCount(1);
+  const movedRingBox = await selectionRing.boundingBox();
+  expect(movedRingBox).not.toBeNull();
+  expect(Math.abs(movedRingBox.x - initialRingBox.x)).toBeGreaterThan(5);
+  expect(Math.abs(movedRingBox.y - initialRingBox.y)).toBeGreaterThan(5);
   await expect(pointMarkers).not.toHaveCount(0);
 });
 
@@ -116,6 +131,8 @@ test("insert, undo, and redo preserve the existing selection", async ({ page }) 
 
   const pointMarkers = page.locator(".leaflet-partially-editable-polyline-point");
   await pointMarkers.first().dispatchEvent("click");
+  const selectionRing = page.locator(".tilia-track-editor-selection-ring");
+  await expect(selectionRing).toHaveCount(1);
   const formLatitude = page.locator(".tilia-track-editor-form input").first();
   const selectedLatitude = await formLatitude.inputValue();
   const insertionMarker = page.locator(".leaflet-partially-editable-polyline-new-point").first();
@@ -130,16 +147,19 @@ test("insert, undo, and redo preserve the existing selection", async ({ page }) 
   await expect(formInputs).toHaveCount(4);
   await expect(formLatitude).toHaveValue(selectedLatitude);
   await expect(pointMarkers).toHaveCount(4);
+  await expect(selectionRing).toHaveCount(1);
 
   await page.getByRole("button", { name: "Undo" }).click();
   await expect(formInputs).toHaveCount(4);
   await expect(formLatitude).toHaveValue(selectedLatitude);
   await expect(pointMarkers).toHaveCount(3);
+  await expect(selectionRing).toHaveCount(1);
 
   await page.getByRole("button", { name: "Redo" }).click();
   await expect(formInputs).toHaveCount(4);
   await expect(formLatitude).toHaveValue(selectedLatitude);
   await expect(pointMarkers).toHaveCount(4);
+  await expect(selectionRing).toHaveCount(1);
 });
 
 test("deleting selected and unselected points only removes deleted IDs from selection", async ({ page }) => {
@@ -149,21 +169,26 @@ test("deleting selected and unselected points only removes deleted IDs from sele
   const pointMarkers = page.locator(".leaflet-partially-editable-polyline-point");
   const formLatitude = page.locator(".tilia-track-editor-form input").first();
   await pointMarkers.last().dispatchEvent("click");
+  const selectionRing = page.locator(".tilia-track-editor-selection-ring");
+  await expect(selectionRing).toHaveCount(1);
   const selectedLatitude = await formLatitude.inputValue();
 
   await pointMarkers.first().dispatchEvent("contextmenu");
   await expect(pointMarkers).toHaveCount(2);
   await expect(formLatitude).toHaveValue(selectedLatitude);
+  await expect(selectionRing).toHaveCount(1);
 
   await pointMarkers.last().dispatchEvent("contextmenu");
   await expect(pointMarkers).toHaveCount(1);
   await expect(page.locator(".tilia-track-editor-form input")).toHaveCount(0);
+  await expect(selectionRing).toHaveCount(0);
   await expect(page.locator(".tilia-track-editor-point-meta")).toHaveText("No editable point selected");
 
   await page.getByRole("button", { name: "Undo" }).click();
   await expect(pointMarkers).toHaveCount(2);
   await expect(page.locator(".tilia-track-editor-form input")).toHaveCount(0);
   await expect(page.locator(".tilia-track-editor-point-meta")).toHaveText("No editable point selected");
+  await expect(selectionRing).toHaveCount(0);
 });
 
 test("editor point deletion retains local editing until the final structure is removed", async ({ page }) => {
@@ -214,6 +239,8 @@ test("displays multiple draft tracks and transfers local editing between segment
   await paths.nth(2).click();
   await expect(page.locator(".leaflet-partially-editable-polyline-point")).toHaveCount(firstMarkerCount);
   await expect(page.locator(".tilia-track-editor-form input").first()).not.toHaveValue(firstSelectionLatitude);
+  await expect(page.locator(".tilia-track-editor-selection-ring")).toHaveCount(1);
   await page.getByRole("button", { name: "Cancel" }).click();
+  await expect(page.locator(".tilia-track-editor-selection-ring")).toHaveCount(0);
   await expect(page.locator(".leaflet-overlay-pane path")).toHaveCount(2);
 });

@@ -2,6 +2,17 @@ function pad(value) {
   return String(value).padStart(2, "0");
 }
 
+export function describePointSelection(selectedPoints) {
+  const count = selectedPoints.length;
+  if (count === 0) {
+    return { kind: "empty", count, label: "No editable point selected" };
+  }
+  if (count === 1) {
+    return { kind: "single", count, label: "Selected track point" };
+  }
+  return { kind: "multiple", count, label: `${count} points selected` };
+}
+
 export function formatTimestampForDateTimeLocal(timestamp) {
   if (!Number.isFinite(timestamp)) {
     return "";

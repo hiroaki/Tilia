@@ -7,6 +7,7 @@ import {
   resolveEditablePointDomain,
   resolveSelectedPoints,
 } from "../plugins/x-track-editor/selection.js";
+import { describePointSelection } from "../plugins/x-track-editor/form.js";
 
 function createDraft() {
   return createDraftDocument({
@@ -94,5 +95,17 @@ describe("x-track-editor selection helpers", () => {
       segment.points[4].id,
     ]);
     expect(resolveSelectedPoints(draft, createEmptySelection())).toEqual([]);
+  });
+
+  it("describes empty, single, and arbitrary multiple selections", () => {
+    expect(describePointSelection([])).toEqual({
+      kind: "empty", count: 0, label: "No editable point selected",
+    });
+    expect(describePointSelection([{}])).toEqual({
+      kind: "single", count: 1, label: "Selected track point",
+    });
+    expect(describePointSelection([{}, {}, {}])).toEqual({
+      kind: "multiple", count: 3, label: "3 points selected",
+    });
   });
 });
