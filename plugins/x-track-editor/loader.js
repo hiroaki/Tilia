@@ -1,8 +1,15 @@
 import { createButton, createPanel, createSelect, installMapControl } from "../../src/map/controls.js";
-import { createDraftDocument, findDraftPoint, toGpxSource } from "./draft.js";
+import { createDraftDocument, findDraftSegment, toGpxSource } from "./draft.js";
 import { createDraftTrackLayers } from "./editing-layers.js";
 import { createPointForm, isFormTarget } from "./form.js";
 import { applyOperation, createHistory, createPointPatchOperation } from "./history.js";
+import {
+  createEmptySelection,
+  createPointSelection,
+  reconcileSelection,
+  resolveEditablePointDomain,
+  resolveSelectedPoints,
+} from "./selection.js";
 
 function getGpxEntries(core) {
   return core.state.entries.filter((entry) => entry.kind === "gpx");
@@ -13,14 +20,6 @@ function createEditedSourceName(name = "track.gpx") {
   return name.toLowerCase().endsWith(".gpx")
     ? `${name.slice(0, -4)}${suffix}.gpx`
     : `${name}${suffix}`;
-}
-
-function createEmptySelection() {
-  return {
-    trackId: null,
-    segmentId: null,
-    pointIds: new Set(),
-  };
 }
 
 export const trackEditorPlugin = {
@@ -61,48 +60,86 @@ export const trackEditorPlugin = {
       if (!session) {
         return;
       }
-      session.selection = selection
-        ? {
-          trackId: selection.trackId,
-          segmentId: selection.segmentId,
-          pointIds: new Set([selection.pointId]),
-        }
-        : createEmptySelection();
+      session.selection = selection ? createPointSelection({
+        trackId: selection.trackId,
+        segmentId: selection.segmentId,
+        pointIds: [selection.pointId],
+      }) : createEmptySelection();
     }
 
-    function getSelectedPointId(selection = session?.selection) {
-      if (!selection || selection.pointIds.size !== 1) {
-        return null;
+    function clearSelection() {
+      if (session) {
+        session.selection = createEmptySelection();
       }
-      return selection.pointIds.values().next().value ?? null;
     }
 
     function getSelection() {
-      const selection = session?.selection;
-      const pointId = getSelectedPointId(selection);
-      if (!session || !selection || !pointId) {
-        return null;
-      }
-      const point = findDraftPoint(session.draft, selection.trackId, selection.segmentId, pointId);
-      return point ? {
-        trackId: selection.trackId,
-        segmentId: selection.segmentId,
-        pointId,
-        point,
-      } : null;
+      if (!session) return null;
+      const selectedPoints = resolveSelectedPoints(session.draft, session.selection);
+      return selectedPoints.length === 1 ? selectedPoints[0] : null;
     }
 
     function renderPanel() {
       panel.rerenderPanel("track-editor");
     }
 
-    function endLocalEditing() {
+    function detachLocalEditing() {
       const localEditing = session?.localEditing;
       if (!localEditing) {
         return;
       }
       session.localEditing = null;
       localEditing.layer.endEditing();
+    }
+
+    function endUserLocalEditing() {
+      if (!session?.localEditing) {
+        return;
+      }
+      detachLocalEditing();
+      clearSelection();
+      renderPanel();
+    }
+
+    function reconcileSelectionWithRange({ trackId, segmentId }, range) {
+      if (!session) return;
+      const domain = resolveEditablePointDomain(session.draft, { trackId, segmentId }, range);
+      session.selection = reconcileSelection(session.selection, domain);
+    }
+
+    function reconcileSelectionWithDraft() {
+      if (!session) return;
+      const selectedPoints = resolveSelectedPoints(session.draft, session.selection);
+      session.selection = createPointSelection({
+        trackId: session.selection.trackId,
+        segmentId: session.selection.segmentId,
+        pointIds: selectedPoints.map(({ pointId }) => pointId),
+      });
+    }
+
+    function captureRestoreHint() {
+      const localEditing = session?.localEditing;
+      if (!localEditing) return null;
+      const range = localEditing.layer.getEditablePointRange();
+      const domain = resolveEditablePointDomain(session.draft, localEditing, range);
+      if (!domain?.points.length) return null;
+      const offset = Math.floor((domain.points.length - 1) / 2);
+      return {
+        trackId: localEditing.trackId,
+        segmentId: localEditing.segmentId,
+        pointId: domain.points[offset].id,
+        index: domain.startIndex + offset,
+      };
+    }
+
+    function resolveRestorePointId(hint) {
+      if (!session || !hint) return null;
+      const segment = findDraftSegment(session.draft, hint.trackId, hint.segmentId);
+      if (!segment?.points.length) return null;
+      if (segment.points.some((point) => point.id === hint.pointId)) {
+        return hint.pointId;
+      }
+      return segment.points[Math.min(hint.index, segment.points.length - 1)]?.id || null;
     }
 
     // Vendored editor markers have no Leaflet click listener. In Leaflet v2,
@@ -121,25 +158,36 @@ export const trackEditorPlugin = {
         return;
       }
       if (session.localEditing?.layer !== layer) {
-        endLocalEditing();
+        detachLocalEditing();
       }
+      clearSelection();
       layer.startEditing(latlng);
       session.localEditing = { trackId, segmentId, layer };
     }
 
-    function syncTrackLayers(trackId, pointId = null) {
+    function syncTrackLayers(trackId, restoreHint = null) {
       const controller = session?.layersByTrackId.get(trackId);
       if (!controller) {
         return;
       }
       const restoreLocalEditing = session.localEditing?.trackId === trackId;
       if (restoreLocalEditing) {
-        endLocalEditing();
+        detachLocalEditing();
       }
-      const synced = controller.sync(pointId);
-      if (restoreLocalEditing && synced && pointId) {
-        session.localEditing = controller.startEditingPoint(pointId);
+      controller.sync();
+      if (restoreLocalEditing) {
+        const pointId = resolveRestorePointId(restoreHint);
+        if (pointId) {
+          session.localEditing = controller.startEditingPoint(pointId, { selectPoint: false });
+          if (session.localEditing) {
+            reconcileSelectionWithRange(
+              session.localEditing,
+              session.localEditing.layer.getEditablePointRange(),
+            );
+          }
+        }
       }
+      reconcileSelectionWithDraft();
     }
 
     function createTrackLayers(draftTrack) {
@@ -148,8 +196,16 @@ export const trackEditorPlugin = {
         draft: session.draft,
         trackId: draftTrack.id,
         options: { editablePointRadius },
-        onOperation(operation) {
+        onOperation(operation, context) {
           session.history.record(operation);
+          if (context.type === "pointdelete"
+            && session.selection.trackId === context.trackId
+            && session.selection.segmentId === context.segmentId) {
+            session.selection.pointIds.delete(context.pointId);
+          }
+          if (context.type === "pointinsert" || context.type === "pointdelete") {
+            reconcileSelectionWithRange(context, context.range);
+          }
           renderPanel();
         },
         onPointSelect(selection) {
@@ -160,6 +216,8 @@ export const trackEditorPlugin = {
         onLocalEditingEnd({ layer }) {
           if (session?.localEditing?.layer === layer) {
             session.localEditing = null;
+            clearSelection();
+            renderPanel();
           }
         },
       });
@@ -206,7 +264,7 @@ export const trackEditorPlugin = {
         return;
       }
       const finished = session;
-      endLocalEditing();
+      detachLocalEditing();
       for (const controller of finished.layersByTrackId.values()) {
         controller.destroy();
       }
@@ -247,7 +305,7 @@ export const trackEditorPlugin = {
       }
       applyOperation(session.draft, operation);
       session.history.record(operation);
-      syncTrackLayers(selection.trackId, selection.pointId);
+      syncTrackLayers(selection.trackId, captureRestoreHint());
       renderPanel();
     }
 
@@ -255,14 +313,12 @@ export const trackEditorPlugin = {
       if (!session) {
         return;
       }
+      const restoreHint = captureRestoreHint();
       const operation = direction === "undo" ? session.history.undo(session.draft) : session.history.redo(session.draft);
       if (!operation) {
         return;
       }
-      const selectedPointId = session.selection.trackId === operation.trackId
-        ? getSelectedPointId()
-        : null;
-      syncTrackLayers(operation.trackId, selectedPointId);
+      syncTrackLayers(operation.trackId, restoreHint);
       renderPanel();
     }
 
@@ -365,7 +421,7 @@ export const trackEditorPlugin = {
     });
     const onMapClick = (event) => {
       if (!isEditorMarkerClick(event)) {
-        endLocalEditing();
+        endUserLocalEditing();
       }
     };
     map.on("click", onMapClick);

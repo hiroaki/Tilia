@@ -72,7 +72,9 @@ export function createDraftTrackLayers({
       layer.on("editingstart", ({ index }) => {
         const point = getPointAt(segment, index);
         if (point) {
-          selectPoint(segment.id, point.id);
+          if (notifySelectionOnEditingStart) {
+            selectPoint(segment.id, point.id);
+          }
         }
       });
       layer.on("editingend", () => {
@@ -90,17 +92,29 @@ export function createDraftTrackLayers({
           return;
         }
         applyOperation(draft, operation);
-        onOperation?.(operation);
-        selectPoint(segment.id, point.id);
+        onOperation?.(operation, {
+          type: "pointchange",
+          trackId,
+          segmentId: segment.id,
+          pointId: point.id,
+          range: layer.getEditablePointRange(),
+        });
       });
       layer.on("pointinsert", ({ index, latlng }) => {
+        const range = layer.getEditablePointRange();
         const point = createInsertedDraftPoint(draft, latlng);
         const operation = createInsertOperation({ trackId, segmentId: segment.id, index, point });
         applyOperation(draft, operation);
-        onOperation?.(operation);
-        selectPoint(segment.id, point.id);
+        onOperation?.(operation, {
+          type: "pointinsert",
+          trackId,
+          segmentId: segment.id,
+          pointId: point.id,
+          range,
+        });
       });
       layer.on("pointdelete", ({ index }) => {
+        const range = layer.getEditablePointRange();
         const point = getPointAt(segment, index);
         const operation = point && createDeleteOperation(draft, {
           trackId,
@@ -111,44 +125,48 @@ export function createDraftTrackLayers({
           return;
         }
         applyOperation(draft, operation);
-        onOperation?.(operation);
+        onOperation?.(operation, {
+          type: "pointdelete",
+          trackId,
+          segmentId: segment.id,
+          pointId: point.id,
+          range,
+        });
         const remainingSegment = findDraftSegment(draft, trackId, segment.id);
         if (remainingSegment?.points.length) {
-          const replacementIndex = Math.min(index, remainingSegment.points.length - 1);
-          selectPoint(segment.id, remainingSegment.points[replacementIndex].id);
           return;
         }
-        selectPoint(null, null);
         build();
+      });
+      layer.on("pointclick", ({ index }) => {
+        const point = getPointAt(segment, index);
+        if (point) {
+          selectPoint(segment.id, point.id);
+        }
       });
       layer.addTo(map);
     }
   }
 
-  function sync(pointId = null) {
+  function sync() {
     build();
-    if (!pointId) {
-      return null;
-    }
-    for (const record of layerRecords) {
-      const segment = findDraftTrack(draft, trackId)?.segments.find((candidate) => candidate.id === record.segmentId);
-      const index = segment?.points.findIndex((point) => point.id === pointId) ?? -1;
-      if (index >= 0) {
-        return { record, point: segment.points[index] };
-      }
-    }
-    selectPoint(null, null);
-    return null;
   }
 
-  function startEditingPoint(pointId) {
+  let notifySelectionOnEditingStart = true;
+
+  function startEditingPoint(pointId, { selectPoint: shouldSelectPoint = true } = {}) {
     for (const record of layerRecords) {
       const segment = findDraftTrack(draft, trackId)?.segments.find((candidate) => candidate.id === record.segmentId);
       const point = segment?.points.find((candidate) => candidate.id === pointId);
       if (!point) {
         continue;
       }
-      record.layer.startEditing(new LatLng(point.lat, point.lon));
+      notifySelectionOnEditingStart = shouldSelectPoint;
+      try {
+        record.layer.startEditing(new LatLng(point.lat, point.lon));
+      } finally {
+        notifySelectionOnEditingStart = true;
+      }
       return { trackId, segmentId: record.segmentId, layer: record.layer };
     }
     return null;

@@ -360,7 +360,17 @@ export class PartiallyEditablePolyline extends Polyline {
 
   // Leaflet v2 selects a layer as a pointer-event target only when it has a
   // listener for that event. This intentionally has no editing side effects.
-  _handleMarkerClick() {}
+  _handleMarkerClick(event) {
+    const index = event.target._editablePointIndex;
+    if (index == null || !this._pointRecords[index]) {
+      return;
+    }
+
+    this.fire("pointclick", {
+      index,
+      latlng: this._cloneLatLng(this._pointRecords[index].latlng),
+    });
+  }
 
   _handlePointDragStart(event) {
     if (!this._editingEnabled || !this._editing) {
