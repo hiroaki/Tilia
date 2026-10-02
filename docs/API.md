@@ -151,9 +151,32 @@ Processes one GPX file or JPEG image. `input` may be a `File`, a URL string, or 
 **GPX files** (`.gpx`):
 - Preserves `<trk>` / `<trkseg>` / `<trkpt>` structure in the loaded source
 - Draws one logical polyline per `<trk>`; segments within that track are intentionally connected in Track mode
+- Preserves each `<rte>` independently with its ordered `<rtept>` points
+- Draws each GPX route with two or more points as a dashed polyline and places a distinct marker at every route point
 - Places a marker for each waypoint (`<wpt>` element)
 - Parses elevation (`<ele>`) and timestamp (`<time>`) per track point
+- Provides independent global visibility controls for Tracks, Routes, and Waypoints in the Layers panel
 - Automatically fits the map view to the loaded layer
+- As provisional resource limits, the current Tilia XML importer accepts up to 20 `<rte>` elements per file and up to 100 `<rtept>` elements per `<rte>`. These are Tilia limits, not GPX specification limits.
+
+After normalization, a GPX source always has `tracks`, `routes`, and `waypoints` arrays:
+
+```js
+{
+  type: "gpx",
+  name: "example.gpx",
+  tracks: [/* <trk> values */],
+  routes: [{
+    name: "Planned path",
+    points: [{ lat: 35.0, lon: 135.0, name: "Start" }],
+  }],
+  waypoints: [/* <wpt> values */],
+}
+```
+
+In a programmatic GPX source, each of the `tracks`, `routes`, and `waypoints` arrays may be omitted. Normalization supplies an empty array for each omitted field.
+
+The currently supported GPX route fields are `name` on `<rte>`, and latitude, longitude, and `name` on `<rtept>`.
 
 **JPEG files** (`.jpg`, `.jpeg`):
 - Location is determined in this order:
@@ -161,8 +184,6 @@ Processes one GPX file or JPEG image. `input` may be a `File`, a URL string, or 
   2. **GPX timestamp interpolation** — when EXIF GPS is absent, the EXIF capture timestamp is interpolated against the timeline of all loaded GPX tracks
   3. **Error** — thrown when neither GPS nor a usable timestamp is available in EXIF
 - The timestamp is interpreted according to the current photo time mode (`"auto"`, `"local"`, `"utc"`, or a fixed offset such as `"+09:00"`)
-
-> **Note:** GPX routes (`<rte>`) are not currently parsed. Only tracks (`<trk>`) and waypoints (`<wpt>`) are supported.
 
 ### Plugin utilities
 
@@ -185,6 +206,8 @@ const unsub = app.subscribeInteractions({
 // Unsubscribe when done:
 unsub();
 ```
+
+GPX route polylines and route-point markers are not currently exposed through `subscribeInteractions()`. This API remains track-, waypoint-, and photo-specific.
 
 #### `app.provide(name, service)`
 
@@ -224,7 +247,7 @@ Install by passing a string ID to `app.use()`, or by listing in `options.plugins
 | `tilia-panel` | — | Side panel container rendered inside the map area; used by layers, elevation, and settings plugins |
 | `tilia-status` | — | Status bar in the bottom-left corner of the map; shows load results and errors |
 | `tilia-base-maps-control` | — | Base map selector control; shows visible entries from `app.baseMaps`, grouped by provider when applicable |
-| `tilia-layers` | `tilia-panel`, `tilia-status` | Layer list in the side panel; per-entry controls for visibility, delete, fit-to-view, and (for inferred-location photos) timestamp mode override |
+| `tilia-layers` | `tilia-panel`, `tilia-status` | Layer list with global Tracks / Routes / Waypoints visibility, per-entry visibility, delete, fit-to-view, and photo timestamp mode override |
 | `tilia-elevation` | `tilia-panel`, `tilia-status` | Interactive elevation profile chart in the side panel; hover highlights the corresponding track point on the map |
 | `tilia-file-import` | — | Map control (top-left) with a file picker; accepts `.gpx`, `.jpg`, `.jpeg`; supports multiple files at once |
 | `tilia-url-import` | — | Map control that opens a URL input; fetches via HTTP/HTTPS with CORS; filename inferred from `Content-Disposition` or the URL path; `timeoutMs` aborts slow fetches and `maxBytes` rejects oversized remote files |

@@ -21,6 +21,7 @@ function createSource() {
       { name: "A", segments: [{ points: [{ lat: 35, lon: 135, elevation: 10, timestamp: 1000 }] }] },
       { name: "B", segments: [{ points: [{ lat: 36, lon: 136, elevation: 20, timestamp: 2000 }, { lat: 36.1, lon: 136.1, elevation: 21, timestamp: 3000 }] }] },
     ],
+    routes: [{ name: "Ignored GPX route", points: [{ lat: 34.9, lon: 134.9, name: "Route point" }] }],
     waypoints: [{ lat: 35, lon: 135, name: "Ignored on save" }],
   };
 }
@@ -33,6 +34,8 @@ describe("x-track-editor draft and history", () => {
     draft.tracks[0].segments[0].points[0].lat = 35.5;
 
     expect(source.tracks[0].segments[0].points[0].lat).toBe(35);
+    expect(source.routes).toHaveLength(1);
+    expect(draft).not.toHaveProperty("routes");
     expect(draft.tracks.map((track) => track.name)).toEqual(["A", "B"]);
     expect(toGpxSource(draft, "original (edited).gpx")).toEqual({
       type: "gpx",

@@ -118,7 +118,7 @@ Saving is valid even when no edit has been recorded; it still creates a copy. Bo
 ## Scope and limitations
 
 - The editor is intended for local corrections and coarse cleanup, not comprehensive authoring of a long track.
-- Only track points are editable. Routes and waypoints are not editing targets, and waypoints are not included in the saved edited copy.
+- Only track points are editable. GPX routes (`<rte>`) and waypoints are not editing targets, and neither is included in the saved edited copy.
 - Point markers and rectangle selection are limited to the current local editing window and segment.
 - Rectangle selection replaces the current selection. Individual points cannot currently be added to or removed from an existing multi-point selection.
 - Multiple selected points can be inspected or deleted together, but latitude, longitude, elevation, and time cannot be assigned to them in bulk.
