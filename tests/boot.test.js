@@ -158,6 +158,7 @@ describe("createTiliaCore", () => {
       type: "gpx",
       name: "sample.gpx",
       tracks: [{ segments: [{ points: [{ lat: 35, lon: 135 }, { lat: 35.1, lon: 135.1 }] }] }],
+      routes: [{ name: "Planned", points: [{ lat: 35, lon: 135 }, { lat: 35.2, lon: 135.2 }] }],
       waypoints: [{ name: "Start", lat: 35.0, lon: 135.0 }],
     };
     const overlay = createGpxOverlay("gpx-layer", {
@@ -180,7 +181,7 @@ describe("createTiliaCore", () => {
     });
     expect(overlay.layer.addTo).toHaveBeenCalledWith(map);
     expect(bootMocks.fitMapToGroup).toHaveBeenCalledWith(map, overlay.layer);
-    expect(result.summary).toBe("2 track points, 1 waypoints");
+    expect(result.summary).toBe("2 track points, 1 routes, 2 route points, 1 waypoints");
     expect(core.state.entries).toHaveLength(1);
     expect(core.state.entries[0]).toMatchObject({
       kind: "gpx",
