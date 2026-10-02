@@ -193,17 +193,6 @@ export const trackEditorPlugin = {
       return segment.points[Math.min(hint.index, segment.points.length - 1)]?.id || null;
     }
 
-    // Vendored editor markers have no Leaflet click listener. In Leaflet v2,
-    // their click can therefore fall through to map click handling despite
-    // bubblingPointerEvents: false. Exclude their DOM targets from background
-    // clicks until upstream makes marker click targeting self-contained.
-    function isEditorMarkerClick(event) {
-      const target = event?.originalEvent?.target;
-      return typeof Element !== "undefined"
-        && target instanceof Element
-        && target.closest(".leaflet-partially-editable-polyline-point, .leaflet-partially-editable-polyline-new-point");
-    }
-
     function startLocalEditing({ trackId, segmentId, layer, latlng }) {
       if (!session) {
         return;
@@ -622,11 +611,7 @@ export const trackEditorPlugin = {
       }
       renderPanel();
     });
-    const onMapClick = (event) => {
-      if (!isEditorMarkerClick(event)) {
-        endUserLocalEditing();
-      }
-    };
+    const onMapClick = () => endUserLocalEditing();
     map.on("click", onMapClick);
     const onKeyDown = (event) => {
       if (!session || isFormTarget(event.target) || !(event.ctrlKey || event.metaKey)) {
