@@ -164,13 +164,32 @@ export class PartiallyEditablePolyline extends Polyline {
     this._editing = true;
     this._editableRadius = radius;
     this._updateEditableRange(index);
+    this._rebuildEditableMarkers();
 
     this.fire("editingstart", {
       index,
     });
 
-    this._rebuildEditableMarkers();
     return this;
+  }
+
+  /**
+   * Return the inclusive indices of the existing points that are currently
+   * editable, or null when there is no current editable point range.
+   */
+  getEditablePointRange() {
+    if (
+      !this._editing ||
+      this._editableStart < 0 ||
+      this._editableEnd < this._editableStart
+    ) {
+      return null;
+    }
+
+    return {
+      startIndex: this._editableStart,
+      endIndex: this._editableEnd,
+    };
   }
 
   /**
@@ -242,7 +261,12 @@ export class PartiallyEditablePolyline extends Polyline {
   _rebuildEditableMarkers() {
     this._clearPointMarkers();
 
-    if (!this._editing || !this._map) {
+    if (
+      !this._editing ||
+      !this._map ||
+      this._editableStart < 0 ||
+      this._editableEnd < this._editableStart
+    ) {
       return;
     }
 
@@ -265,6 +289,7 @@ export class PartiallyEditablePolyline extends Polyline {
 
     record.marker = marker;
     marker._editablePointIndex = index;
+    marker.on("click", this._handleMarkerClick, this);
     marker.on("dragstart", this._handlePointDragStart, this);
     marker.on("drag", this._handlePointDrag, this);
     marker.on("dragend", this._handlePointDragEnd, this);
@@ -295,6 +320,7 @@ export class PartiallyEditablePolyline extends Polyline {
 
     marker._editablePreviousIndex = previousIndex;
     marker._editableNextIndex = nextIndex;
+    marker.on("click", this._handleMarkerClick, this);
     marker.on("dragstart", this._handleNewPointDragStart, this);
     marker.on("drag", this._handleNewPointDrag, this);
     marker.on("dragend", this._handleNewPointDragEnd, this);
@@ -330,6 +356,20 @@ export class PartiallyEditablePolyline extends Polyline {
 
     this._pointMarkers = [];
     this._newPointMarkers = [];
+  }
+
+  // Leaflet v2 selects a layer as a pointer-event target only when it has a
+  // listener for that event. This intentionally has no editing side effects.
+  _handleMarkerClick(event) {
+    const index = event.target._editablePointIndex;
+    if (index == null || !this._pointRecords[index]) {
+      return;
+    }
+
+    this.fire("pointclick", {
+      index,
+      latlng: this._cloneLatLng(this._pointRecords[index].latlng),
+    });
   }
 
   _handlePointDragStart(event) {
@@ -409,6 +449,16 @@ export class PartiallyEditablePolyline extends Polyline {
 
     this._commitGeometry();
 
+    if (this._pointRecords.length === 0) {
+      this._editableStart = -1;
+      this._editableEnd = -1;
+      this._rebuildEditableMarkers();
+    } else {
+      const replacementIndex = Math.min(index, this._pointRecords.length - 1);
+      this._updateEditableRange(replacementIndex);
+      this._rebuildEditableMarkers();
+    }
+
     this.fire("pointdelete", {
       index,
       latlng: this._cloneLatLng(deletedLatLng),
@@ -418,10 +468,6 @@ export class PartiallyEditablePolyline extends Polyline {
       this.endEditing();
       return;
     }
-
-    const replacementIndex = Math.min(index, this._pointRecords.length - 1);
-    this._updateEditableRange(replacementIndex);
-    this._rebuildEditableMarkers();
   }
 
   _handleNewPointDragStart(event) {
@@ -493,14 +539,13 @@ export class PartiallyEditablePolyline extends Polyline {
     this._commitGeometry();
     this._busy = false;
     this._removeDragHelpers();
+    this._updateEditableRange(index);
+    this._rebuildEditableMarkers();
 
     this.fire("pointinsert", {
       index,
       latlng: this._cloneLatLng(latlng),
     });
-
-    this._updateEditableRange(index);
-    this._rebuildEditableMarkers();
   }
 
   _handleNewPointDelete() {
