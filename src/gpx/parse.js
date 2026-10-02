@@ -1,5 +1,8 @@
 import { normalizeGpxSource } from "./source.js";
 
+export const MAX_ROUTES_PER_GPX = 20;
+export const MAX_ROUTE_POINTS_PER_ROUTE = 100;
+
 function readText(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -41,6 +44,29 @@ function parseTracks(doc) {
   }));
 }
 
+function parseRoutes(doc, fileName) {
+  const routeNodes = getElements(doc, "rte");
+  if (routeNodes.length > MAX_ROUTES_PER_GPX) {
+    throw new Error(`Too many GPX routes in ${fileName}: ${routeNodes.length} > ${MAX_ROUTES_PER_GPX}`);
+  }
+
+  return routeNodes.map((routeNode, routeIndex) => {
+    const pointNodes = getDirectChildren(routeNode, "rtept");
+    if (pointNodes.length > MAX_ROUTE_POINTS_PER_ROUTE) {
+      throw new Error(`Too many route points in GPX route #${routeIndex + 1} of ${fileName}: ${pointNodes.length} > ${MAX_ROUTE_POINTS_PER_ROUTE}`);
+    }
+
+    return {
+      name: getDirectChildText(routeNode, "name"),
+      points: pointNodes.map((pointNode) => ({
+        lat: Number(pointNode.getAttribute("lat")),
+        lon: Number(pointNode.getAttribute("lon")),
+        name: getFirstChild(pointNode, "name")?.textContent || "",
+      })),
+    };
+  });
+}
+
 function parseWaypoints(doc) {
   return getElements(doc, "wpt").map((node) => ({
     lat: Number(node.getAttribute("lat")),
@@ -58,7 +84,12 @@ export function parseGpxText(xmlText, options = {}) {
   if (parserError || parseErrors.length > 0) {
     throw new Error(`Invalid GPX XML: ${fileName}`);
   }
-  return normalizeGpxSource({ name: fileName, tracks: parseTracks(doc), waypoints: parseWaypoints(doc) });
+  return normalizeGpxSource({
+    name: fileName,
+    tracks: parseTracks(doc),
+    routes: parseRoutes(doc, fileName),
+    waypoints: parseWaypoints(doc),
+  });
 }
 
 export async function parseGpxFile(file) {
