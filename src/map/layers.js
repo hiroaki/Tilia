@@ -1,4 +1,4 @@
-import { FeatureGroup, Marker, Polyline, LatLngBounds } from "leaflet";
+import { DivIcon, FeatureGroup, Marker, Polyline, LatLngBounds } from "leaflet";
 import { getTrackStylePreset } from "./track-style-presets.js";
 import { countTrackPoints, getTrackModeCoordinates } from "../gpx/interpretation.js";
 
@@ -132,8 +132,21 @@ export function createTrackPointPopupContent(parsed, point) {
 export function buildGpxOverlay(parsed, options = {}) {
   const group = new FeatureGroup();
   const trackLayers = [];
+  const routeLayers = [];
+  const routePoints = [];
   const waypoints = [];
   const trackStyle = options.trackStyle || getTrackStylePreset(0);
+  const routeStyle = {
+    color: trackStyle.color,
+    weight: Math.max(1, trackStyle.weight - 2),
+    opacity: trackStyle.opacity,
+    dashArray: "8 6",
+  };
+  const routePointIcon = new DivIcon({
+    className: "tilia-route-point-marker",
+    iconSize: [12, 12],
+    iconAnchor: [6, 6],
+  });
 
   for (let trackIndex = 0; trackIndex < (parsed.tracks || []).length; trackIndex += 1) {
     const coordinates = getTrackModeCoordinates(parsed.tracks[trackIndex]);
@@ -141,6 +154,29 @@ export function buildGpxOverlay(parsed, options = {}) {
     const layer = new Polyline(coordinates, trackStyle);
     group.addLayer(layer);
     trackLayers.push({ layer, trackIndex });
+  }
+
+  for (let routeIndex = 0; routeIndex < (parsed.routes || []).length; routeIndex += 1) {
+    const route = parsed.routes[routeIndex];
+    const coordinates = (route.points || []).map((point) => [point.lat, point.lon]);
+    if (coordinates.length >= 2) {
+      const layer = new Polyline(coordinates, routeStyle);
+      group.addLayer(layer);
+      routeLayers.push({ layer, routeIndex });
+    }
+
+    for (let pointIndex = 0; pointIndex < (route.points || []).length; pointIndex += 1) {
+      const routePoint = route.points[pointIndex];
+      const marker = new Marker([routePoint.lat, routePoint.lon], { icon: routePointIcon });
+      group.addLayer(marker);
+      routePoints.push({
+        layer: marker,
+        route,
+        routePoint,
+        routeIndex,
+        pointIndex,
+      });
+    }
   }
 
   for (const wpt of parsed.waypoints) {
@@ -157,6 +193,8 @@ export function buildGpxOverlay(parsed, options = {}) {
     interactions: {
       kind: "gpx",
       trackLayers,
+      routeLayers,
+      routePoints,
       waypoints,
     },
   };

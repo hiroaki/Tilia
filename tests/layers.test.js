@@ -10,11 +10,22 @@ const leafletMocks = vi.hoisted(() => {
       this.layers.push(layer);
       return this;
     }
+
+    getBounds() {
+      return new MockLatLngBounds(this.layers.length > 0);
+    }
+  }
+
+  class MockDivIcon {
+    constructor(options) {
+      this.options = options;
+    }
   }
 
   class MockMarker {
-    constructor(latlng) {
+    constructor(latlng, options) {
       this.latlng = latlng;
+      this.options = options;
     }
   }
 
@@ -25,10 +36,24 @@ const leafletMocks = vi.hoisted(() => {
     }
   }
 
-  class MockLatLngBounds {}
+  class MockLatLngBounds {
+    constructor(valid = false) {
+      this.valid = valid;
+    }
+
+    isValid() {
+      return this.valid;
+    }
+
+    pad(value) {
+      this.padding = value;
+      return this;
+    }
+  }
 
   return {
     MockFeatureGroup,
+    MockDivIcon,
     MockMarker,
     MockPolyline,
     MockLatLngBounds,
@@ -36,19 +61,21 @@ const leafletMocks = vi.hoisted(() => {
 });
 
 vi.mock("leaflet", () => ({
+  DivIcon: leafletMocks.MockDivIcon,
   FeatureGroup: leafletMocks.MockFeatureGroup,
   Marker: leafletMocks.MockMarker,
   Polyline: leafletMocks.MockPolyline,
   LatLngBounds: leafletMocks.MockLatLngBounds,
 }));
 
-import { buildGpxOverlay } from "../src/map/layers.js";
+import { buildGpxOverlay, fitMapToGroup } from "../src/map/layers.js";
 import { getTrackStylePreset } from "../src/map/track-style-presets.js";
 
 describe("buildGpxOverlay", () => {
   it("applies the provided track style preset to the polyline", () => {
     const overlay = buildGpxOverlay({
       tracks: [{ segments: [{ points: [{ lat: 35, lon: 135 }, { lat: 35.1, lon: 135.1 }] }] }, { segments: [{ points: [{ lat: 36, lon: 136 }, { lat: 36.1, lon: 136.1 }] }] }],
+      routes: [],
       waypoints: [{ lat: 35.0, lon: 135.0, name: "Start" }],
     }, {
       trackStyle: getTrackStylePreset(4),
@@ -57,5 +84,79 @@ describe("buildGpxOverlay", () => {
     expect(overlay.interactions.trackLayers.map(({ layer }) => layer.options)).toEqual([getTrackStylePreset(4), getTrackStylePreset(4)]);
     expect(overlay.interactions.trackLayers.map(({ trackIndex }) => trackIndex)).toEqual([0, 1]);
     expect(overlay.layer.layers).toHaveLength(3);
+  });
+
+  it("renders empty, single-point, and multi-point routes with internal locators", () => {
+    const trackStyle = getTrackStylePreset(4);
+    const routes = [
+      { name: "Empty", points: [] },
+      { name: "Single", points: [{ lat: 35, lon: 135, name: "Only" }] },
+      {
+        name: "Multiple",
+        points: [
+          { lat: 36, lon: 136, name: "Start" },
+          { lat: 36.1, lon: 136.1, name: "Via" },
+          { lat: 36.2, lon: 136.2, name: "Goal" },
+        ],
+      },
+    ];
+    const overlay = buildGpxOverlay({ tracks: [], routes, waypoints: [] }, { trackStyle });
+
+    expect(overlay.interactions.routeLayers).toHaveLength(1);
+    expect(overlay.interactions.routeLayers[0]).toMatchObject({ routeIndex: 2 });
+    expect(overlay.interactions.routeLayers[0].layer.latlngs).toEqual([
+      [36, 136],
+      [36.1, 136.1],
+      [36.2, 136.2],
+    ]);
+    expect(overlay.interactions.routeLayers[0].layer.options).toEqual({
+      color: trackStyle.color,
+      weight: trackStyle.weight - 2,
+      opacity: trackStyle.opacity,
+      dashArray: "8 6",
+    });
+    expect(overlay.interactions.routePoints).toHaveLength(4);
+    expect(overlay.interactions.routePoints.map(({ routeIndex, pointIndex }) => ({ routeIndex, pointIndex }))).toEqual([
+      { routeIndex: 1, pointIndex: 0 },
+      { routeIndex: 2, pointIndex: 0 },
+      { routeIndex: 2, pointIndex: 1 },
+      { routeIndex: 2, pointIndex: 2 },
+    ]);
+    expect(overlay.layer.layers).toHaveLength(5);
+  });
+
+  it("uses a dedicated route-point DivIcon distinct from waypoint markers", () => {
+    const routePoint = { lat: 35, lon: 135, name: "Route point" };
+    const waypoint = { lat: 35.1, lon: 135.1, name: "Waypoint" };
+    const overlay = buildGpxOverlay({
+      tracks: [],
+      routes: [{ name: "Planned", points: [routePoint] }],
+      waypoints: [waypoint],
+    });
+
+    const routeMarker = overlay.interactions.routePoints[0].layer;
+    const waypointMarker = overlay.interactions.waypoints[0].layer;
+    expect(routeMarker.options.icon).toBeInstanceOf(leafletMocks.MockDivIcon);
+    expect(routeMarker.options.icon.options).toEqual({
+      className: "tilia-route-point-marker",
+      iconSize: [12, 12],
+      iconAnchor: [6, 6],
+    });
+    expect(waypointMarker.options).toBeUndefined();
+  });
+
+  it("includes route layers in the existing feature-group bounds flow", () => {
+    const overlay = buildGpxOverlay({
+      tracks: [],
+      routes: [{ name: "Single", points: [{ lat: 35, lon: 135, name: "Only" }] }],
+      waypoints: [],
+    });
+    const map = { fitBounds: vi.fn() };
+
+    fitMapToGroup(map, overlay.layer);
+
+    expect(map.fitBounds).toHaveBeenCalledTimes(1);
+    expect(map.fitBounds.mock.calls[0][0]).toBeInstanceOf(leafletMocks.MockLatLngBounds);
+    expect(map.fitBounds.mock.calls[0][0].padding).toBe(0.1);
   });
 });
