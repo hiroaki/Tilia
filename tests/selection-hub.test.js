@@ -2,6 +2,12 @@ import { describe, expect, it, vi } from "vitest";
 
 const popupMocks = vi.hoisted(() => ({
   createPhotoPopupContent: vi.fn((photo) => ({ kind: "photo-popup", photo })),
+  createRoutePointPopupContent: vi.fn((source, routePoint, locator) => ({
+    kind: "route-point-popup",
+    source,
+    routePoint,
+    locator,
+  })),
   createTrackPointPopupContent: vi.fn((source, point) => ({ kind: "track-point-popup", source, point })),
   createWaypointPopupContent: vi.fn((sourceName, waypoint) => ({
     kind: "waypoint-popup",
@@ -12,6 +18,7 @@ const popupMocks = vi.hoisted(() => ({
 
 vi.mock("../src/map/layers.js", () => ({
   createPhotoPopupContent: popupMocks.createPhotoPopupContent,
+  createRoutePointPopupContent: popupMocks.createRoutePointPopupContent,
   createTrackPointPopupContent: popupMocks.createTrackPointPopupContent,
   createWaypointPopupContent: popupMocks.createWaypointPopupContent,
 }));
@@ -104,6 +111,62 @@ describe("createSelectionHub", () => {
     expect(popupMocks.createTrackPointPopupContent).toHaveBeenCalledWith(entry.source, point);
     expect(map.panTo).toHaveBeenCalledWith([35.0, 135.0]);
     expect(map.openPopup).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens a route-point popup and records its route locator without panning by default", () => {
+    const map = { panTo: vi.fn(), openPopup: vi.fn() };
+    const hub = createSelectionHub(map);
+    const entry = { id: 7, source: { name: "Routes", routes: [{ name: "First" }, { name: "Second" }] } };
+    const routePoint = { name: "Via", lat: 35.0, lon: 135.0 };
+    const locator = { routeIndex: 1, pointIndex: 2 };
+
+    const selection = hub.selectRoutePoint(entry, routePoint, locator);
+
+    expect(popupMocks.createRoutePointPopupContent).toHaveBeenCalledWith(entry.source, routePoint, locator);
+    expect(map.panTo).not.toHaveBeenCalled();
+    expect(map.openPopup).toHaveBeenCalledWith(
+      { kind: "route-point-popup", source: entry.source, routePoint, locator },
+      [35.0, 135.0],
+      {
+        className: "tilia-info-popup-window",
+        closeOnClick: false,
+      },
+    );
+    expect(selection).toEqual({ kind: "route-point", entry, routePoint, locator });
+    expect(hub.getSelection()).toEqual({ kind: "route-point", entry, routePoint, locator });
+  });
+
+  it("supports explicit route-point popup and pan options", () => {
+    const map = { panTo: vi.fn(), openPopup: vi.fn() };
+    const hub = createSelectionHub(map);
+    const entry = { source: { name: "Routes", routes: [] } };
+    const routePoint = { lat: 35.0, lon: 135.0 };
+    const locator = { routeIndex: 0, pointIndex: 0 };
+
+    hub.selectRoutePoint(entry, routePoint, locator, { openPopup: false });
+    expect(map.openPopup).not.toHaveBeenCalled();
+
+    hub.selectRoutePoint(entry, routePoint, locator, { panTo: true });
+    expect(map.panTo).toHaveBeenCalledWith([35.0, 135.0]);
+    expect(map.openPopup).toHaveBeenCalledTimes(1);
+  });
+
+  it("clears a route-point selection when its popup closes", () => {
+    const popup = {};
+    const map = {
+      panTo: vi.fn(),
+      openPopup: vi.fn(() => popup),
+      on: vi.fn(),
+    };
+    const hub = createSelectionHub(map);
+    const entry = { source: { name: "Routes", routes: [{}] } };
+    const routePoint = { lat: 35.0, lon: 135.0 };
+    const locator = { routeIndex: 0, pointIndex: 0 };
+
+    hub.selectRoutePoint(entry, routePoint, locator);
+    map.on.mock.calls.find(([event]) => event === "popupclose")?.[1]({ popup });
+
+    expect(hub.getSelection()).toBeNull();
   });
 
   it("clears the active selection when the popup that owns it closes", () => {

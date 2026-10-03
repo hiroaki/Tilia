@@ -1,4 +1,9 @@
-import { createPhotoPopupContent, createTrackPointPopupContent, createWaypointPopupContent } from "../map/layers.js";
+import {
+  createPhotoPopupContent,
+  createRoutePointPopupContent,
+  createTrackPointPopupContent,
+  createWaypointPopupContent,
+} from "../map/layers.js";
 
 export function createSelectionHub(map) {
   let activeSelection = null;
@@ -75,6 +80,16 @@ export function createSelectionHub(map) {
         });
       }
       return setSelection({ kind: "track-point", entry, point });
+    },
+    selectRoutePoint(entry, routePoint, locator, options = {}) {
+      if (options.openPopup !== false) {
+        openPopup({
+          latlng: [routePoint?.lat, routePoint?.lon],
+          content: createRoutePointPopupContent(entry.source, routePoint, locator),
+          panTo: options.panTo === true,
+        });
+      }
+      return setSelection({ kind: "route-point", entry, routePoint, locator });
     },
     selectWaypoint(entry, waypoint, options = {}) {
       if (options.openPopup !== false) {

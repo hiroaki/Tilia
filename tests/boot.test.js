@@ -20,6 +20,7 @@ const bootMocks = vi.hoisted(() => ({
   getSelection: vi.fn(() => bootMocks.selectionState),
   selectTrack: vi.fn((entry) => ({ kind: "track", entry })),
   selectTrackPoint: vi.fn((entry, point) => ({ kind: "track-point", entry, point })),
+  selectRoutePoint: vi.fn((entry, routePoint, locator) => ({ kind: "route-point", entry, routePoint, locator })),
   selectWaypoint: vi.fn((entry, waypoint) => ({ kind: "waypoint", entry, waypoint })),
   selectPhoto: vi.fn((entry) => ({ kind: "photo", entry })),
   openPopup: vi.fn(),
@@ -58,6 +59,7 @@ vi.mock("../src/core/selection-hub.js", () => ({
     openPopup: bootMocks.openPopup,
     selectTrack: bootMocks.selectTrack,
     selectTrackPoint: bootMocks.selectTrackPoint,
+    selectRoutePoint: bootMocks.selectRoutePoint,
     selectWaypoint: bootMocks.selectWaypoint,
     selectPhoto: bootMocks.selectPhoto,
   })),
@@ -95,6 +97,8 @@ function createGpxOverlay(id, options = {}) {
   }));
   const routePointLayers = (options.routePoints || []).map((routePointHandle, index) => ({
     layer: routePointHandle.layer || createLayer(`${id}-route-point-${index}`),
+    route: routePointHandle.route,
+    routePoint: routePointHandle.routePoint || { name: `Route point ${index + 1}`, lat: 35 + index, lon: 135 + index },
     routeIndex: routePointHandle.routeIndex ?? 0,
     pointIndex: routePointHandle.pointIndex ?? index,
   }));
@@ -147,6 +151,7 @@ describe("createTiliaCore", () => {
     bootMocks.getSelection.mockClear();
     bootMocks.selectTrack.mockClear();
     bootMocks.selectTrackPoint.mockClear();
+    bootMocks.selectRoutePoint.mockClear();
     bootMocks.selectWaypoint.mockClear();
     bootMocks.selectPhoto.mockClear();
     bootMocks.openPopup.mockClear();
@@ -264,6 +269,88 @@ describe("createTiliaCore", () => {
       kind: "photo",
       source: expect.objectContaining({ name: "photo.jpg" }),
     }));
+  });
+
+  it("selects route points by entry, route index, and point index", () => {
+    const firstRoutePoint = { name: "First route point", lat: 35.0, lon: 135.0 };
+    const secondRoutePoint = { name: "Second route point", lat: 36.0, lon: 136.0 };
+    const firstOverlay = createGpxOverlay("gpx-routes-1", {
+      trackLayers: [],
+      routePoints: [
+        { routePoint: firstRoutePoint, routeIndex: 0, pointIndex: 0 },
+        { routePoint: secondRoutePoint, routeIndex: 1, pointIndex: 0 },
+      ],
+    });
+    const otherRoutePoint = { name: "Other entry point", lat: 37.0, lon: 137.0 };
+    const secondOverlay = createGpxOverlay("gpx-routes-2", {
+      trackLayers: [],
+      routePoints: [{ routePoint: otherRoutePoint, routeIndex: 0, pointIndex: 0 }],
+    });
+    bootMocks.buildGpxOverlay
+      .mockReturnValueOnce(firstOverlay)
+      .mockReturnValueOnce(secondOverlay);
+    const core = createTiliaCore({ closePopup: bootMocks.closePopup });
+    const firstEntry = core.addGpxSource({
+      name: "first.gpx",
+      routes: [
+        { points: [firstRoutePoint] },
+        { points: [secondRoutePoint] },
+      ],
+    }, { fitToView: false });
+    const secondEntry = core.addGpxSource({
+      name: "second.gpx",
+      routes: [{ points: [otherRoutePoint] }],
+    }, { fitToView: false });
+
+    firstOverlay.interactions.routePoints[1].layer.emit("click");
+    secondOverlay.interactions.routePoints[0].layer.emit("click");
+
+    expect(bootMocks.selectRoutePoint).toHaveBeenNthCalledWith(
+      1,
+      firstEntry,
+      secondRoutePoint,
+      { routeIndex: 1, pointIndex: 0 },
+    );
+    expect(bootMocks.selectRoutePoint).toHaveBeenNthCalledWith(
+      2,
+      secondEntry,
+      otherRoutePoint,
+      { routeIndex: 0, pointIndex: 0 },
+    );
+  });
+
+  it("binds route-point interactions to rebuilt GPX overlays", () => {
+    const originalPoint = { name: "Original", lat: 35.0, lon: 135.0 };
+    const replacementPoint = { name: "Replacement", lat: 35.1, lon: 135.1 };
+    const firstOverlay = createGpxOverlay("gpx-before-update", {
+      trackLayers: [],
+      routePoints: [{ routePoint: originalPoint, routeIndex: 0, pointIndex: 0 }],
+    });
+    const replacementOverlay = createGpxOverlay("gpx-after-update", {
+      trackLayers: [],
+      routePoints: [{ routePoint: replacementPoint, routeIndex: 0, pointIndex: 0 }],
+    });
+    bootMocks.buildGpxOverlay
+      .mockReturnValueOnce(firstOverlay)
+      .mockReturnValueOnce(replacementOverlay);
+    const core = createTiliaCore({ closePopup: bootMocks.closePopup });
+    const entry = core.addGpxSource({
+      name: "routes.gpx",
+      routes: [{ points: [originalPoint] }],
+    }, { fitToView: false });
+
+    core.updateGpxSource(entry.id, {
+      name: "routes.gpx",
+      routes: [{ points: [replacementPoint] }],
+    }, { fitToView: false });
+    replacementOverlay.interactions.routePoints[0].layer.emit("click");
+
+    expect(bootMocks.selectRoutePoint).toHaveBeenCalledOnce();
+    expect(bootMocks.selectRoutePoint).toHaveBeenCalledWith(
+      entry,
+      replacementPoint,
+      { routeIndex: 0, pointIndex: 0 },
+    );
   });
 
   it("rotates track style presets across newly added GPX entries", () => {

@@ -190,6 +190,23 @@ function bindGpxWaypointInteractions(entry, selectionHub) {
   }
 }
 
+function bindGpxRoutePointInteractions(entry, selectionHub) {
+  for (const routePointHandle of entry?.interactions?.routePoints || []) {
+    const layer = routePointHandle?.layer;
+    if (!layer || typeof layer.on !== "function" || layer._tiliaRoutePointSelectionBound) {
+      continue;
+    }
+    layer._tiliaRoutePointSelectionBound = true;
+    layer.on("click", () => {
+      selectionHub.selectRoutePoint(
+        entry,
+        routePointHandle.routePoint,
+        { routeIndex: routePointHandle.routeIndex, pointIndex: routePointHandle.pointIndex },
+      );
+    });
+  }
+}
+
 function bindPhotoMarkerInteraction(entry, selectionHub) {
   const marker = entry?.interactions?.marker;
   if (!marker || typeof marker.on !== "function" || marker._tiliaPhotoSelectionBound) {
@@ -218,6 +235,7 @@ function addGpxEntry({ state, map, interactionHub, selectionHub }, source, optio
 
   applyGpxEntryVisibility(state, entry);
   bindGpxTrackPointInteractions(entry, selectionHub);
+  bindGpxRoutePointInteractions(entry, selectionHub);
   bindGpxWaypointInteractions(entry, selectionHub);
 
   if (entry.visible !== false) {
@@ -387,6 +405,7 @@ export function createTiliaCore(map, options = {}) {
       }
       applyGpxEntryVisibility(state, entry);
       bindGpxTrackPointInteractions(entry, selectionHub);
+      bindGpxRoutePointInteractions(entry, selectionHub);
       bindGpxWaypointInteractions(entry, selectionHub);
       if (nextVisible) {
         nextOverlay.layer.addTo(map);
@@ -490,6 +509,9 @@ export function createTiliaCore(map, options = {}) {
     },
     selectTrackPoint(entry, point, options) {
       return selectionHub.selectTrackPoint(entry, point, options);
+    },
+    selectRoutePoint(entry, routePoint, locator, options) {
+      return selectionHub.selectRoutePoint(entry, routePoint, locator, options);
     },
     selectWaypoint(entry, waypoint, options) {
       return selectionHub.selectWaypoint(entry, waypoint, options);
