@@ -60,6 +60,21 @@ export function createSelectionHub(map) {
     clearSelection() {
       return setSelection(null);
     },
+    clearSelectionForEntry(entryId) {
+      const selection = activeSelection;
+      if (selection?.entry?.id !== entryId) {
+        return false;
+      }
+
+      const popup = activePopup;
+      if (popup) {
+        map.closePopup?.(popup);
+      }
+      if (activeSelection === selection) {
+        clearSelectionState();
+      }
+      return true;
+    },
     subscribe(listener) {
       subscribers.add(listener);
       listener(activeSelection);
