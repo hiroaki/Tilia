@@ -482,7 +482,7 @@ export function installElevationPanelControl({ map, core, panel, onStatus, posit
     panel.rerenderPanel("elevation");
     const currentSelection = selectedPointByEntryId.get(entry.id);
     if (currentSelection) {
-      onStatus(`Selected ${entry.source.name} point at ${formatDistance(currentSelection.distanceMeters)}`);
+      onStatus(`Selected ${entry.source.name} track point at ${formatDistance(currentSelection.distanceMeters)}`);
     } else {
       onStatus(`Selected ${entry.source.name} elevation profile`);
     }
@@ -559,7 +559,7 @@ export function installElevationPanelControl({ map, core, panel, onStatus, posit
     if (panel.isOpen("elevation")) {
       panel.rerenderPanel("elevation");
     }
-    onStatus(`Selected ${entry.source.name} point at ${formatDistance(selection.point.distanceMeters)}`);
+    onStatus(`Selected ${entry.source.name} track point at ${formatDistance(selection.point.distanceMeters)}`);
   });
 
   map.on("popupopen", (event) => {

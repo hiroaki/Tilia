@@ -73,7 +73,7 @@ test("viewer elevation panel separates logical tracks and keeps hover and click 
   await expect(page.locator(".tilia-elevation-guide-marker")).toBeVisible();
 
   await chart.click({ position: { x: chartBox.width * 0.75, y: chartBox.height * 0.5 } });
-  await expect(page.locator(".tilia-status-text")).toContainText("Selected multi-track-elevation.gpx point at");
+  await expect(page.locator(".tilia-status-text")).toContainText("Selected multi-track-elevation.gpx track point at");
 });
 
 test("map clicks select canonical points from each logical track", async ({ page }) => {
@@ -87,7 +87,7 @@ test("map clicks select canonical points from each logical track", async ({ page
   // Keep fixture tracks nearby and substantial: Leaflet path clicks become flaky when fitBounds reduces a path to a few pixels.
   await trackPaths.nth(0).click();
   await expect(page.locator(".leaflet-popup")).toBeVisible();
-  await expect(page.locator(".leaflet-popup")).toContainText("trkpt");
+  await expect(page.locator(".leaflet-popup")).toContainText("Track point");
 
   await page.goto("/samples/viewer/");
   await page.locator('.tilia-file-import-control input[type="file"]').setInputFiles(multiTrackPath);

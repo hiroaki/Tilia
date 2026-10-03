@@ -263,7 +263,7 @@ These plugins are provided in this repository under `plugins/` as third-party st
 |----|----------|-------------|
 | `x-track-editor` | `tilia-panel`, `tilia-status` | Starts a GPX editing session from a working copy, edits track points, and keeps the edited copy as a new layer on save |
 | `x-gpx-export` | `tilia-panel`, `tilia-status` | Exports a selected GPX layer to a `.gpx` download |
-| `x-route-search` | `tilia-status` | Shows a left-side route form, calls Phloem `POST /route`, and imports route results as new GPX-like layers |
+| `x-route-search` | `tilia-status` | Shows a left-side route form, calls Phloem `POST /route`, and imports each routing result as a GPX Track with Start/Via/Goal Waypoints |
 
 #### `x-route-search` options
 

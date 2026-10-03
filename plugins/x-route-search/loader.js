@@ -165,7 +165,7 @@ function validateRoutePoints(state) {
     return "Start and Goal both require valid coordinates (lat: -90..90, lon: -180..180).";
   }
   if (ordered.some((point) => !isCompletePoint(point))) {
-    return "Every route point must use valid coordinates (lat: -90..90, lon: -180..180).";
+    return "Every Start, Via, and Goal point must use valid coordinates (lat: -90..90, lon: -180..180).";
   }
   return null;
 }

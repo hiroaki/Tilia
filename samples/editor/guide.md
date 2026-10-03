@@ -226,7 +226,7 @@ Once the map page is displayed, click the "R" button on the left side of the scr
 
 Enter the start and end points for the route search, and click the "Search Routes" button to execute the search. You can specify each point by right-clicking on the map, and you can also move the points by dragging the markers.
 
-The route search results are internally saved as a single GPX data in Tilia and displayed as one of the items in the layer panel "L", so open the layer panel to see them.
+Each route-search result is stored in Tilia as a GPX Track, with the Start, Via, and Goal locations stored as GPX Waypoints, and is shown as a separate item in the Layers panel "L".
 
 > [!TIP]
 > Each time you execute a search, new data is added. This is an intentional design for comparing multiple search results. If you want to clear the search results, you can delete the corresponding items from the layer panel.

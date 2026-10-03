@@ -263,7 +263,7 @@ GPX route polylineとroute-point markerは、現在`subscribeInteractions()`で�
 |----|------|------|
 | `x-track-editor` | `tilia-panel`, `tilia-status` | GPX の working copy から編集セッションを開始し、トラックポイントを編集して保存時に新規レイヤーとして残す |
 | `x-gpx-export` | `tilia-panel`, `tilia-status` | 選択した GPX レイヤーを `.gpx` としてダウンロード出力する |
-| `x-route-search` | `tilia-status` | 左側フォームを表示して Phloem `POST /route` を呼び出し、結果ルートを新しい GPX 風レイヤーとして取り込む |
+| `x-route-search` | `tilia-status` | 左側フォームを表示して Phloem `POST /route` を呼び出し、各検索結果を Start/Via/Goal のウェイポイントを伴う GPX トラックとして取り込む |
 
 #### `x-route-search` のオプション
 
