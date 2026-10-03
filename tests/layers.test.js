@@ -68,7 +68,7 @@ vi.mock("leaflet", () => ({
   LatLngBounds: leafletMocks.MockLatLngBounds,
 }));
 
-import { buildGpxOverlay, fitMapToGroup } from "../src/map/layers.js";
+import { buildGpxOverlay, createRoutePointPopupContent, fitMapToGroup } from "../src/map/layers.js";
 import { getTrackStylePreset } from "../src/map/track-style-presets.js";
 
 describe("buildGpxOverlay", () => {
@@ -158,5 +158,76 @@ describe("buildGpxOverlay", () => {
     expect(map.fitBounds).toHaveBeenCalledTimes(1);
     expect(map.fitBounds.mock.calls[0][0]).toBeInstanceOf(leafletMocks.MockLatLngBounds);
     expect(map.fitBounds.mock.calls[0][0].padding).toBe(0.1);
+  });
+});
+
+describe("createRoutePointPopupContent", () => {
+  function createDocumentStub() {
+    return {
+      createElement(tagName) {
+        return {
+          tagName,
+          className: "",
+          textContent: "",
+          children: [],
+          appendChild(child) {
+            this.children.push(child);
+            return child;
+          },
+        };
+      },
+    };
+  }
+
+  function getPopupText(node) {
+    return [node.textContent, ...node.children.flatMap(getPopupText)].filter(Boolean);
+  }
+
+  it("shows route-point details using human-readable terminology", () => {
+    const originalDocument = globalThis.document;
+    globalThis.document = createDocumentStub();
+    try {
+      const content = createRoutePointPopupContent(
+        { name: "routes.gpx", routes: [{ name: "Scenic route" }] },
+        { name: "Viewpoint", lat: 35.1234567, lon: 135.7654321 },
+        { routeIndex: 0, pointIndex: 1 },
+      );
+
+      expect(getPopupText(content)).toEqual([
+        "routes.gpx",
+        "Type", "Route point",
+        "Route", "Scenic route",
+        "Name", "Viewpoint",
+        "Latitude", "35.123457",
+        "Longitude", "135.765432",
+      ]);
+    } finally {
+      if (originalDocument === undefined) {
+        delete globalThis.document;
+      } else {
+        globalThis.document = originalDocument;
+      }
+    }
+  });
+
+  it("uses indexed route and unnamed route-point fallbacks", () => {
+    const originalDocument = globalThis.document;
+    globalThis.document = createDocumentStub();
+    try {
+      const content = createRoutePointPopupContent(
+        { name: "routes.gpx", routes: [{}, {}] },
+        { lat: 35, lon: 135 },
+        { routeIndex: 1, pointIndex: 0 },
+      );
+
+      expect(getPopupText(content)).toContain("Route #2");
+      expect(getPopupText(content)).toContain("Unnamed route point");
+    } finally {
+      if (originalDocument === undefined) {
+        delete globalThis.document;
+      } else {
+        globalThis.document = originalDocument;
+      }
+    }
   });
 });

@@ -93,6 +93,18 @@ export function createWaypointPopupContent(sourceName, waypoint) {
   ]);
 }
 
+export function createRoutePointPopupContent(source, routePoint, locator) {
+  const routeIndex = locator?.routeIndex;
+  const route = Number.isInteger(routeIndex) ? source?.routes?.[routeIndex] : null;
+  return createPopupContent(source?.name || "Route point", [
+    ["Type", "Route point"],
+    ["Route", route?.name || (Number.isInteger(routeIndex) ? `Route #${routeIndex + 1}` : "Unnamed route")],
+    ["Name", routePoint?.name || "Unnamed route point"],
+    ["Latitude", formatCoordinate(routePoint?.lat)],
+    ["Longitude", formatCoordinate(routePoint?.lon)],
+  ]);
+}
+
 export function createPhotoPopupContent(photo) {
   const camera = `${photo.make || ""} ${photo.model || ""}`.trim() || "-";
   const content = createPopupContent(photo.name || "Photo", [
