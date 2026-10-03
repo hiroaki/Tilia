@@ -517,7 +517,6 @@ export function createTiliaCore(map, options = {}) {
       return selectionHub.selectPhoto(entry, options);
     },
     clearAll() {
-      map.closePopup();
       selectionHub.clearSelection();
       revokePhotoPreviewUrls(state.entries);
       clearLayers(state, (layer) => layer.remove());

@@ -1075,7 +1075,8 @@ describe("createTiliaCore", () => {
 
     core.clearAll();
 
-    expect(map.closePopup).toHaveBeenCalledTimes(1);
+    expect(map.closePopup).not.toHaveBeenCalled();
+    expect(bootMocks.clearSelection).toHaveBeenCalledOnce();
     expect(gpxOverlay.layer.remove).toHaveBeenCalledTimes(1);
     expect(core.state.entries).toEqual([]);
     expect(core.state.sources).toEqual([]);

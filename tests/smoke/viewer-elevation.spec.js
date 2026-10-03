@@ -37,6 +37,20 @@ test("viewer elevation panel renders a profile for an imported GPX track", async
   expect(pageErrors).toEqual([]);
 });
 
+test("selecting an elevation track closes the previous waypoint popup", async ({ page }) => {
+  await page.goto("/samples/viewer/");
+  await page.locator('.tilia-file-import-control input[type="file"]').setInputFiles(sampleTrackPath);
+
+  await page.locator(".leaflet-marker-icon").click();
+  await expect(page.locator(".leaflet-popup")).toBeVisible();
+  await expect(page.locator(".leaflet-popup")).toContainText("Start marker");
+
+  await page.getByRole("button", { name: "Elevation" }).click();
+
+  await expect(page.locator(".tilia-status-text")).toContainText("Selected sample-track.gpx elevation profile");
+  await expect(page.locator(".leaflet-popup")).toHaveCount(0);
+});
+
 test("viewer elevation panel separates logical tracks and keeps hover and click interactions", async ({ page }) => {
   await page.goto("/samples/viewer/");
   await page.locator('.tilia-file-import-control input[type="file"]').setInputFiles(multiTrackPath);
