@@ -68,7 +68,13 @@ vi.mock("leaflet", () => ({
   LatLngBounds: leafletMocks.MockLatLngBounds,
 }));
 
-import { buildGpxOverlay, createRoutePointPopupContent, fitMapToGroup } from "../src/map/layers.js";
+import {
+  buildGpxOverlay,
+  createRoutePointPopupContent,
+  createTrackPointPopupContent,
+  createWaypointPopupContent,
+  fitMapToGroup,
+} from "../src/map/layers.js";
 import { getTrackStylePreset } from "../src/map/track-style-presets.js";
 
 describe("buildGpxOverlay", () => {
@@ -161,27 +167,56 @@ describe("buildGpxOverlay", () => {
   });
 });
 
-describe("createRoutePointPopupContent", () => {
-  function createDocumentStub() {
-    return {
-      createElement(tagName) {
-        return {
-          tagName,
-          className: "",
-          textContent: "",
-          children: [],
-          appendChild(child) {
-            this.children.push(child);
-            return child;
-          },
-        };
-      },
-    };
-  }
+function createDocumentStub() {
+  return {
+    createElement(tagName) {
+      return {
+        tagName,
+        className: "",
+        textContent: "",
+        children: [],
+        appendChild(child) {
+          this.children.push(child);
+          return child;
+        },
+      };
+    },
+  };
+}
 
-  function getPopupText(node) {
-    return [node.textContent, ...node.children.flatMap(getPopupText)].filter(Boolean);
-  }
+function getPopupText(node) {
+  return [node.textContent, ...node.children.flatMap(getPopupText)].filter(Boolean);
+}
+
+describe("GPX point popup terminology", () => {
+  it("uses human-readable feature names for waypoint, route-point, and track-point types", () => {
+    const originalDocument = globalThis.document;
+    globalThis.document = createDocumentStub();
+    try {
+      expect(getPopupText(createWaypointPopupContent("waypoints.gpx", {
+        name: "Start",
+        lat: 35,
+        lon: 135,
+      }))).toEqual(expect.arrayContaining(["Type", "Waypoint"]));
+
+      expect(getPopupText(createRoutePointPopupContent(
+        { name: "routes.gpx", routes: [{ name: "Scenic route" }] },
+        { name: "Viewpoint", lat: 35, lon: 135 },
+        { routeIndex: 0, pointIndex: 0 },
+      ))).toEqual(expect.arrayContaining(["Type", "Route point"]));
+
+      expect(getPopupText(createTrackPointPopupContent(
+        { name: "tracks.gpx", tracks: [] },
+        { lat: 35, lon: 135, distanceMeters: 0, elevation: null, timestamp: null },
+      ))).toEqual(expect.arrayContaining(["Type", "Track point"]));
+    } finally {
+      if (originalDocument === undefined) {
+        delete globalThis.document;
+      } else {
+        globalThis.document = originalDocument;
+      }
+    }
+  });
 
   it("shows route-point details using human-readable terminology", () => {
     const originalDocument = globalThis.document;

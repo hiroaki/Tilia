@@ -123,7 +123,7 @@ export function createPhotoPopupContent(photo) {
 
 export function createTrackPointPopupContent(parsed, point) {
   const rows = [
-    ["Type", "trkpt"],
+    ["Type", "Track point"],
     ["Track", parsed?.name || "Track"],
   ];
 

@@ -216,19 +216,19 @@ describe("x-route-search helpers", () => {
     })).toThrow(/invalid route profile/i);
   });
 
-  it("throws when route points include invalid coordinates", () => {
+  it("throws when routing points include invalid coordinates", () => {
     expect(() => createPhloemRequestBody({
       profile: "car",
       points: [
         { lat: "", lon: "139.76" },
       ],
-    })).toThrow(/invalid route point/i);
+    })).toThrow("Invalid routing point at index 0");
   });
 
-  it("throws when route points input is not an array", () => {
+  it("throws when routing points input is not an array", () => {
     expect(() => createPhloemRequestBody({
       profile: "car",
       points: null,
-    })).toThrow(/must be an array/i);
+    })).toThrow("Routing points must be an array");
   });
 });
