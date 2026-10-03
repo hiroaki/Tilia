@@ -25,6 +25,10 @@ function addSampleEntry(state, overrides = {}) {
 }
 
 describe("state helpers", () => {
+  it("starts with all GPX visibility categories enabled", () => {
+    expect(createAppState().gpxVisibility).toEqual({ tracks: true, routes: true, waypoints: true });
+  });
+
   it("adds entries with incrementing ids and keeps sources and layers aligned", () => {
     const state = createAppState();
 

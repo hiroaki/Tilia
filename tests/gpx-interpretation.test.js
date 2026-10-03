@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  countRoutePoints,
   getSourceDistanceSummary,
   getNearestTrackModePoint,
   getTrackModeCoordinates,
@@ -8,6 +9,19 @@ import {
 } from "../src/gpx/interpretation.js";
 
 describe("Track-mode GPX interpretation", () => {
+  it("counts route points without including track points or waypoints", () => {
+    expect(countRoutePoints({
+      tracks: [{ segments: [{ points: [{ lat: 1, lon: 2 }] }] }],
+      routes: [
+        { points: [{ lat: 3, lon: 4 }, { lat: 5, lon: 6 }] },
+        { points: [] },
+        { points: [{ lat: 7, lon: 8 }] },
+      ],
+      waypoints: [{ lat: 9, lon: 10 }],
+    })).toBe(3);
+    expect(countRoutePoints({})).toBe(0);
+  });
+
   it("joins segments within a track while keeping tracks independent", () => {
     const source = { tracks: [{ segments: [{ points: [{ lat: 35, lon: 135, elevation: 1 }, { lat: 35.01, lon: 135.01, elevation: 2 }] }, { points: [{ lat: 35.02, lon: 135.02, elevation: 3 }] }] }, { segments: [{ points: [{ lat: 40, lon: 140, elevation: 4 }, { lat: 40.01, lon: 140.01, elevation: 5 }] }] }] };
     expect(getTrackModeCoordinates(source.tracks[0])).toHaveLength(3);

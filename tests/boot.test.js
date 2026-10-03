@@ -89,6 +89,15 @@ function createLayer(id) {
 function createGpxOverlay(id, options = {}) {
   const layer = createLayer(id);
   const trackLayers = options.trackLayers || [{ layer: createLayer(`${id}-track`), trackIndex: 0 }];
+  const routeLayers = (options.routeLayers || []).map((routeHandle, index) => ({
+    layer: routeHandle.layer || createLayer(`${id}-route-${index}`),
+    routeIndex: routeHandle.routeIndex ?? index,
+  }));
+  const routePointLayers = (options.routePoints || []).map((routePointHandle, index) => ({
+    layer: routePointHandle.layer || createLayer(`${id}-route-point-${index}`),
+    routeIndex: routePointHandle.routeIndex ?? 0,
+    pointIndex: routePointHandle.pointIndex ?? index,
+  }));
   const waypointLayers = (options.waypoints || []).map((waypoint, index) => ({
     layer: waypoint.layer || { id: `${id}-waypoint-${index}` },
     waypoint: waypoint.waypoint || { name: `Waypoint ${index + 1}` },
@@ -96,6 +105,12 @@ function createGpxOverlay(id, options = {}) {
 
   for (const trackHandle of trackLayers) {
     layer.addLayer(trackHandle.layer);
+  }
+  for (const routeHandle of routeLayers) {
+    layer.addLayer(routeHandle.layer);
+  }
+  for (const routePointHandle of routePointLayers) {
+    layer.addLayer(routePointHandle.layer);
   }
   for (const waypoint of waypointLayers) {
     layer.addLayer(waypoint.layer);
@@ -109,6 +124,8 @@ function createGpxOverlay(id, options = {}) {
     layer,
     interactions: {
       trackLayers,
+      routeLayers,
+      routePoints: routePointLayers,
       waypoints: waypointLayers,
     },
   };
@@ -141,6 +158,7 @@ describe("createTiliaCore", () => {
       type: "gpx",
       name: "sample.gpx",
       tracks: [{ segments: [{ points: [{ lat: 35, lon: 135 }, { lat: 35.1, lon: 135.1 }] }] }],
+      routes: [{ name: "Planned", points: [{ lat: 35, lon: 135 }, { lat: 35.2, lon: 135.2 }] }],
       waypoints: [{ name: "Start", lat: 35.0, lon: 135.0 }],
     };
     const overlay = createGpxOverlay("gpx-layer", {
@@ -163,7 +181,7 @@ describe("createTiliaCore", () => {
     });
     expect(overlay.layer.addTo).toHaveBeenCalledWith(map);
     expect(bootMocks.fitMapToGroup).toHaveBeenCalledWith(map, overlay.layer);
-    expect(result.summary).toBe("2 track points, 1 waypoints");
+    expect(result.summary).toBe("2 track points, 1 routes, 2 route points, 1 waypoints");
     expect(core.state.entries).toHaveLength(1);
     expect(core.state.entries[0]).toMatchObject({
       kind: "gpx",
@@ -513,14 +531,14 @@ describe("createTiliaCore", () => {
       ],
     }, { fitToView: false });
 
-    expect(core.getGpxVisibility()).toEqual({ tracks: true, waypoints: true });
+    expect(core.getGpxVisibility()).toEqual({ tracks: true, routes: true, waypoints: true });
 
-    expect(core.setGpxTracksVisibility(false)).toEqual({ tracks: false, waypoints: true });
+    expect(core.setGpxTracksVisibility(false)).toEqual({ tracks: false, routes: true, waypoints: true });
     expect(firstOverlay.layer.removeLayer).toHaveBeenCalledWith(firstOverlay.interactions.trackLayers[0].layer);
     expect(firstOverlay.layer.hasLayer(firstOverlay.interactions.trackLayers[0].layer)).toBe(false);
     expect(firstOverlay.layer.hasLayer(firstOverlay.interactions.waypoints[0].layer)).toBe(true);
 
-    expect(core.setGpxWaypointsVisibility(false)).toEqual({ tracks: false, waypoints: false });
+    expect(core.setGpxWaypointsVisibility(false)).toEqual({ tracks: false, routes: true, waypoints: false });
     expect(firstOverlay.layer.removeLayer).toHaveBeenCalledWith(firstOverlay.interactions.waypoints[0].layer);
     expect(firstOverlay.layer.removeLayer).toHaveBeenCalledWith(firstOverlay.interactions.waypoints[1].layer);
     expect(firstOverlay.layer.hasLayer(firstOverlay.interactions.waypoints[0].layer)).toBe(false);
@@ -538,17 +556,108 @@ describe("createTiliaCore", () => {
     expect(secondOverlay.layer.hasLayer(secondOverlay.interactions.waypoints[0].layer)).toBe(false);
 
     core.setEntryVisibility(firstEntry.id, false);
-    expect(core.setGpxTracksVisibility(true)).toEqual({ tracks: true, waypoints: false });
+    expect(core.setGpxTracksVisibility(true)).toEqual({ tracks: true, routes: true, waypoints: false });
     expect(firstOverlay.layer.hasLayer(firstOverlay.interactions.trackLayers[0].layer)).toBe(false);
 
     core.setEntryVisibility(firstEntry.id, true);
     expect(firstOverlay.layer.hasLayer(firstOverlay.interactions.trackLayers[0].layer)).toBe(true);
     expect(firstOverlay.layer.hasLayer(firstOverlay.interactions.waypoints[0].layer)).toBe(false);
 
-    expect(core.setGpxWaypointsVisibility(true)).toEqual({ tracks: true, waypoints: true });
+    expect(core.setGpxWaypointsVisibility(true)).toEqual({ tracks: true, routes: true, waypoints: true });
     expect(firstOverlay.layer.hasLayer(firstOverlay.interactions.waypoints[0].layer)).toBe(true);
     expect(secondOverlay.layer.hasLayer(secondOverlay.interactions.trackLayers[0].layer)).toBe(true);
     expect(secondOverlay.layer.hasLayer(secondOverlay.interactions.waypoints[0].layer)).toBe(true);
+  });
+
+  it("composes global route visibility with entry visibility for route lines and points", () => {
+    const overlay = createGpxOverlay("gpx-routes", {
+      routeLayers: [{}],
+      routePoints: [{ pointIndex: 0 }, { pointIndex: 1 }],
+      waypoints: [{}],
+    });
+    bootMocks.buildGpxOverlay.mockReturnValue(overlay);
+    const core = createTiliaCore({ closePopup: bootMocks.closePopup });
+    const entry = core.addGpxSource({
+      name: "routes.gpx",
+      tracks: [{ segments: [{ points: [{ lat: 35, lon: 135 }, { lat: 35.1, lon: 135.1 }] }] }],
+      routes: [{ points: [{ lat: 35, lon: 135 }, { lat: 35.1, lon: 135.1 }] }],
+      waypoints: [{ lat: 35, lon: 135, name: "Waypoint" }],
+    }, { fitToView: false });
+    const routeLayer = overlay.interactions.routeLayers[0].layer;
+    const routePointLayers = overlay.interactions.routePoints.map(({ layer }) => layer);
+    const trackLayer = overlay.interactions.trackLayers[0].layer;
+    const waypointLayer = overlay.interactions.waypoints[0].layer;
+    const expectRoutesAttached = (attached) => {
+      expect(overlay.layer.hasLayer(routeLayer)).toBe(attached);
+      for (const routePointLayer of routePointLayers) {
+        expect(overlay.layer.hasLayer(routePointLayer)).toBe(attached);
+      }
+    };
+
+    expectRoutesAttached(true);
+    expect(core.setGpxRoutesVisibility(false)).toEqual({ tracks: true, routes: false, waypoints: true });
+    expectRoutesAttached(false);
+    expect(overlay.layer.hasLayer(trackLayer)).toBe(true);
+    expect(overlay.layer.hasLayer(waypointLayer)).toBe(true);
+
+    core.setEntryVisibility(entry.id, false);
+    core.setGpxRoutesVisibility(true);
+    expectRoutesAttached(false);
+
+    core.setEntryVisibility(entry.id, true);
+    expectRoutesAttached(true);
+
+    core.setGpxRoutesVisibility(false);
+    core.setEntryVisibility(entry.id, false);
+    expectRoutesAttached(false);
+  });
+
+  it("applies hidden route visibility to new and rebuilt GPX entries", () => {
+    const firstOverlay = createGpxOverlay("gpx-routes-1", {
+      routeLayers: [{}],
+      routePoints: [{ pointIndex: 0 }],
+    });
+    const replacementOverlay = createGpxOverlay("gpx-routes-2", {
+      routeLayers: [{}],
+      routePoints: [{ pointIndex: 0 }, { pointIndex: 1 }],
+    });
+    const emptyOverlay = createGpxOverlay("gpx-routes-empty", {
+      trackLayers: [],
+    });
+    bootMocks.buildGpxOverlay
+      .mockReturnValueOnce(firstOverlay)
+      .mockReturnValueOnce(replacementOverlay)
+      .mockReturnValueOnce(emptyOverlay);
+    const core = createTiliaCore({ closePopup: bootMocks.closePopup });
+
+    core.setGpxRoutesVisibility(false);
+    const entry = core.addGpxSource({
+      name: "routes.gpx",
+      routes: [{ points: [{ lat: 35, lon: 135 }] }],
+    }, { fitToView: false });
+    expect(firstOverlay.layer.hasLayer(firstOverlay.interactions.routeLayers[0].layer)).toBe(false);
+    expect(firstOverlay.layer.hasLayer(firstOverlay.interactions.routePoints[0].layer)).toBe(false);
+
+    core.updateGpxSource(entry.id, {
+      name: "routes.gpx",
+      routes: [{ points: [{ lat: 35, lon: 135 }, { lat: 35.1, lon: 135.1 }] }],
+    });
+    expect(replacementOverlay.layer.hasLayer(replacementOverlay.interactions.routeLayers[0].layer)).toBe(false);
+    expect(replacementOverlay.interactions.routePoints.every(({ layer }) => !replacementOverlay.layer.hasLayer(layer))).toBe(true);
+
+    const emptyEntry = core.addGpxSource({ name: "empty.gpx", tracks: [], routes: [], waypoints: [] });
+    expect(emptyEntry.source.routes).toEqual([]);
+    expect(emptyOverlay.layer.addLayer).not.toHaveBeenCalled();
+  });
+
+  it("ignores non-GPX entries when global route visibility changes", () => {
+    const core = createTiliaCore({ closePopup: bootMocks.closePopup });
+    const photoLayer = createLayer("photo-layer");
+    core.state.entries.push({ kind: "photo", layer: photoLayer, visible: true });
+
+    expect(core.setGpxRoutesVisibility(false)).toEqual({ tracks: true, routes: false, waypoints: true });
+    expect(photoLayer.addLayer).not.toHaveBeenCalled();
+    expect(photoLayer.removeLayer).not.toHaveBeenCalled();
   });
 
   it("composes per-track visibility with entry and global GPX visibility", () => {

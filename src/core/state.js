@@ -4,6 +4,7 @@ export function createAppState() {
     nextTrackStylePresetIndex: 0,
     gpxVisibility: {
       tracks: true,
+      routes: true,
       waypoints: true,
     },
     entries: [],

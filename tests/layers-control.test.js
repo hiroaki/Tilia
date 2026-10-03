@@ -220,7 +220,7 @@ describe("createTrackStyleSwatch", () => {
     expect(createTrackStyleSwatch({ kind: "photo" })).toBeNull();
   });
 
-  it("renders global GPX track and waypoint toggles in the action row and wires them to core", async () => {
+  it("renders global GPX toggles in track, route, waypoint order and wires them to core", async () => {
     const panel = {
       togglePanel: vi.fn(),
     };
@@ -233,15 +233,17 @@ describe("createTrackStyleSwatch", () => {
             visible: true,
             source: {
               name: "sample.gpx",
-              trackPoints: [[35.0, 135.0], [35.1, 135.1]],
+              tracks: [{ segments: [{ points: [{ lat: 35.0, lon: 135.0 }, { lat: 35.1, lon: 135.1 }] }] }],
+              routes: [{ points: [{ lat: 35.0, lon: 135.0 }, { lat: 35.2, lon: 135.2 }, { lat: 35.3, lon: 135.3 }] }],
               waypoints: [{ lat: 35.0, lon: 135.0, name: "Start" }],
             },
             presentation: { trackStylePresetIndex: 0 },
           },
         ],
       },
-      getGpxVisibility: vi.fn(() => ({ tracks: true, waypoints: false })),
+      getGpxVisibility: vi.fn(() => ({ tracks: true, routes: false, waypoints: true })),
       setGpxTracksVisibility: vi.fn(),
+      setGpxRoutesVisibility: vi.fn(),
       setGpxWaypointsVisibility: vi.fn(),
       setEntryVisibility: vi.fn(),
       removeEntry: vi.fn(),
@@ -269,25 +271,37 @@ describe("createTrackStyleSwatch", () => {
     expect(panel.togglePanel).toHaveBeenCalledTimes(1);
     const content = panel.togglePanel.mock.calls[0][0].render();
     const actions = findByClassName(content, "tilia-layer-actions");
+    const bulkToggles = findByClassName(actions, "tilia-layer-bulk-toggles");
     const tracksToggle = findCheckboxById(actions, "tilia-gpx-tracks-toggle");
+    const routesToggle = findCheckboxById(actions, "tilia-gpx-routes-toggle");
     const waypointsToggle = findCheckboxById(actions, "tilia-gpx-waypoints-toggle");
     const clearButton = findByClassName(actions, "tilia-layer-clear-button");
+    const layerMeta = findByClassName(content, "tilia-layer-meta");
 
+    expect(bulkToggles.children.map((toggle) => toggle.children[1].textContent)).toEqual(["Tracks", "Routes", "Waypoints"]);
     expect(tracksToggle.checked).toBe(true);
     expect(tracksToggle.disabled).toBe(false);
-    expect(waypointsToggle.checked).toBe(false);
+    expect(routesToggle.checked).toBe(false);
+    expect(routesToggle.disabled).toBe(false);
+    expect(waypointsToggle.checked).toBe(true);
     expect(waypointsToggle.disabled).toBe(false);
     expect(clearButton.disabled).toBe(false);
+    expect(layerMeta.textContent).toBe("2 track points / 1 routes / 3 route points / 1 waypoints");
 
     tracksToggle.checked = false;
     tracksToggle.dispatch("change");
     expect(core.setGpxTracksVisibility).toHaveBeenCalledWith(false);
     expect(onStatus).toHaveBeenCalledWith("Hiding tracks for all GPX layers");
 
-    waypointsToggle.checked = true;
+    routesToggle.checked = true;
+    routesToggle.dispatch("change");
+    expect(core.setGpxRoutesVisibility).toHaveBeenCalledWith(true);
+    expect(onStatus).toHaveBeenCalledWith("Showing routes for all GPX layers");
+
+    waypointsToggle.checked = false;
     waypointsToggle.dispatch("change");
-    expect(core.setGpxWaypointsVisibility).toHaveBeenCalledWith(true);
-    expect(onStatus).toHaveBeenCalledWith("Showing waypoints for all GPX layers");
+    expect(core.setGpxWaypointsVisibility).toHaveBeenCalledWith(false);
+    expect(onStatus).toHaveBeenCalledWith("Hiding waypoints for all GPX layers");
   });
 
   it("disables global GPX toggles when no GPX entries are loaded", async () => {
@@ -298,8 +312,9 @@ describe("createTrackStyleSwatch", () => {
       state: {
         entries: [],
       },
-      getGpxVisibility: vi.fn(() => ({ tracks: true, waypoints: true })),
+      getGpxVisibility: vi.fn(() => ({ tracks: true, routes: true, waypoints: true })),
       setGpxTracksVisibility: vi.fn(),
+      setGpxRoutesVisibility: vi.fn(),
       setGpxWaypointsVisibility: vi.fn(),
       setEntryVisibility: vi.fn(),
       removeEntry: vi.fn(),
@@ -325,10 +340,12 @@ describe("createTrackStyleSwatch", () => {
     const content = panel.togglePanel.mock.calls[0][0].render();
     const actions = findByClassName(content, "tilia-layer-actions");
     const tracksToggle = findCheckboxById(actions, "tilia-gpx-tracks-toggle");
+    const routesToggle = findCheckboxById(actions, "tilia-gpx-routes-toggle");
     const waypointsToggle = findCheckboxById(actions, "tilia-gpx-waypoints-toggle");
     const clearButton = findByClassName(actions, "tilia-layer-clear-button");
 
     expect(tracksToggle.disabled).toBe(true);
+    expect(routesToggle.disabled).toBe(true);
     expect(waypointsToggle.disabled).toBe(true);
     expect(clearButton.disabled).toBe(true);
   });
@@ -353,8 +370,9 @@ describe("createTrackStyleSwatch", () => {
           },
         ],
       },
-      getGpxVisibility: vi.fn(() => ({ tracks: true, waypoints: true })),
+      getGpxVisibility: vi.fn(() => ({ tracks: true, routes: true, waypoints: true })),
       setGpxTracksVisibility: vi.fn(),
+      setGpxRoutesVisibility: vi.fn(),
       setGpxWaypointsVisibility: vi.fn(),
       setEntryVisibility: vi.fn(),
       removeEntry: vi.fn(),

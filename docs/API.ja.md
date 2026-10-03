@@ -149,10 +149,34 @@ app.whenReady().then(() => app.load(myFile));
 GPX ファイルまたは JPEG 画像を 1 件処理します。`input` には `File`・URL 文字列・登録済み入力ハンドラが受け付けるオブジェクトを渡せます。
 
 **GPX ファイル**（`.gpx`）:
+- `<trk>` / `<trkseg>` / `<trkpt>` の構造を読み込み済みsourceに保持する
 - トラックをポリラインとして地図に描画する
+- 各 `<rte>` を独立したGPX routeとして、順序を保った `<rtept>` とともに保持する
+- 2点以上のGPX routeを破線のポリラインで描画し、すべてのroute pointに専用マーカーを配置する
 - ウェイポイント（`<wpt>` 要素）をマーカーとして配置する
 - トラックポイントごとの標高（`<ele>`）とタイムスタンプ（`<time>`）を解析する
+- LayersパネルでTracks・Routes・Waypointsを独立して表示・非表示にできる
 - 読み込み後、地図をレイヤーの範囲に自動フィットする
+- 現在のTilia XML importerでは、暫定的なリソース上限として、1ファイルにつき最大20個の `<rte>`、1つの `<rte>` につき最大100個の `<rtept>` を受け付ける。これはTilia独自の上限であり、GPX仕様の上限ではない
+
+正規化後のGPX sourceには、`tracks`、`routes`、`waypoints`の3つの配列が常に存在します。
+
+```js
+{
+  type: "gpx",
+  name: "example.gpx",
+  tracks: [/* <trk> */],
+  routes: [{
+    name: "Planned path",
+    points: [{ lat: 35.0, lon: 135.0, name: "Start" }],
+  }],
+  waypoints: [/* <wpt> */],
+}
+```
+
+プログラムから渡すGPX sourceでは、`tracks`、`routes`、`waypoints`の各配列を省略できます。正規化処理は、省略された各フィールドを空配列で補います。
+
+現在対応しているGPX routeのフィールドは、`<rte>`の`name`と、`<rtept>`の緯度・経度・`name`です。
 
 **JPEG ファイル**（`.jpg`、`.jpeg`）:
 - 位置は次の順序で決定される:
@@ -160,8 +184,6 @@ GPX ファイルまたは JPEG 画像を 1 件処理します。`input` には `
   2. **GPX タイムスタンプ補間** — EXIF GPS がない場合、EXIF のキャプチャ時刻と読み込み済み GPX トラックのタイムラインを照合して線形補間
   3. **エラー** — EXIF に GPS も使えるタイムスタンプもない場合はエラーを投げる
 - タイムスタンプは現在の photo time mode（`"auto"`、`"local"`、`"utc"`、または `"+09:00"` のような固定オフセット）に従って解釈される
-
-> **注意:** GPX ルート（`<rte>`）は現在サポートしていません。トラック（`<trk>`）とウェイポイント（`<wpt>`）のみが処理されます。
 
 ### プラグインユーティリティ
 
@@ -184,6 +206,8 @@ const unsub = app.subscribeInteractions({
 // 解除する場合:
 unsub();
 ```
+
+GPX route polylineとroute-point markerは、現在`subscribeInteractions()`では公開されません。このAPIは引き続きtrack・waypoint・photo専用です。
 
 #### `app.provide(name, service)`
 
@@ -223,7 +247,7 @@ unsub();
 | `tilia-panel` | — | レイヤー・高度・設定パネルのコンテナとなるサイドパネル（マップ内に描画される） |
 | `tilia-status` | — | 地図左下に表示されるステータスバー。読み込み結果やエラーを表示する |
 | `tilia-base-maps-control` | — | ベースマップ選択コントロール。`app.baseMaps` の可視エントリを、必要に応じて provider ごとにグループ分けして表示する |
-| `tilia-layers` | `tilia-panel`, `tilia-status` | サイドパネル内のレイヤー一覧。エントリごとに表示切替・削除・フィット・写真のタイムスタンプモード変更が可能 |
+| `tilia-layers` | `tilia-panel`, `tilia-status` | レイヤー一覧。Tracks / Routes / Waypointsの全体表示切替、エントリ単位の表示切替・削除・フィット・写真タイムスタンプモード変更が可能 |
 | `tilia-elevation` | `tilia-panel`, `tilia-status` | サイドパネル内のインタラクティブな高度プロファイルチャート。チャートでホバーすると対応するトラックポイントが地図上に表示される |
 | `tilia-file-import` | — | 地図上のコントロール（左上）にファイル選択ボタンを追加。`.gpx`・`.jpg`・`.jpeg` に対応、複数ファイルを同時に選択可能 |
 | `tilia-url-import` | — | URL 入力フォームを開くコントロール。HTTP/HTTPS のみ対応（CORS が必要）。ファイル名は `Content-Disposition` または URL パスから推定。`timeoutMs` で遅い fetch を中断し、`maxBytes` で大きすぎるリモートファイルを拒否できる |

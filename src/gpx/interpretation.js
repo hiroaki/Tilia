@@ -19,6 +19,10 @@ export function countTrackPoints(source) {
     total + (track.segments || []).reduce((segmentTotal, segment) => segmentTotal + segment.points.length, 0), 0);
 }
 
+export function countRoutePoints(source) {
+  return (source?.routes || []).reduce((total, route) => total + (route.points || []).length, 0);
+}
+
 export function getTrackPointEntries(source) {
   const entries = [];
   for (let trackIndex = 0; trackIndex < (source?.tracks || []).length; trackIndex += 1) {

@@ -835,6 +835,16 @@
   word-break: break-word;
 }
 
+.tilia-route-point-marker {
+  box-sizing: border-box;
+  width: 12px;
+  height: 12px;
+  background: #fff;
+  border: 3px solid #334155;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgb(15 23 42 / 45%);
+}
+
 @media (max-width: 960px) {
   .tilia-side-panel-layout-bottom {
     height: min(320px, 44vh);

@@ -11,6 +11,8 @@
 
 Tilia は、ウェブページに地図を手軽に組み込めるランタイムとプラグインシステムを提供します。単独で動くビューアとして使うこともできますし、ブログや CMS のページに地図パーツとして埋め込んだり、プラグインを組み合わせてカスタムの地図アプリを構築したりすることもできます。
 
+GPXでは、単独のウェイポイント（`<wpt>`）、計画されたGPX route（`<rte>`）、記録されたtrack（`<trk>`）をそれぞれ異なるfeature typeとして扱います。
+
 機能は**プラグイン**によって提供されます。コアランタイムは小さく保ち、データの読み込みや UI コントロール、可視化はプラグインが担当します。必要なものだけ選んで使うことも、サードパーティプラグインを追加することも、自分でプラグインを作ることもできます。
 
 動かせるデモがこちらにあります： [https://hiroaki.github.io/Tilia/samples/](https://hiroaki.github.io/Tilia/samples/)
@@ -119,7 +121,7 @@ Tilia を利用するには、Leaflet の JavaScript と CSS をページに読�
 | `tilia-panel` | — | レイヤー・高度・設定プラグインが必要とするサイドパネルコンテナ |
 | `tilia-status` | — | パネル内のステータスバー |
 | `tilia-base-maps-control` | — | ベースマップ選択コントロール。`app.baseMaps` の可視エントリを一覧表示する |
-| `tilia-layers` | `tilia-panel`, `tilia-status` | レイヤー一覧。表示切替・削除・フィット・写真ごとのタイムモード変更が可能 |
+| `tilia-layers` | `tilia-panel`, `tilia-status` | レイヤー一覧。Tracks / Routes / Waypointsの表示切替、エントリ単位の表示切替・削除・フィット・写真ごとのタイムモード変更が可能 |
 | `tilia-elevation` | `tilia-panel`, `tilia-status` | GPX トラックのインタラクティブな高度プロファイルチャート |
 | `tilia-file-import` | — | `.gpx` / `.jpg` / `.jpeg` を選択できるファイル選択コントロール |
 | `tilia-url-import` | — | HTTP/HTTPS URL から取得する URL 入力コントロール（サーバー側 CORS 許可が必要）。timeout とサイズ上限を設定可能 |
