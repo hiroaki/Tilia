@@ -391,6 +391,7 @@ export function createTiliaCore(map, options = {}) {
         trackStyle: getTrackStylePreset(presentation.trackStylePresetIndex),
       });
       const nextVisible = options.visible ?? entry.visible !== false;
+      selectionHub.clearSelectionForEntry(entryId);
       replaceEntryPresentation(state, entryId, {
         visible: nextVisible,
       });
@@ -465,16 +466,12 @@ export function createTiliaCore(map, options = {}) {
       return entry;
     },
     removeEntry(entryId) {
-      const selection = selectionHub.getSelection();
       const entry = state.entries.find((candidate) => candidate.id === entryId);
       if (!entry) {
         return null;
       }
 
-      if (selection?.entry?.id === entryId) {
-        map.closePopup();
-        selectionHub.clearSelection();
-      }
+      selectionHub.clearSelectionForEntry(entryId);
 
       revokePhotoPreviewUrls([entry]);
       entry.layer.remove();

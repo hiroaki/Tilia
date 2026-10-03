@@ -188,6 +188,103 @@ describe("createSelectionHub", () => {
     expect(hub.getSelection()).toBeNull();
   });
 
+  it("clears an entry-owned selection once when closing its popup emits popupclose synchronously", () => {
+    const popup = {};
+    let handlePopupClose;
+    const map = {
+      panTo: vi.fn(),
+      openPopup: vi.fn(() => popup),
+      closePopup: vi.fn((closedPopup) => handlePopupClose({ popup: closedPopup })),
+      on: vi.fn((event, handler) => {
+        if (event === "popupclose") handlePopupClose = handler;
+      }),
+    };
+    const hub = createSelectionHub(map);
+    const listener = vi.fn();
+    const entry = { id: 7, source: { name: "Track" } };
+    const waypoint = { lat: 35.0, lon: 135.0 };
+
+    hub.subscribe(listener);
+    hub.selectWaypoint(entry, waypoint);
+
+    expect(hub.clearSelectionForEntry(entry.id)).toBe(true);
+    expect(map.closePopup).toHaveBeenCalledWith(popup);
+    expect(hub.getSelection()).toBeNull();
+    expect(listener).toHaveBeenCalledTimes(3);
+    expect(listener).toHaveBeenLastCalledWith(null);
+  });
+
+  it("ignores a delayed popupclose after an entry-owned selection has been cleared", () => {
+    const firstPopup = {};
+    const secondPopup = {};
+    const map = {
+      panTo: vi.fn(),
+      openPopup: vi.fn()
+        .mockReturnValueOnce(firstPopup)
+        .mockReturnValueOnce(secondPopup),
+      closePopup: vi.fn(),
+      on: vi.fn(),
+    };
+    const hub = createSelectionHub(map);
+    const entry = { id: 7, source: { name: "Track" } };
+    const firstWaypoint = { lat: 35.0, lon: 135.0 };
+    const secondWaypoint = { lat: 35.1, lon: 135.1 };
+
+    hub.selectWaypoint(entry, firstWaypoint);
+    hub.clearSelectionForEntry(entry.id);
+    hub.selectWaypoint(entry, secondWaypoint);
+    map.on.mock.calls.find(([event]) => event === "popupclose")?.[1]({ popup: firstPopup });
+
+    expect(hub.getSelection()).toEqual({ kind: "waypoint", entry, waypoint: secondWaypoint });
+  });
+
+  it("preserves a selection and popup owned by another entry", () => {
+    const popup = {};
+    const map = {
+      panTo: vi.fn(),
+      openPopup: vi.fn(() => popup),
+      closePopup: vi.fn(),
+      on: vi.fn(),
+    };
+    const hub = createSelectionHub(map);
+    const selectedEntry = { id: 1, source: { name: "Selected" } };
+    const otherEntry = { id: 2, source: { name: "Other" } };
+    const waypoint = { lat: 35.0, lon: 135.0 };
+
+    hub.selectWaypoint(selectedEntry, waypoint);
+
+    expect(hub.clearSelectionForEntry(otherEntry.id)).toBe(false);
+    expect(map.closePopup).not.toHaveBeenCalled();
+    expect(hub.getSelection()).toEqual({ kind: "waypoint", entry: selectedEntry, waypoint });
+  });
+
+  it("does nothing when clearing for an entry with no active selection", () => {
+    const map = {
+      closePopup: vi.fn(),
+      on: vi.fn(),
+    };
+    const hub = createSelectionHub(map);
+
+    expect(hub.clearSelectionForEntry(7)).toBe(false);
+    expect(map.closePopup).not.toHaveBeenCalled();
+    expect(hub.getSelection()).toBeNull();
+  });
+
+  it("clears an entry-owned track selection without closing a popup", () => {
+    const map = {
+      closePopup: vi.fn(),
+      on: vi.fn(),
+    };
+    const hub = createSelectionHub(map);
+    const entry = { id: 7, source: { name: "Track" } };
+
+    hub.selectTrack(entry);
+
+    expect(hub.clearSelectionForEntry(entry.id)).toBe(true);
+    expect(map.closePopup).not.toHaveBeenCalled();
+    expect(hub.getSelection()).toBeNull();
+  });
+
   it("skips popup opening when openPopup is disabled or when popup inputs are incomplete", () => {
     const map = {
       panTo: vi.fn(),

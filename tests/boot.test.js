@@ -17,6 +17,13 @@ const bootMocks = vi.hoisted(() => ({
     bootMocks.selectionState = null;
     return null;
   }),
+  clearSelectionForEntry: vi.fn((entryId) => {
+    if (bootMocks.selectionState?.entry?.id !== entryId) {
+      return false;
+    }
+    bootMocks.selectionState = null;
+    return true;
+  }),
   getSelection: vi.fn(() => bootMocks.selectionState),
   selectTrack: vi.fn((entry) => ({ kind: "track", entry })),
   selectTrackPoint: vi.fn((entry, point) => ({ kind: "track-point", entry, point })),
@@ -56,6 +63,7 @@ vi.mock("../src/core/selection-hub.js", () => ({
     getSelection: bootMocks.getSelection,
     subscribe: bootMocks.subscribeSelection,
     clearSelection: bootMocks.clearSelection,
+    clearSelectionForEntry: bootMocks.clearSelectionForEntry,
     openPopup: bootMocks.openPopup,
     selectTrack: bootMocks.selectTrack,
     selectTrackPoint: bootMocks.selectTrackPoint,
@@ -148,6 +156,7 @@ describe("createTiliaCore", () => {
     bootMocks.fitMapToGroup.mockReset();
     bootMocks.closePopup.mockReset();
     bootMocks.clearSelection.mockClear();
+    bootMocks.clearSelectionForEntry.mockClear();
     bootMocks.getSelection.mockClear();
     bootMocks.selectTrack.mockClear();
     bootMocks.selectTrackPoint.mockClear();
@@ -905,6 +914,116 @@ describe("createTiliaCore", () => {
     expect(core.updateGpxSource(999, entry.source)).toBeNull();
   });
 
+  it.each(["track", "track-point", "route-point", "waypoint"])(
+    "invalidates an owned %s selection before replacing a GPX entry",
+    (kind) => {
+      const originalOverlay = createGpxOverlay(`original-${kind}`);
+      const replacementOverlay = createGpxOverlay(`replacement-${kind}`);
+      bootMocks.buildGpxOverlay
+        .mockReturnValueOnce(originalOverlay)
+        .mockReturnValueOnce(replacementOverlay);
+      const core = createTiliaCore({ closePopup: bootMocks.closePopup });
+      const entry = core.addGpxSource({
+        name: "before.gpx",
+        tracks: [{ segments: [{ points: [{ lat: 35, lon: 135 }, { lat: 35.1, lon: 135.1 }] }] }],
+      }, { fitToView: false });
+      const originalSource = entry.source;
+      bootMocks.selectionState = { kind, entry };
+      bootMocks.clearSelectionForEntry.mockImplementationOnce((entryId) => {
+        expect(entryId).toBe(entry.id);
+        expect(bootMocks.buildGpxOverlay).toHaveBeenCalledTimes(2);
+        expect(entry.source).toBe(originalSource);
+        expect(entry.layer).toBe(originalOverlay.layer);
+        expect(originalOverlay.layer.remove).not.toHaveBeenCalled();
+        bootMocks.selectionState = null;
+        return true;
+      });
+
+      core.updateGpxSource(entry.id, {
+        name: "after.gpx",
+        tracks: [{ segments: [{ points: [{ lat: 36, lon: 136 }, { lat: 36.1, lon: 136.1 }] }] }],
+      });
+
+      expect(bootMocks.clearSelectionForEntry).toHaveBeenCalledOnce();
+      expect(entry.source.name).toBe("after.gpx");
+      expect(entry.layer).toBe(replacementOverlay.layer);
+    },
+  );
+
+  it("preserves an unrelated selection and supports repeated GPX source updates", () => {
+    const overlays = [
+      createGpxOverlay("selected"),
+      createGpxOverlay("updated-before"),
+      createGpxOverlay("updated-once"),
+      createGpxOverlay("updated-twice"),
+    ];
+    bootMocks.buildGpxOverlay.mockImplementation(() => overlays.shift());
+    const core = createTiliaCore({ closePopup: bootMocks.closePopup });
+    const selectedEntry = core.addGpxSource({ name: "selected.gpx" }, { fitToView: false });
+    const updatedEntry = core.addGpxSource({ name: "before.gpx" }, { fitToView: false });
+    const selection = { kind: "waypoint", entry: selectedEntry, waypoint: { lat: 35, lon: 135 } };
+    bootMocks.selectionState = selection;
+
+    core.updateGpxSource(updatedEntry.id, { name: "once.gpx" });
+    core.updateGpxSource(updatedEntry.id, { name: "twice.gpx" });
+
+    expect(bootMocks.clearSelectionForEntry).toHaveBeenNthCalledWith(1, updatedEntry.id);
+    expect(bootMocks.clearSelectionForEntry).toHaveBeenNthCalledWith(2, updatedEntry.id);
+    expect(bootMocks.selectionState).toBe(selection);
+    expect(updatedEntry.source.name).toBe("twice.gpx");
+  });
+
+  it("keeps the existing selection and entry intact when replacement overlay construction fails", () => {
+    const originalOverlay = createGpxOverlay("original");
+    bootMocks.buildGpxOverlay
+      .mockReturnValueOnce(originalOverlay)
+      .mockImplementationOnce(() => {
+        throw new Error("overlay construction failed");
+      });
+    const core = createTiliaCore({ closePopup: bootMocks.closePopup });
+    const entry = core.addGpxSource({ name: "before.gpx" }, { fitToView: false });
+    const originalSource = entry.source;
+    const selection = { kind: "track", entry };
+    bootMocks.selectionState = selection;
+
+    expect(() => core.updateGpxSource(entry.id, { name: "after.gpx" }))
+      .toThrow("overlay construction failed");
+
+    expect(bootMocks.clearSelectionForEntry).not.toHaveBeenCalled();
+    expect(bootMocks.selectionState).toBe(selection);
+    expect(entry.source).toBe(originalSource);
+    expect(entry.layer).toBe(originalOverlay.layer);
+    expect(originalOverlay.layer.remove).not.toHaveBeenCalled();
+  });
+
+  it("does not invalidate selection for presentation-only visibility changes", () => {
+    const overlay = createGpxOverlay("visibility", {
+      trackLayers: [{ layer: createLayer("track-0"), trackIndex: 0 }],
+      routeLayers: [{}],
+      routePoints: [{}],
+      waypoints: [{}],
+    });
+    bootMocks.buildGpxOverlay.mockReturnValue(overlay);
+    const core = createTiliaCore({ closePopup: bootMocks.closePopup });
+    const entry = core.addGpxSource({
+      name: "visibility.gpx",
+      tracks: [{ segments: [{ points: [{ lat: 35, lon: 135 }, { lat: 35.1, lon: 135.1 }] }] }],
+      routes: [{ points: [{ lat: 35, lon: 135 }] }],
+      waypoints: [{ lat: 35, lon: 135 }],
+    }, { fitToView: false });
+    bootMocks.selectionState = { kind: "track", entry };
+
+    core.setEntryVisibility(entry.id, false);
+    core.setEntryVisibility(entry.id, true);
+    core.setGpxTracksVisibility(false);
+    core.setGpxRoutesVisibility(false);
+    core.setGpxWaypointsVisibility(false);
+    core.setGpxTrackVisibility(entry.id, 0, false);
+
+    expect(bootMocks.clearSelectionForEntry).not.toHaveBeenCalled();
+    expect(bootMocks.selectionState).toEqual({ kind: "track", entry });
+  });
+
   it("removes selected entries and clears all layers, sources, and photo previews", async () => {
     const revokeSpy = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
     const gpxSource = {
@@ -947,20 +1066,40 @@ describe("createTiliaCore", () => {
     const removedEntry = core.removeEntry(2);
 
     expect(removedEntry).toMatchObject({ id: 2, kind: "photo" });
-    expect(map.closePopup).toHaveBeenCalledTimes(1);
-    expect(bootMocks.clearSelection).toHaveBeenCalledTimes(1);
+    expect(bootMocks.clearSelectionForEntry).toHaveBeenCalledWith(2);
+    expect(map.closePopup).not.toHaveBeenCalled();
+    expect(bootMocks.clearSelection).not.toHaveBeenCalled();
     expect(photoOverlay.layer.remove).toHaveBeenCalledTimes(1);
     expect(revokeSpy).toHaveBeenCalledWith("blob:photo-preview");
     expect(core.state.entries).toHaveLength(1);
 
     core.clearAll();
 
-    expect(map.closePopup).toHaveBeenCalledTimes(2);
+    expect(map.closePopup).toHaveBeenCalledTimes(1);
     expect(gpxOverlay.layer.remove).toHaveBeenCalledTimes(1);
     expect(core.state.entries).toEqual([]);
     expect(core.state.sources).toEqual([]);
     expect(core.state.layers).toEqual([]);
 
     revokeSpy.mockRestore();
+  });
+
+  it("preserves another entry's selection when removing an entry", () => {
+    const firstOverlay = createGpxOverlay("first");
+    const secondOverlay = createGpxOverlay("second");
+    bootMocks.buildGpxOverlay
+      .mockReturnValueOnce(firstOverlay)
+      .mockReturnValueOnce(secondOverlay);
+    const core = createTiliaCore({ closePopup: bootMocks.closePopup });
+    const selectedEntry = core.addGpxSource({ name: "selected.gpx" }, { fitToView: false });
+    const removedEntry = core.addGpxSource({ name: "removed.gpx" }, { fitToView: false });
+    const selection = { kind: "track", entry: selectedEntry };
+    bootMocks.selectionState = selection;
+
+    core.removeEntry(removedEntry.id);
+
+    expect(bootMocks.clearSelectionForEntry).toHaveBeenCalledWith(removedEntry.id);
+    expect(bootMocks.selectionState).toBe(selection);
+    expect(core.state.entries).toEqual([selectedEntry]);
   });
 });
