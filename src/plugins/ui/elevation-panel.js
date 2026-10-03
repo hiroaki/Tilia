@@ -480,12 +480,7 @@ export function installElevationPanelControl({ map, core, panel, onStatus, posit
     }
     clearSelectedPoint(entry.id);
     panel.rerenderPanel("elevation");
-    const currentSelection = selectedPointByEntryId.get(entry.id);
-    if (currentSelection) {
-      onStatus(`Selected ${entry.source.name} track point at ${formatDistance(currentSelection.distanceMeters)}`);
-    } else {
-      onStatus(`Selected ${entry.source.name} elevation profile`);
-    }
+    onStatus(`Selected ${entry.source.name} elevation profile`);
   }
 
   function refresh() {
