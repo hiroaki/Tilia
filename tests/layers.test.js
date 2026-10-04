@@ -20,6 +20,18 @@ const leafletMocks = vi.hoisted(() => {
     constructor(options) {
       this.options = options;
     }
+
+    createIcon() {
+      const properties = {};
+      return {
+        properties,
+        style: {
+          setProperty(name, value) {
+            properties[name] = value;
+          },
+        },
+      };
+    }
   }
 
   class MockMarker {
@@ -128,26 +140,40 @@ describe("buildGpxOverlay", () => {
       { routeIndex: 2, pointIndex: 1 },
       { routeIndex: 2, pointIndex: 2 },
     ]);
+    expect(overlay.interactions.routePoints.map(({ layer }) => layer.options.icon.options.routeColor)).toEqual([
+      trackStyle.color,
+      trackStyle.color,
+      trackStyle.color,
+      trackStyle.color,
+    ]);
+    expect(overlay.interactions.routePoints[0].layer.options.icon.createIcon().properties).toEqual({
+      "--route-color": trackStyle.color,
+    });
     expect(overlay.layer.layers).toHaveLength(5);
   });
 
-  it("uses a dedicated route-point DivIcon distinct from waypoint markers", () => {
-    const routePoint = { lat: 35, lon: 135, name: "Route point" };
+  it("numbers route-point DivIcons from one independently for each route", () => {
+    const routePoints = [
+      { lat: 35, lon: 135, name: "First" },
+      { lat: 35.1, lon: 135.1, name: "Second" },
+      { lat: 35.2, lon: 135.2, name: "Third" },
+    ];
     const waypoint = { lat: 35.1, lon: 135.1, name: "Waypoint" };
     const overlay = buildGpxOverlay({
       tracks: [],
-      routes: [{ name: "Planned", points: [routePoint] }],
+      routes: [
+        { name: "Single", points: [routePoints[0]] },
+        { name: "Two points", points: routePoints.slice(0, 2) },
+        { name: "Three points", points: routePoints },
+      ],
       waypoints: [waypoint],
     });
 
-    const routeMarker = overlay.interactions.routePoints[0].layer;
+    const routeMarkers = overlay.interactions.routePoints.map(({ layer }) => layer);
     const waypointMarker = overlay.interactions.waypoints[0].layer;
-    expect(routeMarker.options.icon).toBeInstanceOf(leafletMocks.MockDivIcon);
-    expect(routeMarker.options.icon.options).toEqual({
-      className: "tilia-route-point-marker",
-      iconSize: [12, 12],
-      iconAnchor: [6, 6],
-    });
+    expect(routeMarkers.every(({ options }) => options.icon instanceof leafletMocks.MockDivIcon)).toBe(true);
+    expect(routeMarkers.map(({ options }) => options.icon.options.html)).toEqual(["1", "1", "2", "1", "2", "3"]);
+    expect(routeMarkers.every(({ options }) => options.icon.options.className === "tilia-route-point-marker")).toBe(true);
     expect(waypointMarker.options).toBeUndefined();
   });
 
