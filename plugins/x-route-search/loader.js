@@ -180,7 +180,6 @@ function stopPanelPropagation(element) {
 
 export const routeSearchPlugin = {
   id: "x-route-search",
-  requires: ["tilia-status"],
   stylesheets: [
     new URL("./styles.css", import.meta.url).href,
   ],

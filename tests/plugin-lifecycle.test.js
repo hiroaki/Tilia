@@ -437,6 +437,29 @@ describe("createTiliaApp plugin lifecycle", () => {
     expect(setup).not.toHaveBeenCalled();
   });
 
+  it("routes status messages only while a status provider is installed", async () => {
+    const setStatus = vi.fn();
+    const statusPlugin = {
+      id: "tilia-status",
+      setup: vi.fn(() => ({ setStatus })),
+    };
+    const app = createTiliaApp({
+      map: {},
+      builtins: { "tilia-status": statusPlugin },
+    });
+
+    expect(() => app.setStatus("before install")).not.toThrow();
+    expect(setStatus).not.toHaveBeenCalled();
+
+    await app.use("tilia-status");
+    app.setStatus("provider installed");
+    expect(setStatus).toHaveBeenCalledWith("provider installed");
+
+    await app.unuse("tilia-status");
+    expect(() => app.setStatus("after uninstall")).not.toThrow();
+    expect(setStatus).toHaveBeenCalledTimes(1);
+  });
+
   it("runs teardown and removes the provided service on unuse", async () => {
     const destroy = vi.fn(async () => {});
     const plugin = {

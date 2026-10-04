@@ -223,7 +223,7 @@ GPX route polylineとroute-point markerは、現在`subscribeInteractions()`で�
 
 #### `app.setStatus(text)`
 
-`tilia-status` が導入されていればステータスバーのテキストを更新します。未導入の場合は何もしません。
+`tilia-status` を介して任意のステータス通知を行います。ステータスプロバイダーが未導入なら安全に何も表示せず、後から導入した場合は、それ以降の通知が表示されます。
 
 #### `app.setError(error)`
 
@@ -247,12 +247,12 @@ GPX route polylineとroute-point markerは、現在`subscribeInteractions()`で�
 | `tilia-panel` | — | レイヤー・高度・設定パネルのコンテナとなるサイドパネル（マップ内に描画される） |
 | `tilia-status` | — | 地図左下に表示されるステータスバー。読み込み結果やエラーを表示する |
 | `tilia-base-maps-control` | — | ベースマップ選択コントロール。`app.baseMaps` の可視エントリを、必要に応じて provider ごとにグループ分けして表示する |
-| `tilia-layers` | `tilia-panel`, `tilia-status` | レイヤー一覧。Tracks / Routes / Waypointsの全体表示切替、エントリ単位の表示切替・削除・フィット・写真タイムスタンプモード変更が可能 |
-| `tilia-elevation` | `tilia-panel`, `tilia-status` | サイドパネル内のインタラクティブな高度プロファイルチャート。チャートでホバーすると対応するトラックポイントが地図上に表示される |
+| `tilia-layers` | `tilia-panel` | レイヤー一覧。Tracks / Routes / Waypointsの全体表示切替、エントリ単位の表示切替・削除・フィット・写真タイムスタンプモード変更が可能 |
+| `tilia-elevation` | `tilia-panel` | サイドパネル内のインタラクティブな高度プロファイルチャート。チャートでホバーすると対応するトラックポイントが地図上に表示される |
 | `tilia-file-import` | — | 地図上のコントロール（左上）にファイル選択ボタンを追加。`.gpx`・`.jpg`・`.jpeg` に対応、複数ファイルを同時に選択可能 |
 | `tilia-url-import` | — | URL 入力フォームを開くコントロール。HTTP/HTTPS のみ対応（CORS が必要）。ファイル名は `Content-Disposition` または URL パスから推定。`timeoutMs` で遅い fetch を中断し、`maxBytes` で大きすぎるリモートファイルを拒否できる |
 | `tilia-query-import` | — | `tilia-url-import` のクエリパラメータ版。フォームやコントロールを持たず、代わりにクエリーパラメータ `gpx` にセットされている URL を入力とする |
-| `tilia-settings` | `tilia-panel`, `tilia-status` | 設定パネル。新規追加写真に適用するデフォルトのタイムスタンプ解釈モードを設定できる |
+| `tilia-settings` | `tilia-panel` | 設定パネル。新規追加写真に適用するデフォルトのタイムスタンプ解釈モードを設定できる |
 | `tilia-dropzone` | — | マップコンテナ全体をドロップ対象にする。ドラッグ中はビジュアルハイライトを表示する |
 
 ### リポジトリ同梱の optional プラグイン
@@ -261,9 +261,9 @@ GPX route polylineとroute-point markerは、現在`subscribeInteractions()`で�
 
 | ID | 依存 | 説明 |
 |----|------|------|
-| `x-track-editor` | `tilia-panel`, `tilia-status` | GPX の working copy から編集セッションを開始し、トラックポイントを編集して保存時に新規レイヤーとして残す |
-| `x-gpx-export` | `tilia-panel`, `tilia-status` | 選択した GPX レイヤーを `.gpx` としてダウンロード出力する |
-| `x-route-search` | `tilia-status` | 左側フォームを表示して Phloem `POST /route` を呼び出し、各検索結果を Start/Via/Goal のウェイポイントを伴う GPX トラックとして取り込む |
+| `x-track-editor` | `tilia-panel` | GPX の working copy から編集セッションを開始し、トラックポイントを編集して保存時に新規レイヤーとして残す |
+| `x-gpx-export` | `tilia-panel` | 選択した GPX レイヤーを `.gpx` としてダウンロード出力する |
+| `x-route-search` | — | 左側フォームを表示して Phloem `POST /route` を呼び出し、各検索結果を Start/Via/Goal のウェイポイントを伴う GPX トラックとして取り込む |
 
 #### `x-route-search` のオプション
 
@@ -301,7 +301,8 @@ GPX route polylineとroute-point markerは、現在`subscribeInteractions()`で�
 ```js
 const myPlugin = {
   id: "x-my-plugin",           // lower-kebab-case、ベンダー prefix 付き
-  requires: ["tilia-status"],   // 先に導入が必要なプラグイン ID（省略可）
+  // 主要機能に必須のプラグインだけを宣言する。app.setStatus() による通知は任意であり、
+  // ここで tilia-status を要求する必要はない。
   stylesheets: [
     new URL("./my-plugin.css", import.meta.url).href,
   ],

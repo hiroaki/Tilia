@@ -13,6 +13,19 @@ const builtinMocks = vi.hoisted(() => ({
   installStatusControl: vi.fn(),
 }));
 
+vi.mock("../src/core/boot.js", () => ({
+  createTiliaCore: vi.fn(() => ({
+    state: { entries: [] },
+    registry: { dispatch: vi.fn() },
+    context: {},
+    subscribeInteractions: vi.fn(() => () => {}),
+  })),
+}));
+
+vi.mock("../src/core/state.js", () => ({
+  setError: vi.fn(),
+}));
+
 vi.mock("../src/plugins/input/dropzone.js", () => ({
   installDropzonePlugin: builtinMocks.installDropzonePlugin,
 }));
@@ -66,6 +79,7 @@ import {
   status,
   urlImport,
 } from "../src/builtins.js";
+import { createTiliaApp } from "../src/app.js";
 
 function createAppStub(overrides = {}) {
   return {
@@ -170,8 +184,8 @@ describe("built-in plugins", () => {
     const layersResult = layers.setup(app, { color: "teal" });
     const elevationResult = elevation.setup(app, { compact: true });
 
-    expect(layers.requires).toEqual(["tilia-panel", "tilia-status"]);
-    expect(elevation.requires).toEqual(["tilia-panel", "tilia-status"]);
+    expect(layers.requires).toEqual(["tilia-panel"]);
+    expect(elevation.requires).toEqual(["tilia-panel"]);
     expect(layersResult).toBe(layersApi);
     expect(elevationResult).toBe(elevationApi);
     expect(builtinMocks.installLayersControl).toHaveBeenCalledWith(expect.objectContaining({
@@ -194,6 +208,33 @@ describe("built-in plugins", () => {
     expect(app.addRefreshHandler).toHaveBeenCalledTimes(2);
   });
 
+  it("installs panel-based built-ins without a status plugin", async () => {
+    builtinMocks.installPanelPlugin.mockReturnValue({ id: "panel-api" });
+    builtinMocks.installLayersControl.mockReturnValue({ render: vi.fn() });
+    builtinMocks.installElevationPanelControl.mockReturnValue({ refresh: vi.fn() });
+    builtinMocks.installSettingsPanelControl.mockReturnValue({ id: "settings-api" });
+    const app = createTiliaApp({ map: {}, builtins });
+
+    await app.use("tilia-panel");
+    await expect(app.use("tilia-layers")).resolves.toBeDefined();
+    await expect(app.use("tilia-elevation")).resolves.toBeDefined();
+    await expect(app.use("tilia-settings")).resolves.toBeDefined();
+
+    expect(app.plugins.has("tilia-status")).toBe(false);
+  });
+
+  it.each([
+    ["tilia-layers", layers],
+    ["tilia-elevation", elevation],
+    ["tilia-settings", settings],
+  ])("still enforces the panel dependency for %s", async (pluginId, plugin) => {
+    const app = createTiliaApp({ map: {}, builtins });
+
+    await expect(app.use(pluginId)).rejects.toThrow(
+      `Plugin "${plugin.id}" requires "tilia-panel"`,
+    );
+  });
+
   it("wires input and settings plugins with app services and callbacks", () => {
     const app = createAppStub();
     const fileImportApi = { id: "file-import-api" };
@@ -209,6 +250,7 @@ describe("built-in plugins", () => {
     expect(urlImport.setup(app, { timeoutMs: 5000 })).toBe(urlImportApi);
     expect(queryImport.setup(app, { parameterName: "track" })).toBe(queryImportApi);
     expect(settings.setup(app, { allowUtc: true })).toBe(settingsApi);
+    expect(settings.requires).toEqual(["tilia-panel"]);
     expect(builtinMocks.installFileImportControl).toHaveBeenCalledWith(expect.objectContaining({
       map: app.map,
       registry: app.registry,

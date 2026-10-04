@@ -56,7 +56,7 @@ export function recoverSelectionConsistencyFailure({
 
 export const trackEditorPlugin = {
   id: "x-track-editor",
-  requires: ["tilia-panel", "tilia-status"],
+  requires: ["tilia-panel"],
   stylesheets: [
     new URL("./styles.css", import.meta.url).href,
     new URL("./vendor/leaflet-partially-editable-polyline.css", import.meta.url).href,
