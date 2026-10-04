@@ -847,10 +847,11 @@
   line-height: 1;
   color: #fff;
   font-variant-numeric: tabular-nums;
-  background: #334155;
+  background: var(--route-color, #334155);
   border: 1px solid #fff;
   border-radius: 4px;
-  box-shadow: 0 1px 2px rgb(15 23 42 / 35%);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 75%);
+  text-shadow: 0 1px 1px rgb(0 0 0 / 35%);
 }
 
 .tilia-route-point-marker::after {
@@ -860,7 +861,7 @@
   width: 0;
   height: 0;
   content: "";
-  border-top: 6px solid #334155;
+  border-top: 6px solid var(--route-color, #334155);
   border-right: 4px solid transparent;
   border-left: 4px solid transparent;
   transform: translateX(-50%);

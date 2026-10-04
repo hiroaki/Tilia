@@ -2,6 +2,14 @@ import { DivIcon, FeatureGroup, Marker, Polyline, LatLngBounds } from "leaflet";
 import { getTrackStylePreset } from "./track-style-presets.js";
 import { countTrackPoints, getTrackModeCoordinates } from "../gpx/interpretation.js";
 
+class RoutePointDivIcon extends DivIcon {
+  createIcon(oldIcon) {
+    const element = super.createIcon(oldIcon);
+    element.style.setProperty("--route-color", this.options.routeColor);
+    return element;
+  }
+}
+
 function formatCoordinate(value) {
   return Number.isFinite(value) ? value.toFixed(6) : "-";
 }
@@ -175,11 +183,12 @@ export function buildGpxOverlay(parsed, options = {}) {
       const routePoint = route.points[pointIndex];
       const label = String(pointIndex + 1);
       const iconWidth = Math.max(18, 10 + label.length * 6);
-      const routePointIcon = new DivIcon({
+      const routePointIcon = new RoutePointDivIcon({
         className: "tilia-route-point-marker",
         html: label,
         iconSize: [iconWidth, 18],
         iconAnchor: [iconWidth / 2, 24],
+        routeColor: trackStyle.color,
       });
       const marker = new Marker([routePoint.lat, routePoint.lon], { icon: routePointIcon });
       group.addLayer(marker);

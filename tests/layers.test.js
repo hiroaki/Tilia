@@ -20,6 +20,18 @@ const leafletMocks = vi.hoisted(() => {
     constructor(options) {
       this.options = options;
     }
+
+    createIcon() {
+      const properties = {};
+      return {
+        properties,
+        style: {
+          setProperty(name, value) {
+            properties[name] = value;
+          },
+        },
+      };
+    }
   }
 
   class MockMarker {
@@ -128,6 +140,15 @@ describe("buildGpxOverlay", () => {
       { routeIndex: 2, pointIndex: 1 },
       { routeIndex: 2, pointIndex: 2 },
     ]);
+    expect(overlay.interactions.routePoints.map(({ layer }) => layer.options.icon.options.routeColor)).toEqual([
+      trackStyle.color,
+      trackStyle.color,
+      trackStyle.color,
+      trackStyle.color,
+    ]);
+    expect(overlay.interactions.routePoints[0].layer.options.icon.createIcon().properties).toEqual({
+      "--route-color": trackStyle.color,
+    });
     expect(overlay.layer.layers).toHaveLength(5);
   });
 
