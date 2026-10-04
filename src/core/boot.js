@@ -434,6 +434,7 @@ export function createTiliaCore(map, options = {}) {
       if (nextVisible) {
         nextOverlay.layer.addTo(map);
       }
+      selectionHub.clearSelectionForEntry(entryId);
       entry.layer.remove();
 
       replaceEntryPresentation(state, entryId, {
