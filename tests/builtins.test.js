@@ -13,6 +13,19 @@ const builtinMocks = vi.hoisted(() => ({
   installStatusControl: vi.fn(),
 }));
 
+vi.mock("../src/core/boot.js", () => ({
+  createTiliaCore: vi.fn(() => ({
+    state: { entries: [] },
+    registry: { dispatch: vi.fn() },
+    context: {},
+    subscribeInteractions: vi.fn(() => () => {}),
+  })),
+}));
+
+vi.mock("../src/core/state.js", () => ({
+  setError: vi.fn(),
+}));
+
 vi.mock("../src/plugins/input/dropzone.js", () => ({
   installDropzonePlugin: builtinMocks.installDropzonePlugin,
 }));
@@ -208,6 +221,18 @@ describe("built-in plugins", () => {
     await expect(app.use("tilia-settings")).resolves.toBeDefined();
 
     expect(app.plugins.has("tilia-status")).toBe(false);
+  });
+
+  it.each([
+    ["tilia-layers", layers],
+    ["tilia-elevation", elevation],
+    ["tilia-settings", settings],
+  ])("still enforces the panel dependency for %s", async (pluginId, plugin) => {
+    const app = createTiliaApp({ map: {}, builtins });
+
+    await expect(app.use(pluginId)).rejects.toThrow(
+      `Plugin "${plugin.id}" requires "tilia-panel"`,
+    );
   });
 
   it("wires input and settings plugins with app services and callbacks", () => {
