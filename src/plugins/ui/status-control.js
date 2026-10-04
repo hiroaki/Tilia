@@ -5,7 +5,7 @@ export function installStatusControl({ map, position = "bottomleft", priority = 
   let panelNode = null;
   let dismissed = false;
 
-  installMapControl({
+  const control = installMapControl({
     map,
     position,
     priority,
@@ -37,6 +37,9 @@ export function installStatusControl({ map, position = "bottomleft", priority = 
   });
 
   return {
+    destroy() {
+      control.remove();
+    },
     setStatus(text) {
       if (statusNode) {
         statusNode.textContent = text;
