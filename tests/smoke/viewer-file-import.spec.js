@@ -21,7 +21,7 @@ test("viewer sample imports a GPX file and reflects it in the layers panel", asy
   await page.getByRole("button", { name: "Layers" }).click();
   await expect(page.locator(".tilia-side-panel:not(.tilia-side-panel-hidden)")).toBeVisible();
   await expect(page.locator(".tilia-layer-name")).toContainText("sample-track.gpx");
-  await expect(page.locator(".tilia-layer-meta")).toContainText("3 track points / 0 routes / 0 route points / 1 waypoints");
+  await expect(page.locator(".tilia-layer-meta")).toContainText("1 waypoint / 1 track");
 
   await page.getByRole("button", { name: "Delete all" }).click();
   await expect(page.locator(".tilia-layer-empty")).toContainText("No layers");

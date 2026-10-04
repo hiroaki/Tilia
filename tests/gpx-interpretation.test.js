@@ -1,12 +1,32 @@
 import { describe, expect, it } from "vitest";
 import {
   countRoutePoints,
+  formatGpxSummary,
   getSourceDistanceSummary,
   getNearestTrackModePoint,
   getTrackModeCoordinates,
   getTrackModeElevationLayout,
   getTrackModeProfile,
 } from "../src/gpx/interpretation.js";
+
+describe("GPX summary formatting", () => {
+  it.each([
+    [{ waypoints: [], routes: [], tracks: [] }, "Empty GPX"],
+    [{ waypoints: [{}] }, "1 waypoint"],
+    [{ waypoints: [{}, {}, {}, {}] }, "4 waypoints"],
+    [{ routes: [{ points: Array(8).fill({}) }] }, "1 route (8 points)"],
+    [{ routes: [{ points: [{}] }] }, "1 route (1 point)"],
+    [{ routes: [{ points: [] }, { points: [] }, { points: [] }] }, "3 routes"],
+    [{ tracks: [{ segments: [{ points: [{}] }] }] }, "1 track (1 segment, 1 point)"],
+    [{ tracks: [{ segments: [{ points: Array(100).fill({}) }, { points: Array(50).fill({}) }] }] }, "1 track (2 segments, 150 points)"],
+    [{ tracks: [{ segments: [] }, { segments: [] }] }, "2 tracks"],
+    [{ waypoints: Array(4).fill({}), routes: [{ points: [] }] }, "4 waypoints / 1 route"],
+    [{ routes: [{ points: Array(8).fill({}) }], tracks: [{ segments: [{ points: Array(10).fill({}) }] }] }, "1 route / 1 track"],
+    [{ waypoints: Array(4).fill({}), routes: [{ points: [] }], tracks: [{ segments: [] }] }, "4 waypoints / 1 route / 1 track"],
+  ])("formats %j as %s", (source, expected) => {
+    expect(formatGpxSummary(source)).toBe(expected);
+  });
+});
 
 describe("Track-mode GPX interpretation", () => {
   it("counts route points without including track points or waypoints", () => {

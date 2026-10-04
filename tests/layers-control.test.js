@@ -286,7 +286,7 @@ describe("createTrackStyleSwatch", () => {
     expect(waypointsToggle.checked).toBe(true);
     expect(waypointsToggle.disabled).toBe(false);
     expect(clearButton.disabled).toBe(false);
-    expect(layerMeta.textContent).toBe("2 track points / 1 routes / 3 route points / 1 waypoints");
+    expect(layerMeta.textContent).toBe("1 waypoint / 1 route / 1 track");
 
     tracksToggle.checked = false;
     tracksToggle.dispatch("change");

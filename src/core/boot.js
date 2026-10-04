@@ -14,7 +14,7 @@ import { createSelectionHub } from "./selection-hub.js";
 import { createInputRegistry } from "./input-registry.js";
 import { parseGpxFile } from "../gpx/parse.js";
 import { normalizeGpxSource } from "../gpx/source.js";
-import { countRoutePoints, countTrackPoints, getNearestTrackModePoint } from "../gpx/interpretation.js";
+import { formatGpxSummary, getNearestTrackModePoint } from "../gpx/interpretation.js";
 import { buildGpxOverlay, buildPhotoOverlay, fitMapToGroup } from "../map/layers.js";
 import { getTrackStylePreset, TRACK_STYLE_PRESETS } from "../map/track-style-presets.js";
 import { parsePhotoFile } from "../photo/exif.js";
@@ -268,7 +268,7 @@ export function createTiliaCore(map, options = {}) {
 
       return {
         ...parsed,
-        summary: `${countTrackPoints(parsed)} track points, ${parsed.routes?.length || 0} routes, ${countRoutePoints(parsed)} route points, ${parsed.waypoints?.length || 0} waypoints`,
+        summary: formatGpxSummary(parsed),
       };
     },
   );

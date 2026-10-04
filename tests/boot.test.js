@@ -195,7 +195,7 @@ describe("createTiliaCore", () => {
     });
     expect(overlay.layer.addTo).toHaveBeenCalledWith(map);
     expect(bootMocks.fitMapToGroup).toHaveBeenCalledWith(map, overlay.layer);
-    expect(result.summary).toBe("2 track points, 1 routes, 2 route points, 1 waypoints");
+    expect(result.summary).toBe("1 waypoint / 1 route / 1 track");
     expect(core.state.entries).toHaveLength(1);
     expect(core.state.entries[0]).toMatchObject({
       kind: "gpx",
