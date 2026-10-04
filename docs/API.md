@@ -324,7 +324,8 @@ const myPlugin = {
       },
     });
 
-    // Return an API object. Implement destroy() for cleanup when app.unuse() is called.
+    // Return an API object with plugin-specific operations. If the returned API
+    // owns resources, expose destroy() and release all of them there.
     return {
       doSomething() { /* ... */ },
       destroy() {
@@ -332,13 +333,17 @@ const myPlugin = {
       },
     };
 
-    // Alternatively, return a plain cleanup function:
+    // If no public API is needed, return a cleanup function directly:
     // return () => { control.remove?.(); };
   },
 };
 
 await app.use(myPlugin);
 ```
+
+`setup()` may return an API object, a cleanup function, or `undefined` when the plugin exposes no API and owns no resources requiring cleanup. Before removing the plugin and its service registration, `app.unuse()` invokes an explicitly returned cleanup function or the API object's `destroy()` method.
+
+Each plugin is responsible for releasing every resource it owns, where applicable: Leaflet controls, DOM and map event listeners, application subscriptions, refresh handlers, timers, observers, markers, and other retained UI state. Methods such as `remove()` are not automatically treated as lifecycle cleanup; expose cleanup explicitly through `destroy()` or by returning a cleanup function.
 
 `stylesheets` is optional. When present, Tilia registers each stylesheet before `setup()` runs. Use absolute URLs or resolve relative files inside the plugin module with `new URL(..., import.meta.url).href`.
 
