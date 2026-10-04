@@ -324,7 +324,8 @@ const myPlugin = {
       },
     });
 
-    // API オブジェクトを返す。destroy() を実装すると app.unuse() 時に呼ばれる
+    // plugin 固有の操作を持つ API オブジェクトを返す。返す API が資源を
+    // 所有する場合は destroy() を公開し、そこで所有する資源をすべて解放する。
     return {
       doSomething() { /* ... */ },
       destroy() {
@@ -332,13 +333,17 @@ const myPlugin = {
       },
     };
 
-    // クリーンアップ関数を直接返すことも可能:
+    // 公開 API が不要なら、クリーンアップ関数を直接返すことも可能:
     // return () => { control.remove?.(); };
   },
 };
 
 await app.use(myPlugin);
 ```
+
+`setup()` は API オブジェクト、クリーンアップ関数、または、公開 API がなく解放すべき資源も所有しない場合は `undefined` を返せます。`app.unuse()` は plugin とその service 登録を削除する前に、明示的に返されたクリーンアップ関数または API オブジェクトの `destroy()` を呼び出します。
+
+各 plugin は、該当する場合、所有するすべての資源を解放する責任があります。対象には Leaflet control、DOM・map event listener、application subscription、refresh handler、timer、observer、marker、その他保持している UI state が含まれます。`remove()` などのメソッドが lifecycle cleanup として自動解釈されることはありません。`destroy()` または戻り値のクリーンアップ関数としてcleanupを明示してください。
 
 `stylesheets` は省略可能です。指定した場合、Tilia は `setup()` 実行前に各 stylesheet を登録します。相対パスの asset は `new URL(..., import.meta.url).href` で plugin module 側から解決してください。
 

@@ -49,7 +49,12 @@ export const baseMaps = definePlugin({
 			...resolveBuiltinUiOptions("tilia-base-maps-control", options),
 		});
 		api.render();
-		app.addRefreshHandler(() => api.render());
+		const removeRefreshHandler = app.addRefreshHandler(() => api.render());
+		const destroy = api.destroy?.bind(api);
+		api.destroy = () => {
+			removeRefreshHandler();
+			destroy?.();
+		};
 		return api;
 	},
 });
@@ -68,7 +73,12 @@ export const layers = definePlugin({
 			...resolveBuiltinUiOptions("tilia-layers", options),
 		});
 		api.render();
-		app.addRefreshHandler(() => api.render());
+		const removeRefreshHandler = app.addRefreshHandler(() => api.render());
+		const destroy = api.destroy?.bind(api);
+		api.destroy = () => {
+			removeRefreshHandler();
+			destroy?.();
+		};
 		return api;
 	},
 });
@@ -85,7 +95,12 @@ export const elevation = definePlugin({
 			...resolveBuiltinUiOptions("tilia-elevation", options),
 		});
 		api.refresh();
-		app.addRefreshHandler(() => api.refresh());
+		const removeRefreshHandler = app.addRefreshHandler(() => api.refresh());
+		const destroy = api.destroy?.bind(api);
+		api.destroy = () => {
+			removeRefreshHandler();
+			destroy?.();
+		};
 		return api;
 	},
 });
@@ -153,15 +168,16 @@ export const settings = definePlugin({
 export const dropzone = definePlugin({
 	id: "tilia-dropzone",
 	setup(app, options = {}) {
-		installDropzonePlugin({
-			dropTarget: options.target || app.map.getContainer(),
+		const target = options.target || app.map.getContainer();
+		const destroy = installDropzonePlugin({
+			dropTarget: target,
 			registry: app.registry,
 			context: app.context,
 			onStatus: app.setStatus,
 			onError: app.setError,
 			onItemLoaded: () => app.refreshView(),
 		});
-		return { target: options.target || app.map.getContainer() };
+		return { destroy, target };
 	},
 });
 
