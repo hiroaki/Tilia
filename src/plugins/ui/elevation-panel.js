@@ -262,6 +262,7 @@ export function installElevationPanelControl({ map, core, panel, onStatus, posit
   let activePopupRevealVersion = 0;
   let popupPinned = false;
   let activeChart = null;
+  const popupCloseTimers = new Set();
 
   function getTrackEntries() {
     return core.state.entries.filter((entry) => entry.kind === "gpx");
@@ -503,7 +504,7 @@ export function installElevationPanelControl({ map, core, panel, onStatus, posit
     panel.rerenderPanel("elevation");
   }
 
-  installMapControl({
+  const control = installMapControl({
     map,
     position,
     priority,
@@ -557,7 +558,7 @@ export function installElevationPanelControl({ map, core, panel, onStatus, posit
     onStatus(`Selected ${entry.source.name} track point at ${formatDistance(selection.point.distanceMeters)}`);
   });
 
-  map.on("popupopen", (event) => {
+  const onPopupOpen = (event) => {
     popupPinned = true;
     const content = event.popup?.getContent?.();
     const revealVersion = Number(content?.dataset?.tiliaRevealVersion || 0);
@@ -569,9 +570,9 @@ export function installElevationPanelControl({ map, core, panel, onStatus, posit
     if (activePointMarker || selectedPointByEntryId.size > 0) {
       clearRevealState();
     }
-  });
+  };
 
-  map.on("popupclose", (event) => {
+  const onPopupClose = (event) => {
     popupPinned = false;
     const content = event.popup?.getContent?.();
     const closingRevealVersion = Number(content?.dataset?.tiliaRevealVersion || 0);
@@ -579,19 +580,36 @@ export function installElevationPanelControl({ map, core, panel, onStatus, posit
       clearRevealState();
       return;
     }
-    setTimeout(() => {
+    const timer = setTimeout(() => {
+      popupCloseTimers.delete(timer);
       if (activePopupRevealVersion !== closingRevealVersion) {
         return;
       }
       clearRevealState();
     }, 0);
-  });
+    popupCloseTimers.add(timer);
+  };
+
+  map.on("popupopen", onPopupOpen);
+  map.on("popupclose", onPopupClose);
 
   refresh();
   return {
     refresh,
     destroy() {
       unsubscribeSelection();
+      map.off("popupopen", onPopupOpen);
+      map.off("popupclose", onPopupClose);
+      for (const timer of popupCloseTimers) {
+        clearTimeout(timer);
+      }
+      popupCloseTimers.clear();
+      clearActivePointMarker();
+      activeChart = null;
+      if (panel.isOpen?.("elevation")) {
+        panel.closePanel();
+      }
+      control.remove();
     },
   };
 }

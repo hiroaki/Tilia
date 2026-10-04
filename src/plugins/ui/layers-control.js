@@ -425,7 +425,7 @@ export function installLayersControl({ map, core, panel, onStatus, onError, onEn
     }
   }
 
-  installMapControl({
+  const control = installMapControl({
     map,
     position,
     priority,
@@ -447,5 +447,13 @@ export function installLayersControl({ map, core, panel, onStatus, onError, onEn
     },
   });
 
-  return { render };
+  return {
+    destroy() {
+      if (panel.isOpen?.("layers")) {
+        panel.closePanel();
+      }
+      control.remove();
+    },
+    render,
+  };
 }

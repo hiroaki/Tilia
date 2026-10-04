@@ -21,6 +21,9 @@ function createDropTarget() {
     addEventListener: vi.fn((eventName, handler) => {
       listeners.set(eventName, handler);
     }),
+    removeEventListener: vi.fn((eventName, handler) => {
+      if (listeners.get(eventName) === handler) listeners.delete(eventName);
+    }),
     contains: vi.fn((node) => node === "inside"),
   };
 }
@@ -95,5 +98,16 @@ describe("installDropzonePlugin", () => {
   it("returns early when no drop target is provided", () => {
     expect(() => installDropzonePlugin({ dropTarget: null })).not.toThrow();
     expect(processInputItems).not.toHaveBeenCalled();
+  });
+
+  it("removes all listeners and the active highlight during cleanup", () => {
+    const dropTarget = createDropTarget();
+    const destroy = installDropzonePlugin({ dropTarget });
+
+    destroy();
+
+    expect(dropTarget.listeners.size).toBe(0);
+    expect(dropTarget.removeEventListener).toHaveBeenCalledTimes(3);
+    expect(dropTarget.classList.remove).toHaveBeenCalledWith("drop-active");
   });
 });

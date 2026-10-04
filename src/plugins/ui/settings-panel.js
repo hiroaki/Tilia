@@ -124,7 +124,7 @@ function createTimeModeField({ core, onStatus, onError = null }) {
 }
 
 export function installSettingsPanelControl({ map, core, panel, onStatus, onError = null, position = "topleft", priority = "normal" }) {
-  return installMapControl({
+  const control = installMapControl({
     map,
     position,
     priority,
@@ -158,4 +158,13 @@ export function installSettingsPanelControl({ map, core, panel, onStatus, onErro
       return wrap;
     },
   });
+
+  return {
+    destroy() {
+      if (panel.isOpen?.("settings")) {
+        panel.closePanel();
+      }
+      control.remove();
+    },
+  };
 }
