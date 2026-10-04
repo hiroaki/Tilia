@@ -1,7 +1,7 @@
 import { createButton, createPanel, createSelect, installMapControl } from "../../map/controls.js";
 import { createPhotoThumbnailNode } from "../../map/layers.js";
 import { getTrackStylePreset } from "../../map/track-style-presets.js";
-import { countRoutePoints, countTrackPoints } from "../../gpx/interpretation.js";
+import { formatGpxSummary } from "../../gpx/interpretation.js";
 import {
   buildFixedOffsetTimeMode,
   formatPhotoTimeModeLabel,
@@ -209,11 +209,7 @@ function createLayerMeta(entry) {
   }
 
   if (entry.kind === "gpx") {
-    const trackPoints = countTrackPoints(entry.source);
-    const routes = entry.source?.routes?.length || 0;
-    const routePoints = countRoutePoints(entry.source);
-    const waypoints = entry.source?.waypoints?.length || 0;
-    meta.textContent = `${trackPoints} track points / ${routes} routes / ${routePoints} route points / ${waypoints} waypoints`;
+    meta.textContent = formatGpxSummary(entry.source);
     return meta;
   }
 

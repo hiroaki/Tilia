@@ -23,6 +23,37 @@ export function countRoutePoints(source) {
   return (source?.routes || []).reduce((total, route) => total + (route.points || []).length, 0);
 }
 
+function formatCount(count, singular) {
+  return `${count} ${singular}${count === 1 ? "" : "s"}`;
+}
+
+export function formatGpxSummary(source) {
+  const tracks = source?.tracks || [];
+  const routes = source?.routes || [];
+  const waypoints = source?.waypoints || [];
+  const featureTypes = [waypoints, routes, tracks].filter((features) => features.length > 0).length;
+
+  if (featureTypes === 0) {
+    return "Empty GPX";
+  }
+
+  if (featureTypes === 1 && routes.length === 1) {
+    return `${formatCount(1, "route")} (${formatCount((routes[0].points || []).length, "point")})`;
+  }
+
+  if (featureTypes === 1 && tracks.length === 1) {
+    const segments = tracks[0].segments || [];
+    const points = segments.reduce((total, segment) => total + (segment.points || []).length, 0);
+    return `${formatCount(1, "track")} (${formatCount(segments.length, "segment")}, ${formatCount(points, "point")})`;
+  }
+
+  return [
+    waypoints.length > 0 ? formatCount(waypoints.length, "waypoint") : null,
+    routes.length > 0 ? formatCount(routes.length, "route") : null,
+    tracks.length > 0 ? formatCount(tracks.length, "track") : null,
+  ].filter(Boolean).join(" / ");
+}
+
 export function getTrackPointEntries(source) {
   const entries = [];
   for (let trackIndex = 0; trackIndex < (source?.tracks || []).length; trackIndex += 1) {
