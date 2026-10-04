@@ -560,6 +560,17 @@ describe("createTiliaCore", () => {
     const core = createTiliaCore(map);
 
     await core.registry.dispatch(core.context, { name: "photo.jpg" });
+    const originalSource = core.state.entries[0].source;
+    bootMocks.selectionState = { kind: "photo", entry: core.state.entries[0] };
+    bootMocks.clearSelectionForEntry.mockImplementationOnce((entryId) => {
+      expect(entryId).toBe(1);
+      expect(secondOverlay.layer.addTo).toHaveBeenCalledWith(map);
+      expect(core.state.entries[0].source).toBe(originalSource);
+      expect(core.state.entries[0].layer).toBe(firstOverlay.layer);
+      expect(firstOverlay.layer.remove).not.toHaveBeenCalled();
+      bootMocks.selectionState = null;
+      return true;
+    });
     const updatedEntry = core.updatePhotoTimeMode(1, "utc");
 
     expect(bootMocks.inferPhotoLocationFromGpx).toHaveBeenNthCalledWith(2, core.state.sources, originalPhoto, {
@@ -567,11 +578,145 @@ describe("createTiliaCore", () => {
     });
     expect(firstOverlay.layer.remove).toHaveBeenCalledTimes(1);
     expect(secondOverlay.layer.addTo).toHaveBeenCalledWith(map);
+    expect(bootMocks.clearSelectionForEntry).toHaveBeenCalledOnce();
+    expect(bootMocks.clearSelectionForEntry).toHaveBeenCalledWith(1);
+    expect(bootMocks.selectionState).toBeNull();
     expect(bootMocks.fitMapToGroup).toHaveBeenLastCalledWith(map, secondOverlay.layer);
     expect(updatedEntry.requestedPhotoTimeMode).toBe("utc");
     expect(updatedEntry.photoTimeMode).toBe("utc");
     expect(updatedEntry.source).toMatchObject({ lat: 35.6, lon: 135.6, photoTimeMode: "utc" });
     expect(updatedEntry.layer).toBe(secondOverlay.layer);
+  });
+
+  it.each([
+    ["another photo", "photo"],
+    ["a GPX entry", "track"],
+  ])("preserves a selection owned by %s when updating a photo", async (_label, kind) => {
+    const originalPhoto = {
+      name: "updated.jpg",
+      hasGps: false,
+      dateTimeOriginal: new Date("2024-01-01T00:05:00Z"),
+    };
+    const originalOverlay = {
+      layer: createLayer("photo-original"),
+      interactions: { marker: { id: "marker-original" } },
+    };
+    const replacementOverlay = {
+      layer: createLayer("photo-replacement"),
+      interactions: { marker: { id: "marker-replacement" } },
+    };
+    bootMocks.parsePhotoFile.mockResolvedValue(originalPhoto);
+    bootMocks.inferPhotoLocationFromGpx
+      .mockReturnValueOnce({ lat: 35.5, lon: 135.5, timeInterpretationMode: "local" })
+      .mockReturnValueOnce({ lat: 35.6, lon: 135.6, timeInterpretationMode: "utc" });
+    bootMocks.buildPhotoOverlay
+      .mockReturnValueOnce(originalOverlay)
+      .mockReturnValueOnce(replacementOverlay);
+    const core = createTiliaCore({ closePopup: bootMocks.closePopup });
+    await core.registry.dispatch(core.context, { name: "updated.jpg" });
+    const unrelatedSelection = { kind, entry: { id: 999 } };
+    bootMocks.selectionState = unrelatedSelection;
+
+    core.updatePhotoTimeMode(1, "utc");
+
+    expect(bootMocks.clearSelectionForEntry).toHaveBeenCalledWith(1);
+    expect(bootMocks.selectionState).toBe(unrelatedSelection);
+  });
+
+  it("keeps the selected photo and entry intact when replacement overlay construction fails", async () => {
+    const originalPhoto = { name: "photo.jpg", hasGps: false };
+    const originalOverlay = {
+      layer: createLayer("photo-original"),
+      interactions: { marker: { id: "marker-original" } },
+    };
+    bootMocks.parsePhotoFile.mockResolvedValue(originalPhoto);
+    bootMocks.inferPhotoLocationFromGpx
+      .mockReturnValueOnce({ lat: 35.5, lon: 135.5, timeInterpretationMode: "local" })
+      .mockReturnValueOnce({ lat: 35.6, lon: 135.6, timeInterpretationMode: "utc" });
+    bootMocks.buildPhotoOverlay
+      .mockReturnValueOnce(originalOverlay)
+      .mockImplementationOnce(() => {
+        throw new Error("overlay construction failed");
+      });
+    const core = createTiliaCore({ closePopup: bootMocks.closePopup });
+    await core.registry.dispatch(core.context, { name: "photo.jpg" });
+    const entry = core.state.entries[0];
+    const originalSource = entry.source;
+    const selection = { kind: "photo", entry };
+    bootMocks.selectionState = selection;
+
+    expect(() => core.updatePhotoTimeMode(entry.id, "utc"))
+      .toThrow("overlay construction failed");
+
+    expect(bootMocks.clearSelectionForEntry).not.toHaveBeenCalled();
+    expect(bootMocks.selectionState).toBe(selection);
+    expect(entry.source).toBe(originalSource);
+    expect(entry.layer).toBe(originalOverlay.layer);
+    expect(originalOverlay.layer.remove).not.toHaveBeenCalled();
+  });
+
+  it("keeps the selected photo and entry intact when adding the replacement overlay fails", async () => {
+    const originalPhoto = { name: "photo.jpg", hasGps: false };
+    const originalOverlay = {
+      layer: createLayer("photo-original"),
+      interactions: { marker: { id: "marker-original" } },
+    };
+    const replacementOverlay = {
+      layer: createLayer("photo-replacement"),
+      interactions: { marker: { id: "marker-replacement" } },
+    };
+    replacementOverlay.layer.addTo.mockImplementationOnce(() => {
+      throw new Error("overlay attachment failed");
+    });
+    bootMocks.parsePhotoFile.mockResolvedValue(originalPhoto);
+    bootMocks.inferPhotoLocationFromGpx
+      .mockReturnValueOnce({ lat: 35.5, lon: 135.5, timeInterpretationMode: "local" })
+      .mockReturnValueOnce({ lat: 35.6, lon: 135.6, timeInterpretationMode: "utc" });
+    bootMocks.buildPhotoOverlay
+      .mockReturnValueOnce(originalOverlay)
+      .mockReturnValueOnce(replacementOverlay);
+    const core = createTiliaCore({ closePopup: bootMocks.closePopup });
+    await core.registry.dispatch(core.context, { name: "photo.jpg" });
+    const entry = core.state.entries[0];
+    const originalSource = entry.source;
+    const selection = { kind: "photo", entry };
+    bootMocks.selectionState = selection;
+
+    expect(() => core.updatePhotoTimeMode(entry.id, "utc"))
+      .toThrow("overlay attachment failed");
+
+    expect(bootMocks.clearSelectionForEntry).not.toHaveBeenCalled();
+    expect(bootMocks.selectionState).toBe(selection);
+    expect(entry.source).toBe(originalSource);
+    expect(entry.layer).toBe(originalOverlay.layer);
+    expect(originalOverlay.layer.remove).not.toHaveBeenCalled();
+  });
+
+  it("supports repeated photo updates after the first update clears its selection", async () => {
+    const originalPhoto = { name: "photo.jpg", hasGps: false };
+    const overlays = [
+      { layer: createLayer("photo-original"), interactions: { marker: { id: "marker-original" } } },
+      { layer: createLayer("photo-once"), interactions: { marker: { id: "marker-once" } } },
+      { layer: createLayer("photo-twice"), interactions: { marker: { id: "marker-twice" } } },
+    ];
+    bootMocks.parsePhotoFile.mockResolvedValue(originalPhoto);
+    bootMocks.inferPhotoLocationFromGpx
+      .mockReturnValueOnce({ lat: 35.5, lon: 135.5, timeInterpretationMode: "local" })
+      .mockReturnValueOnce({ lat: 35.6, lon: 135.6, timeInterpretationMode: "utc" })
+      .mockReturnValueOnce({ lat: 35.7, lon: 135.7, timeInterpretationMode: "+09:00" });
+    bootMocks.buildPhotoOverlay.mockImplementation(() => overlays.shift());
+    const core = createTiliaCore({ closePopup: bootMocks.closePopup });
+    await core.registry.dispatch(core.context, { name: "photo.jpg" });
+    const entry = core.state.entries[0];
+    bootMocks.selectionState = { kind: "photo", entry };
+
+    core.updatePhotoTimeMode(entry.id, "utc");
+    core.updatePhotoTimeMode(entry.id, "+09:00");
+
+    expect(bootMocks.clearSelectionForEntry).toHaveBeenNthCalledWith(1, entry.id);
+    expect(bootMocks.clearSelectionForEntry).toHaveBeenNthCalledWith(2, entry.id);
+    expect(bootMocks.selectionState).toBeNull();
+    expect(entry.source).toMatchObject({ lat: 35.7, lon: 135.7, photoTimeMode: "+09:00" });
   });
 
   it("toggles entry visibility and fits an entry back into view", async () => {
