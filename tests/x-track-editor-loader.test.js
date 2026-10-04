@@ -5,11 +5,14 @@ vi.mock("leaflet", () => ({
   Marker: class Marker {},
   Polyline: class Polyline {},
   DivIcon: class DivIcon {},
+  FeatureGroup: class FeatureGroup {},
   Control: class Control {},
   DomEvent: {},
   DomUtil: {},
 }));
 
+import { gpxExportPlugin } from "../plugins/x-gpx-export/loader.js";
+import { routeSearchPlugin } from "../plugins/x-route-search/loader.js";
 import {
   recoverSelectionConsistencyFailure,
   trackEditorPlugin,
@@ -18,9 +21,14 @@ import {
 describe("x-track-editor plugin definition", () => {
   it("declares its UI dependencies", () => {
     expect(trackEditorPlugin.id).toBe("x-track-editor");
-    expect(trackEditorPlugin.requires).toEqual(["tilia-panel", "tilia-status"]);
+    expect(trackEditorPlugin.requires).toEqual(["tilia-panel"]);
     expect(trackEditorPlugin.stylesheets).toHaveLength(2);
     expect(typeof trackEditorPlugin.setup).toBe("function");
+  });
+
+  it("keeps status optional for repository plugins while preserving panel dependencies", () => {
+    expect(gpxExportPlugin.requires).toEqual(["tilia-panel"]);
+    expect(routeSearchPlugin.requires).toBeUndefined();
   });
 
   it("resets editing and reports details after a selection consistency failure", () => {

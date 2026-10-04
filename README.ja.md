@@ -121,21 +121,21 @@ Tilia を利用するには、Leaflet の JavaScript と CSS をページに読�
 | `tilia-panel` | — | レイヤー・高度・設定プラグインが必要とするサイドパネルコンテナ |
 | `tilia-status` | — | パネル内のステータスバー |
 | `tilia-base-maps-control` | — | ベースマップ選択コントロール。`app.baseMaps` の可視エントリを一覧表示する |
-| `tilia-layers` | `tilia-panel`, `tilia-status` | レイヤー一覧。Tracks / Routes / Waypointsの表示切替、エントリ単位の表示切替・削除・フィット・写真ごとのタイムモード変更が可能 |
-| `tilia-elevation` | `tilia-panel`, `tilia-status` | GPX トラックのインタラクティブな高度プロファイルチャート |
+| `tilia-layers` | `tilia-panel` | レイヤー一覧。Tracks / Routes / Waypointsの表示切替、エントリ単位の表示切替・削除・フィット・写真ごとのタイムモード変更が可能 |
+| `tilia-elevation` | `tilia-panel` | GPX トラックのインタラクティブな高度プロファイルチャート |
 | `tilia-file-import` | — | `.gpx` / `.jpg` / `.jpeg` を選択できるファイル選択コントロール |
 | `tilia-url-import` | — | HTTP/HTTPS URL から取得する URL 入力コントロール（サーバー側 CORS 許可が必要）。timeout とサイズ上限を設定可能 |
 | `tilia-query-import` | — | `tilia-url-import` と同じですが、コントロールを持たず、代わりにクエリーパラメータ `gpx` にセットされている URL を入力とします |
-| `tilia-settings` | `tilia-panel`, `tilia-status` | 写真タイムスタンプ解釈のデフォルトモード（Auto / ローカル / UTC / 固定オフセット） |
+| `tilia-settings` | `tilia-panel` | 写真タイムスタンプ解釈のデフォルトモード（Auto / ローカル / UTC / 固定オフセット） |
 | `tilia-dropzone` | — | 地図全体をドロップ対象にするドラッグ＆ドロップ機能 |
 
 このリポジトリには、`plugins/` 配下に optional なサードパーティ形式プラグインも含まれます:
 
 | ID | 依存 | 説明 |
 |----|------|------|
-| `x-track-editor` | `tilia-panel`, `tilia-status` | GPX レイヤーの複製（working copy）を作り、トラックポイントを編集して新規レイヤーとして保存する |
-| `x-gpx-export` | `tilia-panel`, `tilia-status` | 選択した GPX レイヤーをローカル `.gpx` ファイルとして書き出す |
-| `x-route-search` | `tilia-status` | 左側フォームから Phloem `POST /route` を呼び出し、各検索結果を Start/Via/Goal のウェイポイントを伴う GPX トラックとして取り込む |
+| `x-track-editor` | `tilia-panel` | GPX レイヤーの複製（working copy）を作り、トラックポイントを編集して新規レイヤーとして保存する |
+| `x-gpx-export` | `tilia-panel` | 選択した GPX レイヤーをローカル `.gpx` ファイルとして書き出す |
+| `x-route-search` | — | 左側フォームから Phloem `POST /route` を呼び出し、各検索結果を Start/Via/Goal のウェイポイントを伴う GPX トラックとして取り込む |
 
 `app.use()` でサードパーティ・カスタムプラグインも追加できます。プラグインの作成にビルドツールは不要です。詳細は [docs/API.ja.md](docs/API.ja.md) を参照。
 

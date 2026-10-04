@@ -223,7 +223,7 @@ Triggers all registered refresh handlers.
 
 #### `app.setStatus(text)`
 
-Updates the status bar text when `tilia-status` is installed. No-ops otherwise.
+Optionally reports status through `tilia-status`. When no status provider is installed, the call safely has no visible effect; installing one later enables subsequent messages.
 
 #### `app.setError(error)`
 
@@ -247,12 +247,12 @@ Install by passing a string ID to `app.use()`, or by listing in `options.plugins
 | `tilia-panel` | — | Side panel container rendered inside the map area; used by layers, elevation, and settings plugins |
 | `tilia-status` | — | Status bar in the bottom-left corner of the map; shows load results and errors |
 | `tilia-base-maps-control` | — | Base map selector control; shows visible entries from `app.baseMaps`, grouped by provider when applicable |
-| `tilia-layers` | `tilia-panel`, `tilia-status` | Layer list with global Tracks / Routes / Waypoints visibility, per-entry visibility, delete, fit-to-view, and photo timestamp mode override |
-| `tilia-elevation` | `tilia-panel`, `tilia-status` | Interactive elevation profile chart in the side panel; hover highlights the corresponding track point on the map |
+| `tilia-layers` | `tilia-panel` | Layer list with global Tracks / Routes / Waypoints visibility, per-entry visibility, delete, fit-to-view, and photo timestamp mode override |
+| `tilia-elevation` | `tilia-panel` | Interactive elevation profile chart in the side panel; hover highlights the corresponding track point on the map |
 | `tilia-file-import` | — | Map control (top-left) with a file picker; accepts `.gpx`, `.jpg`, `.jpeg`; supports multiple files at once |
 | `tilia-url-import` | — | Map control that opens a URL input; fetches via HTTP/HTTPS with CORS; filename inferred from `Content-Disposition` or the URL path; `timeoutMs` aborts slow fetches and `maxBytes` rejects oversized remote files |
 | `tilia-query-import` | — | Same as `tilia-url-import`, but without a form or control; instead, it reads the input URL from the query parameter `gpx` |
-| `tilia-settings` | `tilia-panel`, `tilia-status` | Settings panel with a single control: the default photo timestamp interpretation mode applied to newly loaded photos |
+| `tilia-settings` | `tilia-panel` | Settings panel with a single control: the default photo timestamp interpretation mode applied to newly loaded photos |
 | `tilia-dropzone` | — | Makes the entire map container a drag-and-drop target; visual highlight shown during drag |
 
 ### Optional repository plugins
@@ -261,9 +261,9 @@ These plugins are provided in this repository under `plugins/` as third-party st
 
 | ID | Requires | Description |
 |----|----------|-------------|
-| `x-track-editor` | `tilia-panel`, `tilia-status` | Starts a GPX editing session from a working copy, edits track points, and keeps the edited copy as a new layer on save |
-| `x-gpx-export` | `tilia-panel`, `tilia-status` | Exports a selected GPX layer to a `.gpx` download |
-| `x-route-search` | `tilia-status` | Shows a left-side route form, calls Phloem `POST /route`, and imports each routing result as a GPX Track with Start/Via/Goal Waypoints |
+| `x-track-editor` | `tilia-panel` | Starts a GPX editing session from a working copy, edits track points, and keeps the edited copy as a new layer on save |
+| `x-gpx-export` | `tilia-panel` | Exports a selected GPX layer to a `.gpx` download |
+| `x-route-search` | — | Shows a left-side route form, calls Phloem `POST /route`, and imports each routing result as a GPX Track with Start/Via/Goal Waypoints |
 
 #### `x-route-search` options
 
@@ -301,7 +301,8 @@ A plugin is a plain object with `id` and `setup`:
 ```js
 const myPlugin = {
   id: "x-my-plugin",           // lower-kebab-case, vendor-prefixed
-  requires: ["tilia-status"],   // optional: IDs of plugins that must be installed first
+  // Declare only plugins required for primary functionality. Status reporting via
+  // app.setStatus() is optional and does not require tilia-status here.
   stylesheets: [
     new URL("./my-plugin.css", import.meta.url).href,
   ],

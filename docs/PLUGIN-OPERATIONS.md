@@ -39,13 +39,16 @@ Built-in plugins are resolved from the built-in registry first. If a string ID i
 
 `requires` is a validation list, not a resolver.
 
-- a plugin may declare `requires: ["tilia-panel", "tilia-status"]`
+- a plugin may declare `requires: ["tilia-panel"]` when its primary UI needs the panel
 - when that plugin is installed, Tilia checks whether those plugin IDs are already installed
 - if any required plugin is missing, installation fails immediately
 - Tilia does not auto-install missing dependencies
 - Tilia does not reorder startup plugins to satisfy dependencies
 
 Implication: callers must install plugins in the correct order themselves.
+
+Optional status reporting through `app.setStatus()` does not require declaring `tilia-status`.
+Without a status provider it is a no-op; if one is installed later, subsequent messages are displayed.
 
 Recommended startup pattern:
 

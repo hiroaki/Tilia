@@ -56,7 +56,7 @@ export const baseMaps = definePlugin({
 
 export const layers = definePlugin({
 	id: "tilia-layers",
-	requires: ["tilia-panel", "tilia-status"],
+	requires: ["tilia-panel"],
 	setup(app, options = {}) {
 		const api = installLayersControl({
 			map: app.map,
@@ -75,7 +75,7 @@ export const layers = definePlugin({
 
 export const elevation = definePlugin({
 	id: "tilia-elevation",
-	requires: ["tilia-panel", "tilia-status"],
+	requires: ["tilia-panel"],
 	setup(app, options = {}) {
 		const api = installElevationPanelControl({
 			map: app.map,
@@ -137,7 +137,7 @@ export const queryImport = definePlugin({
 
 export const settings = definePlugin({
 	id: "tilia-settings",
-	requires: ["tilia-panel", "tilia-status"],
+	requires: ["tilia-panel"],
 	setup(app, options = {}) {
 		return installSettingsPanelControl({
 			map: app.map,
