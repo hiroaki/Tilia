@@ -154,12 +154,6 @@ export function buildGpxOverlay(parsed, options = {}) {
     opacity: trackStyle.opacity,
     dashArray: "8 6",
   };
-  const routePointIcon = new DivIcon({
-    className: "tilia-route-point-marker",
-    iconSize: [12, 12],
-    iconAnchor: [6, 6],
-  });
-
   for (let trackIndex = 0; trackIndex < (parsed.tracks || []).length; trackIndex += 1) {
     const coordinates = getTrackModeCoordinates(parsed.tracks[trackIndex]);
     if (coordinates.length < 2) continue;
@@ -179,6 +173,14 @@ export function buildGpxOverlay(parsed, options = {}) {
 
     for (let pointIndex = 0; pointIndex < (route.points || []).length; pointIndex += 1) {
       const routePoint = route.points[pointIndex];
+      const label = String(pointIndex + 1);
+      const iconWidth = Math.max(18, 10 + label.length * 6);
+      const routePointIcon = new DivIcon({
+        className: "tilia-route-point-marker",
+        html: label,
+        iconSize: [iconWidth, 18],
+        iconAnchor: [iconWidth / 2, 24],
+      });
       const marker = new Marker([routePoint.lat, routePoint.lon], { icon: routePointIcon });
       group.addLayer(marker);
       routePoints.push({
