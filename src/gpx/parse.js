@@ -4,6 +4,10 @@ export const MAX_ROUTES_PER_GPX = 20;
 export const MAX_ROUTE_POINTS_PER_ROUTE = 100;
 
 const GPX_1_1_NAMESPACE = "http://www.topografix.com/GPX/1/1";
+const PARSER_ERROR_NAMESPACES = [
+  "http://www.w3.org/1999/xhtml",
+  "http://www.mozilla.org/newlayout/xml/parsererror.xml",
+];
 
 // GPX import policy:
 // - Be tolerant of harmless producer deviations for interoperability. In
@@ -48,11 +52,15 @@ function hasParserError(doc) {
   if (!doc) {
     return true;
   }
-  // Browser DOMParser implementations return a parser-error document for
-  // malformed XML. Only its document root is diagnostic: a parsererror-named
-  // descendant may be legitimate application data inside GPX extensions.
+  // Browsers may return either a parser-error document or a partially retained
+  // document containing a diagnostic element. Only known browser diagnostic
+  // namespaces are searched; same-named application data is not an error.
   const root = doc.documentElement;
-  return root?.localName === "parsererror" || root?.nodeName === "parsererror";
+  if (root?.localName === "parsererror" || root?.nodeName === "parsererror") {
+    return true;
+  }
+  return PARSER_ERROR_NAMESPACES.some((namespace) =>
+    (doc.getElementsByTagNameNS?.(namespace, "parsererror")?.length || 0) > 0);
 }
 
 function inspectXmlBeforeParsing(xmlText) {
@@ -173,7 +181,10 @@ function parseGpxDateTime(value) {
   const hour = Number(hourText);
   const minute = Number(minuteText);
   const second = Number(secondText);
-  if (year === 0 || month < 1 || month > 12 || minute > 59 || second > 59 || hour > 23) {
+  const isEndOfDay = hour === 24;
+  const hasZeroFraction = fraction === "" || /^\.0+$/.test(fraction);
+  if (year === 0 || month < 1 || month > 12 || minute > 59 || second > 59 || hour > 24
+    || (isEndOfDay && (minute !== 0 || second !== 0 || !hasZeroFraction))) {
     return undefined;
   }
   // Date.UTC treats years 0 through 99 as 1900 through 1999. Start from a
@@ -199,8 +210,12 @@ function parseGpxDateTime(value) {
 
   const milliseconds = Number((fraction.slice(1) + "000").slice(0, 3));
   const parsedDate = new Date(0);
-  parsedDate.setUTCHours(hour, minute, second, milliseconds);
+  parsedDate.setUTCHours(0, 0, 0, 0);
   parsedDate.setUTCFullYear(year, month - 1, day);
+  // XSD dateTime permits 24:00:00 only with zero lower-order components; it
+  // denotes the first instant of the following day. Apply it after setting the
+  // full year so rollover is preserved for years 0001 through 0099 as well.
+  parsedDate.setUTCHours(hour, minute, second, milliseconds);
   const timestamp = parsedDate.getTime() - (offsetMinutes * 60_000);
   return Number.isFinite(timestamp) ? timestamp : undefined;
 }

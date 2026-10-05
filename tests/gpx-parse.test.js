@@ -115,6 +115,20 @@ describe("parseGpxText", () => {
     })).toThrow("Invalid GPX XML: browser-error.gpx");
   });
 
+  it.each([
+    ["Chromium XHTML", "http://www.w3.org/1999/xhtml"],
+    ["Mozilla", "http://www.mozilla.org/newlayout/xml/parsererror.xml"],
+  ])("rejects a retained GPX document containing a %s parser diagnostic", (_label, namespace) => {
+    const retainedDocument = new DOMParser().parseFromString(
+      `<gpx><parsererror xmlns="${namespace}">XML parsing error</parsererror><wpt lat="35" lon="139"/></gpx>`,
+      "application/xml",
+    );
+    expect(() => parseGpxText(`<gpx/>`, {
+      fileName: "retained-error.gpx",
+      createDomParser: () => ({ parseFromString: () => retainedDocument }),
+    })).toThrow("Invalid GPX XML: retained-error.gpx");
+  });
+
   it("rejects errors reported through the XML parser callback", () => {
     expect(() => parseGpxText(`<gpx/>`, {
       fileName: "callback-error.gpx",
@@ -422,5 +436,33 @@ describe("parseGpxText", () => {
     const point = parseGpxText(xml, { createDomParser: createXmldomParser }).tracks[0].segments[0].points[0];
 
     expect(point.timestamp).toBeNull();
+  });
+
+  it.each([
+    ["ordinary day", "2024-01-15T24:00:00Z", "2024-01-16T00:00:00.000Z"],
+    ["end of month", "2024-01-31T24:00:00Z", "2024-02-01T00:00:00.000Z"],
+    ["leap-year February", "2024-02-29T24:00:00Z", "2024-03-01T00:00:00.000Z"],
+    ["end of year", "2024-12-31T24:00:00Z", "2025-01-01T00:00:00.000Z"],
+    ["zero fractional seconds", "2024-01-31T24:00:00.000Z", "2024-02-01T00:00:00.000Z"],
+    ["positive offset", "2024-12-31T24:00:00+09:00", "2024-12-31T15:00:00.000Z"],
+    ["negative offset", "2024-12-31T24:00:00-05:00", "2025-01-01T05:00:00.000Z"],
+    ["early year", "0001-12-31T24:00:00Z", "0002-01-01T00:00:00.000Z"],
+  ])("rolls XSD end-of-day time across %s", (_label, input, expectedIso) => {
+    const xml = `<gpx><trk><trkseg><trkpt lat="1" lon="2"><time>${input}</time></trkpt></trkseg></trk></gpx>`;
+    const point = parseGpxText(xml, { createDomParser: createXmldomParser }).tracks[0].segments[0].points[0];
+
+    expect(new Date(point.timestamp).toISOString()).toBe(expectedIso);
+  });
+
+  it.each([
+    "2024-01-31T24:00:01Z",
+    "2024-01-31T24:01:00Z",
+    "2024-01-31T24:00:00.001Z",
+    "2024-01-31T25:00:00Z",
+  ])("ignores invalid end-of-day time %s without rejecting geometry", (input) => {
+    const xml = `<gpx><trk><trkseg><trkpt lat="1" lon="2"><time>${input}</time></trkpt></trkseg></trk></gpx>`;
+    const point = parseGpxText(xml, { createDomParser: createXmldomParser }).tracks[0].segments[0].points[0];
+
+    expect(point).toEqual({ lat: 1, lon: 2, elevation: null, timestamp: null });
   });
 });
