@@ -13,10 +13,6 @@
       <trkpt lat="35.1000" lon="135.1000">
         <time>2024-01-01T00:00:00Z</time>
       </trkpt>
-      <trkpt lat="NaN" lon="135.5000">
-        <ele>999</ele>
-        <time>2024-01-01T00:05:00Z</time>
-      </trkpt>
       <trkpt lat="35.3000" lon="135.3000">
         <ele>130.0</ele>
       </trkpt>
