@@ -118,6 +118,7 @@ export function createPluginRuntime({ catalog = [], capabilityFactories = {}, on
       error: null,
       abortPromise: null,
       postCommit: [],
+      teardownPreflights: [],
     };
     records.set(id, record);
     const context = createPluginContext({
@@ -129,6 +130,10 @@ export function createPluginRuntime({ catalog = [], capabilityFactories = {}, on
         record.postCommit.push(callback);
       },
       diagnostics: Object.freeze({ report: onDiagnostic }),
+      addTeardownPreflight(callback) {
+        if (typeof callback !== "function") throw new TypeError("Teardown preflight must be a function");
+        record.teardownPreflights.push(callback);
+      },
       capabilityFactories,
     });
     const stopped = destruction.promise.then(() => { throw pluginError(pluginErrorCodes.destroying, "Plugin runtime destruction interrupted setup", { pluginId: id }); });
@@ -261,7 +266,7 @@ export function createPluginRuntime({ catalog = [], capabilityFactories = {}, on
       .sort();
   }
 
-  async function teardownRecord(record, { retry = false } = {}) {
+  async function teardownRecord(record, { retry = false, skipPreflight = false } = {}) {
     if (record.state === "quarantined") {
       try {
         await record.controller.retryCleanup();
@@ -273,6 +278,15 @@ export function createPluginRuntime({ catalog = [], capabilityFactories = {}, on
       }
     }
     if (record.state !== "active") return;
+    if (!skipPreflight) {
+      for (const preflight of record.teardownPreflights) {
+        const result = preflight();
+        if (result && typeof result.then === "function") {
+          Promise.resolve(result).catch(() => {});
+          throw new TypeError("Plugin teardown preflight must be synchronous");
+        }
+      }
+    }
     record.state = "uninstalling";
     try {
       await record.controller.close();
@@ -326,7 +340,7 @@ export function createPluginRuntime({ catalog = [], capabilityFactories = {}, on
       while (remaining.length) {
         const removableIndex = remaining.findIndex((candidate) => !remaining.some((other) => other.metadata.requires.includes(candidate.id)));
         const [record] = remaining.splice(removableIndex < 0 ? 0 : removableIndex, 1);
-        try { await teardownRecord(record, { retry: true }); } catch (error) { failures.push(error); }
+        try { await teardownRecord(record, { retry: true, skipPreflight: true }); } catch (error) { failures.push(error); }
       }
       state = "destroyed";
       if (failures.length) {
