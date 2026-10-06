@@ -8,6 +8,11 @@ import { createUiSurfaceManager } from "./ui/surfaces.js";
 import { createPluginRuntime } from "./plugins/runtime/index.js";
 import { getPhase4bPluginClassification } from "./plugins/migration-allowlist.js";
 
+function phase4bRuntimeCatalog(builtins) {
+  const entries = Array.isArray(builtins) ? builtins : Object.values(builtins);
+  return entries.filter(({ id } = {}) => getPhase4bPluginClassification(id) !== "disabled");
+}
+
 function normalizeConfiguredPlugin(entry, pluginOptionsMap) {
   if (typeof entry === "string") {
     return {
@@ -92,7 +97,10 @@ export function createTiliaApp({ map, builtins = defaultBuiltins, ...options } =
   });
   const services = Object.create(null);
   const refreshHandlers = new Set();
-  const pluginRuntime = createPluginRuntime({ catalog: Array.isArray(builtins) ? builtins : Object.values(builtins) });
+  // Disabled repository metadata is excluded from the production graph. This
+  // makes a disabled transitive dependency fail during planning, before either
+  // its loader or the consumer setup can run.
+  const pluginRuntime = createPluginRuntime({ catalog: phase4bRuntimeCatalog(builtins) });
   const configuredPlugins = Array.isArray(options.plugins) ? options.plugins : [];
   const configuredPluginOptions = options.pluginOptions && typeof options.pluginOptions === "object"
     ? options.pluginOptions

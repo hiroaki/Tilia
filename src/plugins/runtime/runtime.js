@@ -127,6 +127,7 @@ export function createPluginRuntime({ catalog = [], capabilityFactories = {} } =
     });
     const stopped = destruction.promise.then(() => { throw pluginError(pluginErrorCodes.destroying, "Plugin runtime destruction interrupted setup", { pluginId: id }); });
     let setupPromise;
+    let setupSettled = false;
     let phase = "setup";
     try {
       let setupResultPromise;
@@ -138,6 +139,7 @@ export function createPluginRuntime({ catalog = [], capabilityFactories = {} } =
       }
       setupPromise = Promise.resolve(setupResultPromise);
       const setupResult = await Promise.race([setupPromise, stopped]);
+      setupSettled = true;
       const cleanup = cleanupFor(setupResult, id);
       if (cleanup) controller.setSetupCleanup(() => {
         callbackDepth += 1;
@@ -146,11 +148,19 @@ export function createPluginRuntime({ catalog = [], capabilityFactories = {} } =
       if (state !== "active") throw pluginError(pluginErrorCodes.destroying, "Plugin runtime destruction prevented setup commit", { pluginId: id });
       phase = "commit";
       await controller.commit();
+      const scopeState = controller.snapshot().state;
+      if (state !== "active" || scopeState !== "active") {
+        throw pluginError(
+          state === "destroyed" ? pluginErrorCodes.destroyed : pluginErrorCodes.destroying,
+          "Plugin runtime destruction prevented active publication",
+          { pluginId: id, scopeState },
+        );
+      }
       record.state = "active";
       record.sequence = ++activationSequence;
       return record.handle;
     } catch (cause) {
-      if (setupPromise && cause?.code === pluginErrorCodes.destroying) {
+      if (setupPromise && !setupSettled && cause?.code === pluginErrorCodes.destroying) {
         const detached = { id, state: "detached-pending", error: null };
         detachedSetups.set(id, detached);
         setupPromise.then(async (lateResult) => {
@@ -172,7 +182,11 @@ export function createPluginRuntime({ catalog = [], capabilityFactories = {} } =
       let cleanupFailure = null;
       try {
         if (record.abortPromise) await record.abortPromise;
-        else if (controller.snapshot().state === "open-uncommitted") await controller.abort();
+        else {
+          const scopeState = controller.snapshot().state;
+          if (scopeState === "open-uncommitted") await controller.abort();
+          else if (scopeState === "active") await controller.close();
+        }
       } catch (error) {
         cleanupFailure = error;
       }
@@ -287,7 +301,9 @@ export function createPluginRuntime({ catalog = [], capabilityFactories = {} } =
     destruction.resolve();
     for (const record of records.values()) {
       if (record.state === "installing") {
-        record.abortPromise = record.controller.abort();
+        record.abortPromise = record.controller.snapshot().state === "active"
+          ? record.controller.close()
+          : record.controller.abort();
         record.abortPromise.catch(() => {});
       }
     }

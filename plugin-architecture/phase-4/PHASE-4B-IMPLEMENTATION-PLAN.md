@@ -172,6 +172,8 @@ Phase 4B exposes only:
 
 The context, identity object, and capability facades are frozen. It exposes neither `app`, core/state, runtime, Scope controller, mutable registries, nor a general capability bag.
 
+Lifecycle reentrancy is a capability-boundary rule, not a JavaScript sandbox guarantee. Plugin setup and cleanup receive no `PluginRuntime` or lifecycle-mutation capability and must not invoke `use()`, `unuse()`, or `destroy()`. The runtime defensively rejects direct synchronous reentrancy while invoking setup or cleanup, but does not claim to identify calls made after `await` through an externally captured runtime reference. Browser-compatible JavaScript provides no reliable provenance for distinguishing such a call from unrelated host code.
+
 ## 15. Capability Injection Strategy
 
 An internal context builder accepts explicit named capability factories. Each future factory receives plugin identity, the public Scope, and narrowly scoped internal staging plumbing, then returns one frozen typed facade. Context properties are added deliberately (`services`, `inputs`, `map`, and so on), not through public string lookup. Phase 4B installs no product capability factories.
@@ -296,7 +298,7 @@ ServiceRegistry, InputRegistry, contributions, stylesheet leases, MapFacade, Ent
 
 ## 35. Risks and Edge Cases
 
-The principal risks are operation deadlock during reentrancy, resolver timing influencing order, partial publication after broken commit, quarantine being mistaken for absence, and destruction hanging on non-cooperative setup. Mitigations are explicit reentrancy rejection, planning before execution, Phase 4A defensive rollback, distinct quarantined records, and synchronous authority revocation plus detached observation of never-settling setup.
+The principal risks are operation deadlock during direct synchronous reentrancy, resolver timing influencing order, partial publication after broken commit, quarantine being mistaken for absence, and destruction hanging on non-cooperative setup. Mitigations are structural removal of lifecycle authority from PluginContext plus defensive synchronous reentrancy rejection, planning before execution, Phase 4A defensive rollback, distinct quarantined records, and synchronous authority revocation plus detached observation of never-settling setup.
 
 Conflicting same-ID direct definitions reject. Loader failure is retryable. An uninstall request during install waits for its outcome. A use request during teardown waits and reinstalls only after clean completion. Destroying during setup makes commit impossible even if setup later resolves.
 

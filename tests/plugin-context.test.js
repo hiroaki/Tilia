@@ -14,6 +14,9 @@ describe("guarded PluginContext", () => {
     expect(context.plugin).toEqual({ id: "x-example" });
     expect(context).not.toHaveProperty("app");
     expect(context).not.toHaveProperty("runtime");
+    expect(context).not.toHaveProperty("use");
+    expect(context).not.toHaveProperty("unuse");
+    expect(context).not.toHaveProperty("destroy");
     expect(context.scope).not.toHaveProperty("commit");
     expect(Object.isFrozen(context)).toBe(true);
     await controller.commit();

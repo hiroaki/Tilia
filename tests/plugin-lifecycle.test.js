@@ -64,6 +64,39 @@ describe("createTiliaApp Phase 4B plugin boundary", () => {
     expect(load).not.toHaveBeenCalled();
   });
 
+  it("rejects a disabled dependency before loading it or setting up its consumer", async () => {
+    const disabledLoad = vi.fn();
+    const consumerSetup = vi.fn();
+    const app = createTiliaApp({
+      map: {},
+      builtins: [{ id: "tilia-panel", requires: [], load: disabledLoad }],
+    });
+
+    await expect(app.use({ id: "vendor-consumer", requires: ["tilia-panel"], setup: consumerSetup }))
+      .rejects.toMatchObject({ code: "PLUGIN_DEPENDENCY_MISSING" });
+    expect(disabledLoad).not.toHaveBeenCalled();
+    expect(consumerSetup).not.toHaveBeenCalled();
+  });
+
+  it("rejects a transitive disabled dependency before loading any implementation", async () => {
+    const disabledLoad = vi.fn();
+    const middleLoad = vi.fn();
+    const rootSetup = vi.fn();
+    const app = createTiliaApp({
+      map: {},
+      builtins: [
+        { id: "tilia-panel", requires: [], load: disabledLoad },
+        { id: "vendor-middle", requires: ["tilia-panel"], load: middleLoad },
+      ],
+    });
+
+    await expect(app.use({ id: "vendor-root", requires: ["vendor-middle"], setup: rootSetup }))
+      .rejects.toMatchObject({ code: "PLUGIN_DEPENDENCY_MISSING" });
+    expect(disabledLoad).not.toHaveBeenCalled();
+    expect(middleLoad).not.toHaveBeenCalled();
+    expect(rootSetup).not.toHaveBeenCalled();
+  });
+
   it("keeps legacy host state outside PluginContext until its later cutover", async () => {
     const app = createTiliaApp({ map: {}, builtins: [] });
     expect(app).toHaveProperty("core");

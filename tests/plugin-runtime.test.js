@@ -278,4 +278,76 @@ describe("PluginRuntime", () => {
     expect(runtime.inspect("x-stuck").state).toBe("detached-settled");
     expect(lateCleanup).toHaveBeenCalledOnce();
   });
+
+  it("does not publish active state when destruction starts after Scope commit", async () => {
+    const cleanup = vi.fn();
+    let destroyPromise;
+    let runtime;
+    runtime = createPluginRuntime({
+      catalog: [entry("x-race", [], (context) => {
+        context.testing.publish();
+        return cleanup;
+      })],
+      capabilityFactories: {
+        testing: ({ stage }) => ({
+          publish() {
+            stage({
+              preflight() {},
+              commit() {
+                queueMicrotask(() => {
+                  destroyPromise = runtime.destroy();
+                  destroyPromise.catch(() => {});
+                });
+              },
+              dispose() {},
+            });
+          },
+        }),
+      },
+    });
+
+    const installing = runtime.use("x-race");
+    await expect(installing).rejects.toMatchObject({ code: "PLUGIN_RUNTIME_DESTROYING" });
+    await expect(destroyPromise).resolves.toBeUndefined();
+    expect(runtime.has("x-race")).toBe(false);
+    expect(runtime.list()).toEqual([]);
+    expect(cleanup).toHaveBeenCalledOnce();
+    expect(runtime.state).toBe("destroyed");
+  });
+
+  it("reports cleanup failure when destruction starts after Scope commit", async () => {
+    const cleanup = vi.fn(() => { throw new Error("cleanup failed"); });
+    let destroyPromise;
+    let runtime;
+    runtime = createPluginRuntime({
+      catalog: [entry("x-race", [], (context) => {
+        context.testing.publish();
+        return cleanup;
+      })],
+      capabilityFactories: {
+        testing: ({ stage }) => ({
+          publish() {
+            stage({
+              preflight() {},
+              commit() {
+                queueMicrotask(() => {
+                  destroyPromise = runtime.destroy();
+                  destroyPromise.catch(() => {});
+                });
+              },
+              dispose() {},
+            });
+          },
+        }),
+      },
+    });
+
+    await expect(runtime.use("x-race")).rejects.toMatchObject({ code: "PLUGIN_RUNTIME_DESTROYING" });
+    await expect(destroyPromise).rejects.toMatchObject({ code: "PLUGIN_RUNTIME_DESTROY_FAILED" });
+    expect(runtime.has("x-race")).toBe(false);
+    expect(runtime.list()).toEqual([]);
+    expect(cleanup).toHaveBeenCalledOnce();
+    expect(runtime.inspect("x-race")).toMatchObject({ state: "quarantined" });
+    expect(runtime.state).toBe("destroyed");
+  });
 });
