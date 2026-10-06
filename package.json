@@ -5,7 +5,8 @@
   "scripts": {
     "serve": "node scripts/static-server.mjs",
     "test": "vitest run",
-    "test:smoke": "playwright test"
+    "test:smoke": "playwright test",
+    "test:smoke:phase4b": "playwright test tests/smoke/phase-4b.spec.js"
   },
   "devDependencies": {
     "@playwright/test": "^1.54.1",

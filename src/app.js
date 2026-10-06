@@ -5,120 +5,8 @@ import { createBaseLayerManager, createBaseMap } from "./map/base.js";
 import { createButton, createPanel, createSelect, installMapControl } from "./map/controls.js";
 import { ensureBuiltinUiStyles, registerStylesheet } from "./ui/styles.js";
 import { createUiSurfaceManager } from "./ui/surfaces.js";
-
-function isPluginObject(value) {
-  return !!value && typeof value === "object" && typeof value.setup === "function";
-}
-
-const pluginIdPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-
-function isBuiltinPluginId(pluginId, builtinsRegistry) {
-  return builtinsRegistry[pluginId]?.id === pluginId;
-}
-
-function assertPluginId(pluginId, builtinsRegistry) {
-  if (!pluginIdPattern.test(pluginId)) {
-    throw new Error(`Plugin ids must be lower-kebab-case: ${pluginId}`);
-  }
-
-  if (isBuiltinPluginId(pluginId, builtinsRegistry)) {
-    return pluginId;
-  }
-
-  if (pluginId.startsWith("tilia-")) {
-    throw new Error(`The \"tilia-\" namespace is reserved for built-in plugins: ${pluginId}`);
-  }
-
-  if (!pluginId.includes("-")) {
-    throw new Error(`Third-party plugin ids must include a vendor or experimental prefix: ${pluginId}`);
-  }
-
-  return pluginId;
-}
-
-function resolvePluginModule(pluginModule, pluginId) {
-  if (isPluginObject(pluginModule)) {
-    return pluginModule;
-  }
-
-  if (!pluginModule || typeof pluginModule !== "object") {
-    return null;
-  }
-
-  if (isPluginObject(pluginModule.default)) {
-    return pluginModule.default;
-  }
-
-  for (const candidate of Object.values(pluginModule)) {
-    if (isPluginObject(candidate) && candidate.id === pluginId) {
-      return candidate;
-    }
-  }
-
-  for (const candidate of Object.values(pluginModule)) {
-    if (isPluginObject(candidate)) {
-      return candidate;
-    }
-  }
-
-  return null;
-}
-
-async function resolvePlugin(pluginOrId, builtinsRegistry, pluginLoader) {
-  if (typeof pluginOrId === "string") {
-    assertPluginId(pluginOrId, builtinsRegistry);
-    const resolved = builtinsRegistry[pluginOrId];
-    if (resolved?.id === pluginOrId) {
-      return resolved;
-    }
-
-    if (typeof pluginLoader === "function") {
-      const loadedPlugin = await pluginLoader(pluginOrId);
-      const dynamicPlugin = resolvePluginModule(loadedPlugin, pluginOrId);
-      if (dynamicPlugin) {
-        return dynamicPlugin;
-      }
-      throw new Error(`Plugin loader did not return a valid plugin for "${pluginOrId}"`);
-    }
-
-    throw new Error(`Unknown plugin: ${pluginOrId}`);
-  }
-
-  if (!isPluginObject(pluginOrId)) {
-    throw new Error("Plugins must be a string id or an object with setup(app, options)");
-  }
-
-  if (!pluginOrId.id) {
-    throw new Error("Plugins must define an id");
-  }
-
-  assertPluginId(pluginOrId.id, builtinsRegistry);
-
-  return pluginOrId;
-}
-
-function createPluginLoader(pluginUrls, customPluginLoader) {
-  if (typeof customPluginLoader === "function") {
-    return customPluginLoader;
-  }
-
-  const pluginUrlMap = pluginUrls && typeof pluginUrls === "object" ? pluginUrls : null;
-
-  return async function loadPlugin(pluginId) {
-    // Dynamic loading stays convention-based by default so casual users only need the plugin id.
-    assertPluginId(pluginId, defaultBuiltins);
-    const source = pluginUrlMap?.[pluginId]
-      || new URL(`../plugins/${pluginId}/loader.js`, import.meta.url).href;
-    if (typeof source === "function") {
-      const loaded = await source(pluginId);
-      if (typeof loaded === "string") {
-        return import(new URL(loaded, document.baseURI).href);
-      }
-      return loaded;
-    }
-    return import(new URL(source, document.baseURI).href);
-  };
-}
+import { createPluginRuntime } from "./plugins/runtime/index.js";
+import { getPhase4bPluginClassification } from "./plugins/migration-allowlist.js";
 
 function normalizeConfiguredPlugin(entry, pluginOptionsMap) {
   if (typeof entry === "string") {
@@ -143,32 +31,6 @@ function normalizeConfiguredPlugin(entry, pluginOptionsMap) {
   }
 
   throw new Error("Configured plugins must be a string, [plugin, options], or { plugin, options }");
-}
-
-function normalizePluginStylesheets(plugin) {
-  if (!Array.isArray(plugin?.stylesheets)) {
-    return [];
-  }
-
-  return plugin.stylesheets
-    .map((stylesheet, index) => {
-      if (typeof stylesheet === "string") {
-        return {
-          href: stylesheet,
-          id: `${plugin.id}:stylesheet:${index}`,
-        };
-      }
-
-      if (stylesheet && typeof stylesheet === "object" && typeof stylesheet.href === "string") {
-        return {
-          ...stylesheet,
-          id: stylesheet.id || `${plugin.id}:stylesheet:${index}`,
-        };
-      }
-
-      return null;
-    })
-    .filter(Boolean);
 }
 
 function mergeBaseLayerOverrides(baseMapOverrides, appOverrides) {
@@ -229,10 +91,8 @@ export function createTiliaApp({ map, builtins = defaultBuiltins, ...options } =
     overrides: options.baseLayerOverrides || null,
   });
   const services = Object.create(null);
-  const plugins = new Map();
-  const pendingPlugins = new Map();
   const refreshHandlers = new Set();
-  const pluginLoader = createPluginLoader(options.pluginUrls, options.pluginLoader);
+  const pluginRuntime = createPluginRuntime({ catalog: Array.isArray(builtins) ? builtins : Object.values(builtins) });
   const configuredPlugins = Array.isArray(options.plugins) ? options.plugins : [];
   const configuredPluginOptions = options.pluginOptions && typeof options.pluginOptions === "object"
     ? options.pluginOptions
@@ -287,7 +147,6 @@ export function createTiliaApp({ map, builtins = defaultBuiltins, ...options } =
     registry: core.registry,
     context: core.context,
     services,
-    plugins,
     ui: {
       installMapControl,
       createPanel,
@@ -351,70 +210,24 @@ export function createTiliaApp({ map, builtins = defaultBuiltins, ...options } =
     async load(input) {
       return core.registry.dispatch(core.context, input);
     },
-    // The public plugin entrypoint. Accepts a built-in id, a dynamically loaded id, or a plugin object.
-    async use(pluginOrId, pluginOptions = {}) {
-      const plugin = await resolvePlugin(pluginOrId, builtins, pluginLoader);
-      const existing = plugins.get(plugin.id);
-      if (existing) {
-        return existing.api;
-      }
-      const pending = pendingPlugins.get(plugin.id);
-      if (pending) {
-        return pending;
-      }
-
-      const installPromise = (async () => {
-        for (const requiredPluginId of plugin.requires || []) {
-          if (!plugins.has(requiredPluginId)) {
-            throw new Error(`Plugin "${plugin.id}" requires "${requiredPluginId}"`);
-          }
-        }
-
-        for (const stylesheet of normalizePluginStylesheets(plugin)) {
-          app.ui.registerStylesheet(stylesheet);
-        }
-
-        const setupResult = await plugin.setup(app, pluginOptions);
-        const api = typeof setupResult === "function"
-          ? { destroy: setupResult }
-          : setupResult;
-        const destroy = typeof setupResult === "function"
-          ? setupResult
-          : typeof setupResult?.destroy === "function"
-            ? setupResult.destroy.bind(setupResult)
-            : null;
-        plugins.set(plugin.id, { plugin, api, destroy });
-        if (api !== undefined) {
-          app.provide(plugin.id, api);
-        }
-        return api;
-      })();
-
-      pendingPlugins.set(plugin.id, installPromise);
-      try {
-        return await installPromise;
-      } finally {
-        pendingPlugins.delete(plugin.id);
-      }
-    },
-    // Allow plugins with teardown logic to be removed cleanly during experimentation.
-    async unuse(pluginOrId) {
+    use(pluginOrId, pluginOptions = {}) {
       const pluginId = typeof pluginOrId === "string" ? pluginOrId : pluginOrId?.id;
-      if (!pluginId) {
-        throw new Error("Plugins must define an id");
+      if (getPhase4bPluginClassification(pluginId) === "disabled") {
+        const error = new Error(`Plugin "${pluginId}" is disabled during the Phase 4B migration`);
+        error.code = "PLUGIN_DISABLED_BY_MIGRATION";
+        return Promise.reject(error);
       }
-
-      const record = plugins.get(pluginId);
-      if (!record) {
-        return null;
-      }
-
-      if (typeof record.destroy === "function") {
-        await record.destroy();
-      }
-      delete services[pluginId];
-      plugins.delete(pluginId);
-      return record.api;
+      return pluginRuntime.use(pluginOrId, pluginOptions);
+    },
+    unuse(pluginOrId) {
+      const pluginId = typeof pluginOrId === "string" ? pluginOrId : pluginOrId?.id;
+      return pluginRuntime.unuse(pluginId);
+    },
+    hasPlugin(pluginId) {
+      return pluginRuntime.has(pluginId);
+    },
+    listPlugins() {
+      return pluginRuntime.list();
     },
   };
   appRef = app;
@@ -426,6 +239,14 @@ export function createTiliaApp({ map, builtins = defaultBuiltins, ...options } =
   const ready = (async () => {
     for (const entry of configuredPlugins) {
       const configuredPlugin = normalizeConfiguredPlugin(entry, configuredPluginOptions);
+      const pluginId = typeof configuredPlugin.plugin === "string"
+        ? configuredPlugin.plugin
+        : configuredPlugin.plugin?.id;
+      if (getPhase4bPluginClassification(pluginId) === "disabled") {
+        const error = new Error(`Plugin "${pluginId}" is disabled during the Phase 4B migration`);
+        error.code = "PLUGIN_DISABLED_BY_MIGRATION";
+        throw error;
+      }
       await app.use(configuredPlugin.plugin, configuredPlugin.options);
     }
     return app;

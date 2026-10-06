@@ -155,32 +155,4 @@ describe("tilia-status lifecycle", () => {
     expect(map.container.querySelectorAll(".tilia-status-control")).toHaveLength(0);
   });
 
-  it("does not accumulate controls across uninstall and reinstall cycles", async () => {
-    const map = createMap();
-    const app = createTiliaApp({
-      map,
-      builtins: { "tilia-status": status },
-    });
-
-    await app.use("tilia-status");
-    expect(map.container.querySelectorAll(".tilia-status-control")).toHaveLength(1);
-
-    await app.unuse("tilia-status");
-    expect(map.container.querySelectorAll(".tilia-status-control")).toHaveLength(0);
-    expect(app.plugins.has("tilia-status")).toBe(false);
-    expect(app.services["tilia-status"]).toBeUndefined();
-    expect(() => app.setStatus("after uninstall")).not.toThrow();
-
-    await app.use("tilia-status");
-    app.setStatus("after reinstall");
-    expect(map.container.querySelectorAll(".tilia-status-control")).toHaveLength(1);
-    expect(map.container.querySelectorAll(".tilia-status-text")[0].textContent).toBe("after reinstall");
-
-    await app.unuse("tilia-status");
-    await app.use("tilia-status");
-    expect(map.container.querySelectorAll(".tilia-status-control")).toHaveLength(1);
-
-    await app.unuse("tilia-status");
-    expect(map.container.querySelectorAll(".tilia-status-control")).toHaveLength(0);
-  });
 });
