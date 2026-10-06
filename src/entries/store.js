@@ -103,23 +103,54 @@ export function createEntryStore({ applicationController, domainRegistry, onErro
   }
 
   function residualDiagnostic(record) {
+    const obligations = record.cleanupObligations.map((obligation) => Object.freeze({
+      phase: obligation.phase,
+      committed: true,
+      cleanupError: errorSummary(obligation.cleanupError),
+    }));
+    const terminal = record.terminalResidual;
     return Object.freeze({
       id: record.id,
       domainId: record.domainKey.id,
-      phase: record.residualPhase,
+      phase: terminal?.phase ?? "update",
       state: "cleanup-failed",
       providerRegistrationId: record.providerRegistration.id,
-      originalError: record.originalError ? errorSummary(record.originalError) : null,
-      cleanupError: record.cleanupError ? errorSummary(record.cleanupError) : null,
+      committed: terminal ? terminal.phase === "deletion" : true,
+      originalError: terminal?.originalError ? errorSummary(terminal.originalError) : null,
+      cleanupError: terminal?.cleanupError ? errorSummary(terminal.cleanupError) : null,
+      obligations: Object.freeze(obligations),
     });
   }
 
   function retainResidual(record, phase, originalError, cleanupError) {
     record.state = "cleanup-failed";
-    record.residualPhase = phase;
-    record.originalError = originalError;
-    record.cleanupError = cleanupError;
+    record.terminalResidual = { phase, originalError, cleanupError };
     residuals.set(record.id, record);
+  }
+
+  function retainCleanupObligation(record, phase, cleanup, cleanupError, controller = null) {
+    record.cleanupObligations.push({ phase, cleanup, cleanupError, controller });
+    residuals.set(record.id, record);
+  }
+
+  function pruneCompletedControlledObligations(record) {
+    record.cleanupObligations = record.cleanupObligations.filter((obligation) => (
+      !obligation.controller || obligation.controller.snapshot().state !== "disposed"
+    ));
+  }
+
+  function finishResidualState(record) {
+    pruneCompletedControlledObligations(record);
+    if (record.terminalResidual || record.cleanupObligations.length > 0) {
+      residuals.set(record.id, record);
+      return false;
+    }
+    residuals.delete(record.id);
+    if (record.state !== "active") {
+      record.providerLease.release();
+      record.state = "removed";
+    }
+    return true;
   }
 
   async function create(requesterScope, domainKey, value, { visible = true } = {}) {
@@ -148,9 +179,8 @@ export function createEntryStore({ applicationController, domainRegistry, onErro
       instance: null,
       domainSnapshot: null,
       currentDispose: null,
-      residualPhase: null,
-      originalError: null,
-      cleanupError: null,
+      terminalResidual: null,
+      cleanupObligations: [],
     };
     try {
       const prepared = await providerResolution.registration.provider.prepareCreate({
@@ -218,7 +248,8 @@ export function createEntryStore({ applicationController, domainRegistry, onErro
           entryId: id, expectedRevision, actualRevision: record.revision,
         });
       }
-      const operationScope = record.scope.child({ label: `entry:${id}:update:${record.revision}` });
+      const operationController = record.scopeController.createChildController({ label: `entry:${id}:update:${record.revision}` });
+      const operationScope = operationController.scope;
       let prepared;
       try {
         prepared = await record.providerRegistration.provider.prepareMutation({
@@ -256,21 +287,45 @@ export function createEntryStore({ applicationController, domainRegistry, onErro
           revision: record.revision,
           change: prepared.change ?? Object.freeze({}),
         }));
+        const cleanupErrors = [];
         try {
-          await operationScope.dispose();
-          const disposePrevious = prepared.disposePrevious ?? previousDispose;
-          if (disposePrevious) await disposePrevious();
-        } catch (cause) {
+          await operationController.close();
+        } catch (cleanupError) {
+          retainCleanupObligation(
+            record,
+            "update-operation-scope",
+            () => operationController.retryCleanup(),
+            cleanupError,
+            operationController,
+          );
+          cleanupErrors.push(cleanupError);
+        }
+        const disposePrevious = prepared.disposePrevious ?? previousDispose;
+        if (disposePrevious) {
+          try {
+            await disposePrevious();
+          } catch (cleanupError) {
+            retainCleanupObligation(record, "update-previous-instance", disposePrevious, cleanupError);
+            cleanupErrors.push(cleanupError);
+          }
+        }
+        if (cleanupErrors.length > 0) {
+          const cause = cleanupErrors[0];
           throw semanticError(semanticErrorCodes.cleanupFailed, `Entry "${id}" update committed but cleanup failed`, {
-            cause, committed: true, entryId: id, domainId: domainKey.id,
+            cause,
+            committed: true,
+            entryId: id,
+            domainId: domainKey.id,
+            failures: Object.freeze(cleanupErrors.map(errorSummary)),
           });
         }
         return domainView(record);
       } catch (cause) {
+        if (record.revision !== expectedRevision) throw cause;
         if (record.revision === expectedRevision && typeof prepared?.disposeNext === "function") {
           try { await prepared.disposeNext(); } catch (error) { onError(error); }
         }
-        try { await operationScope.dispose(); } catch (error) { onError(error); }
+        try { await operationController.close(); } catch (error) { onError(error); }
         throw cause;
       }
     });
@@ -301,6 +356,7 @@ export function createEntryStore({ applicationController, domainRegistry, onErro
     const previous = entryView(record);
     let cleanupError = null;
     try { await record.scopeController.close(); } catch (error) { cleanupError = error; }
+    pruneCompletedControlledObligations(record);
     if (cleanupError) {
       retainResidual(record, "deletion", null, cleanupError);
       const error = semanticError(semanticErrorCodes.cleanupFailed, `Entry "${record.id}" was removed but cleanup failed`, {
@@ -313,8 +369,8 @@ export function createEntryStore({ applicationController, domainRegistry, onErro
       if (notify) channel.deliver(Object.freeze({ type: "removed", previous }));
       throw error;
     }
-    record.providerLease.release();
-    record.state = "removed";
+    record.state = "cleanup-failed";
+    finishResidualState(record);
     if (notify) channel.deliver(Object.freeze({ type: "removed", previous }));
     return previous;
   }
@@ -338,25 +394,52 @@ export function createEntryStore({ applicationController, domainRegistry, onErro
       requesterScope.assertAlive();
       const record = residuals.get(id);
       if (!record) return null;
-      try {
-        await record.scopeController.retryCleanup();
-      } catch (cleanupError) {
-        record.cleanupError = cleanupError;
+      const phases = [];
+      const failures = [];
+      if (record.terminalResidual) {
+        phases.push(record.terminalResidual.phase);
+        try {
+          await record.scopeController.retryCleanup();
+          record.terminalResidual = null;
+          pruneCompletedControlledObligations(record);
+        } catch (cleanupError) {
+          record.terminalResidual.cleanupError = cleanupError;
+          failures.push(cleanupError);
+        }
+      }
+      for (const obligation of [...record.cleanupObligations]) {
+        if (!record.cleanupObligations.includes(obligation)) continue;
+        phases.push(obligation.phase);
+        if (obligation.controller?.snapshot().state === "disposed") {
+          record.cleanupObligations.splice(record.cleanupObligations.indexOf(obligation), 1);
+          continue;
+        }
+        try {
+          await obligation.cleanup();
+          record.cleanupObligations.splice(record.cleanupObligations.indexOf(obligation), 1);
+        } catch (cleanupError) {
+          obligation.cleanupError = cleanupError;
+          failures.push(cleanupError);
+        }
+      }
+      if (failures.length > 0) {
+        residuals.set(id, record);
+        const cleanupError = failures[0];
         const error = semanticError(semanticErrorCodes.cleanupFailed, `Entry "${id}" residual cleanup remains incomplete`, {
           cause: cleanupError,
-          committed: record.residualPhase === "deletion",
+          committed: record.terminalResidual?.phase !== "creation",
           entryId: id,
           domainId: record.domainKey.id,
-          phase: record.residualPhase,
-          ...(record.originalError ? { originalError: errorSummary(record.originalError) } : {}),
+          phases: Object.freeze(phases),
+          failures: Object.freeze(failures.map(errorSummary)),
+          ...(record.terminalResidual?.originalError ? { originalError: errorSummary(record.terminalResidual.originalError) } : {}),
         });
         onError(error);
         throw error;
       }
-      const result = Object.freeze({ id, phase: record.residualPhase, cleaned: true });
-      record.providerLease.release();
-      residuals.delete(id);
-      record.state = "removed";
+      finishResidualState(record);
+      const uniquePhases = [...new Set(phases)];
+      const result = Object.freeze({ id, phase: uniquePhases.length === 1 ? uniquePhases[0] : "multiple", cleaned: true });
       return result;
     });
   }
