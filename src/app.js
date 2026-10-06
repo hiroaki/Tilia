@@ -1,16 +1,19 @@
 import { createTiliaCore } from "./core/boot.js";
 import { setError as setStateError } from "./core/state.js";
 import { builtins as defaultBuiltins } from "./builtins.js";
-import { createBaseLayerManager, createBaseMap } from "./map/base.js";
-import { createButton, createPanel, createSelect, installMapControl } from "./map/controls.js";
-import { ensureBuiltinUiStyles, registerStylesheet } from "./ui/styles.js";
-import { createUiSurfaceManager } from "./ui/surfaces.js";
+import { createBaseMap, createTileLayer, defaultBaseLayerDefinitions } from "./map/base.js";
 import { createPluginRuntime } from "./plugins/runtime/index.js";
-import { getPhase4bPluginClassification } from "./plugins/migration-allowlist.js";
+import { getPhase4cPluginClassification } from "./plugins/migration-allowlist.js";
+import { createScopeController } from "./ownership/index.js";
+import { createInputRegistry, createServiceRegistry } from "./extensions/index.js";
+import { createStylesheetManager } from "./resources/stylesheets.js";
+import { createUiMountManager } from "./ui/mounts.js";
+import { createMapFacadeFactory } from "./map/facade.js";
+import { createBaseMapCatalog } from "./map/base-map-catalog.js";
 
-function phase4bRuntimeCatalog(builtins) {
+function phase4cRuntimeCatalog(builtins) {
   const entries = Array.isArray(builtins) ? builtins : Object.values(builtins);
-  return entries.filter(({ id } = {}) => getPhase4bPluginClassification(id) !== "disabled");
+  return entries.filter(({ id } = {}) => getPhase4cPluginClassification(id) !== "disabled");
 }
 
 function normalizeConfiguredPlugin(entry, pluginOptionsMap) {
@@ -82,114 +85,69 @@ export function createTiliaApp({ map, builtins = defaultBuiltins, ...options } =
     throw new Error("createTiliaApp requires a Leaflet map");
   }
 
-  ensureBuiltinUiStyles({ map });
-  const surfaceManager = createUiSurfaceManager({ map });
-
   const core = createTiliaCore(map, options);
   const baseMap = { map };
-  const baseLayerManager = createBaseLayerManager({
-    map,
-    definitions: Array.isArray(options.baseLayers) ? options.baseLayers : [],
-    currentLayer: options.tileLayer || null,
-    currentDefinition: options.baseLayer || null,
-    selectedBaseLayerId: options.selectedBaseLayerId || null,
-    overrides: options.baseLayerOverrides || null,
-  });
-  const services = Object.create(null);
+  options.tileLayer?.remove?.();
+  const diagnostics = [];
+  const onDiagnostic = (error) => diagnostics.push(error);
+  const serviceRegistry = createServiceRegistry({ onError: onDiagnostic });
+  const inputRegistry = createInputRegistry({ onError: onDiagnostic });
+  const stylesheetManager = createStylesheetManager({ document: map.getContainer?.()?.ownerDocument ?? globalThis.document });
+  const uiMountManager = createUiMountManager({ map });
+  const baseMapCatalog = createBaseMapCatalog({ map, onError: onDiagnostic });
+  const mapFactory = createMapFacadeFactory({ map });
+  const appController = createScopeController({ label: "application-foundations" });
+  const appPostCommit = [];
+  const appCapabilityInput = {
+    pluginId: "tilia-application",
+    scope: appController.scope,
+    stage: (definition) => appController.stage(definition),
+    enqueuePostCommit: (callback) => appPostCommit.push(callback),
+    diagnostics: Object.freeze({ report: onDiagnostic }),
+  };
+  const appInputs = inputRegistry.createFacade(appCapabilityInput);
+  const appBaseMaps = baseMapCatalog.createFacade(appCapabilityInput);
+  if ((map.getContainer?.()?.ownerDocument ?? globalThis.document)?.head) {
+    stylesheetManager.acquire(appController.scope, {
+      id: "tilia-core-ui",
+      href: new URL("./ui/styles.css", import.meta.url).href,
+    });
+  }
   const refreshHandlers = new Set();
   // Disabled repository metadata is excluded from the production graph. This
   // makes a disabled transitive dependency fail during planning, before either
   // its loader or the consumer setup can run.
-  const pluginRuntime = createPluginRuntime({ catalog: phase4bRuntimeCatalog(builtins) });
+  const capabilityFactories = {
+    services: (input) => serviceRegistry.createFacade(input),
+    inputs: (input) => inputRegistry.createFacade(input),
+    styles: (input) => stylesheetManager.createFacade(input),
+    ui: (input) => uiMountManager.createFacade(input),
+    map: mapFactory,
+    baseMaps: (input) => baseMapCatalog.createFacade(input),
+  };
+  const pluginRuntime = createPluginRuntime({ catalog: phase4cRuntimeCatalog(builtins), capabilityFactories, onDiagnostic });
   const configuredPlugins = Array.isArray(options.plugins) ? options.plugins : [];
   const configuredPluginOptions = options.pluginOptions && typeof options.pluginOptions === "object"
     ? options.pluginOptions
     : null;
-  let appRef = null;
-
-  const baseMaps = {
-    list() {
-      return baseLayerManager.list();
-    },
-    listVisible() {
-      return baseLayerManager.listVisible();
-    },
-    get(id) {
-      return baseLayerManager.get(id);
-    },
-    has(id) {
-      return baseLayerManager.has(id);
-    },
-    getCurrent() {
-      return baseLayerManager.getCurrent();
-    },
-    getCurrentLayer() {
-      return baseLayerManager.getCurrentLayer();
-    },
-    register(definition) {
-      const registered = baseLayerManager.register(definition);
-      appRef?.refreshView();
-      return registered;
-    },
-    registerMany(definitions) {
-      const registered = baseLayerManager.registerMany(definitions);
-      appRef?.refreshView();
-      return registered;
-    },
-    select(id) {
-      const selection = baseLayerManager.select(id);
-      if (appRef) {
-        appRef.tileLayer = selection.layer;
-        appRef.refreshView();
-      }
-      return selection;
-    },
-  };
-
   const app = {
     map,
-    tileLayer: baseLayerManager.getCurrentLayer(),
-    baseMaps,
     core,
     state: core.state,
-    registry: core.registry,
-    context: core.context,
-    services,
-    ui: {
-      installMapControl,
-      createPanel,
-      createButton,
-      createSelect,
-      surfaceManager,
-      mountSurface(surfaceItem) {
-        return surfaceManager.mount(surfaceItem);
-      },
-      registerStylesheet(stylesheet) {
-        return registerStylesheet({
-          map,
-          ...stylesheet,
-        });
-      },
-    },
     // Expose the underlying Leaflet map when callers need direct access.
     getMap() {
       return baseMap.map;
     },
     // Expose the current base tile layer without leaking internal storage shape.
     getBaseLayer() {
-      return baseLayerManager.getCurrentLayer();
+      return baseMapCatalog.getSelectedLayer();
     },
     // Return the full base-map bundle created or attached to this app.
     getBaseMap() {
       return {
         ...baseMap,
-        tileLayer: baseLayerManager.getCurrentLayer(),
+        tileLayer: baseMapCatalog.getSelectedLayer(),
       };
-    },
-    // Plugins can publish shared services here for other plugins to consume.
-    provide(name, service) {
-      services[name] = service;
-      return service;
     },
     // Refresh hooks let plugins coordinate rerenders without hard-coding each other.
     addRefreshHandler(handler) {
@@ -209,19 +167,17 @@ export function createTiliaApp({ map, builtins = defaultBuiltins, ...options } =
     subscribeInteractions(handlers) {
       return core.subscribeInteractions(handlers);
     },
-    setStatus(text) {
-      services["tilia-status"]?.setStatus?.(text);
-    },
     setError(error) {
       setStateError(core.state, error);
     },
     async load(input) {
-      return core.registry.dispatch(core.context, input);
+      await ready;
+      return appInputs.dispatch(input);
     },
     use(pluginOrId, pluginOptions = {}) {
       const pluginId = typeof pluginOrId === "string" ? pluginOrId : pluginOrId?.id;
-      if (getPhase4bPluginClassification(pluginId) === "disabled") {
-        const error = new Error(`Plugin "${pluginId}" is disabled during the Phase 4B migration`);
+      if (getPhase4cPluginClassification(pluginId) === "disabled") {
+        const error = new Error(`Plugin "${pluginId}" is disabled during the Phase 4C migration`);
         error.code = "PLUGIN_DISABLED_BY_MIGRATION";
         return Promise.reject(error);
       }
@@ -238,20 +194,34 @@ export function createTiliaApp({ map, builtins = defaultBuiltins, ...options } =
       return pluginRuntime.list();
     },
   };
-  appRef = app;
-  app.provide("tilia-base-maps", baseMaps);
-  app.provide("tilia-ui-surfaces", surfaceManager);
 
   // `plugins: [...]` is a bootstrap convenience only. The real installation path remains `app.use(...)`
   // so startup sugar does not fork the plugin lifecycle or create a second implementation path.
   const ready = (async () => {
+    const definitions = Array.isArray(options.baseLayers) && options.baseLayers.length
+      ? options.baseLayers
+      : options.baseLayer ? [options.baseLayer] : defaultBaseLayerDefinitions;
+    for (const [index, definition] of definitions.entries()) {
+      appBaseMaps.register({
+        ...definition,
+        rank: Number.isFinite(definition.rank) ? definition.rank : index,
+        createLayer: () => createTileLayer(definition),
+      });
+    }
+    await appController.commit();
+    for (const callback of appPostCommit.splice(0)) {
+      try { callback(); } catch (error) { onDiagnostic(error); }
+    }
+    if (options.selectedBaseLayerId && appBaseMaps.get(options.selectedBaseLayerId)) {
+      appBaseMaps.select(options.selectedBaseLayerId);
+    }
     for (const entry of configuredPlugins) {
       const configuredPlugin = normalizeConfiguredPlugin(entry, configuredPluginOptions);
       const pluginId = typeof configuredPlugin.plugin === "string"
         ? configuredPlugin.plugin
         : configuredPlugin.plugin?.id;
-      if (getPhase4bPluginClassification(pluginId) === "disabled") {
-        const error = new Error(`Plugin "${pluginId}" is disabled during the Phase 4B migration`);
+      if (getPhase4cPluginClassification(pluginId) === "disabled") {
+        const error = new Error(`Plugin "${pluginId}" is disabled during the Phase 4C migration`);
         error.code = "PLUGIN_DISABLED_BY_MIGRATION";
         throw error;
       }

@@ -1,12 +1,12 @@
-import { createPanel, installMapControl } from "../../map/controls.js";
+import { createMapControl, createPanel } from "../../map/controls.js";
+import { statusServiceKey } from "../contracts/status.js";
 
-export function installStatusControl({ map, position = "bottomleft", priority = "normal", edgePolicy = null }) {
+export function createStatusControl({ position = "bottomleft", priority = "normal", edgePolicy = null }) {
   let statusNode = null;
   let panelNode = null;
   let dismissed = false;
 
-  const control = installMapControl({
-    map,
+  const control = createMapControl({
     position,
     priority,
     edgePolicy,
@@ -37,6 +37,7 @@ export function installStatusControl({ map, position = "bottomleft", priority = 
   });
 
   return {
+    control,
     destroy() {
       control.remove();
     },
@@ -51,3 +52,20 @@ export function installStatusControl({ map, position = "bottomleft", priority = 
     },
   };
 }
+
+export function installStatusControl({ map, ...options }) {
+  const api = createStatusControl(options);
+  api.control.addTo(map);
+  return api;
+}
+
+const statusPlugin = {
+  id: "tilia-status",
+  setup(context, options = {}) {
+    const api = createStatusControl(options);
+    context.map.mountControl(api.control);
+    context.services.provide(statusServiceKey, { set: api.setStatus });
+  },
+};
+
+export default statusPlugin;

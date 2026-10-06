@@ -1,4 +1,4 @@
-export function createPluginContext({ pluginId, scope, stage, capabilityFactories = {} }) {
+export function createPluginContext({ pluginId, scope, stage, enqueuePostCommit, diagnostics, capabilityFactories = {} }) {
   const context = {
     plugin: Object.freeze({ id: pluginId }),
     scope,
@@ -7,7 +7,7 @@ export function createPluginContext({ pluginId, scope, stage, capabilityFactorie
     if (typeof factory !== "function" || name in context) {
       throw new TypeError(`Invalid PluginContext capability factory "${name}"`);
     }
-    context[name] = Object.freeze(factory({ pluginId, scope, stage }));
+    context[name] = Object.freeze(factory({ pluginId, scope, stage, enqueuePostCommit, diagnostics }));
   }
   return Object.freeze(context);
 }

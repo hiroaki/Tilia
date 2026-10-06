@@ -36,7 +36,7 @@ function frozenDiagnostic(record) {
   });
 }
 
-export function createPluginRuntime({ catalog = [], capabilityFactories = {} } = {}) {
+export function createPluginRuntime({ catalog = [], capabilityFactories = {}, onDiagnostic = () => {} } = {}) {
   const metadata = normalizeCatalog(catalog);
   const builtinIds = new Set([...metadata.keys()].filter((id) => id.startsWith("tilia-")));
   const resolved = new Map();
@@ -117,12 +117,18 @@ export function createPluginRuntime({ catalog = [], capabilityFactories = {} } =
       sequence: 0,
       error: null,
       abortPromise: null,
+      postCommit: [],
     };
     records.set(id, record);
     const context = createPluginContext({
       pluginId: id,
       scope: controller.scope,
       stage: (definition) => controller.stage(definition),
+      enqueuePostCommit(callback) {
+        if (typeof callback !== "function") throw new TypeError("Post-commit notification must be a function");
+        record.postCommit.push(callback);
+      },
+      diagnostics: Object.freeze({ report: onDiagnostic }),
       capabilityFactories,
     });
     const stopped = destruction.promise.then(() => { throw pluginError(pluginErrorCodes.destroying, "Plugin runtime destruction interrupted setup", { pluginId: id }); });
@@ -158,6 +164,13 @@ export function createPluginRuntime({ catalog = [], capabilityFactories = {} } =
       }
       record.state = "active";
       record.sequence = ++activationSequence;
+      for (const callback of record.postCommit.splice(0)) {
+        try {
+          callback();
+        } catch (error) {
+          onDiagnostic(error);
+        }
+      }
       return record.handle;
     } catch (cause) {
       if (setupPromise && !setupSettled && cause?.code === pluginErrorCodes.destroying) {
