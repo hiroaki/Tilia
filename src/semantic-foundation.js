@@ -3,7 +3,7 @@ import { createDomainRegistry } from "./domains/index.js";
 import { createEntryStore } from "./entries/index.js";
 import { createSelectionCoordinator } from "./selection/index.js";
 
-export async function createSemanticFoundation({ onError = () => {} } = {}) {
+export async function createSemanticFoundation({ onError = () => {}, entryRenderingLifecycle = null } = {}) {
   const controller = createScopeController({ label: "application-semantic-root" });
   await controller.commit();
   const domains = createDomainRegistry({ onError });
@@ -14,7 +14,7 @@ export async function createSemanticFoundation({ onError = () => {} } = {}) {
   });
   const entries = createEntryStore({
     applicationController: controller, domainRegistry: domains,
-    semanticLifecycle: coordinator.lifecycle, onError,
+    semanticLifecycle: coordinator.lifecycle, entryRenderingLifecycle, onError,
   });
   return Object.freeze({
     domains,

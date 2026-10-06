@@ -43,11 +43,15 @@ function validatePreparedMutation(value, domainId) {
   if (value.change !== undefined) assertDeepImmutablePlainData(value.change, "change");
 }
 
-export function createEntryStore({ applicationController, domainRegistry, semanticLifecycle = null, onError = () => {} } = {}) {
+export function createEntryStore({ applicationController, domainRegistry, semanticLifecycle = null, entryRenderingLifecycle = null, onError = () => {} } = {}) {
   if (!applicationController?.scope || typeof applicationController.createChildController !== "function" || !domainRegistry) {
     throw new TypeError("EntryStore requires an application ScopeController and DomainRegistry");
   }
   const applicationScope = applicationController.scope;
+  function renderingHook(name, ...args) {
+    try { entryRenderingLifecycle?.[name]?.(...args); }
+    catch (error) { try { onError(error); } catch {} }
+  }
   const entries = new Map();
   const residuals = new Map();
   const queues = new Map();
@@ -209,6 +213,7 @@ export function createEntryStore({ applicationController, domainRegistry, semant
       record.insertionSequence = ++insertionSequence;
       lease.promote();
       entries.set(id, record);
+      renderingHook("afterCreated", record);
       const view = entryView(record);
       channel.deliver(Object.freeze({ type: "created", current: view }));
       return view;
@@ -317,6 +322,7 @@ export function createEntryStore({ applicationController, domainRegistry, semant
           effect?.commit();
           committed = true;
           if (revisioned) {
+            renderingHook("afterDomainCommit", record, prepared.change ?? Object.freeze({}));
             channel.deliver(Object.freeze({
               type: "domain-changed",
               entry: entryView(record),
@@ -386,6 +392,7 @@ export function createEntryStore({ applicationController, domainRegistry, semant
       if (record.visible === visible) return entryView(record);
       const previous = entryView(record);
       record.visible = visible;
+      renderingHook("afterVisibilityCommit", record);
       const current = entryView(record);
       channel.deliver(Object.freeze({ type: "visibility-changed", previous, current }));
       return current;
@@ -396,6 +403,7 @@ export function createEntryStore({ applicationController, domainRegistry, semant
     record.state = "removing";
     entries.delete(record.id);
     semanticLifecycle?.afterLogicalRemoval(record);
+    renderingHook("afterLogicalRemoval", record);
     const previous = entryView(record);
     let cleanupError = null;
     try { await record.scopeController.close(); } catch (error) { cleanupError = error; }

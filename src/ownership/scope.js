@@ -9,6 +9,15 @@ import {
   createTaskRecord,
 } from "./records.js";
 
+const scopeNodes = new WeakMap();
+// Private integrity metadata; never exposed on public Scope objects.
+export function isScopeWithin(scope, ancestor) {
+  let node = scopeNodes.get(scope);
+  const parent = scopeNodes.get(ancestor);
+  if (!node || !parent) return false;
+  while (node) { if (node === parent) return true; node = node.parent; }
+  return false;
+}
 let nextRootId = 1;
 
 function freeze(value) {
@@ -567,6 +576,7 @@ function createNode({ label = "scope", parent = null, root = null, sequence = 0 
     };
   }
   node.scope = Object.freeze(scope);
+  scopeNodes.set(node.scope, node);
   return node;
 }
 

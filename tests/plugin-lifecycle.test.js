@@ -9,7 +9,7 @@ describe("createTiliaApp Phase 4B plugin boundary", () => {
 
   it("delegates external definitions to PluginRuntime with guarded context", async () => {
     const setup = vi.fn((context, options) => {
-      expect(Object.keys(context).sort()).toEqual(["baseMaps", "domains", "entries", "inputs", "map", "plugin", "scope", "selection", "services", "styles", "ui"]);
+      expect(Object.keys(context).sort()).toEqual(["baseMaps", "domains", "entries", "inputs", "interactions", "map", "plugin", "presentation", "renderers", "rendering", "scope", "selection", "services", "styles", "ui"]);
       expect(context).not.toHaveProperty("app");
       expect(context).not.toHaveProperty("core");
       expect(context).not.toHaveProperty("state");

@@ -16,3 +16,4 @@ export {
 export { createEntryStore } from "./entries/index.js";
 export { createSemanticFoundation } from "./semantic-foundation.js";
 export { createApplicationSemanticApi, createSemanticCapabilityFactories } from "./semantic-capabilities.js";
+export { RenderingError, renderingErrorCodes } from './rendering/index.js';
