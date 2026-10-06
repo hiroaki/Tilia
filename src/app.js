@@ -1,9 +1,7 @@
-import { createTiliaCore } from "./core/boot.js";
-import { setError as setStateError } from "./core/state.js";
 import { builtins as defaultBuiltins } from "./builtins.js";
 import { createBaseMap, createTileLayer, defaultBaseLayerDefinitions } from "./map/base.js";
 import { createPluginRuntime } from "./plugins/runtime/index.js";
-import { getPhase4cPluginClassification } from "./plugins/migration-allowlist.js";
+import { getPhase4dPluginClassification } from "./plugins/migration-allowlist.js";
 import { createScopeController } from "./ownership/index.js";
 import { createInputRegistry, createServiceRegistry } from "./extensions/index.js";
 import { createStylesheetManager } from "./resources/stylesheets.js";
@@ -13,9 +11,9 @@ import { createBaseMapCatalog } from "./map/base-map-catalog.js";
 import { createSemanticFoundation } from "./semantic-foundation.js";
 import { createApplicationSemanticApi, createSemanticCapabilityFactories } from "./semantic-capabilities.js";
 
-function phase4cRuntimeCatalog(builtins) {
+function phase4dRuntimeCatalog(builtins) {
   const entries = Array.isArray(builtins) ? builtins : Object.values(builtins);
-  return entries.filter(({ id } = {}) => getPhase4cPluginClassification(id) !== "disabled");
+  return entries.filter(({ id } = {}) => getPhase4dPluginClassification(id) !== "disabled");
 }
 
 function normalizeConfiguredPlugin(entry, pluginOptionsMap) {
@@ -87,7 +85,6 @@ export function createTiliaApp({ map, builtins = defaultBuiltins, ...options } =
     throw new Error("createTiliaApp requires a Leaflet map");
   }
 
-  const core = createTiliaCore(map, options);
   const baseMap = { map };
   options.tileLayer?.remove?.();
   const diagnostics = [];
@@ -125,7 +122,6 @@ export function createTiliaApp({ map, builtins = defaultBuiltins, ...options } =
       href: new URL("./ui/styles.css", import.meta.url).href,
     });
   }
-  const refreshHandlers = new Set();
   // Disabled repository metadata is excluded from the production graph. This
   // makes a disabled transitive dependency fail during planning, before either
   // its loader or the consumer setup can run.
@@ -139,15 +135,13 @@ export function createTiliaApp({ map, builtins = defaultBuiltins, ...options } =
     domains: (input) => createSemanticCapabilityFactories(semanticFoundation).domains(input),
     entries: (input) => createSemanticCapabilityFactories(semanticFoundation).entries(input),
   };
-  const pluginRuntime = createPluginRuntime({ catalog: phase4cRuntimeCatalog(builtins), capabilityFactories, onDiagnostic });
+  const pluginRuntime = createPluginRuntime({ catalog: phase4dRuntimeCatalog(builtins), capabilityFactories, onDiagnostic });
   const configuredPlugins = Array.isArray(options.plugins) ? options.plugins : [];
   const configuredPluginOptions = options.pluginOptions && typeof options.pluginOptions === "object"
     ? options.pluginOptions
     : null;
   const app = {
     map,
-    core,
-    state: core.state,
     get entries() {
       if (!semanticApi) throw new Error("Semantic foundation is not ready");
       return semanticApi.entries;
@@ -171,35 +165,14 @@ export function createTiliaApp({ map, builtins = defaultBuiltins, ...options } =
         tileLayer: baseMapCatalog.getSelectedLayer(),
       };
     },
-    // Refresh hooks let plugins coordinate rerenders without hard-coding each other.
-    addRefreshHandler(handler) {
-      if (typeof handler === "function") {
-        refreshHandlers.add(handler);
-      }
-      return () => {
-        refreshHandlers.delete(handler);
-      };
-    },
-    refreshView() {
-      for (const handler of refreshHandlers) {
-        handler();
-      }
-    },
-    // Expose interaction subscriptions without requiring third-party plugins to reach into core.
-    subscribeInteractions(handlers) {
-      return core.subscribeInteractions(handlers);
-    },
-    setError(error) {
-      setStateError(core.state, error);
-    },
     async load(input) {
       await ready;
       return appInputs.dispatch(input);
     },
     use(pluginOrId, pluginOptions = {}) {
       const pluginId = typeof pluginOrId === "string" ? pluginOrId : pluginOrId?.id;
-      if (getPhase4cPluginClassification(pluginId) === "disabled") {
-        const error = new Error(`Plugin "${pluginId}" is disabled during the Phase 4C migration`);
+      if (getPhase4dPluginClassification(pluginId) === "disabled") {
+        const error = new Error(`Plugin "${pluginId}" is disabled during the Phase 4D migration`);
         error.code = "PLUGIN_DISABLED_BY_MIGRATION";
         return Promise.reject(error);
       }
@@ -243,8 +216,8 @@ export function createTiliaApp({ map, builtins = defaultBuiltins, ...options } =
       const pluginId = typeof configuredPlugin.plugin === "string"
         ? configuredPlugin.plugin
         : configuredPlugin.plugin?.id;
-      if (getPhase4cPluginClassification(pluginId) === "disabled") {
-        const error = new Error(`Plugin "${pluginId}" is disabled during the Phase 4C migration`);
+      if (getPhase4dPluginClassification(pluginId) === "disabled") {
+        const error = new Error(`Plugin "${pluginId}" is disabled during the Phase 4D migration`);
         error.code = "PLUGIN_DISABLED_BY_MIGRATION";
         throw error;
       }

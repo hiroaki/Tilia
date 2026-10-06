@@ -1,9 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("../src/core/boot.js", () => ({
-  createTiliaCore: vi.fn(() => ({ state: {}, registry: { dispatch: vi.fn() }, context: {}, subscribeInteractions: vi.fn(() => () => {}) })),
-}));
-vi.mock("../src/core/state.js", () => ({ setError: vi.fn() }));
 vi.mock("../src/map/controls.js", () => ({ createButton: vi.fn(), createPanel: vi.fn(), createSelect: vi.fn(), installMapControl: vi.fn() }));
 
 import { createTiliaApp } from "../src/app.js";
@@ -97,11 +93,14 @@ describe("createTiliaApp Phase 4B plugin boundary", () => {
     expect(rootSetup).not.toHaveBeenCalled();
   });
 
-  it("keeps legacy host state outside PluginContext until its later cutover", async () => {
+  it("exposes only target semantic authority after the Phase 4D cutover", async () => {
     const app = createTiliaApp({ map: {}, builtins: [] });
     await app.ready;
-    expect(app).toHaveProperty("core");
-    expect(app).toHaveProperty("state");
+    expect(app).not.toHaveProperty("core");
+    expect(app).not.toHaveProperty("state");
+    expect(app).not.toHaveProperty("refreshView");
+    expect(app).not.toHaveProperty("addRefreshHandler");
+    expect(app).not.toHaveProperty("subscribeInteractions");
     expect(Object.isFrozen(app.entries)).toBe(true);
     expect(Object.isFrozen(app.domains)).toBe(true);
     expect(Object.isFrozen(app.domains.gpx)).toBe(true);

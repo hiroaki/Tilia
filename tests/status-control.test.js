@@ -92,16 +92,6 @@ vi.mock("leaflet", () => ({
   },
 }));
 
-vi.mock("../src/core/boot.js", () => ({
-  createTiliaCore: vi.fn(() => ({
-    state: {},
-    registry: { dispatch: vi.fn() },
-    context: {},
-    subscribeInteractions: vi.fn(() => () => {}),
-  })),
-}));
-
-vi.mock("../src/core/state.js", () => ({ setError: vi.fn() }));
 vi.mock("../src/ui/styles.js", () => ({
   ensureBuiltinUiStyles: vi.fn(),
   registerStylesheet: vi.fn(),

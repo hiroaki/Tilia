@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { getPhase4cPluginClassification } from "../src/plugins/migration-allowlist.js";
+import { getPhase4dPluginClassification } from "../src/plugins/migration-allowlist.js";
 
-describe("repository plugins deferred after the Phase 4C cutover", () => {
+describe("repository plugins deferred after the Phase 4D cutover", () => {
   it.each([
     "x-track-editor",
     "x-gpx-export",
     "x-route-search",
     "x-milestone",
   ])("classifies %s as disabled until its target capabilities exist", (pluginId) => {
-    expect(getPhase4cPluginClassification(pluginId)).toBe("disabled");
+    expect(getPhase4dPluginClassification(pluginId)).toBe("disabled");
   });
 });
