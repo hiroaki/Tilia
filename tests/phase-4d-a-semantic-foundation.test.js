@@ -861,4 +861,62 @@ describe("Phase 4D-A residual cleanup and per-entry races", () => {
     expect(value.entries.inspect().residuals).toEqual([]);
     await expect(value.registration.dispose()).resolves.toBeUndefined();
   });
+
+  it("commits private-only provider state without revision or semantic notification", async () => {
+    const previousDispose = vi.fn();
+    const nextDispose = vi.fn();
+    const provider = fakeProvider({ dispose: previousDispose });
+    provider.prepareMutation = vi.fn(async ({ currentInstance }) => ({
+      changed: true,
+      revisioned: false,
+      nextInstance: { ...currentInstance, privateVersion: 2 },
+      nextSnapshot: cloneAndFreezePlainData({ value: 1 }),
+      disposePrevious: previousDispose,
+      disposeNext: nextDispose,
+    }));
+    const value = await fixture({ provider });
+    await value.activate();
+    const entry = await value.entries.create(value.requester.scope, value.key, { value: 1 });
+    const currentSnapshot = value.entries.getDomainView(entry.id, value.key).snapshot;
+    provider.prepareMutation = vi.fn(async ({ currentInstance }) => ({
+      changed: true,
+      revisioned: false,
+      nextInstance: { ...currentInstance, privateVersion: 2 },
+      nextSnapshot: currentSnapshot,
+      disposePrevious: previousDispose,
+      disposeNext: nextDispose,
+    }));
+    const events = [];
+    value.entries.subscribe(value.requester.scope, (event) => {
+      if (!Array.isArray(event)) events.push(event);
+    }, { emitCurrent: false });
+
+    await expect(value.entries.update(value.requester.scope, entry.id, value.key, {}, { expectedRevision: 1 }))
+      .resolves.toMatchObject({ revision: 1, snapshot: { value: 1 } });
+    expect(events).toEqual([]);
+    expect(previousDispose).toHaveBeenCalledOnce();
+    expect(nextDispose).not.toHaveBeenCalled();
+    await value.entries.remove(value.requester.scope, entry.id);
+    expect(nextDispose).toHaveBeenCalledOnce();
+  });
+
+  it("rejects an unrevisioned mutation that changes the public snapshot and cleans its candidate", async () => {
+    const candidateDispose = vi.fn();
+    const provider = fakeProvider();
+    provider.prepareMutation = vi.fn(async () => ({
+      changed: true,
+      revisioned: false,
+      nextInstance: { value: 2 },
+      nextSnapshot: cloneAndFreezePlainData({ value: 2 }),
+      disposeNext: candidateDispose,
+    }));
+    const value = await fixture({ provider });
+    await value.activate();
+    const entry = await value.entries.create(value.requester.scope, value.key, { value: 1 });
+
+    await expect(value.entries.update(value.requester.scope, entry.id, value.key, {}, { expectedRevision: 1 }))
+      .rejects.toMatchObject({ code: semanticErrorCodes.providerResultInvalid });
+    expect(candidateDispose).toHaveBeenCalledOnce();
+    expect(value.entries.getDomainView(entry.id, value.key)).toMatchObject({ revision: 1, snapshot: { value: 1 } });
+  });
 });

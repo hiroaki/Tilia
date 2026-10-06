@@ -33,8 +33,9 @@ function validatePreparedMutation(value, domainId) {
   }
   if (!value.changed) return;
   if (!("nextInstance" in value) || !("nextSnapshot" in value)
+      || (value.revisioned !== undefined && typeof value.revisioned !== "boolean")
       || (value.change !== undefined && (value.change === null || typeof value.change !== "object"))
-      || (value.disposePrevious !== undefined && typeof value.disposePrevious !== "function")
+      || (value.disposePrevious !== undefined && value.disposePrevious !== null && typeof value.disposePrevious !== "function")
       || (value.disposeNext !== undefined && typeof value.disposeNext !== "function")) {
     throw semanticError(semanticErrorCodes.providerResultInvalid, `Provider for domain "${domainId}" returned an invalid mutation result`, { domainId });
   }
@@ -255,6 +256,7 @@ export function createEntryStore({ applicationController, domainRegistry, onErro
       const operationController = record.scopeController.createChildController({ label: `entry:${id}:update:${record.revision}` });
       const operationScope = operationController.scope;
       let prepared;
+      let committed = false;
       try {
         prepared = await record.providerRegistration.provider.prepareMutation({
           entryId: id,
@@ -278,19 +280,29 @@ export function createEntryStore({ applicationController, domainRegistry, onErro
           await operationScope.dispose();
           return domainView(record);
         }
+        const revisioned = prepared.revisioned !== false;
+        if (!revisioned && prepared.nextSnapshot !== record.domainSnapshot) {
+          throw semanticError(semanticErrorCodes.providerResultInvalid, `Provider for domain "${domainKey.id}" changed its public snapshot without revision`, {
+            entryId: id,
+            domainId: domainKey.id,
+          });
+        }
         const previousRevision = record.revision;
         const previousDispose = record.currentDispose;
         record.instance = prepared.nextInstance;
         record.domainSnapshot = prepared.nextSnapshot;
         record.currentDispose = prepared.disposeNext ?? null;
-        record.revision += 1;
-        channel.deliver(Object.freeze({
-          type: "domain-changed",
-          entry: entryView(record),
-          previousRevision,
-          revision: record.revision,
-          change: prepared.change ?? Object.freeze({}),
-        }));
+        if (revisioned) record.revision += 1;
+        committed = true;
+        if (revisioned) {
+          channel.deliver(Object.freeze({
+            type: "domain-changed",
+            entry: entryView(record),
+            previousRevision,
+            revision: record.revision,
+            change: prepared.change ?? Object.freeze({}),
+          }));
+        }
         const cleanupErrors = [];
         try {
           await operationController.close();
@@ -304,7 +316,7 @@ export function createEntryStore({ applicationController, domainRegistry, onErro
           );
           cleanupErrors.push(cleanupError);
         }
-        const disposePrevious = prepared.disposePrevious ?? previousDispose;
+        const disposePrevious = prepared.disposePrevious !== undefined ? prepared.disposePrevious : previousDispose;
         if (disposePrevious) {
           try {
             await disposePrevious();
@@ -325,7 +337,7 @@ export function createEntryStore({ applicationController, domainRegistry, onErro
         }
         return domainView(record);
       } catch (cause) {
-        if (record.revision !== expectedRevision) throw cause;
+        if (committed) throw cause;
         if (record.revision === expectedRevision && typeof prepared?.disposeNext === "function") {
           try { await prepared.disposeNext(); } catch (error) { onError(error); }
         }

@@ -60,6 +60,7 @@ export function createPhotoProvider({
   createObjectURL = (blob) => URL.createObjectURL(blob),
   revokeObjectURL = (url) => URL.revokeObjectURL(url),
   prepareGate = null,
+  mutationGate = null,
 } = {}) {
   function prepare(value, fallbackBlob = null) {
     const data = normalizeData(value?.data ?? value);
@@ -71,8 +72,8 @@ export function createPhotoProvider({
     if (blob != null) previewUrl = createObjectURL(blob);
     const dispose = previewUrl == null ? null : () => {
       if (disposed) return;
-      disposed = true;
       revokeObjectURL(previewUrl);
+      disposed = true;
     };
     const publicSnapshot = makeSnapshot(data, requestedTimeMode);
     return { instance: { publicSnapshot, blob, previewUrl, dispose }, snapshot: publicSnapshot, dispose };
@@ -88,20 +89,47 @@ export function createPhotoProvider({
     async prepareMutation({ currentInstance, command }) {
       if (!command || typeof command !== "object") invalid("Photo command must be an object");
       if (command.type === "recompute-derived") return { changed: false };
-      let value;
+      let data;
+      let requestedTimeMode;
+      let nextBlob = currentInstance.blob;
+      let resourceChanged = false;
       if (command.type === "replace-data") {
-        value = { data: command.data, preferences: currentInstance.publicSnapshot.preferences, blob: command.data?.blob ?? currentInstance.blob };
+        data = normalizeData(command.data);
+        requestedTimeMode = currentInstance.publicSnapshot.preferences.requestedTimeMode;
+        if (Object.hasOwn(command.data ?? {}, "blob")) {
+          nextBlob = command.data.blob;
+          resourceChanged = nextBlob !== currentInstance.blob;
+        }
       } else if (command.type === "set-requested-time-mode") {
-        value = { data: currentInstance.publicSnapshot.data, preferences: { requestedTimeMode: command.requestedTimeMode }, blob: currentInstance.blob };
+        data = currentInstance.publicSnapshot.data;
+        requestedTimeMode = normalizeMode(command.requestedTimeMode);
       } else invalid(`Unknown Photo command "${command.type}"`);
-      const desired = makeSnapshot(normalizeData(value.data), normalizeMode(value.preferences.requestedTimeMode));
-      if (same(desired, currentInstance.publicSnapshot)) return { changed: false };
-      const prepared = prepare(value, currentInstance.blob);
+      const desired = makeSnapshot(data, requestedTimeMode);
+      const semanticChanged = !same(desired, currentInstance.publicSnapshot);
+      if (!semanticChanged && !resourceChanged) return { changed: false };
+      if (!resourceChanged) {
+        return {
+          changed: true,
+          nextInstance: { ...currentInstance, publicSnapshot: desired },
+          nextSnapshot: desired,
+          change: cloneAndFreezePlainData({ type: command.type }),
+          disposePrevious: null,
+          ...(currentInstance.dispose ? { disposeNext: currentInstance.dispose } : {}),
+        };
+      }
+      const prepared = prepare({ data, preferences: { requestedTimeMode }, blob: nextBlob });
+      try {
+        if (mutationGate) await mutationGate;
+      } catch (error) {
+        await prepared.dispose?.();
+        throw error;
+      }
       return {
         changed: true,
         nextInstance: prepared.instance,
-        nextSnapshot: prepared.snapshot,
-        change: cloneAndFreezePlainData({ type: command.type }),
+        nextSnapshot: semanticChanged ? prepared.snapshot : currentInstance.publicSnapshot,
+        revisioned: semanticChanged,
+        ...(semanticChanged ? { change: cloneAndFreezePlainData({ type: command.type }) } : {}),
         ...(currentInstance.dispose ? { disposePrevious: currentInstance.dispose } : {}),
         ...(prepared.dispose ? { disposeNext: prepared.dispose } : {}),
       };

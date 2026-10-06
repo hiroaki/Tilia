@@ -12,8 +12,9 @@ const catalog = Object.freeze([
 
 function deferred() {
   let resolve;
-  const promise = new Promise((resolvePromise) => { resolve = resolvePromise; });
-  return { promise, resolve };
+  let reject;
+  const promise = new Promise((resolvePromise, rejectPromise) => { resolve = resolvePromise; reject = rejectPromise; });
+  return { promise, resolve, reject };
 }
 
 async function harness() {
@@ -116,7 +117,7 @@ describe("Phase 4D-B GPX domain integration", () => {
 });
 
 describe("Phase 4D-B Photo domain integration", () => {
-  it("separates data, preferences, derived values, and private preview lifetime", async () => {
+  it("retains unchanged resources and distinguishes resource-only from semantic replacement", async () => {
     const created = [];
     const revoked = [];
     const value = await harness();
@@ -126,6 +127,8 @@ describe("Phase 4D-B Photo domain integration", () => {
     });
     const blob = new Blob(["photo"], { type: "image/jpeg" });
     const entry = await value.api.domains.photo.create(photoValue(blob));
+    const events = [];
+    value.api.entries.subscribe((event) => { if (!Array.isArray(event)) events.push(event); }, { emitCurrent: false });
     const first = value.api.domains.photo.get(entry.id);
     expect(first).toMatchObject({
       revision: 1,
@@ -140,19 +143,47 @@ describe("Phase 4D-B Photo domain integration", () => {
 
     const updated = await value.api.domains.photo.setRequestedTimeMode(entry.id, "utc", { expectedRevision: 1 });
     expect(updated).toMatchObject({ revision: 2, snapshot: { preferences: { requestedTimeMode: "utc" }, derived: { resolvedTimeMode: "utc" } } });
-    expect(revoked).toEqual(["blob:test-1"]);
+    expect(created).toHaveLength(1);
+    expect(revoked).toEqual([]);
     const dataUpdated = await value.api.domains.photo.replaceData(entry.id, { ...updated.snapshot.data, name: "renamed.jpg" }, { expectedRevision: 2 });
     expect(dataUpdated).toMatchObject({ revision: 3, snapshot: { data: { name: "renamed.jpg" } } });
+    expect(created).toHaveLength(1);
+    expect(revoked).toEqual([]);
+
+    const replacementBlob = new Blob(["other"], { type: "image/jpeg" });
+    const resourceOnly = await value.api.domains.photo.replaceData(entry.id, {
+      ...dataUpdated.snapshot.data,
+      blob: replacementBlob,
+    }, { expectedRevision: 3 });
+    expect(resourceOnly).toMatchObject({ revision: 3, snapshot: dataUpdated.snapshot });
+    expect(created).toHaveLength(2);
+    expect(revoked).toEqual(["blob:test-1"]);
+    expect(events.filter(({ type }) => type === "domain-changed")).toHaveLength(2);
+
+    const combinedBlob = new Blob(["third"], { type: "image/jpeg" });
+    const combined = await value.api.domains.photo.replaceData(entry.id, {
+      ...resourceOnly.snapshot.data,
+      name: "combined.jpg",
+      blob: combinedBlob,
+    }, { expectedRevision: 3 });
+    expect(combined).toMatchObject({ revision: 4, snapshot: { data: { name: "combined.jpg" } } });
+    expect(created).toHaveLength(3);
     expect(revoked).toEqual(["blob:test-1", "blob:test-2"]);
-    expect((await value.api.domains.photo.recomputeDerived(entry.id, undefined, { expectedRevision: 3 })).revision).toBe(3);
+    expect(events.filter(({ type }) => type === "domain-changed")).toHaveLength(3);
+    expect((await value.api.domains.photo.recomputeDerived(entry.id, undefined, { expectedRevision: 4 })).revision).toBe(4);
     await value.api.entries.setVisible(entry.id, false);
-    expect(value.api.domains.photo.get(entry.id).revision).toBe(3);
+    expect(value.api.domains.photo.get(entry.id).revision).toBe(4);
     expect(value.foundation.inspect().entries.residuals).toEqual([]);
+    expect(JSON.stringify(events)).not.toMatch(/previewUrl|objectUrl|blob:/);
+    expect(JSON.stringify(value.api.entries.get(entry.id))).not.toMatch(/previewUrl|objectUrl|blob:/);
+    expect(JSON.stringify(value.foundation.inspect())).not.toMatch(/previewUrl|objectUrl|blob:/);
 
     await expect(value.runtime.unuse("tilia-photo-domain")).rejects.toMatchObject({ code: semanticErrorCodes.providerInUse });
     await value.api.entries.remove(entry.id);
     expect(revoked).toEqual(["blob:test-1", "blob:test-2", "blob:test-3"]);
     await expect(value.runtime.unuse("tilia-photo-domain")).resolves.toBeUndefined();
+    await value.foundation.dispose();
+    expect(revoked).toEqual(["blob:test-1", "blob:test-2", "blob:test-3"]);
   });
 
   it("revokes a preview acquired by creation when requester authority disappears", async () => {
@@ -176,6 +207,112 @@ describe("Phase 4D-B Photo domain integration", () => {
     expect(revoked).toHaveBeenCalledOnce();
     expect(value.api.entries.list()).toEqual([]);
     await expect(value.runtime.unuse("tilia-photo-domain")).resolves.toBeUndefined();
+  });
+
+  it("revokes an uncommitted replacement candidate and retains the committed resource", async () => {
+    const gate = deferred();
+    const created = [];
+    const revoked = [];
+    const value = await harness();
+    await value.runtime.use("tilia-photo-domain", {
+      createObjectURL(blob) { const url = `blob:candidate-${created.length + 1}`; created.push([url, blob]); return url; },
+      revokeObjectURL(url) { revoked.push(url); },
+      mutationGate: gate.promise,
+    });
+    const requester = createScopeController({ label: "photo-mutation-requester" });
+    await requester.commit();
+    const photo = createPhotoFacade({ scope: requester.scope, entries: value.foundation.entries });
+    const entry = await photo.create(photoValue(new Blob(["first"])));
+
+    await expect(photo.replaceData(entry.id, { ...photo.get(entry.id).snapshot.data, blob: new Blob(["other"]) }, { expectedRevision: 99 }))
+      .rejects.toMatchObject({ code: semanticErrorCodes.entryStaleRevision });
+    expect(created).toHaveLength(1);
+    const replacing = photo.replaceData(entry.id, { ...photo.get(entry.id).snapshot.data, blob: new Blob(["other"]) }, { expectedRevision: 1 });
+    await vi.waitFor(() => expect(created).toHaveLength(2));
+    await requester.close();
+    gate.resolve();
+
+    await expect(replacing).rejects.toMatchObject({ code: "SCOPE_NOT_ACTIVE" });
+    expect(revoked).toEqual(["blob:candidate-2"]);
+    expect(value.api.domains.photo.get(entry.id).revision).toBe(1);
+    await value.api.entries.remove(entry.id);
+    expect(revoked).toEqual(["blob:candidate-2", "blob:candidate-1"]);
+  });
+
+  it("preserves the committed resource when candidate URL creation fails", async () => {
+    const revoked = [];
+    let createCount = 0;
+    const value = await harness();
+    await value.runtime.use("tilia-photo-domain", {
+      createObjectURL() {
+        createCount += 1;
+        if (createCount === 2) throw new Error("URL creation failed");
+        return "blob:committed";
+      },
+      revokeObjectURL(url) { revoked.push(url); },
+    });
+    const entry = await value.api.domains.photo.create(photoValue(new Blob(["first"])));
+    await expect(value.api.domains.photo.replaceData(entry.id, {
+      ...value.api.domains.photo.get(entry.id).snapshot.data,
+      blob: new Blob(["other"]),
+    }, { expectedRevision: 1 })).rejects.toThrow("URL creation failed");
+    expect(value.api.domains.photo.get(entry.id).revision).toBe(1);
+    expect(revoked).toEqual([]);
+    await value.api.entries.remove(entry.id);
+    expect(revoked).toEqual(["blob:committed"]);
+  });
+
+  it("revokes a candidate when asynchronous resource preparation fails", async () => {
+    const gate = deferred();
+    const created = [];
+    const revoked = [];
+    const value = await harness();
+    await value.runtime.use("tilia-photo-domain", {
+      createObjectURL() { const url = `blob:prepare-${created.length + 1}`; created.push(url); return url; },
+      revokeObjectURL(url) { revoked.push(url); },
+      mutationGate: gate.promise,
+    });
+    const entry = await value.api.domains.photo.create(photoValue(new Blob(["first"])));
+    const replacing = value.api.domains.photo.replaceData(entry.id, {
+      ...value.api.domains.photo.get(entry.id).snapshot.data,
+      blob: new Blob(["other"]),
+    }, { expectedRevision: 1 });
+    await vi.waitFor(() => expect(created).toHaveLength(2));
+    gate.reject(new Error("preparation failed"));
+
+    await expect(replacing).rejects.toThrow("preparation failed");
+    expect(revoked).toEqual(["blob:prepare-2"]);
+    expect(value.api.domains.photo.get(entry.id).revision).toBe(1);
+    await value.api.entries.remove(entry.id);
+    expect(revoked).toEqual(["blob:prepare-2", "blob:prepare-1"]);
+  });
+
+  it("retains retryable cleanup when a resource-only replacement commits but old revocation fails", async () => {
+    const attempts = [];
+    let createCount = 0;
+    const value = await harness();
+    await value.runtime.use("tilia-photo-domain", {
+      createObjectURL() { createCount += 1; return `blob:cleanup-${createCount}`; },
+      revokeObjectURL(url) {
+        attempts.push(url);
+        if (url === "blob:cleanup-1" && attempts.filter((item) => item === url).length === 1) throw new Error("revoke failed");
+      },
+    });
+    const entry = await value.api.domains.photo.create(photoValue(new Blob(["first"])));
+    const events = [];
+    value.api.entries.subscribe((event) => { if (!Array.isArray(event)) events.push(event); }, { emitCurrent: false });
+
+    await expect(value.api.domains.photo.replaceData(entry.id, {
+      ...value.api.domains.photo.get(entry.id).snapshot.data,
+      blob: new Blob(["other"]),
+    }, { expectedRevision: 1 })).rejects.toMatchObject({ code: semanticErrorCodes.cleanupFailed, committed: true });
+    expect(value.api.domains.photo.get(entry.id).revision).toBe(1);
+    expect(events.filter(({ type }) => type === "domain-changed")).toEqual([]);
+    expect(value.foundation.inspect().entries.residuals[0].obligations).toMatchObject([{ phase: "update-previous-instance" }]);
+    await value.foundation.entries.retryCleanup(value.foundation.scope, entry.id);
+    expect(attempts).toEqual(["blob:cleanup-1", "blob:cleanup-1"]);
+    await value.api.entries.remove(entry.id);
+    expect(attempts).toEqual(["blob:cleanup-1", "blob:cleanup-1", "blob:cleanup-2"]);
   });
 
   it("rejects invalid Photo input and stale revisions without exposing resources", async () => {
