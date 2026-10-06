@@ -11,6 +11,8 @@ export const builtinPluginCatalog = Object.freeze([
   Object.freeze({ id: "tilia-query-import", requires: Object.freeze([]), load: () => import("./plugins/input/query-import.js") }),
   Object.freeze({ id: "tilia-settings", requires: Object.freeze(["tilia-panel"]), load: () => import("./plugins/ui/settings-panel.js") }),
   Object.freeze({ id: "tilia-dropzone", requires: Object.freeze([]), load: () => import("./plugins/input/dropzone.js") }),
+  Object.freeze({ id: "tilia-gpx-domain", requires: Object.freeze([]), load: () => import("./plugins/domains/gpx.js") }),
+  Object.freeze({ id: "tilia-photo-domain", requires: Object.freeze([]), load: () => import("./plugins/domains/photo.js") }),
   Object.freeze({ id: "x-gsi-base-maps", requires: Object.freeze([]), load: () => import("../plugins/x-gsi-base-maps/loader.js") }),
   Object.freeze({ id: "x-opentopomap-base-maps", requires: Object.freeze([]), load: () => import("../plugins/x-opentopomap-base-maps/loader.js") }),
 ]);

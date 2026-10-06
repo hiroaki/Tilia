@@ -10,6 +10,9 @@ export {
   defineDomainKey,
   cloneAndFreezePlainData,
   createDomainRegistry,
+  gpxDomainKey,
+  photoDomainKey,
 } from "./domains/index.js";
 export { createEntryStore } from "./entries/index.js";
 export { createSemanticFoundation } from "./semantic-foundation.js";
+export { createApplicationSemanticApi, createSemanticCapabilityFactories } from "./semantic-capabilities.js";

@@ -6,6 +6,7 @@ export const phase4cPluginClassification = Object.freeze({
     "tilia-panel", "tilia-layers",
     "tilia-elevation", "tilia-file-import", "tilia-url-import", "tilia-query-import",
     "tilia-settings", "tilia-dropzone",
+    "tilia-gpx-domain", "tilia-photo-domain",
     "x-gpx-export", "x-route-search", "x-track-editor", "x-milestone",
   ]),
 });

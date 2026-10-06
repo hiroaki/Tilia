@@ -14,6 +14,8 @@ describe("Phase 4C migration allowlist", () => {
     expect(phase4cPluginClassification.enabled).toEqual([
       "tilia-status", "tilia-base-maps-control", "x-gsi-base-maps", "x-opentopomap-base-maps",
     ]);
+    expect(phase4cPluginClassification.disabled).toContain("tilia-gpx-domain");
+    expect(phase4cPluginClassification.disabled).toContain("tilia-photo-domain");
     expect(new Set(classified).size).toBe(classified.length);
     expect([...classified].sort()).toEqual(repositoryIds);
   });

@@ -10,6 +10,8 @@ import { createStylesheetManager } from "./resources/stylesheets.js";
 import { createUiMountManager } from "./ui/mounts.js";
 import { createMapFacadeFactory } from "./map/facade.js";
 import { createBaseMapCatalog } from "./map/base-map-catalog.js";
+import { createSemanticFoundation } from "./semantic-foundation.js";
+import { createApplicationSemanticApi, createSemanticCapabilityFactories } from "./semantic-capabilities.js";
 
 function phase4cRuntimeCatalog(builtins) {
   const entries = Array.isArray(builtins) ? builtins : Object.values(builtins);
@@ -90,6 +92,13 @@ export function createTiliaApp({ map, builtins = defaultBuiltins, ...options } =
   options.tileLayer?.remove?.();
   const diagnostics = [];
   const onDiagnostic = (error) => diagnostics.push(error);
+  let semanticFoundation = null;
+  let semanticApi = null;
+  const semanticFoundationReady = createSemanticFoundation({ onError: onDiagnostic }).then((foundation) => {
+    semanticFoundation = foundation;
+    semanticApi = createApplicationSemanticApi(foundation);
+    return foundation;
+  });
   const serviceRegistry = createServiceRegistry({ onError: onDiagnostic });
   const inputRegistry = createInputRegistry({ onError: onDiagnostic });
   const stylesheetManager = createStylesheetManager({
@@ -127,6 +136,8 @@ export function createTiliaApp({ map, builtins = defaultBuiltins, ...options } =
     ui: (input) => uiMountManager.createFacade(input),
     map: mapFactory,
     baseMaps: (input) => baseMapCatalog.createFacade(input),
+    domains: (input) => createSemanticCapabilityFactories(semanticFoundation).domains(input),
+    entries: (input) => createSemanticCapabilityFactories(semanticFoundation).entries(input),
   };
   const pluginRuntime = createPluginRuntime({ catalog: phase4cRuntimeCatalog(builtins), capabilityFactories, onDiagnostic });
   const configuredPlugins = Array.isArray(options.plugins) ? options.plugins : [];
@@ -137,6 +148,14 @@ export function createTiliaApp({ map, builtins = defaultBuiltins, ...options } =
     map,
     core,
     state: core.state,
+    get entries() {
+      if (!semanticApi) throw new Error("Semantic foundation is not ready");
+      return semanticApi.entries;
+    },
+    get domains() {
+      if (!semanticApi) throw new Error("Semantic foundation is not ready");
+      return semanticApi.domains;
+    },
     // Expose the underlying Leaflet map when callers need direct access.
     getMap() {
       return baseMap.map;
@@ -184,11 +203,11 @@ export function createTiliaApp({ map, builtins = defaultBuiltins, ...options } =
         error.code = "PLUGIN_DISABLED_BY_MIGRATION";
         return Promise.reject(error);
       }
-      return pluginRuntime.use(pluginOrId, pluginOptions);
+      return semanticFoundationReady.then(() => pluginRuntime.use(pluginOrId, pluginOptions));
     },
     unuse(pluginOrId) {
       const pluginId = typeof pluginOrId === "string" ? pluginOrId : pluginOrId?.id;
-      return pluginRuntime.unuse(pluginId);
+      return semanticFoundationReady.then(() => pluginRuntime.unuse(pluginId));
     },
     hasPlugin(pluginId) {
       return pluginRuntime.has(pluginId);
@@ -201,6 +220,7 @@ export function createTiliaApp({ map, builtins = defaultBuiltins, ...options } =
   // `plugins: [...]` is a bootstrap convenience only. The real installation path remains `app.use(...)`
   // so startup sugar does not fork the plugin lifecycle or create a second implementation path.
   const ready = (async () => {
+    await semanticFoundationReady;
     const definitions = Array.isArray(options.baseLayers) && options.baseLayers.length
       ? options.baseLayers
       : options.baseLayer ? [options.baseLayer] : defaultBaseLayerDefinitions;
@@ -228,7 +248,7 @@ export function createTiliaApp({ map, builtins = defaultBuiltins, ...options } =
         error.code = "PLUGIN_DISABLED_BY_MIGRATION";
         throw error;
       }
-      await app.use(configuredPlugin.plugin, configuredPlugin.options);
+      await pluginRuntime.use(configuredPlugin.plugin, configuredPlugin.options);
     }
     return app;
   })();

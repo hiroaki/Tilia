@@ -16,6 +16,7 @@ export const semanticErrorCodes = Object.freeze({
   entryDomainMismatch: "ENTRY_DOMAIN_MISMATCH",
   entryStaleRevision: "ENTRY_STALE_REVISION",
   entryRemoving: "ENTRY_REMOVING",
+  inputInvalid: "SEMANTIC_INPUT_INVALID",
   cleanupFailed: "SEMANTIC_CLEANUP_FAILED",
   capabilityStale: "SEMANTIC_CAPABILITY_STALE",
 });

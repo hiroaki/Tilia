@@ -20,4 +20,10 @@ describe("Phase 4B built-in catalog", () => {
     expect(byId.get("tilia-elevation").requires).toEqual(["tilia-panel"]);
     expect(byId.get("tilia-settings").requires).toEqual(["tilia-panel"]);
   });
+
+  it("publishes GPX and Photo domain metadata through literal lazy loaders", () => {
+    const byId = new Map(builtinPluginCatalog.map((entry) => [entry.id, entry]));
+    expect(byId.get("tilia-gpx-domain")).toMatchObject({ id: "tilia-gpx-domain", requires: [] });
+    expect(byId.get("tilia-photo-domain")).toMatchObject({ id: "tilia-photo-domain", requires: [] });
+  });
 });

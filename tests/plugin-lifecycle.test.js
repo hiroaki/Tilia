@@ -13,7 +13,7 @@ describe("createTiliaApp Phase 4B plugin boundary", () => {
 
   it("delegates external definitions to PluginRuntime with guarded context", async () => {
     const setup = vi.fn((context, options) => {
-      expect(Object.keys(context).sort()).toEqual(["baseMaps", "inputs", "map", "plugin", "scope", "services", "styles", "ui"]);
+      expect(Object.keys(context).sort()).toEqual(["baseMaps", "domains", "entries", "inputs", "map", "plugin", "scope", "services", "styles", "ui"]);
       expect(context).not.toHaveProperty("app");
       expect(context).not.toHaveProperty("core");
       expect(context).not.toHaveProperty("state");
@@ -99,8 +99,13 @@ describe("createTiliaApp Phase 4B plugin boundary", () => {
 
   it("keeps legacy host state outside PluginContext until its later cutover", async () => {
     const app = createTiliaApp({ map: {}, builtins: [] });
+    await app.ready;
     expect(app).toHaveProperty("core");
     expect(app).toHaveProperty("state");
+    expect(Object.isFrozen(app.entries)).toBe(true);
+    expect(Object.isFrozen(app.domains)).toBe(true);
+    expect(Object.isFrozen(app.domains.gpx)).toBe(true);
+    expect(Object.isFrozen(app.domains.photo)).toBe(true);
     await app.use({ id: "vendor-isolated", setup(context) {
       expect(context).not.toHaveProperty("core");
       expect(context).not.toHaveProperty("state");
