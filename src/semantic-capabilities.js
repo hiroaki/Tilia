@@ -6,11 +6,15 @@ export function createSemanticCapabilityFactories(foundation) {
       return createDomainFacade({
         scope: input.scope,
         entries: foundation.entries,
+        selection: foundation.selection,
         registryFacade: foundation.domains.createFacade(input),
       });
     },
     entries(input) {
       return createEntryFacade({ scope: input.scope, entries: foundation.entries });
+    },
+    selection(input) {
+      return foundation.selection.createFacade(input.scope);
     },
   });
 }
@@ -18,9 +22,10 @@ export function createSemanticCapabilityFactories(foundation) {
 export function createApplicationSemanticApi(foundation) {
   return Object.freeze({
     entries: createEntryFacade({ scope: foundation.scope, entries: foundation.entries }),
+    selection: foundation.selection.createFacade(foundation.scope),
     domains: Object.freeze({
-      gpx: createGpxFacade({ scope: foundation.scope, entries: foundation.entries }),
-      photo: createPhotoFacade({ scope: foundation.scope, entries: foundation.entries }),
+      gpx: createGpxFacade({ scope: foundation.scope, entries: foundation.entries, selection: foundation.selection }),
+      photo: createPhotoFacade({ scope: foundation.scope, entries: foundation.entries, selection: foundation.selection }),
     }),
   });
 }

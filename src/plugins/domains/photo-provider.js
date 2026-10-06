@@ -1,4 +1,5 @@
 import { cloneAndFreezePlainData, semanticError, semanticErrorCodes } from "../../domains/index.js";
+import { createPhotoSelectionAdapter } from "./photo-selection.js";
 
 const timeModes = new Set(["auto", "local", "utc"]);
 
@@ -80,6 +81,7 @@ export function createPhotoProvider({
   }
 
   return Object.freeze({
+    selection: createPhotoSelectionAdapter(),
     async prepareCreate({ value, entryScope }) {
       const prepared = prepare(value);
       if (prepared.dispose) entryScope.defer(prepared.dispose, { label: "photo-preview", retry: "safe" });

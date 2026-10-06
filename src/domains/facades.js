@@ -21,22 +21,24 @@ function domainFacade(scope, entries, key, commands) {
   });
 }
 
-export function createGpxFacade({ scope, entries }) {
-  return domainFacade(scope, entries, gpxDomainKey, {
+export function createGpxFacade({ scope, entries, selection }) {
+  const facade = domainFacade(scope, entries, gpxDomainKey, {
     replaceData: (data) => Object.freeze({ type: "replace-data", data }),
     setCategoryVisibility: ({ category, visible }) => Object.freeze({ type: "set-category-visibility", category, visible }),
     setTrackVisibility: ({ trackIndex, visible }) => Object.freeze({ type: "set-track-visibility", trackIndex, visible }),
     setStylePreset: (stylePresetId) => Object.freeze({ type: "set-style-preset", stylePresetId }),
     recomputeDerived: () => Object.freeze({ type: "recompute-derived" }),
   });
+  return selection ? Object.freeze({ ...facade, selection: selection.createDomainFacade(scope, gpxDomainKey) }) : facade;
 }
 
-export function createPhotoFacade({ scope, entries }) {
-  return domainFacade(scope, entries, photoDomainKey, {
+export function createPhotoFacade({ scope, entries, selection }) {
+  const facade = domainFacade(scope, entries, photoDomainKey, {
     replaceData: (data) => Object.freeze({ type: "replace-data", data }),
     setRequestedTimeMode: (requestedTimeMode) => Object.freeze({ type: "set-requested-time-mode", requestedTimeMode }),
     recomputeDerived: () => Object.freeze({ type: "recompute-derived" }),
   });
+  return selection ? Object.freeze({ ...facade, selection: selection.createDomainFacade(scope, photoDomainKey, { defaultTarget: Object.freeze({ kind: "photo" }) }) }) : facade;
 }
 
 export function createEntryFacade({ scope, entries }) {
@@ -49,9 +51,9 @@ export function createEntryFacade({ scope, entries }) {
   });
 }
 
-export function createDomainFacade({ scope, entries, registryFacade }) {
-  const gpx = createGpxFacade({ scope, entries });
-  const photo = createPhotoFacade({ scope, entries });
+export function createDomainFacade({ scope, entries, selection, registryFacade }) {
+  const gpx = createGpxFacade({ scope, entries, selection });
+  const photo = createPhotoFacade({ scope, entries, selection });
   const facadeFor = (key) => {
     assertDomainKey(key);
     if (key === gpxDomainKey) return gpx;

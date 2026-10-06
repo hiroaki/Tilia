@@ -11,6 +11,10 @@ function validateProvider(provider, domainId) {
       || typeof provider.getSnapshot !== "function") {
     throw semanticError(semanticErrorCodes.providerInvalid, `Invalid provider for domain "${domainId}"`, { domainId });
   }
+  if (provider.selection !== undefined && (!provider.selection ||
+      ["canonicalize", "equals", "resolve", "reconcile"].some((method) => typeof provider.selection[method] !== "function"))) {
+    throw semanticError(semanticErrorCodes.providerInvalid, `Invalid selection adapter for domain "${domainId}"`, { domainId });
+  }
 }
 
 export function createDomainRegistry({ onError = () => {} } = {}) {

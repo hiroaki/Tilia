@@ -19,6 +19,11 @@ export const semanticErrorCodes = Object.freeze({
   inputInvalid: "SEMANTIC_INPUT_INVALID",
   cleanupFailed: "SEMANTIC_CLEANUP_FAILED",
   capabilityStale: "SEMANTIC_CAPABILITY_STALE",
+  selectionCandidateInvalid: "SELECTION_CANDIDATE_INVALID",
+  selectionReferenceInvalid: "SELECTION_REFERENCE_INVALID",
+  selectionUnsupported: "SELECTION_UNSUPPORTED",
+  selectionProviderInvariant: "SELECTION_PROVIDER_INVARIANT",
+  selectionStoreDestroyed: "SELECTION_STORE_DESTROYED",
 });
 
 export class SemanticError extends Error {

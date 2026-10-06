@@ -134,6 +134,7 @@ export function createTiliaApp({ map, builtins = defaultBuiltins, ...options } =
     baseMaps: (input) => baseMapCatalog.createFacade(input),
     domains: (input) => createSemanticCapabilityFactories(semanticFoundation).domains(input),
     entries: (input) => createSemanticCapabilityFactories(semanticFoundation).entries(input),
+    selection: (input) => createSemanticCapabilityFactories(semanticFoundation).selection(input),
   };
   const pluginRuntime = createPluginRuntime({ catalog: phase4dRuntimeCatalog(builtins), capabilityFactories, onDiagnostic });
   const configuredPlugins = Array.isArray(options.plugins) ? options.plugins : [];
@@ -149,6 +150,10 @@ export function createTiliaApp({ map, builtins = defaultBuiltins, ...options } =
     get domains() {
       if (!semanticApi) throw new Error("Semantic foundation is not ready");
       return semanticApi.domains;
+    },
+    get selection() {
+      if (!semanticApi) throw new Error("Semantic foundation is not ready");
+      return semanticApi.selection;
     },
     // Expose the underlying Leaflet map when callers need direct access.
     getMap() {

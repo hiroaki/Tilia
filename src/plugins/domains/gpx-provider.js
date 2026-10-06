@@ -1,4 +1,5 @@
 import { cloneAndFreezePlainData, semanticError, semanticErrorCodes } from "../../domains/index.js";
+import { createGpxSelectionAdapter } from "./gpx-selection.js";
 
 const categories = new Set(["tracks", "routes", "waypoints"]);
 
@@ -93,6 +94,7 @@ function same(left, right) {
 
 export function createGpxProvider() {
   return Object.freeze({
+    selection: createGpxSelectionAdapter(),
     async prepareCreate({ value }) {
       const data = normalizeData(value?.data ?? value);
       const nextSnapshot = snapshot(data, normalizePreferences(value?.preferences, data.tracks.length));

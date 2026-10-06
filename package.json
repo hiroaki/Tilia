@@ -8,7 +8,8 @@
     "test:smoke": "playwright test",
     "test:smoke:phase4b": "playwright test tests/smoke/phase-4b.spec.js",
     "test:smoke:phase4c": "playwright test tests/smoke/phase-4c.spec.js",
-    "test:smoke:phase4d": "playwright test tests/smoke/phase-4d.spec.js"
+    "test:smoke:phase4d": "playwright test tests/smoke/phase-4d.spec.js",
+    "test:smoke:phase4e": "playwright test tests/smoke/phase-4e.spec.js"
   },
   "devDependencies": {
     "@playwright/test": "^1.54.1",

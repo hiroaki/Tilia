@@ -43,7 +43,7 @@ function validatePreparedMutation(value, domainId) {
   if (value.change !== undefined) assertDeepImmutablePlainData(value.change, "change");
 }
 
-export function createEntryStore({ applicationController, domainRegistry, onError = () => {} } = {}) {
+export function createEntryStore({ applicationController, domainRegistry, semanticLifecycle = null, onError = () => {} } = {}) {
   if (!applicationController?.scope || typeof applicationController.createChildController !== "function" || !domainRegistry) {
     throw new TypeError("EntryStore requires an application ScopeController and DomainRegistry");
   }
@@ -239,6 +239,17 @@ export function createEntryStore({ applicationController, domainRegistry, onErro
     return domainView(record);
   }
 
+  // Privileged semantic composition only; never exposed through EntryFacade.
+  function getSemanticTarget(id, domainKey) {
+    assertDomainKey(domainKey);
+    const record = requireRecord(id);
+    assertDomain(record, domainKey);
+    return Object.freeze({
+      id: record.id, domainKey: record.domainKey, revision: record.revision,
+      instance: record.instance, providerRegistration: record.providerRegistration,
+    });
+  }
+
   function update(requesterScope, id, domainKey, command, { expectedRevision } = {}) {
     requesterScope.assertAlive();
     assertMutationAllowed();
@@ -268,6 +279,10 @@ export function createEntryStore({ applicationController, domainRegistry, onErro
         });
         validatePreparedMutation(prepared, domainKey.id);
         requesterScope.assertAlive();
+        applicationScope.assertAlive();
+        if (!record.providerRegistration.owner.alive) {
+          throw semanticError(semanticErrorCodes.providerUnavailable, "Domain provider lost mutation authority", { entryId: id, domainId: domainKey.id });
+        }
         if (record.state !== "active" || entries.get(id) !== record) {
           throw semanticError(semanticErrorCodes.entryRemoving, `Entry "${id}" is being removed`, { entryId: id });
         }
@@ -289,20 +304,31 @@ export function createEntryStore({ applicationController, domainRegistry, onErro
         }
         const previousRevision = record.revision;
         const previousDispose = record.currentDispose;
-        record.instance = prepared.nextInstance;
-        record.domainSnapshot = prepared.nextSnapshot;
-        record.currentDispose = prepared.disposeNext ?? null;
-        if (revisioned) record.revision += 1;
-        committed = true;
-        if (revisioned) {
-          channel.deliver(Object.freeze({
-            type: "domain-changed",
-            entry: entryView(record),
-            previousRevision,
-            revision: record.revision,
-            change: prepared.change ?? Object.freeze({}),
-          }));
-        }
+        const commit = () => {
+          const effect = semanticLifecycle?.prepareDomainCommit({
+            record, prepared, command, nextRevision: previousRevision + (revisioned ? 1 : 0),
+          });
+          requesterScope.assertAlive();
+          applicationScope.assertAlive();
+          record.instance = prepared.nextInstance;
+          record.domainSnapshot = prepared.nextSnapshot;
+          record.currentDispose = prepared.disposeNext ?? null;
+          if (revisioned) record.revision += 1;
+          effect?.commit();
+          committed = true;
+          if (revisioned) {
+            channel.deliver(Object.freeze({
+              type: "domain-changed",
+              entry: entryView(record),
+              previousRevision,
+              revision: record.revision,
+              change: prepared.change ?? Object.freeze({}),
+            }));
+          }
+          effect?.notify();
+        };
+        if (semanticLifecycle) semanticLifecycle.runCommit(commit);
+        else commit();
         const cleanupErrors = [];
         try {
           await operationController.close();
@@ -369,6 +395,7 @@ export function createEntryStore({ applicationController, domainRegistry, onErro
   async function removeRecord(record, { notify = true } = {}) {
     record.state = "removing";
     entries.delete(record.id);
+    semanticLifecycle?.afterLogicalRemoval(record);
     const previous = entryView(record);
     let cleanupError = null;
     try { await record.scopeController.close(); } catch (error) { cleanupError = error; }
@@ -519,5 +546,5 @@ export function createEntryStore({ applicationController, domainRegistry, onErro
     });
   }
 
-  return Object.freeze({ create, get, list, getDomainView, update, setVisible, remove, retryCleanup, clear, subscribe, inspect });
+  return Object.freeze({ create, get, list, getDomainView, getSemanticTarget, update, setVisible, remove, retryCleanup, clear, subscribe, inspect });
 }
