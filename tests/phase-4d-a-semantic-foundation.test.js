@@ -758,4 +758,107 @@ describe("Phase 4D-A residual cleanup and per-entry races", () => {
     expect(oldCleanup).toHaveBeenCalledTimes(2);
     expect(value.entries.get(entry.id)).toBeNull();
   });
+
+  it("attempts a controlled child only once per explicit terminal cleanup retry", async () => {
+    const operationCleanup = vi.fn()
+      .mockRejectedValueOnce(new Error("update close failed"))
+      .mockRejectedValueOnce(new Error("deletion close failed"))
+      .mockRejectedValueOnce(new Error("first explicit retry failed"))
+      .mockResolvedValueOnce(undefined);
+    const currentCleanup = vi.fn();
+    const provider = fakeProvider();
+    provider.prepareMutation = vi.fn(async ({ operationScope }) => {
+      operationScope.defer(operationCleanup, { retry: "safe" });
+      return {
+        changed: true,
+        nextInstance: { value: 2 },
+        nextSnapshot: cloneAndFreezePlainData({ value: 2 }),
+        change: cloneAndFreezePlainData({ type: "updated" }),
+        disposeNext: currentCleanup,
+      };
+    });
+    const value = await fixture({ provider });
+    await value.activate();
+    const entry = await value.entries.create(value.requester.scope, value.key, { value: 1 });
+    const events = [];
+    value.entries.subscribe(value.requester.scope, (event) => {
+      if (!Array.isArray(event)) events.push(event);
+    }, { emitCurrent: false });
+
+    await expect(value.entries.update(value.requester.scope, entry.id, value.key, {}, { expectedRevision: 1 }))
+      .rejects.toMatchObject({ code: semanticErrorCodes.cleanupFailed, committed: true });
+    const committedView = value.entries.getDomainView(entry.id, value.key);
+    expect(committedView).toMatchObject({ revision: 2, snapshot: { value: 2 } });
+    await expect(value.entries.remove(value.requester.scope, entry.id))
+      .rejects.toMatchObject({ code: semanticErrorCodes.cleanupFailed, committed: true });
+    expect(operationCleanup).toHaveBeenCalledTimes(2);
+    expect(currentCleanup).toHaveBeenCalledOnce();
+    expect(value.entries.get(entry.id)).toBeNull();
+    expect(value.entries.list()).toEqual([]);
+
+    await expect(value.entries.retryCleanup(value.requester.scope, entry.id))
+      .rejects.toMatchObject({ code: semanticErrorCodes.cleanupFailed, committed: true });
+    expect(operationCleanup).toHaveBeenCalledTimes(3);
+    expect(value.entries.inspect().residuals).toMatchObject([{
+      id: entry.id,
+      phase: "deletion",
+      obligations: [{ phase: "update-operation-scope", committed: true }],
+    }]);
+    expect(value.registry.inspect()[0]).toMatchObject({ entryCount: 1, entryIds: [entry.id] });
+    await expect(value.registration.dispose()).rejects.toMatchObject({ code: semanticErrorCodes.providerInUse });
+
+    await expect(value.entries.retryCleanup(value.requester.scope, entry.id)).resolves.toMatchObject({ cleaned: true });
+    expect(operationCleanup).toHaveBeenCalledTimes(4);
+    expect(value.entries.inspect().residuals).toEqual([]);
+    expect(value.registry.inspect()[0].entryCount).toBe(0);
+    expect(value.entries.get(entry.id)).toBeNull();
+    expect(value.entries.list()).toEqual([]);
+    expect(committedView).toMatchObject({ revision: 2, snapshot: { value: 2 } });
+    expect(events.filter(({ type }) => type === "domain-changed")).toHaveLength(1);
+    await expect(value.entries.retryCleanup(value.requester.scope, entry.id)).resolves.toBeNull();
+    await expect(value.registration.dispose()).resolves.toBeUndefined();
+  });
+
+  it("retries controlled and non-controller terminal obligations once each per call", async () => {
+    const operationCleanup = vi.fn()
+      .mockRejectedValueOnce(new Error("update operation failed"))
+      .mockRejectedValueOnce(new Error("deletion operation failed"))
+      .mockRejectedValueOnce(new Error("explicit operation failed"))
+      .mockResolvedValueOnce(undefined);
+    const previousCleanup = vi.fn()
+      .mockRejectedValueOnce(new Error("previous failed"))
+      .mockResolvedValueOnce(undefined);
+    const provider = fakeProvider();
+    provider.prepareMutation = vi.fn(async ({ operationScope }) => {
+      operationScope.defer(operationCleanup, { retry: "safe" });
+      return {
+        changed: true,
+        nextInstance: { value: 2 },
+        nextSnapshot: cloneAndFreezePlainData({ value: 2 }),
+        change: cloneAndFreezePlainData({ type: "updated" }),
+        disposePrevious: previousCleanup,
+      };
+    });
+    const value = await fixture({ provider });
+    await value.activate();
+    const entry = await value.entries.create(value.requester.scope, value.key, { value: 1 });
+
+    await expect(value.entries.update(value.requester.scope, entry.id, value.key, {}, { expectedRevision: 1 })).rejects.toThrow();
+    await expect(value.entries.remove(value.requester.scope, entry.id)).rejects.toThrow();
+    expect(operationCleanup).toHaveBeenCalledTimes(2);
+    expect(previousCleanup).toHaveBeenCalledOnce();
+
+    await expect(value.entries.retryCleanup(value.requester.scope, entry.id)).rejects.toThrow();
+    expect(operationCleanup).toHaveBeenCalledTimes(3);
+    expect(previousCleanup).toHaveBeenCalledTimes(2);
+    expect(value.entries.inspect().residuals[0].obligations).toMatchObject([
+      { phase: "update-operation-scope" },
+    ]);
+
+    await expect(value.entries.retryCleanup(value.requester.scope, entry.id)).resolves.toMatchObject({ cleaned: true });
+    expect(operationCleanup).toHaveBeenCalledTimes(4);
+    expect(previousCleanup).toHaveBeenCalledTimes(2);
+    expect(value.entries.inspect().residuals).toEqual([]);
+    await expect(value.registration.dispose()).resolves.toBeUndefined();
+  });
 });

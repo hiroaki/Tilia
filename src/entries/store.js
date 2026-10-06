@@ -135,8 +135,12 @@ export function createEntryStore({ applicationController, domainRegistry, onErro
 
   function pruneCompletedControlledObligations(record) {
     record.cleanupObligations = record.cleanupObligations.filter((obligation) => (
-      !obligation.controller || obligation.controller.snapshot().state !== "disposed"
+      !obligation.controller || obligation.controller.snapshot().state !== "closed"
     ));
+    for (const obligation of record.cleanupObligations) {
+      const residual = obligation.controller?.snapshot().residuals[0];
+      if (residual?.cause) obligation.cleanupError = residual.cause;
+    }
   }
 
   function finishResidualState(record) {
@@ -396,24 +400,26 @@ export function createEntryStore({ applicationController, domainRegistry, onErro
       if (!record) return null;
       const phases = [];
       const failures = [];
+      const retriedTerminalController = Boolean(record.terminalResidual);
       if (record.terminalResidual) {
         phases.push(record.terminalResidual.phase);
         try {
           await record.scopeController.retryCleanup();
           record.terminalResidual = null;
-          pruneCompletedControlledObligations(record);
         } catch (cleanupError) {
           record.terminalResidual.cleanupError = cleanupError;
           failures.push(cleanupError);
         }
+        pruneCompletedControlledObligations(record);
       }
       for (const obligation of [...record.cleanupObligations]) {
         if (!record.cleanupObligations.includes(obligation)) continue;
         phases.push(obligation.phase);
-        if (obligation.controller?.snapshot().state === "disposed") {
+        if (obligation.controller?.snapshot().state === "closed") {
           record.cleanupObligations.splice(record.cleanupObligations.indexOf(obligation), 1);
           continue;
         }
+        if (retriedTerminalController && obligation.controller) continue;
         try {
           await obligation.cleanup();
           record.cleanupObligations.splice(record.cleanupObligations.indexOf(obligation), 1);
