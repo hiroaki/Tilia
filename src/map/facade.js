@@ -34,9 +34,16 @@ export function createMapFacadeFactory({ map }) {
     return Object.freeze({
       listen(type, listener) {
         assert();
-        const guarded = scope.guard((event) => listener(frozenMapEvent(event, type)));
-        map.on(type, guarded);
-        return owned(scope, `map-listener:${type}`, () => map.off(type, guarded));
+        if (typeof type !== "string" || !type.trim()) {
+          throw new TypeError("Map event type must be a non-empty string");
+        }
+        if (typeof listener !== "function") {
+          throw new TypeError("Map event listener must be a function");
+        }
+        const eventType = type.trim();
+        const guarded = scope.guard((event) => listener(frozenMapEvent(event, eventType)));
+        map.on(eventType, guarded);
+        return owned(scope, `map-listener:${eventType}`, () => map.off(eventType, guarded));
       },
       attachLayer(layer) {
         assert();

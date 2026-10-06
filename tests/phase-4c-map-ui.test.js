@@ -14,6 +14,24 @@ function element(ownerDocument) {
 }
 
 describe("Phase 4C map and UI ownership", () => {
+  it("rejects invalid map listener registrations before calling Leaflet", () => {
+    const map = { on: vi.fn(), off: vi.fn() };
+    const controller = createScopeController();
+    const facade = createMapFacadeFactory({ map })({ pluginId: "x-test", scope: controller.scope });
+    const invalid = [
+      ["", () => {}],
+      ["   ", () => {}],
+      [42, () => {}],
+      ["click"],
+      ["click", null],
+      ["click", "listener"],
+    ];
+    for (const args of invalid) {
+      expect(() => facade.listen(...args)).toThrow(TypeError);
+      expect(map.on).not.toHaveBeenCalled();
+    }
+  });
+
   it("owns map listeners, layers, and controls", async () => {
     const handlers = new Map();
     const map = {
@@ -26,7 +44,7 @@ describe("Phase 4C map and UI ownership", () => {
     const controller = createScopeController();
     const facade = createMapFacadeFactory({ map })({ pluginId: "x-test", scope: controller.scope });
     const listener = vi.fn();
-    facade.listen("click", listener);
+    const listenerHandle = facade.listen(" click ", listener);
     const layer = { addTo: vi.fn(), remove: vi.fn() };
     const control = { addTo: vi.fn(), remove: vi.fn() };
     facade.attachLayer(layer);
@@ -40,11 +58,19 @@ describe("Phase 4C map and UI ownership", () => {
     expect(Object.isFrozen(event)).toBe(true);
     expect(Object.isFrozen(event.latlng)).toBe(true);
     expect(Object.isFrozen(event.layerPoint)).toBe(true);
+    expect(map.on).toHaveBeenCalledWith("click", expect.any(Function));
     expect(facade.fitBounds([])).toBeUndefined();
     expect(facade.panTo({ lat: 0, lng: 0 })).toBeUndefined();
     expect(facade.setView({ lat: 0, lng: 0 }, 5)).toBeUndefined();
+    listenerHandle.dispose();
+    listenerHandle.dispose();
+    expect(map.off).toHaveBeenCalledTimes(1);
+    expect(map.off).toHaveBeenCalledWith("click", expect.any(Function));
+    const secondListener = facade.listen("move", () => {});
+    expect(secondListener).toBeTruthy();
     await controller.close();
-    expect(map.off).toHaveBeenCalled();
+    expect(map.off).toHaveBeenCalledTimes(2);
+    expect(map.off).toHaveBeenLastCalledWith("move", expect.any(Function));
     expect(layer.remove).toHaveBeenCalledOnce();
     expect(control.remove).toHaveBeenCalledOnce();
     expect(() => facade.panTo({ lat: 0, lng: 0 })).toThrowError(expect.objectContaining({ code: "SCOPE_NOT_ACTIVE" }));
