@@ -6,7 +6,7 @@ export async function createSemanticFoundation({ onError = () => {} } = {}) {
   const controller = createScopeController({ label: "application-semantic-root" });
   await controller.commit();
   const domains = createDomainRegistry({ onError });
-  const entries = createEntryStore({ applicationScope: controller.scope, domainRegistry: domains, onError });
+  const entries = createEntryStore({ applicationController: controller, domainRegistry: domains, onError });
   return Object.freeze({
     domains,
     entries,

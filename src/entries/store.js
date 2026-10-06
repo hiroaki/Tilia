@@ -1,17 +1,21 @@
 import { createSubscriptionChannel } from "../extensions/subscriptions.js";
 import { assertDomainKey } from "../domains/identity.js";
 import { assertDeepImmutablePlainData } from "../domains/immutable.js";
-import { SemanticError, semanticError, semanticErrorCodes } from "../domains/errors.js";
+import { semanticError, semanticErrorCodes } from "../domains/errors.js";
 
 function entryView(record) {
   return Object.freeze({ id: record.id, domain: record.domainKey, visible: record.visible });
 }
 
 function domainView(record) {
+  return Object.freeze({ entry: entryView(record), revision: record.revision, snapshot: record.domainSnapshot });
+}
+
+function errorSummary(error) {
   return Object.freeze({
-    entry: entryView(record),
-    revision: record.revision,
-    snapshot: record.domainSnapshot,
+    name: typeof error?.name === "string" ? error.name : "Error",
+    message: typeof error?.message === "string" ? error.message : String(error),
+    ...(typeof error?.code === "string" ? { code: error.code } : {}),
   });
 }
 
@@ -38,18 +42,28 @@ function validatePreparedMutation(value, domainId) {
   if (value.change !== undefined) assertDeepImmutablePlainData(value.change, "change");
 }
 
-export function createEntryStore({ applicationScope, domainRegistry, onError = () => {} } = {}) {
-  if (!applicationScope || !domainRegistry) throw new TypeError("EntryStore requires an application Scope and DomainRegistry");
+export function createEntryStore({ applicationController, domainRegistry, onError = () => {} } = {}) {
+  if (!applicationController?.scope || typeof applicationController.createChildController !== "function" || !domainRegistry) {
+    throw new TypeError("EntryStore requires an application ScopeController and DomainRegistry");
+  }
+  const applicationScope = applicationController.scope;
   const entries = new Map();
   const residuals = new Map();
+  const queues = new Map();
   let nextEntryId = 1;
   let insertionSequence = 0;
-  let mutationQueue = Promise.resolve();
+  let clearing = false;
   const channel = createSubscriptionChannel({ getSnapshot: list, onError });
 
-  function enqueue(operation) {
-    const result = mutationQueue.then(operation, operation);
-    mutationQueue = result.catch(() => {});
+  function enqueueFor(entryId, operation) {
+    const previous = queues.get(entryId) ?? Promise.resolve();
+    const result = previous.then(operation, operation);
+    const tail = result.catch(() => {});
+    queues.set(entryId, tail);
+    tail.then(
+      () => { if (queues.get(entryId) === tail) queues.delete(entryId); },
+      () => { if (queues.get(entryId) === tail) queues.delete(entryId); },
+    );
     return result;
   }
 
@@ -83,13 +97,34 @@ export function createEntryStore({ applicationScope, domainRegistry, onError = (
     }
   }
 
-  async function cleanupCandidate(prepared) {
-    if (typeof prepared?.disposeNext === "function") await prepared.disposeNext();
+  function assertMutationAllowed() {
+    applicationScope.assertAlive();
+    if (clearing) throw semanticError(semanticErrorCodes.entryRemoving, "EntryStore is clearing entries");
+  }
+
+  function residualDiagnostic(record) {
+    return Object.freeze({
+      id: record.id,
+      domainId: record.domainKey.id,
+      phase: record.residualPhase,
+      state: "cleanup-failed",
+      providerRegistrationId: record.providerRegistration.id,
+      originalError: record.originalError ? errorSummary(record.originalError) : null,
+      cleanupError: record.cleanupError ? errorSummary(record.cleanupError) : null,
+    });
+  }
+
+  function retainResidual(record, phase, originalError, cleanupError) {
+    record.state = "cleanup-failed";
+    record.residualPhase = phase;
+    record.originalError = originalError;
+    record.cleanupError = cleanupError;
+    residuals.set(record.id, record);
   }
 
   async function create(requesterScope, domainKey, value, { visible = true } = {}) {
     requesterScope.assertAlive();
-    applicationScope.assertAlive();
+    assertMutationAllowed();
     assertDomainKey(domainKey);
     if (typeof visible !== "boolean") {
       throw semanticError(semanticErrorCodes.entryInvalid, "Entry visibility must be a boolean", { domainId: domainKey.id });
@@ -97,65 +132,68 @@ export function createEntryStore({ applicationScope, domainRegistry, onError = (
     const id = nextEntryId++;
     const providerResolution = domainRegistry.resolve(domainKey);
     const lease = providerResolution.acquire(id);
-    const entryScope = applicationScope.child({ label: `entry:${id}` });
-    let prepared;
+    const entryController = applicationController.createChildController({ label: `entry:${id}` });
+    const entryScope = entryController.scope;
+    const record = {
+      id,
+      domainKey,
+      visible,
+      revision: 0,
+      state: "preparing",
+      insertionSequence: 0,
+      scope: entryScope,
+      scopeController: entryController,
+      providerRegistration: providerResolution.registration,
+      providerLease: lease,
+      instance: null,
+      domainSnapshot: null,
+      currentDispose: null,
+      residualPhase: null,
+      originalError: null,
+      cleanupError: null,
+    };
     try {
-      prepared = await providerResolution.registration.provider.prepareCreate({
+      const prepared = await providerResolution.registration.provider.prepareCreate({
         entryId: id,
         value,
         entryScope,
         signal: entryScope.signal,
       });
+      record.currentDispose = typeof prepared?.dispose === "function" ? prepared.dispose : null;
+      entryScope.defer(() => record.currentDispose?.(), { label: `entry:${id}:provider-instance`, retry: "safe" });
       validatePreparedCreate(prepared, domainKey.id);
       requesterScope.assertAlive();
-      applicationScope.assertAlive();
+      assertMutationAllowed();
       if (!providerResolution.registration.owner.alive) {
         throw semanticError(semanticErrorCodes.providerUnavailable, `Provider for domain "${domainKey.id}" is unavailable`, { domainId: domainKey.id });
       }
-      return await enqueue(async () => {
-        requesterScope.assertAlive();
-        applicationScope.assertAlive();
-        if (!providerResolution.registration.owner.alive) {
-          throw semanticError(semanticErrorCodes.providerUnavailable, `Provider for domain "${domainKey.id}" is unavailable`, { domainId: domainKey.id });
-        }
-        const record = {
-          id,
-          domainKey,
-          visible,
-          revision: 1,
-          state: "active",
-          insertionSequence: ++insertionSequence,
-          scope: entryScope,
-          providerRegistration: providerResolution.registration,
-          providerLease: lease,
-          instance: prepared.instance,
-          domainSnapshot: prepared.snapshot,
-          currentDispose: prepared.dispose ?? null,
-        };
-        entryScope.defer(() => record.currentDispose?.(), { label: `entry:${id}:provider-instance`, retry: "safe" });
-        lease.promote();
-        entries.set(id, record);
-        const view = entryView(record);
-        channel.deliver(Object.freeze({ type: "created", current: view }));
-        return view;
-      });
-    } catch (cause) {
-      let cleanupFailure = null;
-      if (typeof prepared?.dispose === "function") {
-        try { await prepared.dispose(); } catch (error) { cleanupFailure = error; }
-      }
-      try { await entryScope.dispose(); } catch (error) { cleanupFailure = error; }
-      lease.release();
-      if (cleanupFailure) {
-        throw semanticError(semanticErrorCodes.cleanupFailed, `Entry "${id}" creation failed and cleanup was incomplete`, {
-          cause: cleanupFailure,
+      record.instance = prepared.instance;
+      record.domainSnapshot = prepared.snapshot;
+      record.revision = 1;
+      record.state = "active";
+      record.insertionSequence = ++insertionSequence;
+      lease.promote();
+      entries.set(id, record);
+      const view = entryView(record);
+      channel.deliver(Object.freeze({ type: "created", current: view }));
+      return view;
+    } catch (originalError) {
+      let cleanupError = null;
+      try { await entryController.close(); } catch (error) { cleanupError = error; }
+      if (cleanupError) {
+        retainResidual(record, "creation", originalError, cleanupError);
+        const error = semanticError(semanticErrorCodes.cleanupFailed, `Entry "${id}" creation failed and cleanup was incomplete`, {
+          cause: cleanupError,
+          committed: false,
           entryId: id,
           domainId: domainKey.id,
-          committed: false,
-          originalError: cause?.message,
+          originalError: errorSummary(originalError),
         });
+        onError(error);
+        throw error;
       }
-      throw cause;
+      lease.release();
+      throw originalError;
     }
   }
 
@@ -168,17 +206,16 @@ export function createEntryStore({ applicationScope, domainRegistry, onError = (
 
   function update(requesterScope, id, domainKey, command, { expectedRevision } = {}) {
     requesterScope.assertAlive();
+    assertMutationAllowed();
     assertDomainKey(domainKey);
-    return enqueue(async () => {
+    return enqueueFor(id, async () => {
       requesterScope.assertAlive();
       applicationScope.assertAlive();
       const record = requireRecord(id);
       assertDomain(record, domainKey);
       if (!Number.isInteger(expectedRevision) || expectedRevision !== record.revision) {
         throw semanticError(semanticErrorCodes.entryStaleRevision, `Entry "${id}" revision is stale`, {
-          entryId: id,
-          expectedRevision,
-          actualRevision: record.revision,
+          entryId: id, expectedRevision, actualRevision: record.revision,
         });
       }
       const operationScope = record.scope.child({ label: `entry:${id}:update:${record.revision}` });
@@ -199,9 +236,7 @@ export function createEntryStore({ applicationScope, domainRegistry, onError = (
         }
         if (record.revision !== expectedRevision) {
           throw semanticError(semanticErrorCodes.entryStaleRevision, `Entry "${id}" revision is stale`, {
-            entryId: id,
-            expectedRevision,
-            actualRevision: record.revision,
+            entryId: id, expectedRevision, actualRevision: record.revision,
           });
         }
         if (!prepared.changed) {
@@ -214,33 +249,26 @@ export function createEntryStore({ applicationScope, domainRegistry, onError = (
         record.domainSnapshot = prepared.nextSnapshot;
         record.currentDispose = prepared.disposeNext ?? null;
         record.revision += 1;
-        const event = Object.freeze({
+        channel.deliver(Object.freeze({
           type: "domain-changed",
           entry: entryView(record),
           previousRevision,
           revision: record.revision,
           change: prepared.change ?? Object.freeze({}),
-        });
-        channel.deliver(event);
+        }));
         try {
           await operationScope.dispose();
+          const disposePrevious = prepared.disposePrevious ?? previousDispose;
+          if (disposePrevious) await disposePrevious();
         } catch (cause) {
-          throw semanticError(semanticErrorCodes.cleanupFailed, `Entry "${id}" update committed but operation cleanup failed`, {
+          throw semanticError(semanticErrorCodes.cleanupFailed, `Entry "${id}" update committed but cleanup failed`, {
             cause, committed: true, entryId: id, domainId: domainKey.id,
           });
         }
-        const disposePrevious = prepared.disposePrevious ?? previousDispose;
-        if (disposePrevious) {
-          try { await disposePrevious(); } catch (cause) {
-            throw semanticError(semanticErrorCodes.cleanupFailed, `Entry "${id}" update committed but previous state cleanup failed`, {
-              cause, committed: true, entryId: id, domainId: domainKey.id,
-            });
-          }
-        }
         return domainView(record);
       } catch (cause) {
-        if (record.revision === expectedRevision) {
-          try { await cleanupCandidate(prepared); } catch (error) { onError(error); }
+        if (record.revision === expectedRevision && typeof prepared?.disposeNext === "function") {
+          try { await prepared.disposeNext(); } catch (error) { onError(error); }
         }
         try { await operationScope.dispose(); } catch (error) { onError(error); }
         throw cause;
@@ -250,11 +278,13 @@ export function createEntryStore({ applicationScope, domainRegistry, onError = (
 
   function setVisible(requesterScope, id, visible) {
     requesterScope.assertAlive();
+    assertMutationAllowed();
     if (typeof visible !== "boolean") {
       return Promise.reject(semanticError(semanticErrorCodes.entryInvalid, "Entry visibility must be a boolean", { entryId: id }));
     }
-    return enqueue(() => {
+    return enqueueFor(id, () => {
       requesterScope.assertAlive();
+      applicationScope.assertAlive();
       const record = requireRecord(id);
       if (record.visible === visible) return entryView(record);
       const previous = entryView(record);
@@ -265,32 +295,103 @@ export function createEntryStore({ applicationScope, domainRegistry, onError = (
     });
   }
 
+  async function removeRecord(record, { notify = true } = {}) {
+    record.state = "removing";
+    entries.delete(record.id);
+    const previous = entryView(record);
+    let cleanupError = null;
+    try { await record.scopeController.close(); } catch (error) { cleanupError = error; }
+    if (cleanupError) {
+      retainResidual(record, "deletion", null, cleanupError);
+      const error = semanticError(semanticErrorCodes.cleanupFailed, `Entry "${record.id}" was removed but cleanup failed`, {
+        cause: cleanupError,
+        committed: true,
+        entryId: record.id,
+        domainId: record.domainKey.id,
+      });
+      onError(error);
+      if (notify) channel.deliver(Object.freeze({ type: "removed", previous }));
+      throw error;
+    }
+    record.providerLease.release();
+    record.state = "removed";
+    if (notify) channel.deliver(Object.freeze({ type: "removed", previous }));
+    return previous;
+  }
+
   function remove(requesterScope, id) {
     requesterScope.assertAlive();
-    return enqueue(async () => {
+    assertMutationAllowed();
+    return enqueueFor(id, async () => {
       requesterScope.assertAlive();
+      applicationScope.assertAlive();
       const record = entries.get(id);
       if (!record || record.state !== "active") return null;
-      record.state = "removing";
-      entries.delete(id);
-      const previous = entryView(record);
+      return removeRecord(record);
+    });
+  }
+
+  function retryCleanup(requesterScope, id) {
+    requesterScope.assertAlive();
+    applicationScope.assertAlive();
+    return enqueueFor(id, async () => {
+      requesterScope.assertAlive();
+      const record = residuals.get(id);
+      if (!record) return null;
       try {
-        await record.scope.dispose();
-      } catch (cause) {
-        record.state = "cleanup-failed";
-        residuals.set(id, record);
-        const error = semanticError(semanticErrorCodes.cleanupFailed, `Entry "${id}" was removed but cleanup failed`, {
-          cause, committed: true, entryId: id, domainId: record.domainKey.id,
+        await record.scopeController.retryCleanup();
+      } catch (cleanupError) {
+        record.cleanupError = cleanupError;
+        const error = semanticError(semanticErrorCodes.cleanupFailed, `Entry "${id}" residual cleanup remains incomplete`, {
+          cause: cleanupError,
+          committed: record.residualPhase === "deletion",
+          entryId: id,
+          domainId: record.domainKey.id,
+          phase: record.residualPhase,
+          ...(record.originalError ? { originalError: errorSummary(record.originalError) } : {}),
         });
         onError(error);
-        channel.deliver(Object.freeze({ type: "removed", previous }));
         throw error;
       }
+      const result = Object.freeze({ id, phase: record.residualPhase, cleaned: true });
       record.providerLease.release();
+      residuals.delete(id);
       record.state = "removed";
-      channel.deliver(Object.freeze({ type: "removed", previous }));
-      return previous;
+      return result;
     });
+  }
+
+  async function clear(requesterScope) {
+    requesterScope.assertAlive();
+    assertMutationAllowed();
+    clearing = true;
+    const targets = [...entries.values()]
+      .filter((record) => record.state === "active")
+      .sort((left, right) => right.insertionSequence - left.insertionSequence);
+    const removed = Object.freeze(targets.map(entryView));
+    const failures = [];
+    try {
+      for (const record of targets) {
+        try {
+          await enqueueFor(record.id, async () => {
+            if (record.state !== "active" || entries.get(record.id) !== record) return null;
+            return removeRecord(record, { notify: false });
+          });
+        } catch (error) {
+          failures.push(error);
+        }
+      }
+      channel.deliver(Object.freeze({ type: "cleared", removed }));
+    } finally {
+      clearing = false;
+    }
+    if (failures.length > 0) {
+      throw semanticError(semanticErrorCodes.cleanupFailed, "EntryStore clear completed with cleanup failures", {
+        committed: true,
+        failures: Object.freeze(failures.map(errorSummary)),
+      });
+    }
+    return removed;
   }
 
   function subscribe(scope, listener, options) {
@@ -300,21 +401,22 @@ export function createEntryStore({ applicationScope, domainRegistry, onError = (
   function inspect() {
     return Object.freeze({
       nextEntryId,
-      entries: Object.freeze([...entries.values()].filter((record) => record.state === "active").map((record) => Object.freeze({
-        id: record.id,
-        domainId: record.domainKey.id,
-        visible: record.visible,
-        revision: record.revision,
-        providerRegistrationId: record.providerRegistration.id,
-      }))),
-      residuals: Object.freeze([...residuals.values()].map((record) => Object.freeze({
-        id: record.id,
-        domainId: record.domainKey.id,
-        state: record.state,
-        providerRegistrationId: record.providerRegistration.id,
-      }))),
+      queueEntryIds: Object.freeze([...queues.keys()].sort((a, b) => a - b)),
+      entries: Object.freeze([...entries.values()]
+        .filter((record) => record.state === "active")
+        .sort((left, right) => left.insertionSequence - right.insertionSequence)
+        .map((record) => Object.freeze({
+          id: record.id,
+          domainId: record.domainKey.id,
+          visible: record.visible,
+          revision: record.revision,
+          providerRegistrationId: record.providerRegistration.id,
+        }))),
+      residuals: Object.freeze([...residuals.values()]
+        .sort((left, right) => left.id - right.id)
+        .map(residualDiagnostic)),
     });
   }
 
-  return Object.freeze({ create, get, list, getDomainView, update, setVisible, remove, subscribe, inspect });
+  return Object.freeze({ create, get, list, getDomainView, update, setVisible, remove, retryCleanup, clear, subscribe, inspect });
 }

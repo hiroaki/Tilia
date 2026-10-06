@@ -599,20 +599,28 @@ function snapshotNode(node) {
   });
 }
 
-export function createScopeController(options = {}) {
-  if (options === null || typeof options !== "object" || Array.isArray(options)) {
-    throw new OwnershipError("Scope options must be an object", {
-      code: ownershipErrorCodes.scopeCommitInvalid,
-    });
-  }
-  if (options.label !== undefined && typeof options.label !== "string") {
-    throw new OwnershipError("Scope label must be a string", {
-      code: ownershipErrorCodes.scopeCommitInvalid,
-    });
-  }
-  const node = createNode({ label: options.label ?? "scope" });
+function controllerFor(node) {
   return Object.freeze({
     scope: node.scope,
+    createChildController(options = {}) {
+      assertOwnershipMutationAllowed(node, "create a controlled child scope");
+      if (options === null || typeof options !== "object" || Array.isArray(options)
+          || (options.label !== undefined && typeof options.label !== "string")) {
+        throw new OwnershipError("Child scope options must be an object with an optional string label", {
+          code: ownershipErrorCodes.scopeCommitInvalid,
+          ...scopeDetails(node),
+        });
+      }
+      const childSequence = nextSequence(node);
+      const child = createNode({
+        label: options.label ?? `child-${childSequence}`,
+        parent: node,
+        root: node.root,
+        sequence: childSequence,
+      });
+      node.children.push(child);
+      return controllerFor(child);
+    },
     setSetupCleanup(disposer, cleanupOptions = {}) {
       assertOwnershipMutationAllowed(node, "register setup cleanup");
       if (node.setupCleanup) {
@@ -660,4 +668,18 @@ export function createScopeController(options = {}) {
       return snapshotNode(node);
     },
   });
+}
+
+export function createScopeController(options = {}) {
+  if (options === null || typeof options !== "object" || Array.isArray(options)) {
+    throw new OwnershipError("Scope options must be an object", {
+      code: ownershipErrorCodes.scopeCommitInvalid,
+    });
+  }
+  if (options.label !== undefined && typeof options.label !== "string") {
+    throw new OwnershipError("Scope label must be a string", {
+      code: ownershipErrorCodes.scopeCommitInvalid,
+    });
+  }
+  return controllerFor(createNode({ label: options.label ?? "scope" }));
 }
