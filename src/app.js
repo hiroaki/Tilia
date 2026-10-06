@@ -92,7 +92,10 @@ export function createTiliaApp({ map, builtins = defaultBuiltins, ...options } =
   const onDiagnostic = (error) => diagnostics.push(error);
   const serviceRegistry = createServiceRegistry({ onError: onDiagnostic });
   const inputRegistry = createInputRegistry({ onError: onDiagnostic });
-  const stylesheetManager = createStylesheetManager({ document: map.getContainer?.()?.ownerDocument ?? globalThis.document });
+  const stylesheetManager = createStylesheetManager({
+    document: map.getContainer?.()?.ownerDocument ?? globalThis.document,
+    onError: onDiagnostic,
+  });
   const uiMountManager = createUiMountManager({ map });
   const baseMapCatalog = createBaseMapCatalog({ map, onError: onDiagnostic });
   const mapFactory = createMapFacadeFactory({ map });

@@ -47,19 +47,24 @@ export function createUiMountManager({ map }) {
         const record = { key, surface, rank, wrapper, mountScope };
         mounts.set(key, record);
         reorder(surface);
-        let active = true;
-        const unmount = async () => {
-          if (!active) return;
-          active = false;
+        let cleanupPromise = null;
+        const unmount = () => {
+          if (cleanupPromise) return cleanupPromise;
           mounts.delete(key);
-          await mountScope.dispose();
-          wrapper.remove();
+          // dispose() revokes the complete child tree synchronously before its
+          // asynchronous cleanup begins. The wrapper is removed after that
+          // cleanup settles, including when cleanup reports a failure.
+          cleanupPromise = mountScope.dispose().finally(() => wrapper.remove());
+          // The parent disposer awaits this same promise. This observer only
+          // prevents an early mount failure from becoming unhandled meanwhile.
+          cleanupPromise.catch(() => {});
+          return cleanupPromise;
         };
         scope.defer(unmount, { label: `ui-mount:${id}`, retry: "safe" });
         try {
           mount({ container: wrapper, scope: mountScope });
         } catch (error) {
-          void unmount();
+          unmount();
           throw error;
         }
         return Object.freeze({ element: wrapper, unmount });

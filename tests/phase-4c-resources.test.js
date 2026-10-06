@@ -63,6 +63,42 @@ describe("Phase 4C resources and base maps", () => {
     await expect(retried.ready).resolves.toBeUndefined();
   });
 
+  it("shares one diagnosed stylesheet load failure across every lease", async () => {
+    const document = fakeDocument();
+    const diagnostics = [];
+    const manager = createStylesheetManager({ document, onError: (error) => diagnostics.push(error) });
+    const left = createScopeController(); const right = createScopeController();
+    const a = manager.acquire(left.scope, { id: "broken", href: "/broken.css" });
+    const b = manager.acquire(right.scope, { id: "broken", href: "/broken.css" });
+    document.head.children[0].dispatch("error");
+    document.head.children[0]?.dispatch?.("error");
+    const [leftResult, rightResult] = await Promise.allSettled([a.ready, b.ready]);
+    expect(leftResult.status).toBe("rejected");
+    expect(rightResult.status).toBe("rejected");
+    expect(leftResult.reason).toBe(rightResult.reason);
+    expect(leftResult.reason.committed).toBe(true);
+    expect(diagnostics).toEqual([leftResult.reason]);
+    expect(document.head.children).toHaveLength(0);
+    a.release(); b.release();
+    const retryScope = createScopeController();
+    const retry = manager.acquire(retryScope.scope, { id: "broken", href: "/broken.css" });
+    expect(retry.ready).not.toBe(a.ready);
+    expect(document.head.children).toHaveLength(1);
+  });
+
+  it("accepts only stable lower-kebab base-map provider IDs", async () => {
+    const catalog = createBaseMapCatalog({ map: {} });
+    const valid = createScopeController(); const queue = [];
+    expect(() => catalog.createFacade(owner(valid, queue)).register({ id: "gsi-pale-2", createLayer() {} })).not.toThrow();
+    await valid.abort();
+    for (const id of ["", "   ", "GSI", "gsi pale", "gsi_pale", "gsi.pale", "-gsi", "gsi-"]) {
+      const controller = createScopeController();
+      expect(() => catalog.createFacade(owner(controller)).register({ id, createLayer() {} }))
+        .toThrowError(expect.objectContaining({ code: "BASE_MAP_PROVIDER_INVALID" }));
+      await controller.abort();
+    }
+  });
+
   it("removes a selected provider layer and deterministically falls back", async () => {
     const events = [];
     const map = {};

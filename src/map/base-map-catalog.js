@@ -2,7 +2,9 @@ import { extensionError, extensionErrorCodes } from "../extensions/errors.js";
 import { createSubscriptionChannel } from "../extensions/subscriptions.js";
 
 function normalize(definition) {
-  if (!definition || typeof definition.id !== "string" || !definition.id || typeof definition.createLayer !== "function") {
+  if (!definition || typeof definition.id !== "string"
+      || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(definition.id)
+      || typeof definition.createLayer !== "function") {
     throw extensionError(extensionErrorCodes.baseMapInvalid, "Base-map providers require id and createLayer()");
   }
   return Object.freeze({
