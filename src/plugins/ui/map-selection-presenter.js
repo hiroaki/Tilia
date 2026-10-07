@@ -1,4 +1,4 @@
-import { CircleMarker, Popup } from "leaflet";
+import { CircleMarker, Polyline, Popup } from "leaflet";
 import { reportError } from "../../ui/scoped-dom.js";
 export default Object.freeze({
   id: "tilia-map-selection-presenter",
@@ -23,7 +23,7 @@ export default Object.freeze({
       if (state === record) state = null;
       record.handle.signal.removeEventListener("abort", record.abort);
       closePopup(record);
-      attempt(() => record.highlight?.dispose());
+      for (const attachment of record.highlights) attempt(() => attachment.dispose());
       void record.scope.dispose().catch(report);
     };
     const mountPopup = (record) => {
@@ -61,17 +61,30 @@ export default Object.freeze({
       const handle = context.presentation.resolve(selection.entryId, selection.ref);
       if (!handle?.anchor || !handle.isCurrent()) return;
       const scope = context.scope.child({ label: "selection-presentation" });
-      const record = { scope, handle, selection, dismissed: false, adapter: null, popup: null, highlight: null,
+      const record = { scope, handle, selection, dismissed: false, adapter: null, popup: null, highlights: [],
         abort: () => close(record) };
       state = record;
       handle.signal.addEventListener("abort", record.abort, { once: true });
       scope.defer(() => handle.signal.removeEventListener("abort", record.abort), { retry: "safe" });
       try {
         const descriptor = handle.highlightDescriptor;
+        const point = (p) => p && Number.isFinite(p.lat) && Number.isFinite(p.lng);
+        let layers = [];
+        const ring = (p) => new CircleMarker(p, { radius: 18, color: "#0f766e", weight: 3, fill: false, interactive: false });
         if (descriptor?.kind === "point") {
-          const highlight = new CircleMarker(descriptor.point, { radius: 18, color: "#0f766e", weight: 3, fill: false, interactive: false });
-          record.highlight = context.map.attachLayer(highlight, { band: "selection" });
-          scope.defer(() => record.highlight.dispose(), { retry: "safe" });
+          if (!point(descriptor.point)) throw new TypeError("Invalid point highlight descriptor");
+          layers = [ring(descriptor.point)];
+        } else if (descriptor?.kind === "geometry") {
+          if (!Array.isArray(descriptor.lines) || !Array.isArray(descriptor.points)
+              || descriptor.lines.some((line) => !Array.isArray(line) || line.length < 2 || line.some((p) => !point(p)))
+              || descriptor.points.some((p) => !point(p))) throw new TypeError("Invalid geometry highlight descriptor");
+          layers = [...descriptor.lines.map((line) => new Polyline(line, { color: "#0f766e", weight: 9, opacity: 0.7, interactive: false })), ...descriptor.points.map(ring)];
+        }
+        for (const layer of layers) {
+          if (state !== record || !handle.isCurrent() || !scope.alive) { close(record); return; }
+          const attachment = context.map.attachLayer(layer, { band: "selection" });
+          record.highlights.push(attachment);
+          scope.defer(() => attachment.dispose(), { retry: "safe" });
         }
         if (state !== record || !handle.isCurrent()) { close(record); return; }
         mountPopup(record);

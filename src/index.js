@@ -19,3 +19,5 @@ export { createApplicationSemanticApi, createSemanticCapabilityFactories } from 
 export { RenderingError, renderingErrorCodes } from './rendering/index.js';
 
 export { panelServiceKey } from "./plugins/contracts/panel.js";
+
+export { gpxQueryServiceKey } from "./plugins/contracts/gpx-query.js";

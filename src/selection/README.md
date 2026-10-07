@@ -73,10 +73,10 @@ Remaining migration-symbol matches are intentionally classified as follows:
 | Location | Classification / restoration phase |
 |---|---|
 | Base-map catalog `selectedLayer` | Active target map infrastructure, separate from semantic selection |
-| Legacy map overlay/popup helpers | Inactive source material, 4G/4H/presentation |
-| Interaction Hub | Inactive legacy, deletion 4H |
+| GPX renderer and popup adapters | Active 4H domain/presentation path, outside generic selection |
+| Legacy overlay and Interaction Hub | Source and obsolete authority tests deleted in 4H |
 | Legacy input-processing helper | Inactive legacy input path, input restoration / final purge |
-| Disabled layers/elevation UI | Inactive legacy, 4I |
+| Full layers/elevation UX | Minimum layers host active; elevation and extended UX deferred to 4I |
 | Disabled export/route/editor/milestone integrations | Inactive legacy, 4J |
 | Legacy unit mocks and product smoke fixtures | Preserved tests for their scheduled migration |
 | Architecture plans and this note | Documentation |

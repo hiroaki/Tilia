@@ -25,7 +25,7 @@ export default Object.freeze({
             source: { mediaType: input.type || "image/jpeg", size: input.size } },
           preferences: { requestedTimeMode: "auto" }, blob: input,
         }, { signal });
-        return Object.freeze({ entry, name: parsed.name ?? "photo", locationSource: parsed.hasGps ? "exif-gps" : null });
+        return Object.freeze({ entry, name: parsed.name ?? "photo", locationSource: photo.get(entry.id).snapshot.derived.locationSource });
       },
     });
   },

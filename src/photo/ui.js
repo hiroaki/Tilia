@@ -46,7 +46,7 @@ export function mountPhotoPopup({ container, scope, selection, photo, report }) 
   node(container, "h3", "tilia-popup-title", data.name);
   const values = [["Captured", formatCaptured(data.capturedAt, preferences.requestedTimeMode)],
     ["Camera", `${data.make} ${data.model}`.trim() || "-"],
-    ["Latitude", data.coordinate?.lat ?? "-"], ["Longitude", data.coordinate?.lon ?? "-"],
+    ["Latitude", (data.coordinate ?? derived.inferredLocation)?.lat ?? "-"], ["Longitude", (data.coordinate ?? derived.inferredLocation)?.lon ?? "-"],
     ["Location", derived.locationSource ?? "-"]];
   for (const [label, value] of values) node(container, "div", "tilia-popup-row", `${label}: ${value}`);
   mountPreview({ container, scope, entry, photo, report, className: "tilia-popup-thumbnail" });

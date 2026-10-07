@@ -5,8 +5,9 @@ export function createPhotoRenderer() {
     planChange: () => "replace",
     build(input) {
       const data = input.semanticSnapshot.data;
-      if (!data.coordinate) return {};
-      const point = Object.freeze({ lat: data.coordinate.lat, lng: data.coordinate.lon });
+      const coordinate = data.coordinate ?? input.semanticSnapshot.derived.inferredLocation;
+      if (!coordinate) return {};
+      const point = Object.freeze({ lat: coordinate.lat, lng: coordinate.lon });
       const marker = new Marker(point, { title: data.name, alt: data.name || "Photo", keyboard: true });
       input.resources.own(marker, (value) => value.remove(), { label: "photo-marker", retry: "safe" });
       input.map.attachLayer(marker, { band: "markers" });

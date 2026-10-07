@@ -44,7 +44,7 @@ http://localhost:8010/samples/
 ```
 
 
-The Phase 4G viewer supports JPEG Photo import, GPS markers, selection popups/highlights, guarded previews and per-Photo `auto` / `local` / `utc` settings. Timestamp-only Photos are selectable in the layers list; location inference is deferred. GPX rendering and Photo inference return in 4H; URL/drop/elevation, global defaults and custom offsets in 4I; external editing plugins in 4J. Unmigrated features listed below are disabled in the current composition. See the [Phase 4G report](plugin-architecture/phase-4/PHASE-4G-IMPLEMENTATION-REPORT.md) for implementation and verification results.
+The Phase 4H viewer supports GPX file import, logical tracks/routes/waypoints, visibility/style controls and semantic selection popups/highlights, alongside JPEG import and guarded Photo previews. Timestamp-only Photos can save a one-time location estimate from the current GPX timeline; GPX changes or deletion leave that estimate unchanged. Per-Photo `auto` / `local` / `utc` settings and explicit `recomputeDerived` use fresh evidence when requested. URL/drop/elevation, global defaults and custom offsets remain in 4I; external editing plugins remain in 4J. Unmigrated features listed below remain disabled. See the [Phase 4H report](plugin-architecture/phase-4/PHASE-4H-IMPLEMENTATION-REPORT.md) for implementation and verification results.
 
 ## Usage
 

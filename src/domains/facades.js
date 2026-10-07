@@ -1,3 +1,4 @@
+import { queryGpx } from "../gpx/queries.js";
 import { isScopeWithin } from "../ownership/scope.js";
 import { gpxDomainKey, photoDomainKey } from "./keys.js";
 import { assertDomainKey } from "./identity.js";
@@ -25,12 +26,29 @@ function domainFacade(scope, entries, key, commands) {
 export function createGpxFacade({ scope, entries, selection }) {
   const facade = domainFacade(scope, entries, gpxDomainKey, {
     replaceData: (data) => Object.freeze({ type: "replace-data", data }),
+    updatePoint: ({ target, patch }) => Object.freeze({ type: "update-point", target, patch }),
     setCategoryVisibility: ({ category, visible }) => Object.freeze({ type: "set-category-visibility", category, visible }),
     setTrackVisibility: ({ trackIndex, visible }) => Object.freeze({ type: "set-track-visibility", trackIndex, visible }),
     setStylePreset: (stylePresetId) => Object.freeze({ type: "set-style-preset", stylePresetId }),
     recomputeDerived: () => Object.freeze({ type: "recompute-derived" }),
   });
-  return selection ? Object.freeze({ ...facade, selection: selection.createDomainFacade(scope, gpxDomainKey) }) : facade;
+  function query(id, method, options = {}) {
+    const view = facade.get(id);
+    const allowed = method === "nearest" ? ["target", "coordinate"] : ["target"];
+    if (!options || typeof options !== "object" || Array.isArray(options) ||
+        Object.keys(options).some((key) => !allowed.includes(key))) {
+      throw semanticError(semanticErrorCodes.inputInvalid, "Invalid GPX query options");
+    }
+    return queryGpx(view, method, options.target, options.coordinate);
+  }
+  const queries = {
+    getDocument: (id) => queryGpx(facade.get(id), "document"),
+    getExtent: (id, options) => query(id, "extent", options),
+    getDistance: (id, options) => query(id, "distance", options),
+    getElevationProfile: (id, options) => query(id, "elevation", options),
+    getNearestPoint: (id, options) => query(id, "nearest", options),
+  };
+  return Object.freeze({ ...facade, ...queries, ...(selection ? { selection: selection.createDomainFacade(scope, gpxDomainKey) } : {}) });
 }
 
 export function createPhotoFacade({ scope, entries, selection }) {

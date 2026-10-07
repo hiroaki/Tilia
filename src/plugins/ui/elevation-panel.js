@@ -1,6 +1,6 @@
 import { CircleMarker } from "leaflet";
 import { createButton, createPanel, installMapControl } from "../../map/controls.js";
-import { createTrackPointPopupContent } from "../../map/layers.js";
+import { createTrackPointPopupContent } from "../../gpx/popup.js";
 import { getNearestTrackModePoint, getTrackModeElevationLayout } from "../../gpx/interpretation.js";
 
 function getEntryProfileLayout(entry) {

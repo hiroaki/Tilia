@@ -1,6 +1,7 @@
 import { DOMParser } from "@xmldom/xmldom";
 import { describe, expect, it } from "vitest";
 import { parseGpxText } from "../src/gpx/parse.js";
+import { normalizeGpxDocument } from "../src/gpx/document.js";
 import { serializeGpxSource } from "../src/gpx/serialize.js";
 
 const createDomParser = ({ onError } = {}) => new DOMParser({ errorHandler: { warning: onError, error: onError, fatalError: onError } });
@@ -59,7 +60,7 @@ describe("serializeGpxSource", () => {
     const xml = serializeGpxSource({ routes, tracks: [], waypoints: [] });
     const parsed = parseGpxText(xml, { fileName: "routes.gpx", createDomParser });
 
-    expect(parsed.routes).toEqual(routes);
+    expect(parsed.routes).toEqual(normalizeGpxDocument({ routes }).routes);
     expect(parsed.tracks).toEqual([]);
     expect((xml.match(/<rte>/g) || [])).toHaveLength(2);
     expect((xml.match(/<rtept /g) || [])).toHaveLength(3);
@@ -76,7 +77,7 @@ describe("serializeGpxSource", () => {
 
     expect(xml).toContain("  <rte>\n    <name>Empty</name>\n  </rte>");
     expect(xml).toContain("  <rte>\n  </rte>");
-    expect(parseGpxText(xml, { createDomParser }).routes).toEqual(routes);
+    expect(parseGpxText(xml, { createDomParser }).routes).toEqual(normalizeGpxDocument({ routes }).routes);
   });
 
   it("leaves output unchanged when the routes collection is omitted or empty", () => {

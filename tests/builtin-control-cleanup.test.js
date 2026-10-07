@@ -15,8 +15,7 @@ vi.mock("../src/map/controls.js", () => ({
   }),
 }));
 
-vi.mock("../src/map/layers.js", () => ({
-  createPhotoThumbnailNode: vi.fn(() => null),
+vi.mock("../src/gpx/popup.js", () => ({
   createTrackPointPopupContent: vi.fn(() => null),
 }));
 

@@ -31,7 +31,7 @@ describe("Phase 4E architecture gate", () => {
   it("removes Selection Hub source and obsolete authority tests while retaining later-phase code", () => {
     expect(existsSync(resolve(root, "src/core/selection-hub.js"))).toBe(false);
     expect(existsSync(resolve(root, "tests/selection-hub.test.js"))).toBe(false);
-    expect(existsSync(resolve(root, "src/core/interaction-hub.js"))).toBe(true);
+    expect(existsSync(resolve(root, "src/core/interaction-hub.js"))).toBe(false);
     expect(existsSync(resolve(root, "plugins/x-track-editor/vendor/leaflet-partially-editable-polyline.js"))).toBe(true);
   });
 });

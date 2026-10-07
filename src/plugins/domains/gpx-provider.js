@@ -1,4 +1,5 @@
 import { cloneAndFreezePlainData, semanticError, semanticErrorCodes } from "../../domains/index.js";
+import { normalizeGpxDocument, updateGpxPoint } from "../../gpx/document.js";
 import { createGpxSelectionAdapter } from "./gpx-selection.js";
 
 const categories = new Set(["tracks", "routes", "waypoints"]);
@@ -7,54 +8,8 @@ function invalid(message, details = {}) {
   throw semanticError(semanticErrorCodes.inputInvalid, message, { domainId: "gpx", ...details });
 }
 
-function number(value, field, minimum, maximum, { nullable = false } = {}) {
-  if (nullable && value == null) return null;
-  if (typeof value !== "number" || !Number.isFinite(value) || value < minimum || value > maximum) invalid(`Invalid GPX ${field}`, { field });
-  return value;
-}
-
 function text(value, fallback = "") {
   return value == null ? fallback : String(value);
-}
-
-function point(value, path, { route = false } = {}) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) invalid(`Invalid GPX point at ${path}`, { path });
-  const result = {
-    lat: number(value.lat, `${path}.lat`, -90, 90),
-    lon: number(value.lon, `${path}.lon`, -180, 180),
-  };
-  if (route) result.name = text(value.name);
-  else {
-    result.elevation = number(value.elevation, `${path}.elevation`, -Infinity, Infinity, { nullable: true });
-    result.timestamp = number(value.timestamp, `${path}.timestamp`, -Infinity, Infinity, { nullable: true });
-  }
-  return result;
-}
-
-function array(value, path) {
-  if (!Array.isArray(value)) invalid(`GPX ${path} must be an array`, { path });
-  return value;
-}
-
-function normalizeData(value = {}) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) invalid("GPX data must be an object");
-  return {
-    name: text(value.name, "track.gpx"),
-    tracks: array(value.tracks, "tracks").map((track, trackIndex) => ({
-      ...(track?.name == null ? {} : { name: text(track.name) }),
-      segments: array(track?.segments, `tracks[${trackIndex}].segments`).map((segment, segmentIndex) => ({
-        points: array(segment?.points, `tracks[${trackIndex}].segments[${segmentIndex}].points`)
-          .map((item, pointIndex) => point(item, `tracks[${trackIndex}].segments[${segmentIndex}].points[${pointIndex}]`)),
-      })),
-    })),
-    routes: array(value.routes, "routes").map((route, routeIndex) => ({
-      ...(route?.name == null ? {} : { name: text(route.name) }),
-      points: array(route?.points, `routes[${routeIndex}].points`)
-        .map((item, pointIndex) => point(item, `routes[${routeIndex}].points[${pointIndex}]`, { route: true })),
-    })),
-    waypoints: array(value.waypoints, "waypoints")
-      .map((item, pointIndex) => point(item, `waypoints[${pointIndex}]`, { route: true })),
-  };
 }
 
 function normalizePreferences(value, trackCount) {
@@ -96,18 +51,25 @@ export function createGpxProvider() {
   return Object.freeze({
     selection: createGpxSelectionAdapter(),
     async prepareCreate({ value }) {
-      const data = normalizeData(value?.data ?? value);
+      const data = normalizeGpxDocument(value?.data ?? value);
       const nextSnapshot = snapshot(data, normalizePreferences(value?.preferences, data.tracks.length));
       return { instance: nextSnapshot, snapshot: nextSnapshot };
     },
-    async prepareMutation({ currentInstance, command }) {
+    async prepareMutation({ currentInstance, command, expectedRevision }) {
       if (!command || typeof command !== "object") invalid("GPX command must be an object");
       if (command.type === "recompute-derived") return { changed: false };
       let data = currentInstance.data;
       let preferences = currentInstance.preferences;
       if (command.type === "replace-data") {
-        data = normalizeData(command.data);
-        preferences = normalizePreferences(preferences, data.tracks.length);
+        data = normalizeGpxDocument(command.data);
+        preferences = normalizePreferences({ ...preferences, trackVisibility: Object.fromEntries(
+          Object.entries(preferences.trackVisibility).filter(([key]) => Number(key) < data.tracks.length),
+        ) }, data.tracks.length);
+      } else if (command.type === "update-point") {
+        if (command.target?.revision !== undefined && command.target.revision !== expectedRevision) {
+          throw semanticError(semanticErrorCodes.entryStaleRevision, "GPX point target revision is stale");
+        }
+        data = updateGpxPoint(data, command);
       } else if (command.type === "set-category-visibility") {
         if (!categories.has(command.category) || typeof command.visible !== "boolean") invalid("Invalid GPX category visibility command");
         preferences = { ...preferences, [`${command.category}Visible`]: command.visible };

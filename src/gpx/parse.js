@@ -1,4 +1,4 @@
-import { normalizeGpxSource } from "./source.js";
+import { normalizeGpxDocument } from "./document.js";
 
 export const MAX_ROUTES_PER_GPX = 20;
 export const MAX_ROUTE_POINTS_PER_ROUTE = 100;
@@ -220,49 +220,54 @@ function parseGpxDateTime(value) {
   return Number.isFinite(timestamp) ? timestamp : undefined;
 }
 
+function parseOptionalElevation(node, namespace) {
+  const text = getDirectChildText(node, "ele", namespace);
+  if (text == null || text === "") return null;
+  const value = Number(text);
+  return Number.isFinite(value) ? value : null;
+}
+function supportedText(node, namespace) {
+  const fields = {};
+  for (const [xml, key] of [["name", "name"], ["desc", "description"], ["sym", "symbol"]]) {
+    const value = getDirectChildText(node, xml, namespace);
+    if (value !== undefined) fields[key] = value;
+  }
+  return fields;
+}
+function parsePoint(node, namespace, context, fileName) {
+  return { ...parsePointCoordinates(node, context, fileName), ...supportedText(node, namespace),
+    elevation: parseOptionalElevation(node, namespace),
+    timestamp: parseGpxDateTime(getDirectChildText(node, "time", namespace)) ?? null };
+}
 function parseTracks(root, namespace, fileName) {
-  return getDirectChildren(root, "trk", namespace).map((trackNode, trackIndex) => ({
-    name: getDirectChildText(trackNode, "name", namespace),
-    segments: getDirectChildren(trackNode, "trkseg", namespace).map((segmentNode, segmentIndex) => ({
-      points: getDirectChildren(segmentNode, "trkpt", namespace).map((pointNode, pointIndex) => ({
-        ...parsePointCoordinates(pointNode, `trkpt #${pointIndex + 1} in segment #${segmentIndex + 1} of track #${trackIndex + 1}`, fileName),
-        elevation: getDirectChildText(pointNode, "ele", namespace),
-        timestamp: parseGpxDateTime(getDirectChildText(pointNode, "time", namespace)),
-      })),
+  return getDirectChildren(root, "trk", namespace).map((node, ti) => ({
+    ...supportedText(node, namespace),
+    segments: getDirectChildren(node, "trkseg", namespace).map((segment, si) => ({
+      points: getDirectChildren(segment, "trkpt", namespace).map((point, pi) =>
+        parsePoint(point, namespace, `trkpt #${pi + 1} in segment #${si + 1} of track #${ti + 1}`, fileName)),
     })),
   }));
 }
-
-function parseRoutes(root, namespace, fileName) {
-  const routeNodes = getDirectChildren(root, "rte", namespace);
-  if (routeNodes.length > MAX_ROUTES_PER_GPX) {
-    throw new Error(`Too many GPX routes in ${fileName}: ${routeNodes.length} > ${MAX_ROUTES_PER_GPX}`);
+function parseRoutes(root, namespace, fileName, enforceImportLimits) {
+  const nodes = getDirectChildren(root, "rte", namespace);
+  if (enforceImportLimits && nodes.length > MAX_ROUTES_PER_GPX) {
+    throw new Error(`Too many GPX routes in ${fileName}: ${nodes.length} > ${MAX_ROUTES_PER_GPX}`);
   }
-
-  return routeNodes.map((routeNode, routeIndex) => {
-    const pointNodes = getDirectChildren(routeNode, "rtept", namespace);
-    if (pointNodes.length > MAX_ROUTE_POINTS_PER_ROUTE) {
-      throw new Error(`Too many route points in GPX route #${routeIndex + 1} of ${fileName}: ${pointNodes.length} > ${MAX_ROUTE_POINTS_PER_ROUTE}`);
+  return nodes.map((node, ri) => {
+    const points = getDirectChildren(node, "rtept", namespace);
+    if (enforceImportLimits && points.length > MAX_ROUTE_POINTS_PER_ROUTE) {
+      throw new Error(`Too many route points in GPX route #${ri + 1} of ${fileName}: ${points.length} > ${MAX_ROUTE_POINTS_PER_ROUTE}`);
     }
-    return {
-      name: getDirectChildText(routeNode, "name", namespace),
-      points: pointNodes.map((pointNode, pointIndex) => ({
-        ...parsePointCoordinates(pointNode, `rtept #${pointIndex + 1} in route #${routeIndex + 1}`, fileName),
-        name: getDirectChildText(pointNode, "name", namespace) || "",
-      })),
-    };
+    return { ...supportedText(node, namespace), points: points.map((point, pi) =>
+      parsePoint(point, namespace, `rtept #${pi + 1} in route #${ri + 1}`, fileName)) };
   });
 }
-
 function parseWaypoints(root, namespace, fileName) {
-  return getDirectChildren(root, "wpt", namespace).map((node, pointIndex) => ({
-    ...parsePointCoordinates(node, `wpt #${pointIndex + 1}`, fileName),
-    name: getDirectChildText(node, "name", namespace) || "",
-  }));
+  return getDirectChildren(root, "wpt", namespace).map((node, i) => parsePoint(node, namespace, `wpt #${i + 1}`, fileName));
 }
 
 export function parseGpxText(xmlText, options = {}) {
-  const { fileName = "track.gpx", createDomParser = () => new DOMParser() } = options;
+  const { fileName = "track.gpx", createDomParser = () => new DOMParser(), enforceImportLimits = true } = options;
   const preparseInspection = inspectXmlBeforeParsing(xmlText);
   if (preparseInspection === "doctype") {
     throw new Error(`DOCTYPE is not allowed in GPX: ${fileName}`);
@@ -283,10 +288,12 @@ export function parseGpxText(xmlText, options = {}) {
   }
 
   const { root, namespace } = validateRoot(doc, fileName);
-  return normalizeGpxSource({
+  const metadata = getDirectChildren(root, "metadata", namespace)[0];
+  return normalizeGpxDocument({
     name: fileName,
+    metadata: metadata ? { ...supportedText(metadata, namespace), timestamp: parseGpxDateTime(getDirectChildText(metadata, "time", namespace)) ?? null } : {},
     tracks: parseTracks(root, namespace, fileName),
-    routes: parseRoutes(root, namespace, fileName),
+    routes: parseRoutes(root, namespace, fileName, enforceImportLimits),
     waypoints: parseWaypoints(root, namespace, fileName),
   });
 }

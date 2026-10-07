@@ -233,7 +233,7 @@ export function createApplicationComposition({
         typeof pluginOrId === "string" ? pluginOrId : pluginOrId?.id;
       if (getPhase4dPluginClassification(pluginId) === "disabled") {
         const error = new Error(
-          `Plugin "${pluginId}" is disabled during the Phase 4G migration`,
+          `Plugin "${pluginId}" is disabled during the Phase 4H migration`,
         );
         error.code = "PLUGIN_DISABLED_BY_MIGRATION";
         return Promise.reject(error);
@@ -297,7 +297,7 @@ export function createApplicationComposition({
           : configuredPlugin.plugin?.id;
       if (getPhase4dPluginClassification(pluginId) === "disabled") {
         const error = new Error(
-          `Plugin "${pluginId}" is disabled during the Phase 4G migration`,
+          `Plugin "${pluginId}" is disabled during the Phase 4H migration`,
         );
         error.code = "PLUGIN_DISABLED_BY_MIGRATION";
         throw error;

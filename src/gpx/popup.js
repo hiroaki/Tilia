@@ -1,14 +1,4 @@
-import { DivIcon, FeatureGroup, Marker, Polyline, LatLngBounds } from "leaflet";
-import { getTrackStylePreset } from "./track-style-presets.js";
-import { countTrackPoints, getTrackModeCoordinates } from "../gpx/interpretation.js";
-
-class RoutePointDivIcon extends DivIcon {
-  createIcon(oldIcon) {
-    const element = super.createIcon(oldIcon);
-    element.style.setProperty("--route-color", this.options.routeColor);
-    return element;
-  }
-}
+import { countTrackPoints } from "./interpretation.js";
 
 function formatCoordinate(value) {
   return Number.isFinite(value) ? value.toFixed(6) : "-";
@@ -29,7 +19,7 @@ function formatElevation(elevation) {
 }
 
 function formatDateTime(value) {
-  if (!value) {
+  if (value == null) {
     return "-";
   }
   const date = value instanceof Date ? value : new Date(value);
@@ -78,12 +68,22 @@ function createPopupContent(title, rows, detail = "") {
   return root;
 }
 
+function extraPointRows(point) {
+  return [
+    ...(Object.hasOwn(point ?? {}, "elevation") ? [["Elevation", formatElevation(point.elevation)]] : []),
+    ...(Object.hasOwn(point ?? {}, "timestamp") ? [["Time", formatDateTime(point.timestamp)]] : []),
+    ...(point?.description ? [["Description", point.description]] : []),
+    ...(point?.symbol ? [["Symbol", point.symbol]] : []),
+  ];
+}
+
 export function createWaypointPopupContent(sourceName, waypoint) {
   return createPopupContent(sourceName || "Waypoint", [
     ["Type", "Waypoint"],
     ["Name", waypoint?.name || "Unnamed waypoint"],
     ["Latitude", formatCoordinate(waypoint?.lat)],
     ["Longitude", formatCoordinate(waypoint?.lon)],
+    ...extraPointRows(waypoint),
   ]);
 }
 
@@ -96,6 +96,7 @@ export function createRoutePointPopupContent(source, routePoint, locator) {
     ["Name", routePoint?.name || "Unnamed route point"],
     ["Latitude", formatCoordinate(routePoint?.lat)],
     ["Longitude", formatCoordinate(routePoint?.lon)],
+    ...extraPointRows(routePoint),
   ]);
 }
 
@@ -111,91 +112,13 @@ export function createTrackPointPopupContent(parsed, point) {
     rows.push(["Time", formatDateTime(point.timestamp)]);
     rows.push(["Latitude", formatCoordinate(point.lat)]);
     rows.push(["Longitude", formatCoordinate(point.lon)]);
+    if (point.name) rows.push(["Name", point.name]);
+    if (point.description) rows.push(["Description", point.description]);
+    if (point.symbol) rows.push(["Symbol", point.symbol]);
   } else {
     rows.push(["Track points", String(countTrackPoints(parsed))]);
     rows.push(["Waypoints", String(parsed?.waypoints?.length || 0)]);
   }
 
   return createPopupContent(parsed?.name || "Track", rows);
-}
-
-export function buildGpxOverlay(parsed, options = {}) {
-  const group = new FeatureGroup();
-  const trackLayers = [];
-  const routeLayers = [];
-  const routePoints = [];
-  const waypoints = [];
-  const trackStyle = options.trackStyle || getTrackStylePreset(0);
-  const routeStyle = {
-    color: trackStyle.color,
-    weight: Math.max(1, trackStyle.weight - 2),
-    opacity: trackStyle.opacity,
-    dashArray: "8 6",
-  };
-  for (let trackIndex = 0; trackIndex < (parsed.tracks || []).length; trackIndex += 1) {
-    const coordinates = getTrackModeCoordinates(parsed.tracks[trackIndex]);
-    if (coordinates.length < 2) continue;
-    const layer = new Polyline(coordinates, trackStyle);
-    group.addLayer(layer);
-    trackLayers.push({ layer, trackIndex });
-  }
-
-  for (let routeIndex = 0; routeIndex < (parsed.routes || []).length; routeIndex += 1) {
-    const route = parsed.routes[routeIndex];
-    const coordinates = (route.points || []).map((point) => [point.lat, point.lon]);
-    if (coordinates.length >= 2) {
-      const layer = new Polyline(coordinates, routeStyle);
-      group.addLayer(layer);
-      routeLayers.push({ layer, routeIndex });
-    }
-
-    for (let pointIndex = 0; pointIndex < (route.points || []).length; pointIndex += 1) {
-      const routePoint = route.points[pointIndex];
-      const label = String(pointIndex + 1);
-      const iconWidth = Math.max(18, 10 + label.length * 6);
-      const routePointIcon = new RoutePointDivIcon({
-        className: "tilia-route-point-marker",
-        html: label,
-        iconSize: [iconWidth, 18],
-        iconAnchor: [iconWidth / 2, 24],
-        routeColor: trackStyle.color,
-      });
-      const marker = new Marker([routePoint.lat, routePoint.lon], { icon: routePointIcon });
-      group.addLayer(marker);
-      routePoints.push({
-        layer: marker,
-        route,
-        routePoint,
-        routeIndex,
-        pointIndex,
-      });
-    }
-  }
-
-  for (const wpt of parsed.waypoints) {
-    const marker = new Marker([wpt.lat, wpt.lon]);
-    group.addLayer(marker);
-    waypoints.push({
-      layer: marker,
-      waypoint: wpt,
-    });
-  }
-
-  return {
-    layer: group,
-    interactions: {
-      kind: "gpx",
-      trackLayers,
-      routeLayers,
-      routePoints,
-      waypoints,
-    },
-  };
-}
-
-export function fitMapToGroup(map, group) {
-  const bounds = group.getBounds();
-  if (bounds instanceof LatLngBounds && bounds.isValid()) {
-    map.fitBounds(bounds.pad(0.1));
-  }
 }

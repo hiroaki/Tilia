@@ -1,3 +1,4 @@
+import { inferPhotoLocationFromTimeline, PhotoInferenceNoMatchError } from "../../photo/infer-location.js";
 import { createPreviewResource } from "../../photo/preview.js";
 import { cloneAndFreezePlainData, semanticError, semanticErrorCodes } from "../../domains/index.js";
 import { createPhotoSelectionAdapter } from "./photo-selection.js";
@@ -61,18 +62,31 @@ function same(left, right) {
 export function createPhotoProvider({
   createObjectURL = (blob) => URL.createObjectURL(blob),
   revokeObjectURL = (url) => URL.revokeObjectURL(url),
+  captureTimeline = () => ({ points: [] }),
   prepareGate = null,
   mutationGate = null,
 } = {}) {
-  function prepare(value, fallbackBlob = null) {
+  function estimate(data, requestedTimeMode, { required = false } = {}) {
+    const base = makeSnapshot(data, requestedTimeMode);
+    if (data.coordinate) return base;
+    try {
+      const result = inferPhotoLocationFromTimeline(captureTimeline(), { name: data.name, dateTimeOriginal: new Date(data.capturedAt ?? NaN) }, { timeInterpretationMode: requestedTimeMode });
+      return cloneAndFreezePlainData({ ...base, derived: { resolvedTimeMode: result.timeInterpretationMode,
+        inferredTimestamp: result.inferredTimestamp, inferredLocation: { lat: result.lat, lon: result.lon }, locationSource: result.locationSource } });
+    } catch (error) {
+      if (!(error instanceof PhotoInferenceNoMatchError) || required) throw error;
+      return base;
+    }
+  }
+  function prepare(value, fallbackBlob = null, desired = null) {
     const data = normalizeData(value?.data ?? value);
     const requestedTimeMode = normalizeMode(value?.preferences?.requestedTimeMode ?? value?.requestedTimeMode);
     const blob = value?.blob ?? fallbackBlob;
     if (blob != null && typeof Blob !== "undefined" && !(blob instanceof Blob)) invalid("Photo blob must be a Blob", { field: "blob" });
+    const publicSnapshot = desired ?? estimate(data, requestedTimeMode);
     const preview = blob == null ? null : createPreviewResource(blob, createObjectURL, revokeObjectURL);
     const previewUrl = preview?.url ?? null;
     const dispose = preview?.dispose ?? null;
-    const publicSnapshot = makeSnapshot(data, requestedTimeMode);
     return { instance: { publicSnapshot, blob, previewUrl, preview, dispose }, snapshot: publicSnapshot, dispose };
   }
 
@@ -92,7 +106,7 @@ export function createPhotoProvider({
     },
     async prepareMutation({ currentInstance, command }) {
       if (!command || typeof command !== "object") invalid("Photo command must be an object");
-      if (command.type === "recompute-derived") return { changed: false };
+
       let data;
       let requestedTimeMode;
       let nextBlob = currentInstance.blob;
@@ -104,11 +118,17 @@ export function createPhotoProvider({
           nextBlob = command.data.blob;
           resourceChanged = nextBlob !== currentInstance.blob;
         }
-      } else if (command.type === "set-requested-time-mode") {
+      } else if (command.type === "set-requested-time-mode" || command.type === "recompute-derived") {
         data = currentInstance.publicSnapshot.data;
-        requestedTimeMode = normalizeMode(command.requestedTimeMode);
+        requestedTimeMode = command.type === "recompute-derived" ? currentInstance.publicSnapshot.preferences.requestedTimeMode : normalizeMode(command.requestedTimeMode);
       } else invalid(`Unknown Photo command "${command.type}"`);
-      const desired = makeSnapshot(data, requestedTimeMode);
+      const previous = currentInstance.publicSnapshot;
+      const materialChanged = !same(data.coordinate, previous.data.coordinate) || data.capturedAt !== previous.data.capturedAt;
+      const modeChanged = requestedTimeMode !== previous.preferences.requestedTimeMode;
+      const shouldEstimate = materialChanged || modeChanged || command.type === "recompute-derived";
+      const desired = shouldEstimate ? estimate(data, requestedTimeMode, {
+        required: command.type === "recompute-derived" || (modeChanged && previous.derived.inferredLocation !== null),
+      }) : cloneAndFreezePlainData({ ...previous, data });
       const semanticChanged = !same(desired, currentInstance.publicSnapshot);
       if (!semanticChanged && !resourceChanged) return { changed: false };
       if (!resourceChanged) {
@@ -121,7 +141,7 @@ export function createPhotoProvider({
           ...(currentInstance.dispose ? { disposeNext: currentInstance.dispose } : {}),
         };
       }
-      const prepared = prepare({ data, preferences: { requestedTimeMode }, blob: nextBlob });
+      const prepared = prepare({ data, preferences: { requestedTimeMode }, blob: nextBlob }, null, semanticChanged ? desired : previous);
       try {
         if (mutationGate) await mutationGate;
       } catch (error) {

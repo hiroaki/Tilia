@@ -12,13 +12,15 @@ async function fixture() {
   const owner = createScopeController(), consumer = createScopeController(); controllers.push(owner, consumer);
   const queue = [], inputs = createInputRegistry();
   const input = { scope: owner.scope, stage: (d) => owner.stage(d), enqueuePostCommit: (fn) => queue.push(fn) };
+  let snapshot;
   const create = vi.fn(async (value) => {
     const provider = createPhotoProvider();
     // Validate normalized semantic data with the production provider, without a URL.
-    await provider.prepareCreate({ value: { ...value, blob: null }, entryScope: owner.scope });
+    const prepared = await provider.prepareCreate({ value: { ...value, blob: null }, entryScope: owner.scope });
+    snapshot = prepared.snapshot;
     return { id: 1 };
   });
-  jpeg.setup({ scope: owner.scope, inputs: inputs.createFacade(input), domains: { require: () => ({ create }) } });
+  jpeg.setup({ scope: owner.scope, inputs: inputs.createFacade(input), domains: { require: () => ({ create, get: () => ({ snapshot }) }) } });
   await owner.commit(); queue.forEach((fn) => fn()); await consumer.commit();
   return { owner, consumer, create, inputs: inputs.createFacade({ scope: consumer.scope }) };
 }
