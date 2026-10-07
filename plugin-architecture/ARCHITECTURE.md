@@ -218,6 +218,7 @@ AbortSignal requests cooperation. Scope checks enforce authority: a stale asynch
 interface PluginContext {
   readonly plugin: { readonly id: PluginId };
   readonly scope: Scope;
+  readonly lifecycle: { afterCommit(callback: () => void): { cancel(): void } };
   readonly services: ServiceFacade;
   readonly domains: DomainFacade;
   readonly inputs: InputFacade;
@@ -236,6 +237,8 @@ Every mutating facade captures the plugin scope, checks liveness before beginnin
 Read access returns immutable snapshots or guarded facades. Mutation authority is explicit and scope-bound. The context MUST NOT expose mutable registry maps, `app.core`, or `app.state`.
 
 Runtime scope creation, atomic registration commit, EntryStore destination-scope creation, provider lease mutation, destruction coordination, and renderer internals are privileged internal operations, not plugin capabilities.
+
+Phase 4I's approved `lifecycle.afterCommit(callback)` is setup/installing-only, one-shot after own active publication, synchronously guarded and idempotently cancellable. Rollback/closure suppresses it; callback work is separately Scope-owned. Callback errors/thenables are observed diagnostically without undoing installation. Neither Scope.alive nor unrelated availability is activation evidence. No public raw post-commit queue/phase/controller is exposed. See [4I C](phase-4/PHASE-4I-CONTRACT-AMENDMENTS.md).
 
 ## 11. Services
 
@@ -306,6 +309,16 @@ An input operation owns temporary reads, fetches, decoding, and cancellation in 
 
 Input failure before semantic commit leaves no entry. Once domain creation commits, the application owns the entry and the input operation may end independently.
 
+### Approved Phase 4I input operation amendment
+
+`inputs.dispatch(input, {signal}?)` accepts omitted signal or genuine native cross-realm AbortSignal; invalid options/signals reject before recognition. Valid pre-abort invokes no recognizer/handler. Cancellation checkpoints preserve typed pre-handler errors, isolated recognizers and unique highest-priority selection; exact handler registration/lifetime is revalidated immediately before execution.
+
+Handlers receive `{input,signal,scope}`, where scope is the existing caller-owned invocation for temporary resource ownership. Compose operation/caller/invocation/handler registration lifetimes. Cooperative creation MUST retain the accepted final publication signal guard. Committed entries remain application-owned; stale status/DOM/viewport continuations are suppressed. FileReader abort settles/cleans listeners; synchronous parsing cannot be physically interrupted mid-call.
+
+Dispatch observes actual handler settlement and then invocation resource cleanup. Uninstall does **not** acquire a blanket handler/transport settlement barrier. Only actual resource acquisitions/disposers explicitly marked awaitable are joined, preserving provider leases and safe residuals. Cancellation forwards authority loss immediately even if resource-free work settles later.
+
+After handler entry all dispatch failures use bounded `InputDispatchError`, without a `committed` property; semanticOutcome is unknown even if a handler-local operation has a known commit flag. Preserve original result/error, cancellation/lifetime reason and cleanup error. Cleanup failure takes precedence, then cancellation, then handler failure. Uninterrupted success returns original result. Pre-handler cancellation is not-started; ordinary pre-handler validation/unsupported/conflict errors retain their types. Common ExtensionError is unchanged. Exact validation/precedence/fields and assertions: [4I A](phase-4/PHASE-4I-CONTRACT-AMENDMENTS.md).
+
 ## 15. Extension Mechanisms
 
 The public taxonomy is:
@@ -354,6 +367,12 @@ Plugins MUST NOT mutate sibling contributions, host-private DOM, or another plug
 Standard host items use host keyboard/accessibility behavior and require accessible names. Custom mounts own accessibility within their assigned labeled subtree.
 
 UI-local state—panel open state, tab, expansion, hover, focus, form draft, popup visibility—remains presentation/session state. It MUST NOT become authoritative entry, domain, configuration, or selection state.
+
+### Approved Phase 4I host Drop binding
+
+`ui.bindDropTarget({id,onDrop})` selects one exclusive host application target, reserves during setup and activates only after commit. No target/headless rejects; staged rollback publishes no listeners. Callback receives frozen `{files,scope}` with a frozen native File-array snapshot and host invocation Scope, never raw map/container/DOM event. Host owns binding listeners/highlight/children; contributor joins resource closure through existing cross-lifetime cleanup obligations, with one resource parent.
+
+Binding teardown revokes delivery and cancels children synchronously, then joins owned resource cleanup. Callback promises are observed with await:false; resource-free callback completion is not a disposal/uninstall barrier. Required resource-specific acquisitions remain explicitly awaitable with reserved disposal and retained safe retry. Lease disposal is idempotent/concurrent-shared, with later explicit safe residual retry. Nested/mixed/empty/nonfile/control/panel drags and stale generations follow [4I B](phase-4/PHASE-4I-CONTRACT-AMENDMENTS.md). No general DOM/target escape hatch is added.
 
 ## 18. Domain UI Adapters
 

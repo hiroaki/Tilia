@@ -991,6 +991,8 @@ Full elevation/layers host UX, GPX export UI, route search, editor, milestone, a
 
 ## 15. Phase 4I — Standard UI and Presentation
 
+**A/B/C approved 2026-10-08; implementation authorized after the approval documentation commit.** See [4I approval record](phase-4/PHASE-4I-CONTRACT-AMENDMENTS.md) and [implementation plan](phase-4/PHASE-4I-IMPLEMENTATION-PLAN.md). Operation cancellation/outcome envelopes, narrow host Drop and own-commit startup supplement accepted foundations. Uninstall retains authority revocation and existing resource-specific waits; no blanket handler settlement barrier. Investigate pinned EXIF and stop dependent work for review if a contract change proves necessary. Photo settings are per-entry auto/local/utc only; global defaults/custom offsets are excluded.
+
 ### Goal
 
 Restore normal built-in product UI and input transports using typed hosts, contributions, subscriptions, presenters, and target semantic contracts.
@@ -1076,7 +1078,7 @@ Old tests for refresh handlers, mutable core entry fixtures, popup-owned selecti
 ### Completion criteria
 
 - all intended standard built-ins in this phase use PluginContext only;
-- `rg` finds no production `refreshView` or `addRefreshHandler`;
+- enabled production-reachable paths have zero `refreshView`/`addRefreshHandler`; only the exact recorded, byte-unchanged disabled four 4J loaders remain exceptions through 4I (plan §25). Report raw matches separately; delete them coherently in 4J. No standard-source/sample or additional exception;
 - generic hosts contain no GPX/Photo branches;
 - SelectionStore contains no popup/presentation state;
 - standard viewer/input/UI smoke milestones pass;

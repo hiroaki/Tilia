@@ -1,5 +1,7 @@
 # Phase 4C — Typed Extension Foundations Implementation Plan
 
+> Subsequent amendment (approved 2026-10-08): Operation-scoped dispatch cancellation and bounded post-handler failure envelopes (A), additive invocation Scope payload (A), and host-owned Drop binding (B) supplement the historical input/UI contracts. Recognition and accepted uninstall timing are preserved. See [4I approved amendments](PHASE-4I-CONTRACT-AMENDMENTS.md). Original completed-phase text below remains the historical acceptance record.
+
 ## 1. Executive Summary
 
 Phase 4C establishes the Scope-owned typed extension foundations required by later domain migrations: ServiceRegistry, target InputRegistry, typed contribution stores and subscriptions, stylesheet leases, foundational UI surfaces and mounts, MapFacade, an owned base-map catalog/controller, and explicit PluginContext capabilities.

@@ -1,5 +1,7 @@
 # Phase 4H — GPX Vertical Slice Implementation Plan
 
+> Subsequent amendment (approved 2026-10-08): Operation-scoped cancellation supplements input handling; native reader cancellation and stale auto-fit checks are added. The existing uninstall-before-late-read-release/zero-late-entry guarantee remains, not an awaited all-handler barrier. See [4I approved amendments](PHASE-4I-CONTRACT-AMENDMENTS.md). Original completed-phase text below remains the historical acceptance record.
+
 Status: implementation planning only; no production/test implementation, commit or implementation authorization. Baseline: accepted Phase 4G, HEAD `82584e853bb4a867798be2e7145a2a1aeba3c577`. All interfaces below are proposed 4H domain interfaces unless explicitly identified as existing contracts.
 
 ## 1. Objective and design constraints

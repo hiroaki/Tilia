@@ -1,5 +1,7 @@
 # Phase 4B — Plugin Runtime and Guarded Context Implementation Plan
 
+> Subsequent amendment (approved 2026-10-08): The narrow lifecycle.afterCommit capability supplements PluginContext after successful own activation, without exposing internal queues or adding uninstall work-settlement guarantees. See [4I approved amendments](PHASE-4I-CONTRACT-AMENDMENTS.md). Original completed-phase text below remains the historical acceptance record.
+
 ## 1. Executive Summary
 
 Phase 4B replaces the legacy plugin lifecycle with a graph-aware `PluginRuntime` and makes a guarded `PluginContext` the only setup contract for enabled plugins. Installation becomes lazy, dependency-planned, transactional, concurrency-safe, and Scope-owned. Uninstall protects active dependencies, incomplete cleanup enters quarantine, and runtime destruction is terminal.

@@ -1,5 +1,7 @@
 # Phase 4A — Ownership Kernel Implementation Plan
 
+> Subsequent amendment (approved 2026-10-08): Scope ownership/close ordering is unchanged: await only explicitly awaitable resource work, not every input handler. Caller-owned invocation resources and safe residual retry remain under this contract. See [4I approved amendments](PHASE-4I-CONTRACT-AMENDMENTS.md). Original completed-phase text below remains the historical acceptance record.
+
 ## Summary
 
 Phase 4A introduces a new ownership kernel independent of product functionality. Existing plugins and UI will not be migrated; the implementation scope is limited to Scope, child Scope, disposal records, asynchronous tasks, staging, liveness, and failure diagnostics.
