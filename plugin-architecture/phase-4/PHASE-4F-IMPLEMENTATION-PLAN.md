@@ -920,6 +920,8 @@ Each handle captures:
 
 Invalidation permanently closes exposure authority; unhide or same-token update creates fresh authority and does not revive old handles.
 
+Historical note: this presentation-handle contract was subsequently amended during Phase 4G planning; implementation is pending. See the [contract-amendment record §2](PHASE-4G-CONTRACT-AMENDMENTS.md#2-presentationhandle-permanent-invalidation). The accepted Phase 4F handle interface above does not provide that subsequent signal addition.
+
 Controlled highlight support remains because the migration plan explicitly requires it. Implement only guarded presenter-owned child resources and fake-hook tests. No standard highlight UI is added.
 
 Highlights lose authority and are withdrawn on revision advancement, hide, replacement, deletion, withdrawal or termination.

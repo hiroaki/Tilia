@@ -111,6 +111,8 @@ await context.inputs.dispatch(input);
 
 Handler IDs are unique. Recognition is synchronous and side-effect-free. Dispatch evaluates a committed live snapshot in lexical handler-ID order, chooses the unique highest-priority claimant, reports ties explicitly, isolates recognizer errors, and never uses installation order. Each invocation is caller-owned and aborts when caller or handler owner closes. Removal blocks new calls and aborts in-flight work.
 
+Historical note: the related domain-creation publication contract was subsequently amended during Phase 4G planning; implementation is pending. See the [contract-amendment record §3](PHASE-4G-CONTRACT-AMENDMENTS.md#3-domain-create-commit-boundary-cancellation). This does not change the Phase 4C contract implemented and accepted here.
+
 ## 10. Input Transport Boundary
 
 Phase 4C implements registration, discovery metadata, matching/dispatch, cancellation, removal, and diagnostics only. File picker, drag/drop, URL/query import, GPX/JPEG handlers, parsing, normalization, and semantic creation remain later phases.

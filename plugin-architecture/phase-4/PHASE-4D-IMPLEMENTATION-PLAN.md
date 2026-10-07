@@ -266,6 +266,8 @@ validate caller/app liveness
 
 Failure publishes nothing, closes the destination scope, releases the lease, preserves the ID gap, and records cleanup residuals privately.
 
+Historical note: this creation contract was subsequently amended during Phase 4G planning; implementation is pending. See the [contract-amendment record §3](PHASE-4G-CONTRACT-AMENDMENTS.md#3-domain-create-commit-boundary-cancellation). The original Phase 4D contract remains the historical implementation and acceptance record.
+
 ## 17. Update Transaction
 
 ```text
