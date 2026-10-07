@@ -1,12 +1,16 @@
+import { createLayoutHost } from "./layout.js";
+import { createDropTarget } from "./drop-target.js";
 import { extensionError, extensionErrorCodes } from "../extensions/errors.js";
 
 const SURFACES = new Set(["panel", "floating"]);
 
-export function createUiMountManager({ map }) {
+export function createUiMountManager({ map, scope: hostScope, onError = () => {} }) {
   const container = map?.getContainer?.();
   const ownerDocument = container?.ownerDocument;
+  const layout = createLayoutHost({ container, scope: hostScope, onError });
   const roots = new Map();
   const mounts = new Map();
+  const bindDrop = createDropTarget({ container, hostScope, onError });
 
   function rootFor(surface) {
     let root = roots.get(surface);
@@ -29,8 +33,10 @@ export function createUiMountManager({ map }) {
     for (const item of ordered) root.appendChild(item.wrapper);
   }
 
-  function createFacade({ pluginId, scope }) {
+  function createFacade(input) {
+    const { pluginId, scope } = input;
     return Object.freeze({
+      bindDropTarget: bindDrop(input),
       mountSurface({ id, surface = "floating", rank = 0, ariaLabel, mount }) {
         scope.assertAlive();
         if (typeof id !== "string" || !id || !SURFACES.has(surface) || !Number.isFinite(rank) || typeof mount !== "function") {
@@ -54,7 +60,7 @@ export function createUiMountManager({ map }) {
           // dispose() revokes the complete child tree synchronously before its
           // asynchronous cleanup begins. The wrapper is removed after that
           // cleanup settles, including when cleanup reports a failure.
-          cleanupPromise = mountScope.dispose().finally(() => wrapper.remove());
+          cleanupPromise = mountScope.dispose().finally(() => { wrapper.remove(); layout(); });
           // The parent disposer awaits this same promise. This observer only
           // prevents an early mount failure from becoming unhandled meanwhile.
           cleanupPromise.catch(() => {});
@@ -63,6 +69,7 @@ export function createUiMountManager({ map }) {
         scope.defer(unmount, { label: `ui-mount:${id}`, retry: "safe" });
         try {
           mount({ container: wrapper, scope: mountScope });
+          layout();
         } catch (error) {
           unmount();
           throw error;

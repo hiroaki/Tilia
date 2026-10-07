@@ -1,3 +1,4 @@
+import { forwardAbort, signalAborted, signalReason } from "../ownership/abort.js";
 import { normalizeGpxDocument } from "./document.js";
 
 export const MAX_ROUTES_PER_GPX = 20;
@@ -20,12 +21,46 @@ const PARSER_ERROR_NAMESPACES = [
 //   entities, and entity handling must not depend on the DOM parser in use.
 // This is intentionally narrower than complete GPX 1.1 schema validation.
 
-function readText(file) {
+function readText(file, { signal, scope } = {}) {
+  if (signal !== undefined && signalAborted(signal)) return Promise.reject(signalReason(signal));
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ""));
-    reader.onerror = () => reject(reader.error || new Error("Failed to read file"));
-    reader.readAsText(file);
+    let reader, forwarding, settled = false, abortFailure;
+    const clear = () => {
+      forwarding?.signal.removeEventListener("abort", abort);
+      forwarding?.dispose();
+      if (reader) { reader.onload = null; reader.onerror = null; reader.onabort = null; }
+    };
+    const finish = (error, value) => {
+      if (settled) return;
+      settled = true;
+      try { clear(); } catch (cleanup) { error = error === undefined ? cleanup : new AggregateError([error, cleanup], "GPX read and listener cleanup failed", { cause: cleanup }); }
+      if (error !== undefined) reject(error); else resolve(value);
+    };
+    const abort = () => {
+      const reason = forwarding ? signalReason(forwarding.signal) : new DOMException("Read cancelled", "AbortError");
+      abortFailure = undefined;
+      try { if (reader?.readyState === 1) reader.abort(); } catch (error) { abortFailure = error; }
+      finish(reason ?? new DOMException("Read cancelled", "AbortError"));
+      // Scope disposal retries a failed native cancellation and retains its error.
+
+    };
+    const dispose = () => {
+      let failure = abortFailure;
+      try { if (reader?.readyState === 1) { reader.abort(); failure = undefined; abortFailure = undefined; } } catch (error) { failure = error; }
+      finish(new DOMException("Read scope closed", "AbortError")); clear();
+      if (failure) throw failure;
+    };
+    scope?.defer(dispose, { label: "gpx-reader", retry: "safe" });
+    try {
+      reader = new FileReader();
+      forwarding = forwardAbort([...(signal === undefined ? [] : [signal]), ...(scope ? [scope.signal] : [])], { scope });
+      reader.onload = () => finish(undefined, String(reader.result || ""));
+      reader.onerror = () => finish(reader.error || new Error("Failed to read file"));
+      reader.onabort = () => finish(new DOMException("Read cancelled", "AbortError"));
+      forwarding.signal.addEventListener("abort", abort, { once: true });
+      if (forwarding.signal.aborted) { abort(); return; }
+      scope?.assertAlive(); reader.readAsText(file);
+    } catch (error) { finish(error); }
   });
 }
 
@@ -298,7 +333,12 @@ export function parseGpxText(xmlText, options = {}) {
   });
 }
 
-export async function parseGpxFile(file) {
-  const xmlText = await readText(file);
-  return parseGpxText(xmlText, { fileName: file.name });
+export async function parseGpxFile(file, { signal, scope } = {}) {
+  const check = () => { if (signal !== undefined && signalAborted(signal)) throw signalReason(signal); };
+  check();
+  const xmlText = await readText(file, { signal, scope });
+  check();
+  const parsed = parseGpxText(xmlText, { fileName: file.name });
+  check();
+  return parsed;
 }

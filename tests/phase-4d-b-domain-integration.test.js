@@ -337,7 +337,7 @@ describe("Phase 4D-B capability and lazy-loading boundaries", () => {
       id: "x-semantic-consumer",
       setup(context) {
         captured = context;
-        expect(Object.keys(context).sort()).toEqual(["domains", "entries", "plugin", "scope", "selection"]);
+        expect(Object.keys(context).sort()).toEqual(["domains", "entries", "lifecycle", "plugin", "scope", "selection"]);
         expect(context).not.toHaveProperty("entryStore");
         expect(context).not.toHaveProperty("domainRegistry");
         expect(context.domains.optional(gpxDomainKey)).toBeNull();

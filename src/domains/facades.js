@@ -83,6 +83,7 @@ export function createPhotoFacade({ scope, entries, selection }) {
 export function createEntryFacade({ scope, entries }) {
   return Object.freeze({
     list() { scope.assertAlive(); return entries.list(); },
+    clear() { scope.assertAlive(); return entries.clear(scope); },
     get(id) { scope.assertAlive(); return entries.get(id); },
     setVisible(id, visible) { scope.assertAlive(); return entries.setVisible(scope, id, visible); },
     remove(id) { scope.assertAlive(); return entries.remove(scope, id); },

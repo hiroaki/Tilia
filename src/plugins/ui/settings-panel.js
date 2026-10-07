@@ -1,42 +1,41 @@
-import { createMapControl } from "../../map/controls.js";
 import { panelServiceKey } from "../contracts/panel.js";
-import { listen, node, reportError } from "../../ui/scoped-dom.js";
+import { node, reportError } from "../../ui/scoped-dom.js";
+import { registerLauncher } from "../../ui/toolbar-launcher.js";
 export default Object.freeze({
-  id: "tilia-settings", requires: ["tilia-panel"],
+  id: "tilia-settings", requires: ["tilia-panel", "tilia-toolbar"],
   setup(context, options = {}) {
-    const panel = context.services.require(panelServiceKey);
-    const handles = new Set(), report = (error) => reportError(context, error);
-    const control = createMapControl({ ...options, className: "tilia-settings-control", createContent(container) {
-      const button = node(container, "button", "tilia-control-button tilia-control-button-icon", "S");
-      button.setAttribute("aria-label", "Settings");
-      listen(context.scope, button, "click", () => {
-        if (panel.isOpen("settings")) return panel.close("settings");
-        const handle = panel.open({ id: "settings", title: "Settings", mount({ container, scope }) {
-          let rows;
-          const redraw = () => {
-            if (!scope.alive) return;
-            void rows?.dispose().catch(report);
-            rows = scope.child({ label: "settings-items" });
-            container.replaceChildren();
-            for (const entry of context.entries.list()) {
-              for (const { descriptor } of context.contributions.settings.getSnapshot()) {
-                if (!descriptor.supports(entry)) continue;
-                const item = node(container, "section", "tilia-entry-settings");
-                const child = rows.child({ label: `settings:${entry.id}` });
-                child.defer(() => item.remove(), { retry: "safe" });
-                try { descriptor.mount({ container: item, scope: child, entry }); } catch (error) { report(error); }
-              }
+    context.styles.use({ id: "tilia-settings-ui", href: new URL("./settings.css", import.meta.url).href });
+    const panel = context.services.require(panelServiceKey), handles = new Set(), report = (e) => reportError(context, e);
+    registerLauncher(context, options, { kind: "action", label: "Settings", iconText: "S", className: "tilia-settings-control", activate() {
+      if (panel.isOpen("settings")) return panel.close("settings");
+      handles.add(panel.open({ id: "settings", title: "Settings", layout: "side", mount({ container, scope }) {
+        const records = new Map();
+        const close = (record) => { if (records.get(record.key) === record) records.delete(record.key); record.item.remove(); void record.scope.dispose().catch(report); };
+        const reconcile = () => {
+          if (!scope.alive) return;
+          const desired = new Set();
+          for (const entry of context.entries.list()) for (const { id, descriptor } of context.contributions.settings.getSnapshot()) {
+            let supported = false;
+            try { supported = descriptor.supports(entry); } catch (error) { report(error); }
+            if (!supported) continue;
+            const key = JSON.stringify([entry.id, id]); desired.add(key);
+            let record = records.get(key);
+            if (record && record.descriptor !== descriptor) { close(record); record = null; }
+            if (!record) {
+              const child = scope.child({ label: `settings:${key}` }), item = node(container, "section", "tilia-entry-settings");
+              record = { key, descriptor, scope: child, item }; records.set(key, record); child.defer(() => item.remove(), { retry: "safe" });
+              const captured = record;
+              try { descriptor.mount({ container: item, scope: child, entry, withdraw: () => close(captured) }); }
+              catch (error) { report(error); close(record); }
             }
-          };
-          const entries = context.entries.subscribe(redraw, { emitCurrent: false });
-          const contributions = context.contributions.settings.subscribe(redraw, { emitCurrent: false });
-          scope.defer(() => { entries.unsubscribe(); contributions.unsubscribe(); }, { retry: "safe" });
-          redraw();
-        } });
-        handles.add(handle);
-      }, report);
+            if (records.get(key) === record) container.appendChild(record.item);
+          }
+          for (const record of [...records.values()]) if (!desired.has(record.key)) close(record);
+        };
+        const subscriptions = [context.entries.subscribe(reconcile, { emitCurrent: false }), context.contributions.settings.subscribe(reconcile, { emitCurrent: false })];
+        scope.defer(() => subscriptions.forEach((s) => s.unsubscribe()), { retry: "safe" }); reconcile();
+      } }));
     } });
-    context.map.mountControl(control);
     context.scope.defer(async () => { for (const handle of handles) await handle.dispose(); }, { retry: "safe" });
   },
 });

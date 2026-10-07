@@ -140,7 +140,7 @@ export function createApplicationComposition({
     document: map.getContainer?.()?.ownerDocument ?? globalThis.document,
     onError: onDiagnostic,
   });
-  const uiMountManager = createUiMountManager({ map });
+  const uiMountManager = createUiMountManager({ map, scope: appController.scope, onError: onDiagnostic });
   const baseMapCatalog = createBaseMapCatalog({ map, onError: onDiagnostic });
   const mapFactory = createMapFacadeFactory({ map, panes: rendering.panes });
   const appPostCommit = [];

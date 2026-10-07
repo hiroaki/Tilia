@@ -1,63 +1,60 @@
-import { createMapControl } from "../../map/controls.js";
+import { statusServiceKey } from "../contracts/status.js";
 import { panelServiceKey } from "../contracts/panel.js";
 import { listen, node, reportError } from "../../ui/scoped-dom.js";
+import { registerLauncher } from "../../ui/toolbar-launcher.js";
 export default Object.freeze({
-  id: "tilia-layers", requires: ["tilia-panel"],
+  id: "tilia-layers", requires: ["tilia-panel", "tilia-toolbar"],
   setup(context, options = {}) {
-    const panel = context.services.require(panelServiceKey);
-    const report = (error) => reportError(context, error);
-    const handles = new Set();
-    const control = createMapControl({ ...options, className: "tilia-layers-control", createContent(container) {
-      const button = node(container, "button", "tilia-control-button tilia-control-button-icon", "L");
-      button.setAttribute("aria-label", "Layers");
-      listen(context.scope, button, "click", () => {
-        if (panel.isOpen("layers")) return panel.close("layers");
-        const handle = panel.open({ id: "layers", title: "Layers", mount({ container, scope }) {
-          let rows = null;
-          const redraw = () => {
-            if (!scope.alive) return;
-            const old = rows;
-            rows = scope.child({ label: "rows" });
-            void old?.dispose().catch(report);
-            container.replaceChildren();
-            const list = node(container, "ul", "tilia-layer-list");
-            const entries = context.entries.list();
-            if (!entries.length) node(list, "li", "tilia-layer-empty", "No layers");
-            for (const entry of entries) {
-              const item = node(list, "li", "tilia-layer-item");
-              const child = rows.child({ label: `entry:${entry.id}` });
-              child.defer(() => item.remove(), { retry: "safe" });
-              const toggle = node(item, "input", "tilia-layer-visible");
-              toggle.type = "checkbox"; toggle.checked = entry.visible;
-              toggle.setAttribute("aria-label", `Show entry ${entry.id}`);
-              listen(child, toggle, "change", () => context.entries.setVisible(entry.id, toggle.checked), report);
-              const content = node(item, "div", "tilia-layer-card-body");
-              const adapter = context.contributions.layers.get(entry.domain);
-              if (adapter) {
-                const adapterScope = child.child({ label: "layers-adapter" });
-                const adapterContainer = node(content, "div", "tilia-layer-adapter");
-                adapterScope.defer(() => adapterContainer.remove(), { retry: "safe" });
-                try { adapter.mount({ container: adapterContainer, scope: adapterScope, entry }); }
-                catch (error) {
-                  report(error);
-                  adapterContainer.remove();
-                  void adapterScope.dispose().catch(report);
-                  node(content, "div", "tilia-layer-name", `${entry.domain.id} ${entry.id}`);
-                }
-              } else node(content, "div", "tilia-layer-name", `${entry.domain.id} ${entry.id}`);
-              const remove = node(item, "button", "tilia-layer-delete-button", "Remove");
-              listen(child, remove, "click", () => context.entries.remove(entry.id), report);
+    context.styles.use({ id: "tilia-layers-ui", href: new URL("./layers.css", import.meta.url).href });
+    const panel = context.services.require(panelServiceKey), report = (e) => reportError(context, e), handles = new Set();
+    registerLauncher(context, options, { kind: "action", label: "Layers", iconText: "L", className: "tilia-layers-control", activate() {
+      if (panel.isOpen("layers")) return panel.close("layers");
+      handles.add(panel.open({ id: "layers", title: "Layers", layout: "side", mount({ container, scope }) {
+        const mutations = node(container, "fieldset", "tilia-layer-mutations");
+        const clear = node(mutations, "button", "tilia-layer-clear-button", "Delete all"); clear.type = "button";
+        const list = node(mutations, "ul", "tilia-layer-list"), rows = new Map();
+        let empty;
+        const withdraw = (row) => { if (rows.get(row.id) === row) rows.delete(row.id); row.item.remove(); void row.scope.dispose().catch(report); };
+        const present = (row) => { if (!scope.alive || !row.scope.alive) return false; if (!context.entries.get(row.id)) { withdraw(row); return false; } return true; };
+        const selection = () => { if (!scope.alive) return; const current = context.selection.getCurrent(); for (const row of rows.values()) row.item.classList.toggle("tilia-layer-selected", current?.entryId === row.id); };
+        const reconcile = () => {
+          if (!scope.alive) return;
+          const entries = context.entries.list();
+          for (const row of [...rows.values()]) if (!entries.some((e) => e.id === row.id)) withdraw(row);
+          for (const entry of entries) {
+            let row = rows.get(entry.id);
+            if (!row) {
+              const child = scope.child({ label: `entry:${entry.id}` }), item = node(list, "li", "tilia-layer-item tilia-layer-card");
+              row = { id: entry.id, scope: child, item }; rows.set(entry.id, row); child.defer(() => item.remove(), { retry: "safe" });
+              row.toggle = node(item, "input", "tilia-layer-visible"); row.toggle.type = "checkbox"; row.toggle.setAttribute("aria-label", `Show entry ${entry.id}`);
+              row.content = node(item, "div", "tilia-layer-card-body");
+              const captured = row;
+              listen(child, row.toggle, "change", async () => { if (!present(captured)) return; try { await context.entries.setVisible(entry.id, captured.toggle.checked); } finally { if (present(captured)) captured.toggle.checked = context.entries.get(entry.id).visible; } }, report);
+              const remove = node(item, "button", "tilia-layer-delete-button", "Remove"); remove.type = "button";
+              listen(child, remove, "click", async () => { if (!present(captured) || remove.disabled) return; remove.disabled = true; try { await context.entries.remove(entry.id); } finally { if (present(captured)) remove.disabled = false; } }, report);
             }
-          };
-          const entries = context.entries.subscribe(redraw, { emitCurrent: false });
-          const adapters = context.contributions.layers.subscribe(redraw, { emitCurrent: false });
-          scope.defer(() => { entries.unsubscribe(); adapters.unsubscribe(); }, { retry: "safe" });
-          redraw();
-        } });
-        handles.add(handle);
-      }, report);
+            row.toggle.checked = entry.visible;
+            const adapter = context.contributions.layers.get(entry.domain);
+            if (!row.projected || row.adapter !== adapter) {
+              row.projected = true; row.adapter = adapter;
+              void row.adapterScope?.dispose().catch(report);
+              row.content.replaceChildren();
+              if (adapter) {
+                const child = row.scope.child({ label: "adapter" }), assigned = node(row.content, "div", "tilia-layer-adapter"); row.adapterScope = child;
+                child.defer(() => assigned.remove(), { retry: "safe" });
+                try { adapter.mount({ container: assigned, scope: child, entry, withdraw: () => withdraw(row) }); }
+                catch (error) { report(error); assigned.remove(); void child.dispose().catch(report); node(row.content, "div", "tilia-layer-name", `${entry.domain.id} ${entry.id}`); }
+              } else node(row.content, "div", "tilia-layer-name", `${entry.domain.id} ${entry.id}`);
+            }
+            list.appendChild(row.item);
+          }
+          empty?.remove(); empty = entries.length ? null : node(list, "li", "tilia-layer-empty", "No layers"); selection();
+        };
+        listen(scope, clear, "click", async () => { if (clear.disabled) return; clear.disabled = true; mutations.disabled = true; try { await context.entries.clear(); if (scope.alive) context.services.optional(statusServiceKey)?.set("Cleared all layers and sources"); } finally { if (scope.alive) { clear.disabled = false; mutations.disabled = false; reconcile(); } } }, report);
+        const subscriptions = [context.entries.subscribe(reconcile, { emitCurrent: false }), context.contributions.layers.subscribe(reconcile, { emitCurrent: false }), context.selection.subscribe(selection)];
+        scope.defer(() => subscriptions.forEach((s) => s.unsubscribe()), { retry: "safe" }); reconcile();
+      } }));
     } });
-    context.map.mountControl(control);
     context.scope.defer(async () => { for (const handle of handles) await handle.dispose(); }, { retry: "safe" });
   },
 });

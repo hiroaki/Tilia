@@ -5,9 +5,9 @@ function fileNameFromUrl(url) {
   try {
     const parsed = new URL(url);
     const path = parsed.pathname.split("/").filter(Boolean);
-    return path[path.length - 1] || "remote.gpx";
+    return path[path.length - 1] || "remote";
   } catch {
-    return "remote.gpx";
+    return "remote";
   }
 }
 
@@ -29,18 +29,10 @@ export function parseHttpUrl(value) {
 export function resolveRemoteFileName(url, response) {
   const disposition = response.headers.get("content-disposition") || "";
   const match = disposition.match(/filename\*?=(?:UTF-8''|"?)([^";]+)/i);
-  const candidate = match ? decodeURIComponent(match[1].replace(/"/g, "")) : fileNameFromUrl(url);
-  const contentType = (response.headers.get("content-type") || "").toLowerCase();
-
-  if (/\.gpx$/i.test(candidate)) {
-    return candidate;
-  }
-
-  if (contentType.includes("gpx") || contentType.includes("xml")) {
-    return `${candidate || "remote"}.gpx`;
-  }
-
-  return candidate || "remote.gpx";
+  let candidate;
+  try { candidate = match ? decodeURIComponent(match[1].replace(/"/g, "")) : fileNameFromUrl(url); }
+  catch { candidate = fileNameFromUrl(url); }
+  return candidate || "remote";
 }
 
 export function getContentLength(response) {
@@ -51,17 +43,4 @@ export function getContentLength(response) {
 
   const parsed = Number(rawValue);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
-}
-
-export function isSupportedRemoteGpxContent(fileName, contentType) {
-  const normalizedFileName = String(fileName || "").toLowerCase();
-  const normalizedContentType = String(contentType || "").toLowerCase();
-
-  if (normalizedFileName.endsWith(".gpx")) {
-    return true;
-  }
-
-  return normalizedContentType.includes("gpx")
-    || normalizedContentType.includes("xml")
-    || normalizedContentType.includes("octet-stream");
 }

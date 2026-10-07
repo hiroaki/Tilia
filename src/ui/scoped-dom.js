@@ -1,7 +1,11 @@
 // DOM effects belong to the mount scope; async action failures are observed.
 export function listen(scope, node, type, callback, report = () => {}) {
   const guarded = scope.guard((event) => {
-    try { Promise.resolve(callback(event)).catch(report); } catch (error) { report(error); }
+    let settle;
+    const observed = new Promise((resolve) => { settle = resolve; });
+    scope.track(observed, { label: `dom-action:${type}`, await: false });
+    try { void Promise.resolve(callback(event)).catch(report).finally(settle).catch(() => {}); }
+    catch (error) { settle(); report(error); }
   });
   scope.defer(() => node.removeEventListener(type, guarded), { retry: "safe" });
   node.addEventListener(type, guarded);

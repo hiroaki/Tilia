@@ -124,6 +124,8 @@ export function createPluginRuntime({ catalog = [], capabilityFactories = {}, on
     const context = createPluginContext({
       pluginId: id,
       scope: controller.scope,
+      isInstalling: () => record.state === "installing",
+      isActive: () => record.state === "active",
       stage: (definition) => controller.stage(definition),
       enqueuePostCommit(callback) {
         if (typeof callback !== "function") throw new TypeError("Post-commit notification must be a function");

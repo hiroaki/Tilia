@@ -194,7 +194,7 @@
 
         <article
           class="story-card"
-          data-tilia-gpx-url="./biwakososui.gpx"
+          data-tilia-gpx-url="./img-2892-helper.gpx"
         >
           <div class="story-media">
             <img
@@ -232,7 +232,9 @@
         const file = new File([blob], name, {
           type: blob.type,
         });
-        return app.load(file);
+        const result = await app.load(file);
+        const summary = result.entry.domain.id === "gpx" ? `${Math.round(app.domains.gpx.getDistance(result.entry.id).totalMeters)} m` : result.locationSource ?? "no location";
+        return { ...result, summary };
       }
 
       function setStatus(node, text) {
@@ -244,8 +246,8 @@
         const mapNode = card.querySelector(".story-map");
         const statusNode = card.querySelector(".story-status");
 
-        // Each content block creates its own independent map and Tilia core.
-        const app = createDefaultTiliaApp(mapNode);
+        // Each content block creates its own independent map and Tilia application.
+        const app = createDefaultTiliaApp(mapNode, { plugins: ["tilia-toolbar", "tilia-status", "tilia-base-maps-control", "tilia-panel", "tilia-layers", "tilia-settings", "tilia-file-import", "tilia-url-import", "tilia-query-import", "tilia-dropzone", "tilia-elevation", "tilia-gpx-domain", "tilia-gpx-renderer", "tilia-gpx-input", "tilia-gpx-ui", "tilia-photo-domain", "tilia-photo-renderer", "tilia-jpeg-input", "tilia-photo-ui", "tilia-map-selection-presenter"] });
 
         // The GPX URL comes from the card's data attribute.
         const result = await loadIntoApp(app, gpxUrl);
@@ -260,17 +262,13 @@
         const statusNode = card.querySelector(".story-status");
 
         // Photo cards follow the same flow; only the source data attribute changes.
-        // This demo photo was shot with a +09:00 wall-clock timestamp.
         const app = createDefaultTiliaApp(mapNode, {
-          defaultPhotoTimeMode: gpxUrl ? "+09:00" : "auto",
+          plugins: ["tilia-toolbar", "tilia-status", "tilia-base-maps-control", "tilia-panel", "tilia-layers", "tilia-settings", "tilia-file-import", "tilia-url-import", "tilia-query-import", "tilia-dropzone", "tilia-elevation", "tilia-gpx-domain", "tilia-gpx-renderer", "tilia-gpx-input", "tilia-gpx-ui", "tilia-photo-domain", "tilia-photo-renderer", "tilia-jpeg-input", "tilia-photo-ui", "tilia-map-selection-presenter"],
         });
 
         if (gpxUrl) {
-          await loadIntoApp(app, gpxUrl);
-          const helperEntry = app.state.entries[app.state.entries.length - 1];
-          if (helperEntry?.kind === "gpx") {
-            app.core.setEntryVisibility(helperEntry.id, false);
-          }
+          const helper = await loadIntoApp(app, gpxUrl);
+          await app.entries.setVisible(helper.entry.id, false);
         }
 
         const result = await loadIntoApp(app, photoUrl);

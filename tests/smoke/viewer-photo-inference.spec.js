@@ -32,18 +32,11 @@ test("viewer sample infers a photo location from an imported GPX track", async (
   await expect(trackLayer).toHaveCount(1);
   await expect(photoLayer).toHaveCount(1);
   await expect(photoLayer.locator(".tilia-layer-meta")).toContainText("gpx-time-inference");
-  await expect(photoLayer.locator(".tilia-layer-mode-select")).toHaveCount(1);
-  await expect(photoLayer.locator(".tilia-layer-mode-custom")).toBeHidden();
-  await photoLayer.locator(".tilia-layer-mode-select").selectOption("custom");
-  await expect(photoLayer.locator(".tilia-layer-mode-custom")).toBeVisible();
-  await photoLayer.locator(".tilia-layer-mode-sign").selectOption("+");
-  await photoLayer.locator(".tilia-layer-mode-offset").press("ArrowUp");
-  await expect(page.locator(".tilia-status-text")).toContainText("gpx-time-inference");
-  await expect(page.locator(".tilia-status-text")).not.toContainText("Updated IMG_2892.JPG photo time mode");
-  await photoLayer.locator(".tilia-layer-mode-offset").fill("00:00");
-  await page.locator(".tilia-settings-panel-text").click();
-  await expect(page.locator(".tilia-status-text")).toContainText("Updated IMG_2892.JPG photo time mode to +00:00");
-  await expect(photoLayer.locator(".tilia-layer-mode-offset")).toHaveValue("00:00");
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  const mode = page.locator(".tilia-photo-time-mode-select");
+  await expect(mode).toHaveValue("auto"); await mode.selectOption("utc"); await expect(mode).toHaveValue("utc");
+  await page.getByRole("button", { name: "Layers", exact: true }).click();
+  await expect(photoLayer.locator(".tilia-layer-meta")).toContainText("gpx-time-inference");
 
   expect(pageErrors).toEqual([]);
 });

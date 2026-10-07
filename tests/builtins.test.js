@@ -16,9 +16,9 @@ describe("Phase 4B built-in catalog", () => {
 
   it("preserves hard panel dependency metadata", () => {
     const byId = new Map(builtinPluginCatalog.map((entry) => [entry.id, entry]));
-    expect(byId.get("tilia-layers").requires).toEqual(["tilia-panel"]);
-    expect(byId.get("tilia-elevation").requires).toEqual(["tilia-panel"]);
-    expect(byId.get("tilia-settings").requires).toEqual(["tilia-panel"]);
+    expect(byId.get("tilia-layers").requires).toEqual(["tilia-panel", "tilia-toolbar"]);
+    expect(byId.get("tilia-elevation").requires).toEqual(["tilia-panel", "tilia-toolbar", "tilia-gpx-domain"]);
+    expect(byId.get("tilia-settings").requires).toEqual(["tilia-panel", "tilia-toolbar"]);
   });
 
   it("publishes GPX and Photo domain metadata through literal lazy loaders", () => {

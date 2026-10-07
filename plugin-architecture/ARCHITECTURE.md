@@ -341,6 +341,8 @@ Typed notifications occur after state/registration commit, use subscriber snapsh
 
 ## 16. Contributions and UI Hosts
 
+Phase 4I implements the fixed `contributions.toolbar` point through the existing contribution engine: corners `topleft/topright/bottomleft/bottomright`, immutable validated action/mount variants, mount-owned controls and item-local action observation with `await:false`. Standard File requires Toolbar; Layers/Settings require Panel and Toolbar; URL requires Toolbar; Elevation also requires GPX domain. Panel supports validated side/bottom presentation. Exact resolved product specifications remain in [4I plan §6](phase-4/PHASE-4I-IMPLEMENTATION-PLAN.md). The approved A/B/C contracts are implemented and verified; [the implementation report](phase-4/PHASE-4I-IMPLEMENTATION-REPORT.md) records pinned EXIF/resource findings, audits and remaining 4J/4K scope. Implementation review/acceptance remains pending.
+
 A UI host owns one typed contribution contract, placement, layout, group ordering, keyboard/focus policy, and mount child scopes. A contribution is an immutable owned descriptor plus guarded behavior.
 
 Ordering is:

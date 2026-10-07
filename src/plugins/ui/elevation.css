@@ -1,0 +1,100 @@
+.tilia-elevation-panel-content {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.tilia-elevation-panel-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+}
+
+.tilia-elevation-chart {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  border: 1px solid #e7e5e4;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #f0fdfa 0%, #ffffff 100%);
+}
+
+.tilia-elevation-chart-wrap {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.tilia-elevation-chart-surface {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.tilia-elevation-guide-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.tilia-elevation-guide-line {
+  position: absolute;
+  width: 0;
+  border-left: 1.5px dashed #0f766e66;
+  transform: translateX(-0.75px);
+}
+
+.tilia-elevation-guide-marker {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #0f766e;
+  border: 2px solid #ffffff;
+  transform: translate(-50%, -50%);
+  box-sizing: border-box;
+}
+
+.tilia-elevation-chart-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.tilia-elevation-chart-label {
+  font-size: 11px;
+  line-height: 1.2;
+  color: #57534e;
+}
+
+.tilia-elevation-chart-label-end {
+  text-align: right;
+}
+
+.tilia-side-panel-layout-bottom .tilia-elevation-chart {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-height: none;
+}
+
+.tilia-elevation-empty {
+  margin: 0;
+  font-size: 12px;
+  color: #57534e;
+}
+
+@media (max-width: 960px) {
+.tilia-side-panel-layout-bottom .tilia-elevation-panel-content {
+    height: 100%;
+  }
+}

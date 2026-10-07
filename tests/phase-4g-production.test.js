@@ -300,7 +300,7 @@ describe("Phase 4G actual production plugins", () => {
       const f = await fixture(["tilia-panel"]), panel = f.context.services.require(panelServiceKey);
       const records = [], requestedMount = vi.fn();
       const id = (label) => identity === "same-ID" ? "same" : label;
-      const outside = f.doc.createElement("button"); outside.focus();
+      const outside = f.doc.createElement("button"); f.doc.body.appendChild(outside); outside.focus();
       let intervening, finish, started;
       const gate = new Promise((r) => { finish = r; }), cleaning = new Promise((r) => { started = r; });
       const open = (label) => panel.open({ id: id(label), title: label, mount({ container, scope }) {
@@ -391,7 +391,7 @@ describe("Phase 4G actual production plugins", () => {
 
   it.each(["same-ID", "different-ID"])("ordinary close preserves an abort-opened %s panel and its focus", async (identity) => {
     const f = await fixture(["tilia-panel"]), panel = f.context.services.require(panelServiceKey);
-    const outside = f.doc.createElement("button"); outside.focus();
+    const outside = f.doc.createElement("button"); f.doc.body.appendChild(outside); outside.focus();
     let oldScope, nextScope, next, button;
     const action = vi.fn();
     const old = panel.open({ id: "old", title: "Old", mount({ scope }) {
@@ -418,7 +418,7 @@ describe("Phase 4G actual production plugins", () => {
   it("reports a throwing reentrant focus callback while preserving its newer panel", async () => {
     const f = await fixture(["tilia-panel"]), panel = f.context.services.require(panelServiceKey);
     const report = vi.spyOn(scopedDom, "reportError");
-    const outside = f.doc.createElement("button"); outside.focus();
+    const outside = f.doc.createElement("button"); f.doc.body.appendChild(outside); outside.focus();
     let button, newer, fired = false;
     const old = panel.open({ id: "old", title: "Old", mount() {} });
     vi.spyOn(outside, "focus").mockImplementation(() => {

@@ -2,11 +2,13 @@
 
 ## 1. Executive summary
 
-Restore standard viewer UI and transports through accepted Phase 4A–4H foundations. Keep typed domain contributions, SelectionStore, the existing map-selection presenter and Scope ownership. A/B/C are approved on 2026-10-08; implementation is authorized after the approval documentation commit, with verification/acceptance still pending.
+**Current implementation status:** implemented and verified after approval commit `7b7bb11`; 73 unit files / 731 tests and 33 noneditor browser scenarios pass. See [implementation, pinned EXIF and audit report](PHASE-4I-IMPLEMENTATION-REPORT.md). Implementation review/acceptance remains pending. The investigation baseline, planned execution targets and approval-time rationale below are retained as the design record; this status/report supersedes their future/pending bookkeeping. No additional contract change was needed.
+
+Restore standard viewer UI and transports through accepted Phase 4A–4H foundations. Keep typed domain contributions, SelectionStore, the existing map-selection presenter and Scope ownership. A/B/C are approved on 2026-10-08; implementation is authorized after the approval documentation commit, with implementation verification complete and review/acceptance pending.
 
 The previous plan received verdict C and was then reconsidered. The user now approves A/B/C and authorizes their documentation commit followed by Phase 4I implementation. See [approved amendments](PHASE-4I-CONTRACT-AMENDMENTS.md). Approval does not claim completed implementation/tests. Preserve the resolved standard UI specifications.
 
-Three separate amendments are **APPROVED 2026-10-08 — IMPLEMENTATION AND VERIFICATION PENDING** (§21):
+Three separate amendments are **APPROVED 2026-10-08 — IMPLEMENTED AND VERIFIED; REVIEW/ACCEPTANCE PENDING** (§21):
 
 1. **A:** operation cancellation, `inputs.dispatch(input, {signal})`, including honest dispatch-level failure evidence while preserving accepted uninstall behavior.
 2. **B:** a narrow host-owned Drop binding, joining host/contributor lifetimes without raw DOM access.
@@ -504,7 +506,7 @@ Each record is independently approved. [Approval record](PHASE-4I-CONTRACT-AMEND
 
 ### Amendment A — operation-scoped cancellation for InputRegistry
 
-**APPROVED 2026-10-08 — IMPLEMENTATION AND VERIFICATION PENDING**
+**APPROVED 2026-10-08 — IMPLEMENTED AND VERIFIED; REVIEW/ACCEPTANCE PENDING**
 
 #### A.1. Requirement, accepted baseline and selected approach
 
@@ -601,7 +603,7 @@ A remains review-gated for external-signal API, additive invocation Scope in han
 
 ### Amendment B — host-owned Drop binding
 
-**APPROVED 2026-10-08 — IMPLEMENTATION AND VERIFICATION PENDING**
+**APPROVED 2026-10-08 — IMPLEMENTED AND VERIFIED; REVIEW/ACCEPTANCE PENDING**
 
 Keep narrow `ui.bindDropTarget({id,onDrop})`: nonempty trimmed ID and function, no other fields/types. Return frozen `{dispose:()=>Promise<void>}` lease. Callback `onDrop(Object.freeze({files,scope})) -> void | Promise<void>` receives a frozen File-array snapshot in DataTransfer order and an invocation child Scope; no map/container/event/DataTransfer/target selector. Host owns placement/listeners/highlight/invocation; callbacks own assigned effects through that Scope or children, never transfer ownership.
 
@@ -619,7 +621,7 @@ Callback promise observation is not sufficient for late resource acquisition. If
 
 ### Amendment C — own-commit notification for Query startup
 
-**APPROVED 2026-10-08 — IMPLEMENTATION AND VERIFICATION PENDING**
+**APPROVED 2026-10-08 — IMPLEMENTED AND VERIFIED; REVIEW/ACCEPTANCE PENDING**
 
 **Evidence/need.** Scope alive includes uncommitted setup (`ownership/scope.js`). Context factories alone receive internal `enqueuePostCommit`; runtime activates before its callback flush. Neither scheduling a microtask nor registering a fake service/contribution to obtain an availability notification is an accepted own-activation mechanism. Query must support both initial composition and dynamic `use` without fetching under rollbackable setup.
 
@@ -782,7 +784,7 @@ This contract-aware import rule does not waive eager-load limits: importing a pe
 
 ## 26. Completion gates
 
-Planning and A/B/C approval are complete. Implementation/verification/acceptance remain pending; the documentation commit precedes production changes.
+Planning, A/B/C approval, implementation and verification are complete. Implementation review/acceptance remains pending; approval commit `7b7bb11` preceded production changes. See the current report above for executed gates.
 
 Future 4I completion requires:
 

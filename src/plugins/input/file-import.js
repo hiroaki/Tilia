@@ -1,42 +1,34 @@
-import { createMapControl } from "../../map/controls.js";
-import { statusServiceKey } from "../contracts/status.js";
+import { forwardAbort } from "../../ownership/abort.js";
 import { listen, node, reportError } from "../../ui/scoped-dom.js";
+import { registerLauncher } from "../../ui/toolbar-launcher.js";
+import { importFiles } from "./transport.js";
 export default Object.freeze({
-  id: "tilia-file-import",
+  id: "tilia-file-import", requires: ["tilia-toolbar"],
   setup(context, options = {}) {
-    const status = (text) => context.services.optional(statusServiceKey)?.set(text);
-    const report = (error) => reportError(context, error);
-    let fileInput;
-    const control = createMapControl({ ...options, className: "tilia-file-import-control", createContent(container) {
-      const label = node(container, "label", "tilia-file-label tilia-control-button-icon", "+");
-      label.setAttribute("aria-label", "Open files");
-      fileInput = node(label, "input", ""); fileInput.type = "file"; fileInput.multiple = true;
-      const discovery = () => {
-        fileInput.accept = [...new Set(context.inputs.getSnapshot().flatMap(({ discovery }) =>
-          [...discovery.extensions, ...discovery.mimeTypes]))].join(",");
-      };
-      context.inputs.subscribe(discovery);
-      listen(context.scope, fileInput, "change", async () => {
-        const files = [...fileInput.files];
-        let loaded = 0;
-        const details = [];
-        try {
-          for (const file of files) {
-            if (!context.scope.alive) break;
-            try {
-              const result = await context.inputs.dispatch(file);
-              if (!context.scope.alive) break;
-              loaded++;
-              details.push(`${result?.name ?? file.name}${result?.locationSource ? ` (${result.locationSource})` : ""}`);
-            } catch (error) {
-              report(error); details.push(`${file.name}: ${error.message}`);
-            }
-          }
-          if (context.scope.alive) status(`Loaded ${loaded} file(s) from file. ${details.join("; ")}`);
-        } finally { fileInput.value = ""; }
+  context.styles.use({ id: "tilia-file-input-ui", href: new URL("./file.css", import.meta.url).href });
+    registerLauncher(context, options, { kind: "mount", label: "Open files", className: "tilia-file-import-control", mount({ container, scope }) {
+      const report = (error) => reportError(context, error);
+      const label = node(container, "label", "tilia-file-label tilia-control-button-icon", "+"); label.setAttribute("aria-label", "Open files");
+      const picker = node(label, "input", ""); picker.type = "file"; picker.multiple = true; picker.setAttribute("aria-label", "Open files");
+      const cancel = node(container, "button", "tilia-file-cancel", "Cancel"); cancel.type = "button"; cancel.setAttribute("aria-label", "Cancel import"); cancel.hidden = true;
+      const progress = node(container, "span", "tilia-file-progress"); progress.setAttribute("role", "status");
+      let pending;
+      const discovery = () => { if (scope.alive) picker.accept = [...new Set(context.inputs.getSnapshot().flatMap(({ discovery: d }) => [...d.extensions, ...d.mimeTypes]))].join(","); };
+      const subscription = context.inputs.subscribe(discovery, { emitCurrent: false }); scope.defer(() => subscription.unsubscribe(), { retry: "safe" }); discovery();
+      listen(scope, cancel, "click", () => { if (!pending) return; pending.controller.abort(); cancel.disabled = true; progress.textContent = "Cancelling…"; }, report);
+      listen(scope, picker, "change", async () => {
+        if (pending) return;
+        const files = Object.freeze([...(picker.files ?? [])]); if (!files.length) return;
+        const operation = scope.child({ label: "file-batch" }), controller = new AbortController();
+        const forwarding = forwardAbort([controller.signal, operation.signal], { scope: operation });
+        operation.defer(() => forwarding.dispose(), { retry: "safe" });
+        const record = { operation, controller }; pending = record; picker.disabled = true; cancel.hidden = false; cancel.disabled = false; progress.textContent = "Loading…";
+        try { await importFiles(context, { files, scope: operation, signal: forwarding.signal }); }
+        finally {
+          try { await operation.dispose(); }
+          finally { if (scope.alive && pending === record) { pending = null; picker.disabled = false; picker.value = ""; cancel.hidden = true; progress.textContent = ""; } }
+        }
       }, report);
-      return label;
     } });
-    context.map.mountControl(control);
   },
 });

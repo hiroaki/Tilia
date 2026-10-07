@@ -2,7 +2,7 @@
 
 ## Authority, approval and implementation status
 
-Approval recorded: **2026-10-08**. The user explicitly approved Amendments **A, B and C** in the revised Phase 4I plan, requested this approval/architecture/accepted-contract documentation commit first, and then authorized Phase 4I implementation. **Contract approval is complete; implementation and verification are pending.**
+Approval recorded: **2026-10-08**. The user explicitly approved Amendments **A, B and C** in the revised Phase 4I plan, requested this approval/architecture/accepted-contract documentation commit first, and then authorized Phase 4I implementation. **Contract approval, implementation and verification are complete; implementation review/acceptance remains pending.** See [implementation/EXIF verification report](PHASE-4I-IMPLEMENTATION-REPORT.md). The approval documentation was committed first in `7b7bb11`.
 
 Accepted code baseline: `b4dbb30d3c914ffb6e970a481840c7a914936aea` (completed 4H). Completed 4A–4H documents remain historical acceptance records; subsequent notes link here without rewriting their original guarantees. The detailed approved specifications below are the corresponding §21 text of the plan at approval, including bounded additions/error changes, limitations and verification obligations. Uses of “propose”, “review-gated” and “after approval” within that historical design text describe the design rationale; **this status record supplies the explicit approval**.
 
@@ -15,7 +15,7 @@ The user explicitly approved A, B and C on 2026-10-08 and authorized implementat
 
 ### Amendment A — operation-scoped cancellation for InputRegistry
 
-**APPROVED 2026-10-08 — IMPLEMENTATION AND VERIFICATION PENDING**
+**APPROVED 2026-10-08 — IMPLEMENTED AND VERIFIED; REVIEW/ACCEPTANCE PENDING**
 
 #### A.1. Requirement, accepted baseline and selected approach
 
@@ -112,7 +112,7 @@ A remains review-gated for external-signal API, additive invocation Scope in han
 
 ### Amendment B — host-owned Drop binding
 
-**APPROVED 2026-10-08 — IMPLEMENTATION AND VERIFICATION PENDING**
+**APPROVED 2026-10-08 — IMPLEMENTED AND VERIFIED; REVIEW/ACCEPTANCE PENDING**
 
 Keep narrow `ui.bindDropTarget({id,onDrop})`: nonempty trimmed ID and function, no other fields/types. Return frozen `{dispose:()=>Promise<void>}` lease. Callback `onDrop(Object.freeze({files,scope})) -> void | Promise<void>` receives a frozen File-array snapshot in DataTransfer order and an invocation child Scope; no map/container/event/DataTransfer/target selector. Host owns placement/listeners/highlight/invocation; callbacks own assigned effects through that Scope or children, never transfer ownership.
 
@@ -130,7 +130,7 @@ Callback promise observation is not sufficient for late resource acquisition. If
 
 ### Amendment C — own-commit notification for Query startup
 
-**APPROVED 2026-10-08 — IMPLEMENTATION AND VERIFICATION PENDING**
+**APPROVED 2026-10-08 — IMPLEMENTED AND VERIFIED; REVIEW/ACCEPTANCE PENDING**
 
 **Evidence/need.** Scope alive includes uncommitted setup (`ownership/scope.js`). Context factories alone receive internal `enqueuePostCommit`; runtime activates before its callback flush. Neither scheduling a microtask nor registering a fake service/contribution to obtain an availability notification is an accepted own-activation mechanism. Query must support both initial composition and dynamic `use` without fetching under rollbackable setup.
 

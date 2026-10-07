@@ -3,6 +3,7 @@ import { listen, node, reportError } from "../../ui/scoped-dom.js";
 export default Object.freeze({
   id: "tilia-panel",
   setup(context) {
+    context.styles.use({ id: "tilia-panel-ui", href: new URL("./panel.css", import.meta.url).href });
     let active = null, root, body, title;
     let requestVersion = 0;
     const cancelledHandle = Object.freeze({ dispose: () => Promise.resolve() });
@@ -14,6 +15,7 @@ export default Object.freeze({
       if (current) {
         active = null;
         root.classList.add("tilia-side-panel-hidden");
+        delete root.dataset.tiliaPanelLayout;
       }
       // Revoke this captured scope before cleanup; stale failures/handles must
       // never change a reentrant replacement, even when its ID is identical.
@@ -23,7 +25,7 @@ export default Object.freeze({
       void closing.catch(report);
       record.container.remove();
       if (current && active === null && version === requestVersion) {
-        try { record.focus?.focus?.(); } catch (error) { report(error); }
+        try { (record.focus?.isConnected ? record.focus : root.ownerDocument.querySelector?.(".tilia-toolbar-item button:not(:disabled)") ?? root.parentNode)?.focus?.(); } catch (error) { report(error); }
       }
       return closing;
     };
@@ -37,19 +39,28 @@ export default Object.freeze({
         Object.assign(container.style, { position: "absolute", inset: "0", pointerEvents: "none" });
         root = node(container, "aside", "tilia-side-panel tilia-side-panel-layout-side tilia-side-panel-hidden");
         root.style.pointerEvents = "auto";
+        root.setAttribute("role", "dialog"); root.setAttribute("aria-label", "Tilia panel");
+        container.tabIndex = -1;
         const header = node(root, "div", "tilia-side-panel-header");
         title = node(header, "h2", "tilia-side-panel-title", "Panel");
         const button = node(header, "button", "tilia-side-panel-close", "Close");
         button.type = "button";
         body = node(root, "div", "tilia-side-panel-body");
         listen(scope, button, "click", () => close(), report);
+        listen(scope, root, "keydown", (e) => { if (e.key === "Escape") { e.preventDefault(); return close(); } }, report);
         for (const event of ["click", "dblclick", "mousedown", "pointerdown", "wheel"])
           listen(scope, root, event, (e) => e.stopPropagation());
         scope.defer(() => close(), { retry: "safe" });
       },
     });
-    function open({ id, title: label, mount }) {
-      if (typeof id !== "string" || typeof mount !== "function") throw new TypeError("Invalid panel specification");
+    function validate(spec) {
+      if (!spec || typeof spec !== "object" || Array.isArray(spec) || typeof spec.id !== "string" || !spec.id.trim()
+          || typeof spec.title !== "string" || !spec.title.trim() || typeof spec.mount !== "function"
+          || !["side", "bottom"].includes(spec.layout === undefined ? "side" : spec.layout)) throw new TypeError("Invalid panel specification");
+    }
+    function open(spec) {
+      validate(spec);
+      const { id, title: label, mount, layout = "side" } = spec;
       context.scope.assertAlive();
       // Last admitted request wins. Abort/focus callbacks may synchronously
       // admit a newer request while the captured old record is closing.
@@ -60,7 +71,10 @@ export default Object.freeze({
       const container = node(body, "div", "tilia-panel-content");
       const record = { id, scope, container, focus: container.ownerDocument.activeElement };
       active = record;
-      title.textContent = label;
+      title.textContent = label; root.setAttribute("aria-label", label);
+      root.classList.toggle("tilia-side-panel-layout-side", layout === "side");
+      root.classList.toggle("tilia-side-panel-layout-bottom", layout === "bottom");
+      root.dataset.tiliaPanelLayout = layout;
       root.classList.remove("tilia-side-panel-hidden");
       scope.defer(() => container.remove(), { retry: "safe" });
       try { mount({ container, scope }); } catch (error) { void closeRecord(record); throw error; }
@@ -71,7 +85,7 @@ export default Object.freeze({
     }
     context.services.provide(panelServiceKey, {
       open, close, isOpen: (id) => active?.id === id,
-      toggle(spec) { return active?.id === spec.id ? close(spec.id) : open(spec); },
+      toggle(spec) { validate(spec); return active?.id === spec.id ? close(spec.id) : open(spec); },
     });
   },
 });

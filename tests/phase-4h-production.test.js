@@ -349,14 +349,16 @@ describe("Phase 4H production rendering and independent presentation", () => {
     expect([...f.map.layers].find((l) => l instanceof Polyline && l.options.interactive !== false).options.color).toBe("#5c6bc0");
   });
   it("mounts semantic hierarchy and revisioned visibility/style controls with independent adapter lifetimes", async () => {
-    const f = await fixture(["tilia-gpx-renderer", "tilia-gpx-ui", "tilia-map-selection-presenter", "tilia-layers"]);
+    const f = await fixture(["tilia-gpx-renderer", "tilia-gpx-ui", "tilia-map-selection-presenter", "tilia-layers", "tilia-settings"]);
     const entry = await f.app.domains.gpx.create(evidence()); await settle();
     byClass(f.map.container, "tilia-control-button")[0].click(); await settle();
     expect(byClass(f.map.container, "tilia-gpx-segment")).toHaveLength(1);
     const toggle = byClass(f.map.container, "tilia-gpx-category-visible")[0]; toggle.checked = false; toggle.dispatchEvent(new Event("change")); await settle();
     expect(f.app.domains.gpx.get(entry.id).revision).toBe(2); expect(f.ownedLayers()).toHaveLength(0);
+    byClass(f.map.container, "tilia-settings-control")[0].children[0].click(); await settle();
     const style = byClass(f.map.container, "tilia-gpx-style-select")[0]; style.value = "amber"; style.dispatchEvent(new Event("change")); await settle();
     expect(f.app.domains.gpx.get(entry.id).snapshot.preferences.stylePresetId).toBe("amber");
+    byClass(f.map.container, "tilia-layers-control")[0].children[0].click(); await settle();
     await f.app.unuse("tilia-gpx-ui"); await settle(); expect(byClass(f.map.container, "tilia-gpx-tree")).toHaveLength(0);
     toggle.checked = true; toggle.dispatchEvent(new Event("change")); await settle(); expect(f.app.domains.gpx.get(entry.id).revision).toBe(3);
     await f.app.use("tilia-gpx-ui"); await settle(); expect(byClass(f.map.container, "tilia-gpx-tree")).toHaveLength(1);

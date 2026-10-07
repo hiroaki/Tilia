@@ -20,7 +20,7 @@ async function fixture() {
     snapshot = prepared.snapshot;
     return { id: 1 };
   });
-  jpeg.setup({ scope: owner.scope, inputs: inputs.createFacade(input), domains: { require: () => ({ create, get: () => ({ snapshot }) }) } });
+  jpeg.setup({ scope: owner.scope, entries: { get: () => snapshot ? { id: 1 } : null }, inputs: inputs.createFacade(input), domains: { require: () => ({ create, get: () => ({ snapshot }) }) } });
   await owner.commit(); queue.forEach((fn) => fn()); await consumer.commit();
   return { owner, consumer, create, inputs: inputs.createFacade({ scope: consumer.scope }) };
 }

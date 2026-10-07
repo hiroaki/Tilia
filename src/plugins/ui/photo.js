@@ -16,7 +16,7 @@ export default Object.freeze({
       input.scope.defer(() => scope.dispose(), { retry: "safe" });
       scope.defer(() => { input.scope.signal.removeEventListener("abort", close); input.container.replaceChildren(); }, { retry: "safe" });
       if (!input.scope.alive) { close(); return; }
-      build({ ...input, scope, photo, selection: input.selection ?? context.selection, report });
+      build({ ...input, scope, photo, entries: context.entries, map: context.map, selection: input.selection ?? context.selection, report });
     };
     context.contributions.layers.register(photoDomainKey, { mount: mount(mountPhotoRow) });
     context.contributions.popup.register(photoDomainKey, { mount: mount(mountPhotoPopup) });

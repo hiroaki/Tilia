@@ -10,7 +10,7 @@ describe("guarded PluginContext", () => {
       scope: controller.scope,
       capabilityFactories: { example: ({ scope }) => ({ assert: () => scope.assertAlive() }) },
     });
-    expect(Object.keys(context).sort()).toEqual(["example", "plugin", "scope"]);
+    expect(Object.keys(context).sort()).toEqual(["example", "lifecycle", "plugin", "scope"]);
     expect(context.plugin).toEqual({ id: "x-example" });
     expect(context).not.toHaveProperty("app");
     expect(context).not.toHaveProperty("runtime");

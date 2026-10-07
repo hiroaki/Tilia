@@ -32,3 +32,4 @@
   border-left: 4px solid transparent;
   transform: translateX(-50%);
 }
+.tilia-gpx-selected { background: #ccfbf1; border-radius: 4px; }

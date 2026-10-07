@@ -33,3 +33,16 @@ export class ExtensionError extends Error {
 export function extensionError(code, message, details) {
   return new ExtensionError(code, message, details);
 }
+
+// Dispatch is a sequence of arbitrary handler effects, not one semantic commit.
+export class InputDispatchError extends Error {
+  constructor(code, details) {
+    const cause = details.cleanupError ?? details.handlerError ?? details.lifetimeError ?? details.cancellationReason;
+    super(code === "INPUT_DISPATCH_CANCELLED" ? "Import cancelled; committed entries remain" :
+      code === "INPUT_DISPATCH_CLEANUP_FAILED" ? "Input cleanup failed" : "Input handler failed",
+      cause === undefined ? undefined : { cause });
+    this.name = "InputDispatchError";
+    this.code = code;
+    this.details = Object.freeze({ ...details });
+  }
+}
