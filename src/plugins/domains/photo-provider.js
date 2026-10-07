@@ -1,3 +1,4 @@
+import { createPreviewResource } from "../../photo/preview.js";
 import { cloneAndFreezePlainData, semanticError, semanticErrorCodes } from "../../domains/index.js";
 import { createPhotoSelectionAdapter } from "./photo-selection.js";
 
@@ -68,23 +69,24 @@ export function createPhotoProvider({
     const requestedTimeMode = normalizeMode(value?.preferences?.requestedTimeMode ?? value?.requestedTimeMode);
     const blob = value?.blob ?? fallbackBlob;
     if (blob != null && typeof Blob !== "undefined" && !(blob instanceof Blob)) invalid("Photo blob must be a Blob", { field: "blob" });
-    let previewUrl = null;
-    let disposed = false;
-    if (blob != null) previewUrl = createObjectURL(blob);
-    const dispose = previewUrl == null ? null : () => {
-      if (disposed) return;
-      revokeObjectURL(previewUrl);
-      disposed = true;
-    };
+    const preview = blob == null ? null : createPreviewResource(blob, createObjectURL, revokeObjectURL);
+    const previewUrl = preview?.url ?? null;
+    const dispose = preview?.dispose ?? null;
     const publicSnapshot = makeSnapshot(data, requestedTimeMode);
-    return { instance: { publicSnapshot, blob, previewUrl, dispose }, snapshot: publicSnapshot, dispose };
+    return { instance: { publicSnapshot, blob, previewUrl, preview, dispose }, snapshot: publicSnapshot, dispose };
   }
 
   return Object.freeze({
     selection: createPhotoSelectionAdapter(),
+    getPreview(instance, { scope, isCurrent }) {
+      return instance.preview?.query(scope, isCurrent) ?? null;
+    },
     async prepareCreate({ value, entryScope }) {
-      const prepared = prepare(value);
-      if (prepared.dispose) entryScope.defer(prepared.dispose, { label: "photo-preview", retry: "safe" });
+      // Reserve ownership before normalization/URL acquisition can reenter
+      // closure. EntryStore awaits preparation before running this obligation.
+      let prepared = null;
+      entryScope.defer(() => prepared?.dispose?.(), { label: "photo-preview", retry: "safe" });
+      prepared = prepare(value);
       if (prepareGate) await prepareGate;
       return { instance: prepared.instance, snapshot: prepared.snapshot, ...(prepared.dispose ? { dispose: prepared.dispose } : {}) };
     },

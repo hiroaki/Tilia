@@ -477,17 +477,6 @@
   line-height: 1;
 }
 
-.tilia-layer-thumbnail {
-  display: block;
-  width: 72px;
-  height: 72px;
-  margin-left: auto;
-  flex: 0 0 72px;
-  border-radius: 8px;
-  object-fit: cover;
-  background: #f5f5f4;
-}
-
 .tilia-layer-empty {
   color: #78716c;
 }
@@ -605,124 +594,6 @@
   font-size: 12px;
   font-weight: 700;
   color: #44403c;
-}
-
-.tilia-photo-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.tilia-photo-list-item {
-  margin: 0;
-}
-
-.tilia-photo-list-button {
-  width: 100%;
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 8px;
-  border: 1px solid #e7e5e4;
-  border-radius: 10px;
-  background: #ffffff;
-  text-align: left;
-  cursor: pointer;
-}
-
-.tilia-photo-list-button:hover {
-  border-color: #a8a29e;
-  background: #fafaf9;
-}
-
-.tilia-photo-list-button-active {
-  border-color: #0f766e;
-  background: #f0fdfa;
-  box-shadow: inset 0 0 0 1px #0f766e22;
-}
-
-.tilia-photo-list-name {
-  font-size: 12px;
-  font-weight: 600;
-  color: #1c1917;
-}
-
-.tilia-photo-list-meta {
-  font-size: 11px;
-  line-height: 1.4;
-  color: #57534e;
-}
-
-.tilia-photo-list-thumbnail {
-  width: 72px;
-  height: 72px;
-  flex: 0 0 72px;
-  object-fit: cover;
-  border-radius: 8px;
-  background: #f5f5f4;
-}
-
-.tilia-photo-list-button .tilia-photo-list-name,
-.tilia-photo-list-button .tilia-photo-list-meta {
-  display: block;
-}
-
-.tilia-photo-list-button > .tilia-photo-list-name,
-.tilia-photo-list-button > .tilia-photo-list-meta {
-  margin-left: 0;
-}
-
-.tilia-photo-list-button {
-  display: grid;
-  grid-template-columns: 72px minmax(0, 1fr);
-  grid-template-areas:
-    "thumb name"
-    "thumb meta";
-}
-
-.tilia-photo-list-button .tilia-photo-list-thumbnail {
-  grid-area: thumb;
-}
-
-.tilia-photo-list-button .tilia-photo-list-name {
-  grid-area: name;
-  align-self: end;
-}
-
-.tilia-photo-list-button .tilia-photo-list-meta {
-  grid-area: meta;
-  align-self: start;
-}
-
-.tilia-info-photo-thumbnail-wrap {
-  border: 1px solid #e7e5e4;
-  border-radius: 12px;
-  overflow: hidden;
-  background: #fafaf9;
-}
-
-.tilia-info-photo-thumbnail,
-.tilia-popup-thumbnail {
-  display: block;
-  width: 100%;
-  height: auto;
-  object-fit: contain;
-  background: #f5f5f4;
-}
-
-.tilia-info-photo-thumbnail {
-  max-height: 220px;
-}
-
-.tilia-popup-thumbnail {
-  width: 220px;
-  max-width: 100%;
-  max-height: 160px;
-  border-radius: 10px;
-  align-self: center;
 }
 
 .tilia-status-control .tilia-control-panel {
@@ -902,24 +773,8 @@
     max-height: calc(100% - 24px);
   }
 
-  .tilia-photo-list-button {
-    grid-template-columns: 56px minmax(0, 1fr);
-    gap: 8px;
-  }
-
   .tilia-layer-card {
     gap: 8px;
   }
 
-  .tilia-photo-list-thumbnail {
-    width: 56px;
-    height: 56px;
-    flex-basis: 56px;
-  }
-
-  .tilia-layer-thumbnail {
-    width: 56px;
-    height: 56px;
-    flex-basis: 56px;
-  }
 }

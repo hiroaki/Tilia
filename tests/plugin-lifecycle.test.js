@@ -9,7 +9,7 @@ describe("createTiliaApp Phase 4B plugin boundary", () => {
 
   it("delegates external definitions to PluginRuntime with guarded context", async () => {
     const setup = vi.fn((context, options) => {
-      expect(Object.keys(context).sort()).toEqual(["baseMaps", "domains", "entries", "inputs", "interactions", "map", "plugin", "presentation", "renderers", "rendering", "scope", "selection", "services", "styles", "ui"]);
+      expect(Object.keys(context).sort()).toEqual(["baseMaps", "contributions", "diagnostics", "domains", "entries", "inputs", "interactions", "map", "plugin", "presentation", "renderers", "rendering", "scope", "selection", "services", "styles", "ui"]);
       expect(context).not.toHaveProperty("app");
       expect(context).not.toHaveProperty("core");
       expect(context).not.toHaveProperty("state");
@@ -55,7 +55,7 @@ describe("createTiliaApp Phase 4B plugin boundary", () => {
 
   it("rejects disabled repository plugins before loading", async () => {
     const load = vi.fn();
-    const app = createTiliaApp({ map: {}, builtins: [{ id: "tilia-panel", requires: [], load }], plugins: ["tilia-panel"] });
+    const app = createTiliaApp({ map: {}, builtins: [{ id: "tilia-elevation", requires: [], load }], plugins: ["tilia-elevation"] });
     await expect(app.ready).rejects.toMatchObject({ code: "PLUGIN_DISABLED_BY_MIGRATION" });
     expect(load).not.toHaveBeenCalled();
   });
@@ -65,10 +65,10 @@ describe("createTiliaApp Phase 4B plugin boundary", () => {
     const consumerSetup = vi.fn();
     const app = createTiliaApp({
       map: {},
-      builtins: [{ id: "tilia-panel", requires: [], load: disabledLoad }],
+      builtins: [{ id: "tilia-elevation", requires: [], load: disabledLoad }],
     });
 
-    await expect(app.use({ id: "vendor-consumer", requires: ["tilia-panel"], setup: consumerSetup }))
+    await expect(app.use({ id: "vendor-consumer", requires: ["tilia-elevation"], setup: consumerSetup }))
       .rejects.toMatchObject({ code: "PLUGIN_DEPENDENCY_MISSING" });
     expect(disabledLoad).not.toHaveBeenCalled();
     expect(consumerSetup).not.toHaveBeenCalled();
@@ -81,8 +81,8 @@ describe("createTiliaApp Phase 4B plugin boundary", () => {
     const app = createTiliaApp({
       map: {},
       builtins: [
-        { id: "tilia-panel", requires: [], load: disabledLoad },
-        { id: "vendor-middle", requires: ["tilia-panel"], load: middleLoad },
+        { id: "tilia-elevation", requires: [], load: disabledLoad },
+        { id: "vendor-middle", requires: ["tilia-elevation"], load: middleLoad },
       ],
     });
 

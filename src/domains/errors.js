@@ -12,6 +12,7 @@ export const semanticErrorCodes = Object.freeze({
   providerInUse: "DOMAIN_PROVIDER_IN_USE",
   providerResultInvalid: "DOMAIN_PROVIDER_RESULT_INVALID",
   entryInvalid: "ENTRY_INVALID",
+  entryCreationAborted: "ENTRY_CREATION_ABORTED",
   entryNotFound: "ENTRY_NOT_FOUND",
   entryDomainMismatch: "ENTRY_DOMAIN_MISMATCH",
   entryStaleRevision: "ENTRY_STALE_REVISION",

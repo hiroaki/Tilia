@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { processInputItems } from "../src/core/input-processing.js";
-import { installFileImportPlugin } from "../src/plugins/input/file-import.js";
 
 describe("processInputItems", () => {
   it("reports the last successful load summary and item callbacks", async () => {
@@ -106,50 +105,5 @@ describe("processInputItems", () => {
 
     expect(registry.dispatch).not.toHaveBeenCalled();
     expect(onStatus).not.toHaveBeenCalled();
-  });
-});
-
-describe("installFileImportPlugin", () => {
-  it("processes selected files and clears the input value after change", async () => {
-    const listeners = new Map();
-    const fileInput = {
-      files: [{ name: "track.gpx" }],
-      value: "selected",
-      addEventListener: vi.fn((eventName, handler) => {
-        listeners.set(eventName, handler);
-      }),
-    };
-    const registry = {
-      dispatch: vi.fn().mockResolvedValue({ name: "track.gpx", summary: "1 point" }),
-    };
-    const context = {
-      state: {
-        layers: [{}],
-      },
-    };
-    const onStatus = vi.fn();
-    const onError = vi.fn();
-    const onItemLoaded = vi.fn();
-
-    installFileImportPlugin({
-      fileInput,
-      registry,
-      context,
-      onStatus,
-      onError,
-      onItemLoaded,
-    });
-
-    await listeners.get("change")({ target: fileInput });
-
-    expect(onItemLoaded).toHaveBeenCalledWith({ name: "track.gpx", summary: "1 point" });
-    expect(onStatus).toHaveBeenCalledWith(
-      "Loaded 1 file(s) from file. Total layers: 1. Last: track.gpx (1 point)",
-    );
-    expect(fileInput.value).toBe("");
-  });
-
-  it("does nothing when no input element is provided", () => {
-    expect(() => installFileImportPlugin({})).not.toThrow();
   });
 });

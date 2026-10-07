@@ -329,6 +329,18 @@ function retryNode(node, kind = node.closeKind ?? "dispose") {
   return node.closePromise;
 }
 
+// Internal cross-lifetime close obligations can retry a captured host scope.
+// Reuse its existing records/controller semantics; ownership never changes and
+// this helper is not part of the public Scope or ownership entry-point API.
+export function retryScopeCleanup(scope) {
+  const node = scopeNodes.get(scope);
+  if (!node) throw new TypeError("Expected an owned Scope");
+  assertRecordTransitionAllowed(node, "retry captured scope cleanup");
+  return node.state === "closing" || node.state === "closed"
+    ? closeNode(node)
+    : retryNode(node);
+}
+
 function collectStaged(node, result = []) {
   for (const record of node.locals) {
     if (record.kind === "staged" && record.state === "staged") {

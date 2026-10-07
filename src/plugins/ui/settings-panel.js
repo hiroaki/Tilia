@@ -1,170 +1,42 @@
-import { createButton, createPanel, createSelect, installMapControl } from "../../map/controls.js";
-import {
-  buildFixedOffsetTimeMode,
-  formatPhotoTimeModeLabel,
-  isPresetPhotoTimeMode,
-  splitFixedOffsetTimeMode,
-} from "../../core/photo-time-utils.js";
-
-function createTimeModeField({ core, onStatus, onError = null }) {
-  const label = document.createElement("label");
-  label.className = "tilia-time-mode-wrap";
-
-  const caption = document.createElement("span");
-  caption.className = "tilia-time-mode-label";
-  caption.textContent = "Default photo time";
-
-  const selectNode = document.createElement("select");
-  selectNode.className = "tilia-control-select tilia-default-time-mode-select";
-
-  for (const option of [
-    { value: "auto", label: "Auto" },
-    { value: "local", label: "Local" },
-    { value: "utc", label: "UTC" },
-    { value: "custom", label: "Custom offset" },
-  ]) {
-    const node = document.createElement("option");
-    node.value = option.value;
-    node.textContent = option.label;
-    node.selected = core.getDefaultPhotoTimeMode() === option.value;
-    selectNode.appendChild(node);
-  }
-
-  const offsetWrap = document.createElement("div");
-  offsetWrap.className = "tilia-default-time-mode-custom";
-
-  const signSelect = createSelect([
-    { value: "+", label: "+" },
-    { value: "-", label: "-" },
-  ], "tilia-default-time-mode-sign");
-  signSelect.setAttribute("aria-label", "Default photo time offset sign");
-
-  const offsetInput = document.createElement("input");
-  offsetInput.type = "time";
-  offsetInput.step = "900";
-  offsetInput.className = "tilia-control-select tilia-default-time-mode-offset";
-  offsetInput.setAttribute("aria-label", "Default photo time offset");
-
-  const currentMode = core.getDefaultPhotoTimeMode();
-  const currentOffset = splitFixedOffsetTimeMode(currentMode);
-  if (isPresetPhotoTimeMode(currentMode) || !currentOffset) {
-    selectNode.value = currentMode;
-    signSelect.value = "+";
-    offsetInput.value = "00:00";
-    offsetWrap.hidden = true;
-    signSelect.disabled = true;
-    offsetInput.disabled = true;
-  } else {
-    selectNode.value = "custom";
-    signSelect.value = currentOffset.sign;
-    offsetInput.value = currentOffset.time;
-    offsetWrap.hidden = false;
-    signSelect.disabled = false;
-    offsetInput.disabled = false;
-  }
-
-  offsetWrap.appendChild(signSelect);
-  offsetWrap.appendChild(offsetInput);
-
-  function applyMode(mode) {
-    core.setDefaultPhotoTimeMode(mode);
-    onStatus(`Default photo time mode set to ${formatPhotoTimeModeLabel(mode)}`);
-  }
-
-  function applyCustomOffset() {
-    try {
-      const normalizedMode = buildFixedOffsetTimeMode(signSelect.value, offsetInput.value || "00:00");
-      offsetInput.value = normalizedMode.slice(1);
-      signSelect.value = normalizedMode.startsWith("-") ? "-" : "+";
-      applyMode(normalizedMode);
-    } catch (error) {
-      onError?.(error);
-      onStatus(`Failed to update default photo time mode: ${error.message}`);
-      offsetInput.focus();
-    }
-  }
-
-  selectNode.addEventListener("change", () => {
-    const isCustom = selectNode.value === "custom";
-    offsetWrap.hidden = !isCustom;
-    signSelect.disabled = !isCustom;
-    offsetInput.disabled = !isCustom;
-    if (isCustom) {
-      offsetInput.value ||= "00:00";
-      offsetInput.focus();
-      return;
-    }
-    applyMode(selectNode.value);
-  });
-
-  signSelect.addEventListener("change", () => {
-    if (selectNode.value === "custom") {
-      applyCustomOffset();
-    }
-  });
-  offsetInput.addEventListener("change", () => {
-    if (selectNode.value === "custom") {
-      applyCustomOffset();
-    }
-  });
-  offsetInput.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" && selectNode.value === "custom") {
-      event.preventDefault();
-      applyCustomOffset();
-    }
-  });
-
-  label.appendChild(caption);
-  label.appendChild(selectNode);
-  label.appendChild(offsetWrap);
-
-  return {
-    element: label,
-  };
-}
-
-export function installSettingsPanelControl({ map, core, panel, onStatus, onError = null, position = "topleft", priority = "normal" }) {
-  const control = installMapControl({
-    map,
-    position,
-    priority,
-    className: "tilia-settings-control",
-    createContent() {
-      const wrap = createPanel("tilia-control-panel-compact");
-      const button = createButton("S", "tilia-control-button-icon");
-      button.title = "Settings";
+import { createMapControl } from "../../map/controls.js";
+import { panelServiceKey } from "../contracts/panel.js";
+import { listen, node, reportError } from "../../ui/scoped-dom.js";
+export default Object.freeze({
+  id: "tilia-settings", requires: ["tilia-panel"],
+  setup(context, options = {}) {
+    const panel = context.services.require(panelServiceKey);
+    const handles = new Set(), report = (error) => reportError(context, error);
+    const control = createMapControl({ ...options, className: "tilia-settings-control", createContent(container) {
+      const button = node(container, "button", "tilia-control-button tilia-control-button-icon", "S");
       button.setAttribute("aria-label", "Settings");
-      button.addEventListener("click", () => {
-        panel.togglePanel({
-          panelId: "settings",
-          title: "Settings",
-          render() {
-            const content = document.createElement("div");
-            content.className = "tilia-settings-panel-content";
-
-            const intro = document.createElement("p");
-            intro.className = "tilia-settings-panel-text";
-            intro.textContent = "Configure defaults used for newly added photos.";
-
-            const timeModeField = createTimeModeField({ core, onStatus, onError });
-
-            content.appendChild(intro);
-            content.appendChild(timeModeField.element);
-            return content;
-          },
-        });
-      });
-      wrap.appendChild(button);
-      return wrap;
-    },
-  });
-
-  return {
-    destroy() {
-      if (panel.isOpen?.("settings")) {
-        panel.closePanel();
-      }
-      control.remove();
-    },
-  };
-}
+      listen(context.scope, button, "click", () => {
+        if (panel.isOpen("settings")) return panel.close("settings");
+        const handle = panel.open({ id: "settings", title: "Settings", mount({ container, scope }) {
+          let rows;
+          const redraw = () => {
+            if (!scope.alive) return;
+            void rows?.dispose().catch(report);
+            rows = scope.child({ label: "settings-items" });
+            container.replaceChildren();
+            for (const entry of context.entries.list()) {
+              for (const { descriptor } of context.contributions.settings.getSnapshot()) {
+                if (!descriptor.supports(entry)) continue;
+                const item = node(container, "section", "tilia-entry-settings");
+                const child = rows.child({ label: `settings:${entry.id}` });
+                child.defer(() => item.remove(), { retry: "safe" });
+                try { descriptor.mount({ container: item, scope: child, entry }); } catch (error) { report(error); }
+              }
+            }
+          };
+          const entries = context.entries.subscribe(redraw, { emitCurrent: false });
+          const contributions = context.contributions.settings.subscribe(redraw, { emitCurrent: false });
+          scope.defer(() => { entries.unsubscribe(); contributions.unsubscribe(); }, { retry: "safe" });
+          redraw();
+        } });
+        handles.add(handle);
+      }, report);
+    } });
+    context.map.mountControl(control);
+    context.scope.defer(async () => { for (const handle of handles) await handle.dispose(); }, { retry: "safe" });
+  },
+});

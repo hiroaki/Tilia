@@ -1,459 +1,63 @@
-import { createButton, createPanel, createSelect, installMapControl } from "../../map/controls.js";
-import { createPhotoThumbnailNode } from "../../map/layers.js";
-import { getTrackStylePreset } from "../../map/track-style-presets.js";
-import { formatGpxSummary } from "../../gpx/interpretation.js";
-import {
-  buildFixedOffsetTimeMode,
-  formatPhotoTimeModeLabel,
-  isPresetPhotoTimeMode,
-  splitFixedOffsetTimeMode,
-} from "../../core/photo-time-utils.js";
-
-function formatDateTime(value) {
-  if (!value) {
-    return "-";
-  }
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return String(value);
-  }
-  return date.toLocaleString();
-}
-
-function getEntryTrackStyle(entry) {
-  if (entry?.kind !== "gpx") {
-    return null;
-  }
-
-  return getTrackStylePreset(entry.presentation?.trackStylePresetIndex ?? 0);
-}
-
-export function createTrackStyleSwatch(entry) {
-  const trackStyle = getEntryTrackStyle(entry);
-  if (!trackStyle) {
-    return null;
-  }
-
-  const swatch = document.createElement("span");
-  swatch.className = "tilia-layer-style-chip";
-  swatch.style.backgroundColor = trackStyle.color;
-  swatch.title = `${trackStyle.id} track style`;
-  swatch.setAttribute("aria-hidden", "true");
-  return swatch;
-}
-
-function createGlobalGpxVisibilityToggle({ id, label, className, onChange }) {
-  const wrap = document.createElement("label");
-  wrap.className = `tilia-layer-bulk-toggle ${className}`.trim();
-
-  const checkbox = document.createElement("input");
-  checkbox.type = "checkbox";
-  checkbox.id = id;
-  checkbox.addEventListener("change", () => {
-    onChange(checkbox.checked);
-  });
-
-  const text = document.createElement("span");
-  text.textContent = label;
-
-  wrap.appendChild(checkbox);
-  wrap.appendChild(text);
-
-  return { wrap, checkbox };
-}
-
-function createLayerToggle(entry, onVisibilityChange) {
-  const wrap = document.createElement("div");
-  wrap.className = "tilia-layer-toggle";
-
-  const checkbox = document.createElement("input");
-  checkbox.type = "checkbox";
-  checkbox.id = `tilia-layer-toggle-${entry.id}`;
-  checkbox.checked = entry.visible !== false;
-  checkbox.addEventListener("change", () => {
-    onVisibilityChange(entry, checkbox.checked);
-  });
-
-  const nameWrap = document.createElement("div");
-  nameWrap.className = "tilia-layer-name-wrap";
-
-  const swatch = createTrackStyleSwatch(entry);
-  if (swatch) {
-    nameWrap.appendChild(swatch);
-  }
-
-  const text = document.createElement("label");
-  text.className = "tilia-layer-name";
-  text.htmlFor = checkbox.id;
-  text.textContent = entry.source?.name || `Layer ${entry.id}`;
-
-  nameWrap.appendChild(text);
-
-  wrap.appendChild(checkbox);
-  wrap.appendChild(nameWrap);
-  return wrap;
-}
-
-function createPhotoModeField(entry, onModeChange) {
-  if (entry.kind !== "photo" || !entry.photoOriginal || entry.photoOriginal.hasGps) {
-    return null;
-  }
-
-  const wrap = document.createElement("div");
-  wrap.className = "tilia-layer-option";
-
-  const caption = document.createElement("span");
-  caption.className = "tilia-layer-option-label";
-  caption.textContent = "Photo time";
-
-  const currentMode = entry.requestedPhotoTimeMode || entry.photoTimeMode;
-  const select = createSelect([
-    { value: "auto", label: "Auto", selected: currentMode === "auto" },
-    { value: "local", label: "Local", selected: currentMode === "local" },
-    { value: "utc", label: "UTC", selected: currentMode === "utc" },
-    { value: "custom", label: "Custom offset", selected: !isPresetPhotoTimeMode(currentMode) },
-  ], "tilia-layer-mode-select");
-  const offsetWrap = document.createElement("div");
-  offsetWrap.className = "tilia-layer-mode-custom";
-
-  const signSelect = createSelect([
-    { value: "+", label: "+" },
-    { value: "-", label: "-" },
-  ], "tilia-layer-mode-sign");
-  signSelect.setAttribute("aria-label", `${entry.source?.name || `Layer ${entry.id}`} photo time offset sign`);
-
-  const offsetInput = document.createElement("input");
-  offsetInput.type = "time";
-  offsetInput.step = "900";
-  offsetInput.className = "tilia-control-select tilia-layer-mode-offset";
-  offsetInput.setAttribute("aria-label", `${entry.source?.name || `Layer ${entry.id}`} photo time offset`);
-
-  const currentOffset = splitFixedOffsetTimeMode(currentMode);
-  let lastAppliedCustomMode = currentOffset
-    ? `${currentOffset.sign}${currentOffset.time}`
-    : null;
-  offsetWrap.hidden = isPresetPhotoTimeMode(currentMode) || !currentOffset;
-  signSelect.disabled = offsetWrap.hidden;
-  offsetInput.disabled = offsetWrap.hidden;
-  signSelect.value = currentOffset?.sign || "+";
-  offsetInput.value = currentOffset?.time || "00:00";
-  offsetWrap.appendChild(signSelect);
-  offsetWrap.appendChild(offsetInput);
-
-  async function applyMode(mode) {
-    await onModeChange(entry, mode);
-  }
-
-  async function applyCustomOffset() {
-    const normalizedMode = buildFixedOffsetTimeMode(signSelect.value, offsetInput.value || "00:00");
-    if (normalizedMode === lastAppliedCustomMode) {
-      return;
-    }
-    signSelect.value = normalizedMode.startsWith("-") ? "-" : "+";
-    offsetInput.value = normalizedMode.slice(1);
-    await applyMode(normalizedMode);
-    lastAppliedCustomMode = normalizedMode;
-  }
-
-  select.addEventListener("change", async () => {
-    const isCustom = select.value === "custom";
-    offsetWrap.hidden = !isCustom;
-    signSelect.disabled = !isCustom;
-    offsetInput.disabled = !isCustom;
-    if (isCustom) {
-      offsetInput.value ||= "00:00";
-      offsetInput.focus();
-      return;
-    }
-    await applyMode(select.value);
-  });
-  signSelect.addEventListener("keydown", async (event) => {
-    if (event.key === "Enter" && select.value === "custom") {
-      event.preventDefault();
-      await applyCustomOffset();
-    }
-  });
-  offsetInput.addEventListener("keydown", async (event) => {
-    if (event.key === "Enter" && select.value === "custom") {
-      event.preventDefault();
-      await applyCustomOffset();
-    }
-  });
-  offsetWrap.addEventListener("focusout", async (event) => {
-    if (select.value !== "custom") {
-      return;
-    }
-    const nextTarget = event.relatedTarget;
-    if (nextTarget instanceof Node && offsetWrap.contains(nextTarget)) {
-      return;
-    }
-    await applyCustomOffset();
-  });
-
-  wrap.appendChild(caption);
-  wrap.appendChild(select);
-  wrap.appendChild(offsetWrap);
-  return wrap;
-}
-
-function createLayerMeta(entry) {
-  const meta = document.createElement("div");
-  meta.className = "tilia-layer-meta";
-
-  if (entry.kind === "photo") {
-    meta.textContent = [
-      formatDateTime(entry.source?.dateTimeOriginal),
-      entry.source?.locationSource || "-",
-    ].join(" / ");
-    return meta;
-  }
-
-  if (entry.kind === "gpx") {
-    meta.textContent = formatGpxSummary(entry.source);
-    return meta;
-  }
-
-  meta.textContent = entry.kind || "layer";
-  return meta;
-}
-
-function createLayerCard(entry, handlers) {
-  const item = document.createElement("li");
-  item.className = "tilia-layer-item";
-
-  const card = document.createElement("div");
-  card.className = "tilia-layer-card";
-  card.title = "Double-click to fit this layer on the map";
-  card.addEventListener("dblclick", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    if (event.target instanceof HTMLElement && event.target.closest("input, select, option, button")) {
-      return;
-    }
-    handlers.onFit(entry);
-  });
-
-  const body = document.createElement("div");
-  body.className = "tilia-layer-card-body";
-
-  const header = document.createElement("div");
-  header.className = "tilia-layer-header";
-  header.appendChild(createLayerToggle(entry, handlers.onVisibilityChange));
-
-  const deleteButton = createButton("x", "tilia-layer-delete-button");
-  deleteButton.title = `Remove ${entry.source?.name || `Layer ${entry.id}`}`;
-  deleteButton.setAttribute("aria-label", `Remove ${entry.source?.name || `Layer ${entry.id}`}`);
-  deleteButton.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    handlers.onDelete(entry);
-  });
-  header.appendChild(deleteButton);
-
-  body.appendChild(header);
-  body.appendChild(createLayerMeta(entry));
-
-  const modeField = createPhotoModeField(entry, handlers.onModeChange);
-  if (modeField) {
-    body.appendChild(modeField);
-  }
-
-  card.appendChild(body);
-
-  const thumbnail = entry.kind === "photo"
-    ? createPhotoThumbnailNode(entry.source, "tilia-layer-thumbnail")
-    : null;
-  if (thumbnail) {
-    card.classList.add("tilia-layer-card-with-thumbnail");
-    card.appendChild(thumbnail);
-  }
-
-  item.appendChild(card);
-  return item;
-}
-
-export function installLayersControl({ map, core, panel, onStatus, onError, onEntriesChanged = null, position = "topleft", priority = "normal" }) {
-  let listNode = null;
-  let clearAllButton = null;
-  let tracksToggle = null;
-  let routesToggle = null;
-  let waypointsToggle = null;
-
-  function buildLayerContent() {
-    const content = document.createElement("div");
-    content.className = "tilia-layers-panel-content";
-
-    const intro = document.createElement("p");
-    intro.className = "tilia-settings-panel-text";
-    intro.textContent = "Layers panel: show or hide layers, and adjust photo time interpretation where needed.";
-
-    const actions = document.createElement("div");
-    actions.className = "tilia-layer-actions";
-
-    const bulkToggles = document.createElement("div");
-    bulkToggles.className = "tilia-layer-bulk-toggles";
-
-    const trackToggleField = createGlobalGpxVisibilityToggle({
-      id: "tilia-gpx-tracks-toggle",
-      label: "Tracks",
-      className: "tilia-layer-bulk-toggle-tracks",
-      onChange(checked) {
-        core.setGpxTracksVisibility(checked);
-        render();
-        onStatus(`${checked ? "Showing" : "Hiding"} tracks for all GPX layers`);
-      },
-    });
-    tracksToggle = trackToggleField.checkbox;
-    bulkToggles.appendChild(trackToggleField.wrap);
-
-    const routeToggleField = createGlobalGpxVisibilityToggle({
-      id: "tilia-gpx-routes-toggle",
-      label: "Routes",
-      className: "tilia-layer-bulk-toggle-routes",
-      onChange(checked) {
-        core.setGpxRoutesVisibility(checked);
-        render();
-        onStatus(`${checked ? "Showing" : "Hiding"} routes for all GPX layers`);
-      },
-    });
-    routesToggle = routeToggleField.checkbox;
-    bulkToggles.appendChild(routeToggleField.wrap);
-
-    const waypointToggleField = createGlobalGpxVisibilityToggle({
-      id: "tilia-gpx-waypoints-toggle",
-      label: "Waypoints",
-      className: "tilia-layer-bulk-toggle-waypoints",
-      onChange(checked) {
-        core.setGpxWaypointsVisibility(checked);
-        render();
-        onStatus(`${checked ? "Showing" : "Hiding"} waypoints for all GPX layers`);
-      },
-    });
-    waypointsToggle = waypointToggleField.checkbox;
-    bulkToggles.appendChild(waypointToggleField.wrap);
-
-    actions.appendChild(bulkToggles);
-
-    clearAllButton = createButton("Delete all", "tilia-layer-clear-button");
-    clearAllButton.addEventListener("click", () => {
-      if (core.state.entries.length === 0) {
-        return;
-      }
-      core.clearAll();
-      onEntriesChanged?.();
-      render();
-      onStatus("Cleared all layers and sources");
-    });
-    actions.appendChild(clearAllButton);
-
-    listNode = document.createElement("ul");
-    listNode.className = "tilia-layer-list";
-
-    content.appendChild(intro);
-    content.appendChild(actions);
-    content.appendChild(listNode);
-    render();
-    return content;
-  }
-
-  function render() {
-    if (!listNode) {
-      return;
-    }
-
-    const hasGpxEntries = core.state.entries.some((entry) => entry.kind === "gpx");
-    const gpxVisibility = core.getGpxVisibility();
-
-    if (tracksToggle) {
-      tracksToggle.checked = gpxVisibility.tracks !== false;
-      tracksToggle.disabled = !hasGpxEntries;
-    }
-
-    if (routesToggle) {
-      routesToggle.checked = gpxVisibility.routes !== false;
-      routesToggle.disabled = !hasGpxEntries;
-    }
-
-    if (waypointsToggle) {
-      waypointsToggle.checked = gpxVisibility.waypoints !== false;
-      waypointsToggle.disabled = !hasGpxEntries;
-    }
-
-    if (clearAllButton) {
-      clearAllButton.disabled = core.state.entries.length === 0;
-    }
-
-    listNode.innerHTML = "";
-    if (core.state.entries.length === 0) {
-      const empty = document.createElement("li");
-      empty.className = "tilia-layer-item tilia-layer-empty";
-      empty.textContent = "No layers";
-      listNode.appendChild(empty);
-      return;
-    }
-
-    for (const entry of core.state.entries) {
-      listNode.appendChild(createLayerCard(entry, {
-        onVisibilityChange(targetEntry, visible) {
-          core.setEntryVisibility(targetEntry.id, visible);
-        },
-        onDelete(targetEntry) {
-          const removed = core.removeEntry(targetEntry.id);
-          onEntriesChanged?.();
-          render();
-          if (removed) {
-            onStatus(`Removed ${removed.source?.name || `Layer ${removed.id}`}`);
-          }
-        },
-        onFit(targetEntry) {
-          core.fitEntryToView(targetEntry.id);
-          onStatus(`Fitted ${targetEntry.source?.name || `Layer ${targetEntry.id}`} to map view`);
-        },
-        async onModeChange(targetEntry, mode) {
-          try {
-            core.updatePhotoTimeMode(targetEntry.id, mode);
-            onEntriesChanged?.();
-            render();
-            onStatus(`Updated ${targetEntry.source.name} photo time mode to ${formatPhotoTimeModeLabel(mode)}`);
-          } catch (error) {
-            onError(error);
-            onStatus(`Failed to update ${targetEntry.source.name}: ${error.message}`);
-            render();
-          }
-        },
-      }));
-    }
-  }
-
-  const control = installMapControl({
-    map,
-    position,
-    priority,
-    className: "tilia-layers-control",
-    createContent() {
-      const wrap = createPanel("tilia-control-panel-compact");
-      const button = createButton("L", "tilia-control-button-icon");
-      button.title = "Layers";
+import { createMapControl } from "../../map/controls.js";
+import { panelServiceKey } from "../contracts/panel.js";
+import { listen, node, reportError } from "../../ui/scoped-dom.js";
+export default Object.freeze({
+  id: "tilia-layers", requires: ["tilia-panel"],
+  setup(context, options = {}) {
+    const panel = context.services.require(panelServiceKey);
+    const report = (error) => reportError(context, error);
+    const handles = new Set();
+    const control = createMapControl({ ...options, className: "tilia-layers-control", createContent(container) {
+      const button = node(container, "button", "tilia-control-button tilia-control-button-icon", "L");
       button.setAttribute("aria-label", "Layers");
-      button.addEventListener("click", () => {
-        panel.togglePanel({
-          panelId: "layers",
-          title: "Layers",
-          render: buildLayerContent,
-        });
-      });
-      wrap.appendChild(button);
-      return wrap;
-    },
-  });
-
-  return {
-    destroy() {
-      if (panel.isOpen?.("layers")) {
-        panel.closePanel();
-      }
-      control.remove();
-    },
-    render,
-  };
-}
+      listen(context.scope, button, "click", () => {
+        if (panel.isOpen("layers")) return panel.close("layers");
+        const handle = panel.open({ id: "layers", title: "Layers", mount({ container, scope }) {
+          let rows = null;
+          const redraw = () => {
+            if (!scope.alive) return;
+            const old = rows;
+            rows = scope.child({ label: "rows" });
+            void old?.dispose().catch(report);
+            container.replaceChildren();
+            const list = node(container, "ul", "tilia-layer-list");
+            const entries = context.entries.list();
+            if (!entries.length) node(list, "li", "tilia-layer-empty", "No layers");
+            for (const entry of entries) {
+              const item = node(list, "li", "tilia-layer-item");
+              const child = rows.child({ label: `entry:${entry.id}` });
+              child.defer(() => item.remove(), { retry: "safe" });
+              const toggle = node(item, "input", "tilia-layer-visible");
+              toggle.type = "checkbox"; toggle.checked = entry.visible;
+              toggle.setAttribute("aria-label", `Show entry ${entry.id}`);
+              listen(child, toggle, "change", () => context.entries.setVisible(entry.id, toggle.checked), report);
+              const content = node(item, "div", "tilia-layer-card-body");
+              const adapter = context.contributions.layers.get(entry.domain);
+              if (adapter) {
+                const adapterScope = child.child({ label: "layers-adapter" });
+                const adapterContainer = node(content, "div", "tilia-layer-adapter");
+                adapterScope.defer(() => adapterContainer.remove(), { retry: "safe" });
+                try { adapter.mount({ container: adapterContainer, scope: adapterScope, entry }); }
+                catch (error) {
+                  report(error);
+                  adapterContainer.remove();
+                  void adapterScope.dispose().catch(report);
+                  node(content, "div", "tilia-layer-name", `${entry.domain.id} ${entry.id}`);
+                }
+              } else node(content, "div", "tilia-layer-name", `${entry.domain.id} ${entry.id}`);
+              const remove = node(item, "button", "tilia-layer-delete-button", "Remove");
+              listen(child, remove, "click", () => context.entries.remove(entry.id), report);
+            }
+          };
+          const entries = context.entries.subscribe(redraw, { emitCurrent: false });
+          const adapters = context.contributions.layers.subscribe(redraw, { emitCurrent: false });
+          scope.defer(() => { entries.unsubscribe(); adapters.unsubscribe(); }, { retry: "safe" });
+          redraw();
+        } });
+        handles.add(handle);
+      }, report);
+    } });
+    context.map.mountControl(control);
+    context.scope.defer(async () => { for (const handle of handles) await handle.dispose(); }, { retry: "safe" });
+  },
+});

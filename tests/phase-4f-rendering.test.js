@@ -1602,3 +1602,125 @@ it("renews retained same-revision authority if reentrant retry supersedes activa
   expect(fresh.token).toBe("1");
   expect(fresh.isCurrent()).toBe(true);
 });
+
+// Phase 4G contract amendment: retain the accepted 4F generation fixture and
+// verify the additional notification without changing rendering/status policy.
+describe("Phase 4G presentation invalidation signal", () => {
+  it.each(["hide", "replacement", "withdrawal", "deletion", "consumer", "termination"])(
+    "revokes authority before abort delivery on %s and removes both forwarding listeners",
+    async (trigger) => {
+      const f = await fixture();
+      let exposure;
+      const registration = await f.register({
+        build(input) {
+          exposure = input;
+          return { presentation: { anchor: () => ({ lat: 35, lng: 135 }) } };
+        },
+      });
+      const entry = await f.create();
+      await tick();
+      const added = vi.spyOn(AbortSignal.prototype, "addEventListener");
+      const removed = vi.spyOn(AbortSignal.prototype, "removeEventListener");
+      const handle = f.capabilities.presentation.resolve(entry.id, {});
+      const sources = added.mock.calls.map((args, index) => ({ args, source: added.mock.contexts[index] }));
+      expect(sources).toHaveLength(2);
+      const abort = vi.fn(() => expect(handle.isCurrent()).toBe(false));
+      handle.signal.addEventListener("abort", abort);
+      const status = vi.fn();
+      f.capabilities.rendering.subscribe(status, { emitCurrent: false });
+      if (trigger === "hide") await f.semantic.entries.setVisible(f.consumer, entry.id, false);
+      if (trigger === "replacement") await f.update(entry.id, 2, 1);
+      if (trigger === "withdrawal") await registration.handle.dispose();
+      if (trigger === "deletion") await f.semantic.entries.remove(f.consumer, entry.id);
+      if (trigger === "consumer") await f.consumer.dispose();
+      if (trigger === "termination") await f.rendering.close();
+      await tick();
+      expect(handle.signal.aborted).toBe(true);
+      expect(abort).toHaveBeenCalledOnce();
+      for (const { args, source } of sources) {
+        expect(removed.mock.calls.some((call, index) => call[0] === "abort" &&
+          call[1] === args[1] && removed.mock.contexts[index] === source)).toBe(true);
+      }
+      added.mockRestore();
+      removed.mockRestore();
+      if (trigger === "termination") expect(status).not.toHaveBeenCalled();
+      if (trigger === "hide") {
+        await f.semantic.entries.setVisible(f.consumer, entry.id, true);
+        await tick();
+        const fresh = f.capabilities.presentation.resolve(entry.id, {});
+        expect(fresh.token).toBe(handle.token);
+        expect(fresh.signal.aborted).toBe(false);
+        expect(handle.isCurrent()).toBe(false);
+      }
+      expect(exposure).toBeDefined();
+    },
+  );
+
+  it("permanently invalidates a handle on revision advancement with the same token", async () => {
+    const f = await fixture();
+    await f.register({
+      build() { return { presentation: { anchor: () => ({ lat: 35, lng: 135 }) },
+        prepareUpdate: () => ({ mode: "nonthrowing", nextPresentation: {
+          anchor: () => ({ lat: 35, lng: 135 }),
+        }, preflight() {}, commit() {}, rollback() {} }) }; },
+      planChange: () => "update",
+    });
+    const entry = await f.create();
+    await tick();
+    const old = f.capabilities.presentation.resolve(entry.id, {});
+    await f.update(entry.id, 2, 1);
+    await tick();
+    const fresh = f.capabilities.presentation.resolve(entry.id, {});
+    expect(fresh.token).toBe(old.token);
+    expect(fresh.revision).toBe(2);
+    expect(old.signal.aborted).toBe(true);
+    expect(old.isCurrent()).toBe(false);
+    expect(fresh.signal.aborted).toBe(false);
+  });
+
+  it("returns null and removes partial listeners if consumer closure races registration", async () => {
+    const f = await fixture();
+    await f.register({ build() { return { presentation: { anchor: () => ({ lat: 35, lng: 135 }) } }; } });
+    const entry = await f.create();
+    await tick();
+    const nativeAdd = f.consumer.signal.addEventListener.bind(f.consumer.signal);
+    let closing, forwarder;
+    vi.spyOn(f.consumer.signal, "addEventListener").mockImplementation((type, fn, options) => {
+      forwarder = fn;
+      closing = f.consumer.dispose();
+      nativeAdd(type, fn, options);
+    });
+    const remove = vi.spyOn(f.consumer.signal, "removeEventListener");
+    expect(f.capabilities.presentation.resolve(entry.id, {})).toBeNull();
+    await closing;
+    expect(remove).toHaveBeenCalledWith("abort", forwarder);
+  });
+});
+
+
+it("Phase 4G invalidation removes a listener attached after exposure termination during registration", async () => {
+  const f = await fixture();
+  await f.register({ build() { return { presentation: { anchor: () => ({ lat: 35, lng: 135 }) } }; } });
+  const entry = await f.create();
+  await tick();
+  const nativeAdd = AbortSignal.prototype.addEventListener;
+  let closing, forwarder, source;
+  const added = vi.spyOn(AbortSignal.prototype, "addEventListener").mockImplementation(function (type, fn, options) {
+    if (!source) {
+      source = this;
+      forwarder = fn;
+      closing = f.rendering.close();
+    }
+    nativeAdd.call(this, type, fn, options);
+  });
+  const removed = vi.spyOn(AbortSignal.prototype, "removeEventListener");
+  try {
+    expect(f.capabilities.presentation.resolve(entry.id, {})).toBeNull();
+    await closing;
+    expect(removed.mock.calls.some((args, index) => args[0] === "abort" &&
+      args[1] === forwarder && removed.mock.contexts[index] === source)).toBe(true);
+  } finally {
+    added.mockRestore();
+    removed.mockRestore();
+  }
+});

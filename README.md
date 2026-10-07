@@ -44,6 +44,8 @@ http://localhost:8010/samples/
 ```
 
 
+The Phase 4G viewer supports JPEG Photo import, GPS markers, selection popups/highlights, guarded previews and per-Photo `auto` / `local` / `utc` settings. Timestamp-only Photos are selectable in the layers list; location inference is deferred. GPX rendering and Photo inference return in 4H; URL/drop/elevation, global defaults and custom offsets in 4I; external editing plugins in 4J. Unmigrated features listed below are disabled in the current composition. See the [Phase 4G report](plugin-architecture/phase-4/PHASE-4G-IMPLEMENTATION-REPORT.md) for implementation and verification results.
+
 ## Usage
 
 ### Leaflet setup
@@ -64,7 +66,7 @@ All following code samples assume this setup is already present and only show th
 
 ### Embed a map in a page
 
-Add a `<div>` for the map and a short module script. No viewer controls are needed for a simple embedded map — just load the data directly.
+Add a `<div>` for the map and a short module script. For an embedded Photo, opt into its provider, renderer and JPEG handler, then load the file.
 
 ```html
 <div id="mymap" style="height: 300px;"></div>
@@ -72,11 +74,13 @@ Add a `<div>` for the map and a short module script. No viewer controls are need
 <script type="module">
   import { createDefaultTiliaApp } from "./src/index.js";
 
-  const app = createDefaultTiliaApp("mymap");
+  const app = createDefaultTiliaApp("mymap", {
+    plugins: ["tilia-photo-domain", "tilia-photo-renderer", "tilia-jpeg-input"],
+  });
 
-  const res  = await fetch("./my-track.gpx");
+  const res  = await fetch("./my-photo.jpg");
   const blob = await res.blob();
-  app.load(new File([blob], "my-track.gpx", { type: blob.type }));
+  await app.load(new File([blob], "my-photo.jpg", { type: "image/jpeg" }));
 </script>
 ```
 
@@ -84,7 +88,7 @@ Multiple independent map instances can coexist on a single page. Driving them fr
 
 ### Add viewer controls
 
-Pass a `plugins` list to enable UI controls, the layer panel, elevation chart, and more.
+Pass a `plugins` list to enable the current Photo viewer and its minimum UI controls.
 
 ```html
 <div id="map" style="height: 100vh;"></div>
@@ -95,14 +99,16 @@ Pass a `plugins` list to enable UI controls, the layer panel, elevation chart, a
   createDefaultTiliaApp("map", {
     plugins: [
       "tilia-panel",
+      "tilia-photo-domain",
+      "tilia-photo-renderer",
+      "tilia-jpeg-input",
+      "tilia-photo-ui",
+      "tilia-map-selection-presenter",
       "tilia-status",
       "tilia-base-maps-control",
       "tilia-layers",
-      "tilia-elevation",
       "tilia-file-import",
-      "tilia-url-import",
       "tilia-settings",
-      "tilia-dropzone",
       "x-gsi-base-maps",
       "x-opentopomap-base-maps",
     ],
@@ -121,15 +127,20 @@ The current plugin loading, dependency-order, and dynamic-loading contract is su
 
 | ID | Requires | Description |
 |----|----------|-------------|
+| `tilia-photo-domain` | — | Semantic Photo provider, private canonical preview and typed commands |
+| `tilia-photo-renderer` | `tilia-photo-domain` | Owned GPS marker generation; no inferred location |
+| `tilia-jpeg-input` | `tilia-photo-domain` | Lazy EXIF JPEG handler |
+| `tilia-photo-ui` | `tilia-photo-domain` | Typed layers/popup/settings contributions |
+| `tilia-map-selection-presenter` | — | Independent current-selection popup and highlight |
 | `tilia-panel` | — | Side panel container; required by layers, elevation, and settings |
-| `tilia-status` | — | Status bar inside the panel |
+| `tilia-status` | — | Independent status control |
 | `tilia-base-maps-control` | — | Base map selector control; lists visible entries from `app.baseMaps` |
-| `tilia-layers` | `tilia-panel` | Layer list with Tracks / Routes / Waypoints visibility, per-entry visibility, delete, fit-to-view, and per-photo time mode |
+| `tilia-layers` | `tilia-panel` | Generic visibility/delete controls with typed Photo filename/time/thumbnail rows |
 | `tilia-elevation` | `tilia-panel` | Interactive elevation profile chart for GPX tracks |
-| `tilia-file-import` | — | File picker map control; accepts `.gpx` and `.jpg`/`.jpeg` |
+| `tilia-file-import` | — | Registry-driven file picker; JPEG when `tilia-jpeg-input` is installed |
 | `tilia-url-import` | — | URL input map control; HTTP/HTTPS only (CORS required on the server), with configurable timeout and size guardrails |
 | `tilia-query-import` | — | Same as `tilia-url-import`, but without a control; instead, it takes the URL from the `gpx` query parameter |
-| `tilia-settings` | `tilia-panel` | Default photo timestamp interpretation mode (Auto / Local / UTC / Custom offset) |
+| `tilia-settings` | `tilia-panel` | Per-entry contribution host; Photo offers only Auto / Local / UTC |
 | `tilia-dropzone` | — | Drag-and-drop target covering the entire map area |
 
 The repository also includes optional third-party style plugins under `plugins/`:

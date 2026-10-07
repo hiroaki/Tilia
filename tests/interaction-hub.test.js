@@ -22,25 +22,14 @@ function createGpxEntry(overrides = {}) {
   };
 }
 
-function createPhotoEntry(overrides = {}) {
-  return {
-    kind: "photo",
-    interactions: {
-      marker: { id: "photo-marker" },
-    },
-    ...overrides,
-  };
-}
-
 describe("createInteractionHub", () => {
-  it("binds existing GPX and photo interactions when a subscriber registers", () => {
-    const entries = [createGpxEntry(), createPhotoEntry()];
+  it("binds existing GPX interactions when a subscriber registers", () => {
+    const entries = [createGpxEntry()];
     const hub = createInteractionHub(() => entries);
     const onTrackLayer = vi.fn();
     const onWaypointLayer = vi.fn();
-    const onPhotoMarker = vi.fn();
 
-    hub.subscribe({ onTrackLayer, onWaypointLayer, onPhotoMarker });
+    hub.subscribe({ onTrackLayer, onWaypointLayer });
 
     expect(onTrackLayer).toHaveBeenCalledTimes(2);
     expect(onTrackLayer).toHaveBeenNthCalledWith(1, {
@@ -59,11 +48,7 @@ describe("createInteractionHub", () => {
       layer: entries[0].interactions.waypoints[1].layer,
       waypoint: entries[0].interactions.waypoints[1].waypoint,
     });
-    expect(onPhotoMarker).toHaveBeenCalledTimes(1);
-    expect(onPhotoMarker).toHaveBeenCalledWith({
-      entry: entries[1],
-      layer: entries[1].interactions.marker,
-    });
+
   });
 
   it("deduplicates layers per subscriber across repeated syncEntry calls", () => {
@@ -81,15 +66,15 @@ describe("createInteractionHub", () => {
   });
 
   it("stops notifying a subscriber after unsubscribe", () => {
-    const entry = createPhotoEntry();
+    const entry = createGpxEntry();
     const hub = createInteractionHub(() => []);
-    const onPhotoMarker = vi.fn();
+    const onTrackLayer = vi.fn();
 
-    const unsubscribe = hub.subscribe({ onPhotoMarker });
+    const unsubscribe = hub.subscribe({ onTrackLayer });
     unsubscribe();
     hub.syncEntry(entry);
 
-    expect(onPhotoMarker).not.toHaveBeenCalled();
+    expect(onTrackLayer).not.toHaveBeenCalled();
   });
 
   it("ignores missing handlers and incomplete interaction handles", () => {

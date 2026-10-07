@@ -1,3 +1,4 @@
+import { isScopeWithin } from "../ownership/scope.js";
 import { gpxDomainKey, photoDomainKey } from "./keys.js";
 import { assertDomainKey } from "./identity.js";
 import { semanticError, semanticErrorCodes } from "./errors.js";
@@ -38,7 +39,27 @@ export function createPhotoFacade({ scope, entries, selection }) {
     setRequestedTimeMode: (requestedTimeMode) => Object.freeze({ type: "set-requested-time-mode", requestedTimeMode }),
     recomputeDerived: () => Object.freeze({ type: "recompute-derived" }),
   });
-  return selection ? Object.freeze({ ...facade, selection: selection.createDomainFacade(scope, photoDomainKey, { defaultTarget: Object.freeze({ kind: "photo" }) }) }) : facade;
+  const previewFacade = Object.freeze({ ...facade,
+    getPreview(id, { scope: consumer = scope } = {}) {
+      scope.assertAlive();
+      if (!isScopeWithin(consumer, scope)) throw new TypeError("Preview scope must belong to the consumer");
+      consumer.assertAlive();
+      const target = entries.getSemanticTarget(id, photoDomainKey);
+      if (!target.providerRegistration.owner.alive) throw semanticError(semanticErrorCodes.providerUnavailable, "Photo provider is unavailable");
+      return target.providerRegistration.provider.getPreview(target.instance, {
+        scope: consumer,
+        isCurrent() {
+          if (!scope.alive || !target.providerRegistration.owner.alive) return false;
+          try {
+            const current = entries.getSemanticTarget(id, photoDomainKey);
+            return current.providerRegistration === target.providerRegistration &&
+              current.instance.preview === target.instance.preview;
+          } catch { return false; }
+        },
+      });
+    },
+  });
+  return selection ? Object.freeze({ ...previewFacade, selection: selection.createDomainFacade(scope, photoDomainKey, { defaultTarget: Object.freeze({ kind: "photo" }) }) }) : previewFacade;
 }
 
 export function createEntryFacade({ scope, entries }) {

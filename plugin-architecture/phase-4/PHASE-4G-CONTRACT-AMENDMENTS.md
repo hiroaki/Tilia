@@ -2,13 +2,13 @@
 
 ## 1. Authority, Status and Historical Boundary
 
-Approval recorded: 2026-10-07. **Both amendments are approved; implementation is pending.** This record supplements the completed-phase plans. It does not retrospectively change the contracts under which Phase 4C/4D/4F were implemented and accepted, and it does not authorize Phase 4G implementation.
+Approval recorded: 2026-10-07. **Both amendments are approved; implementation and required verification are complete in Phase 4G, with implementation review/acceptance pending.** This record supplements the completed-phase plans. It does not retrospectively change the contracts under which Phase 4C/4D/4F were implemented and accepted, and the planning approval itself did not authorize Phase 4G implementation. The user subsequently accepted the plan and instructed implementation to begin.
 
 Distinguish these three records:
 
 - Completed-phase implementation plans retain their original contract text as historical acceptance records, with short subsequent-amendment notes.
 - [ARCHITECTURE.md](../ARCHITECTURE.md) §§33/40 and [MIGRATION-PLAN.md](../MIGRATION-PLAN.md) §13 state the currently approved normative requirements and migration boundaries, including these additions.
-- This record explains the approved but unimplemented additions; the [Phase 4G implementation plan](PHASE-4G-IMPLEMENTATION-PLAN.md) records future tasks, tests and acceptance criteria.
+- This record explains the approved additions and their implementation status; the [Phase 4G implementation plan](PHASE-4G-IMPLEMENTATION-PLAN.md) records future tasks, tests and acceptance criteria.
 
 The accepted code baseline is commit `fd4ea23a62face90916355292e2a39142b9b0c01`. **That Phase 4F implementation provides neither a public PresentationHandle invalidation signal nor domain-create caller-signal publication cancellation.** Approval of the additions must not be read as implementation or verification of them.
 
@@ -50,7 +50,7 @@ Preserved invariants: exact registration/token/revision/exposure currency, perma
 
 Implement the composite invalidation notification in generic presentation handling, detach source forwarding listeners, and connect presenter-owned teardown to it. Verify the ordering/race/lifetime cases in §2.3 and the production popup/highlight cases in the [4G plan §12](PHASE-4G-IMPLEMENTATION-PLAN.md#12-required-tests-and-smoke-expectations). Existing generation and termination tests must continue to pass without a final status event.
 
-**Status: approved, implementation pending.** The historical Phase 4F interface remains the interface that was implemented and accepted; its short note points here for the subsequent addition.
+**Status: approved, implemented and verified in Phase 4G; implementation review/acceptance pending.** The historical Phase 4F interface remains the interface that was implemented and accepted; its short note points here for the subsequent addition.
 
 ## 3. Domain-Create Commit-Boundary Cancellation
 
@@ -100,7 +100,7 @@ Implement signal validation/forwarding and the final commit guard using existing
 
 Verify the cases in §3.3 and the [4G plan §12](PHASE-4G-IMPLEMENTATION-PLAN.md#12-required-tests-and-smoke-expectations), explicitly including cancellation with URL-revocation failure, uninstall rejection while residual leases remain, and lease release only after successful cleanup retry. No cancelled late result is ever published. Post-commit cancellation is verified separately from pre-commit rollback.
 
-**Status: approved, implementation pending.** The accepted Phase 4F code does not yet honor a caller signal in domain creation.
+**Status: approved, implemented and verified in Phase 4G; implementation review/acceptance pending.** The accepted Phase 4F baseline has no caller-signal publication contract; Phase 4G implements the addition.
 
 ## 4. Unchanged Migration Scope and Verification Boundary
 
@@ -108,4 +108,8 @@ Verify the cases in §3.3 and the [4G plan §12](PHASE-4G-IMPLEMENTATION-PLAN.md
 
 Preview consumer-closure/logical-deletion access guards, physical URL teardown ordering, separate popup-dismissal versus popup-adapter-removal tests, GPS smoke filename/`exif-gps` assertions, and scenario-identified projected smoke counts remain concrete 4G verification obligations in the implementation plan. They do not retrospectively extend completed-phase implementation claims.
 
-Documentation approval is not a passing implementation test. Both amendments require future implementation and verification before they can be reported as implemented. This documentation reorganization changes no production code/tests or completed-phase implementation reports and creates no commit.
+Documentation approval is not a passing implementation test. The implementation and verification supporting the current status are recorded in the implementation report. The earlier documentation reorganization changed no production code/tests or completed-phase implementation reports and created no commit at that review step. Subsequent commit and implementation progress are recorded below.
+
+## 5. Implementation Progress After Plan Acceptance
+
+The planning documents were committed as `398fab5`. Subsequent user authorization covered the full accepted Photo slice, and the user clarified that completion of the generic amendments was only an intermediate checkpoint. Both amendments are implemented in the working tree. Phase 4G remains unaccepted; the subsequent review reproduced three UI lifecycle defects and an additional panel close/open reentrancy defect, whose corrections and verification are recorded in the report. The [implementation report](PHASE-4G-IMPLEMENTATION-REPORT.md) records 630 passing unit tests, three passing 4G browser scenarios, the existing GPS import assertions, real popup/highlight termination, native cross-realm signal validation and the complete 38-scenario audit (13 pass / 25 fail, no skipped scenarios). It also records the pre-provider-invocation authority regression fix and its application/requester/caller-cancellation tests. Changes are uncommitted; user implementation review/acceptance remains pending. The accepted Phase 4F checkpoint remains an unchanged historical baseline and provides neither amendment.

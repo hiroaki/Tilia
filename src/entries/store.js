@@ -1,3 +1,4 @@
+import { forwardAbort, signalAborted, signalReason } from "../ownership/abort.js";
 import { createSubscriptionChannel } from "../extensions/subscriptions.js";
 import { assertDomainKey } from "../domains/identity.js";
 import { assertDeepImmutablePlainData } from "../domains/immutable.js";
@@ -162,13 +163,28 @@ export function createEntryStore({ applicationController, domainRegistry, semant
     return true;
   }
 
-  async function create(requesterScope, domainKey, value, { visible = true } = {}) {
+  async function create(requesterScope, domainKey, value, { visible = true, signal } = {}) {
     requesterScope.assertAlive();
     assertMutationAllowed();
     assertDomainKey(domainKey);
     if (typeof visible !== "boolean") {
       throw semanticError(semanticErrorCodes.entryInvalid, "Entry visibility must be a boolean", { domainId: domainKey.id });
     }
+    if (signal !== undefined) {
+      try { signalAborted(signal); }
+      catch {
+        throw semanticError(semanticErrorCodes.entryInvalid, "Creation signal must be an AbortSignal", { domainId: domainKey.id });
+      }
+    }
+    const abortError = (entryId, cause) => semanticError(
+      semanticErrorCodes.entryCreationAborted, "Entry creation was cancelled", {
+        domainId: domainKey.id,
+        ...(entryId === undefined ? {} : { entryId }),
+        cause: cause ?? signalReason(signal),
+        committed: false,
+      },
+    );
+    if (signal !== undefined && signalAborted(signal)) throw abortError();
     const id = nextEntryId++;
     const providerResolution = domainRegistry.resolve(domainKey);
     const lease = providerResolution.acquire(id);
@@ -191,35 +207,75 @@ export function createEntryStore({ applicationController, domainRegistry, semant
       terminalResidual: null,
       cleanupObligations: [],
     };
+    let forwarding = null;
+    let committed = false;
     try {
-      const prepared = await providerResolution.registration.provider.prepareCreate({
-        entryId: id,
-        value,
-        entryScope,
-        signal: entryScope.signal,
-      });
-      record.currentDispose = typeof prepared?.dispose === "function" ? prepared.dispose : null;
+      // Reserve the disposer handoff before provider code or cancellation can
+      // close the destination. Closing still revokes authority immediately.
       entryScope.defer(() => record.currentDispose?.(), { label: `entry:${id}:provider-instance`, retry: "safe" });
+      forwarding = forwardAbort([
+        entryScope.signal, requesterScope.signal, applicationScope.signal,
+        ...(signal === undefined ? [] : [signal]),
+      ]);
+      const preparation = Promise.resolve().then(async () => {
+        // Setup and provider invocation are separated by a microtask. Never
+        // acquire provider resources after any destination/caller authority dies.
+        requesterScope.assertAlive();
+        assertMutationAllowed();
+        entryScope.assertAlive();
+        if (!providerResolution.registration.owner.alive) {
+          throw semanticError(semanticErrorCodes.providerUnavailable, `Provider for domain "${domainKey.id}" is unavailable`, { domainId: domainKey.id });
+        }
+        if (signal !== undefined && signalAborted(signal)) throw abortError(id);
+        const prepared = await providerResolution.registration.provider.prepareCreate({
+          entryId: id, value, entryScope, signal: forwarding.signal,
+        });
+        record.currentDispose = typeof prepared?.dispose === "function" ? prepared.dispose : null;
+        return prepared;
+      });
+      entryScope.track(preparation, { label: `entry:${id}:preparation`, await: true });
+      const prepared = await preparation;
+      if (signal !== undefined && signalAborted(signal)) throw abortError(id);
       validatePreparedCreate(prepared, domainKey.id);
       requesterScope.assertAlive();
       assertMutationAllowed();
       if (!providerResolution.registration.owner.alive) {
         throw semanticError(semanticErrorCodes.providerUnavailable, `Provider for domain "${domainKey.id}" is unavailable`, { domainId: domainKey.id });
       }
-      record.instance = prepared.instance;
-      record.domainSnapshot = prepared.snapshot;
+      entryScope.assertAlive();
+      // Read provider-owned properties before the final guard: getters must
+      // never execute inside the callback-free publication block.
+      const instance = prepared.instance;
+      const snapshot = prepared.snapshot;
+      assertDeepImmutablePlainData(snapshot);
+      requesterScope.assertAlive();
+      assertMutationAllowed();
+      entryScope.assertAlive();
+      if (!providerResolution.registration.owner.alive) {
+        throw semanticError(semanticErrorCodes.providerUnavailable, `Provider for domain "${domainKey.id}" is unavailable`, { domainId: domainKey.id });
+      }
+      if (signal !== undefined && signalAborted(signal)) throw abortError(id);
+      record.instance = instance;
+      record.domainSnapshot = snapshot;
       record.revision = 1;
       record.state = "active";
       record.insertionSequence = ++insertionSequence;
       lease.promote();
       entries.set(id, record);
+      committed = true;
+      forwarding.dispose();
       renderingHook("afterCreated", record);
       const view = entryView(record);
       channel.deliver(Object.freeze({ type: "created", current: view }));
       return view;
-    } catch (originalError) {
+    } catch (failure) {
+      // Post-publication failure/cancellation cannot roll back an app-owned entry.
+      if (committed) throw failure;
       let cleanupError = null;
       try { await entryController.close(); } catch (error) { cleanupError = error; }
+      const originalError = signal !== undefined && signalAborted(signal)
+        ? (failure?.code === semanticErrorCodes.entryCreationAborted ? failure : abortError(id, failure))
+        : failure;
       if (cleanupError) {
         retainResidual(record, "creation", originalError, cleanupError);
         const error = semanticError(semanticErrorCodes.cleanupFailed, `Entry "${id}" creation failed and cleanup was incomplete`, {
@@ -234,6 +290,8 @@ export function createEntryStore({ applicationController, domainRegistry, semant
       }
       lease.release();
       throw originalError;
+    } finally {
+      forwarding?.dispose();
     }
   }
 

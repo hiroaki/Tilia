@@ -31,11 +31,8 @@ vi.mock("leaflet", () => ({
   },
 }));
 
-import { installFileImportControl } from "../src/plugins/input/file-import.js";
 import { installBaseMapControl } from "../src/plugins/ui/base-map-control.js";
 import { installElevationPanelControl } from "../src/plugins/ui/elevation-panel.js";
-import { installLayersControl } from "../src/plugins/ui/layers-control.js";
-import { installSettingsPanelControl } from "../src/plugins/ui/settings-panel.js";
 
 function createPanelService(openPanelId = null) {
   return {
@@ -54,13 +51,7 @@ describe("built-in map control cleanup", () => {
     vi.useRealTimers();
   });
 
-  it("removes the file-import control", () => {
-    const api = installFileImportControl({ map: {} });
 
-    api.destroy();
-
-    expect(cleanupMocks.controls[0].remove).toHaveBeenCalledOnce();
-  });
 
   it("removes the base-map control", () => {
     const api = installBaseMapControl({ map: {}, baseMaps: {} });
@@ -70,29 +61,9 @@ describe("built-in map control cleanup", () => {
     expect(cleanupMocks.controls[0].remove).toHaveBeenCalledOnce();
   });
 
-  it("removes the layers control and closes its active shared panel", () => {
-    const panel = createPanelService("layers");
-    const api = installLayersControl({
-      map: {},
-      core: { state: { entries: [] } },
-      panel,
-    });
 
-    api.destroy();
 
-    expect(panel.closePanel).toHaveBeenCalledOnce();
-    expect(cleanupMocks.controls[0].remove).toHaveBeenCalledOnce();
-  });
 
-  it("removes the settings control and closes its active shared panel", () => {
-    const panel = createPanelService("settings");
-    const api = installSettingsPanelControl({ map: {}, core: {}, panel });
-
-    api.destroy();
-
-    expect(panel.closePanel).toHaveBeenCalledOnce();
-    expect(cleanupMocks.controls[0].remove).toHaveBeenCalledOnce();
-  });
 
   it("releases every elevation subscription, event handler, timer, panel, and control", () => {
     vi.useFakeTimers();

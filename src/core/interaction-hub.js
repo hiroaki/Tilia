@@ -26,13 +26,7 @@ export function createInteractionHub(getEntries) {
       }
     }
 
-    if (entry.kind === "photo") {
-      const marker = entry.interactions?.marker;
-      if (marker && subscriber.onPhotoMarker && !subscriber.boundPhotoMarkers.has(marker)) {
-        subscriber.boundPhotoMarkers.add(marker);
-        subscriber.onPhotoMarker({ entry, layer: marker });
-      }
-    }
+
   }
 
   function syncEntry(entry) {
@@ -45,10 +39,8 @@ export function createInteractionHub(getEntries) {
     const subscriber = {
       onTrackLayer: handlers.onTrackLayer || null,
       onWaypointLayer: handlers.onWaypointLayer || null,
-      onPhotoMarker: handlers.onPhotoMarker || null,
       boundTrackLayers: new WeakSet(),
       boundWaypointLayers: new WeakSet(),
-      boundPhotoMarkers: new WeakSet(),
     };
     subscribers.add(subscriber);
 

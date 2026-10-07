@@ -39,20 +39,6 @@ function formatDateTime(value) {
   return date.toLocaleString();
 }
 
-export function createPhotoThumbnailNode(photo, className = "tilia-photo-thumbnail") {
-  if (!photo?.previewUrl) {
-    return null;
-  }
-
-  const image = document.createElement("img");
-  image.className = className;
-  image.src = photo.previewUrl;
-  image.alt = photo.name || "Photo";
-  image.loading = "lazy";
-  image.decoding = "async";
-  return image;
-}
-
 function createPopupContent(title, rows, detail = "") {
   const root = document.createElement("div");
   root.className = "tilia-popup";
@@ -111,22 +97,6 @@ export function createRoutePointPopupContent(source, routePoint, locator) {
     ["Latitude", formatCoordinate(routePoint?.lat)],
     ["Longitude", formatCoordinate(routePoint?.lon)],
   ]);
-}
-
-export function createPhotoPopupContent(photo) {
-  const camera = `${photo.make || ""} ${photo.model || ""}`.trim() || "-";
-  const content = createPopupContent(photo.name || "Photo", [
-    ["Captured", formatDateTime(photo.dateTimeOriginal)],
-    ["Camera", camera],
-    ["Latitude", formatCoordinate(photo.lat)],
-    ["Longitude", formatCoordinate(photo.lon)],
-    ["Location", photo.locationSource || "-"],
-  ], photo.locationReason || photo.inferenceDetail || "");
-  const thumbnail = createPhotoThumbnailNode(photo, "tilia-popup-thumbnail");
-  if (thumbnail) {
-    content.insertBefore(thumbnail, content.firstChild?.nextSibling || null);
-  }
-  return content;
 }
 
 export function createTrackPointPopupContent(parsed, point) {
@@ -228,17 +198,4 @@ export function fitMapToGroup(map, group) {
   if (bounds instanceof LatLngBounds && bounds.isValid()) {
     map.fitBounds(bounds.pad(0.1));
   }
-}
-
-export function buildPhotoOverlay(photo) {
-  const group = new FeatureGroup();
-  const marker = new Marker([photo.lat, photo.lon]);
-  group.addLayer(marker);
-  return {
-    layer: group,
-    interactions: {
-      kind: "photo",
-      marker,
-    },
-  };
 }

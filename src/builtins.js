@@ -1,6 +1,10 @@
 // Metadata stays separate from implementation imports so dependency planning and
 // migration classification never evaluate disabled plugin modules.
 export const builtinPluginCatalog = Object.freeze([
+  Object.freeze({ id: "tilia-photo-renderer", requires: Object.freeze(["tilia-photo-domain"]), load: () => import("./plugins/renderers/photo.js") }),
+  Object.freeze({ id: "tilia-jpeg-input", requires: Object.freeze(["tilia-photo-domain"]), load: () => import("./plugins/input/jpeg.js") }),
+  Object.freeze({ id: "tilia-photo-ui", requires: Object.freeze(["tilia-photo-domain"]), load: () => import("./plugins/ui/photo.js") }),
+  Object.freeze({ id: "tilia-map-selection-presenter", requires: Object.freeze([]), load: () => import("./plugins/ui/map-selection-presenter.js") }),
   Object.freeze({ id: "tilia-panel", requires: Object.freeze([]), load: () => import("./plugins/ui/panel.js") }),
   Object.freeze({ id: "tilia-status", requires: Object.freeze([]), load: () => import("./plugins/ui/status-control.js") }),
   Object.freeze({ id: "tilia-base-maps-control", requires: Object.freeze([]), load: () => import("./plugins/ui/base-map-control.js") }),

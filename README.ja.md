@@ -43,6 +43,8 @@ http://localhost:8010/samples/
 ```
 
 
+Phase 4G の現行 viewer は JPEG Photo の入力・GPS marker・選択 popup/highlight・プレビュー・写真ごとの `auto` / `local` / `utc` 設定に対応しています。撮影時刻のみの写真はレイヤー一覧から選択でき、位置は推定しません。GPX の表示と Photo 位置推定は 4H、URL/drop/elevation・global default/custom offset は 4I、外部編集プラグインは 4J で復旧予定です。下記の未移行機能は現在の composition では無効です。実装と検証結果は [Phase 4G report](plugin-architecture/phase-4/PHASE-4G-IMPLEMENTATION-REPORT.md) を参照してください。
+
 ## 使い方
 
 ### Leaflet のセットアップ
@@ -61,7 +63,7 @@ Tilia を利用するには、Leaflet の JavaScript と CSS をページに読�
 
 ### ページに地図を埋め込む
 
-コンテナとなる `<div>` を用意して、短いモジュールスクリプトを書くだけです。ビューア用の UI は必要ない場合、プラグインを指定せずデータだけ渡すシンプルな使い方もできます。
+コンテナとなる `<div>` を用意して、短いモジュールスクリプトを書くだけです。ビューア用の UI は必要ない場合、Photo の provider・renderer・JPEG handler を指定してファイルを読み込みます。
 
 ```html
 <div id="mymap" style="height: 300px;"></div>
@@ -69,11 +71,13 @@ Tilia を利用するには、Leaflet の JavaScript と CSS をページに読�
 <script type="module">
   import { createDefaultTiliaApp } from "./src/index.js";
 
-  const app = createDefaultTiliaApp("mymap");
+  const app = createDefaultTiliaApp("mymap", {
+    plugins: ["tilia-photo-domain", "tilia-photo-renderer", "tilia-jpeg-input"],
+  });
 
-  const res  = await fetch("./my-track.gpx");
+  const res  = await fetch("./my-photo.jpg");
   const blob = await res.blob();
-  app.load(new File([blob], "my-track.gpx", { type: blob.type }));
+  await app.load(new File([blob], "my-photo.jpg", { type: "image/jpeg" }));
 </script>
 ```
 
@@ -81,7 +85,7 @@ Tilia を利用するには、Leaflet の JavaScript と CSS をページに読�
 
 ### UI コントロールを追加する
 
-`plugins` リストを渡すと、レイヤーパネル・高度プロファイル・ファイル入力などの UI コントロールを有効にできます。
+`plugins` リストを渡すと、Photo viewer とレイヤー・設定・ファイル入力の最小 UI を有効にできます。
 
 ```html
 <div id="map" style="height: 100vh;"></div>
@@ -92,14 +96,16 @@ Tilia を利用するには、Leaflet の JavaScript と CSS をページに読�
   createDefaultTiliaApp("map", {
     plugins: [
       "tilia-panel",
+      "tilia-photo-domain",
+      "tilia-photo-renderer",
+      "tilia-jpeg-input",
+      "tilia-photo-ui",
+      "tilia-map-selection-presenter",
       "tilia-status",
       "tilia-base-maps-control",
       "tilia-layers",
-      "tilia-elevation",
       "tilia-file-import",
-      "tilia-url-import",
       "tilia-settings",
-      "tilia-dropzone",
       "x-gsi-base-maps",
       "x-opentopomap-base-maps",
     ],
@@ -118,15 +124,20 @@ Tilia を利用するには、Leaflet の JavaScript と CSS をページに読�
 
 | ID | 依存 | 説明 |
 |----|------|------|
+| `tilia-photo-domain` | — | Photo の semantic provider・private preview・typed commands |
+| `tilia-photo-renderer` | `tilia-photo-domain` | 所有された GPS marker generation（位置推定なし） |
+| `tilia-jpeg-input` | `tilia-photo-domain` | EXIF を遅延ロードする JPEG handler |
+| `tilia-photo-ui` | `tilia-photo-domain` | layers/popup/settings への typed contribution |
+| `tilia-map-selection-presenter` | — | 現在の選択に対する独立した popup/highlight |
 | `tilia-panel` | — | レイヤー・高度・設定プラグインが必要とするサイドパネルコンテナ |
-| `tilia-status` | — | パネル内のステータスバー |
+| `tilia-status` | — | 独立したステータスコントロール |
 | `tilia-base-maps-control` | — | ベースマップ選択コントロール。`app.baseMaps` の可視エントリを一覧表示する |
-| `tilia-layers` | `tilia-panel` | レイヤー一覧。Tracks / Routes / Waypointsの表示切替、エントリ単位の表示切替・削除・フィット・写真ごとのタイムモード変更が可能 |
+| `tilia-layers` | `tilia-panel` | エントリ単位の表示切替・削除と typed Photo adapter によるファイル名・時刻・プレビュー |
 | `tilia-elevation` | `tilia-panel` | GPX トラックのインタラクティブな高度プロファイルチャート |
-| `tilia-file-import` | — | `.gpx` / `.jpg` / `.jpeg` を選択できるファイル選択コントロール |
+| `tilia-file-import` | — | InputRegistry の discovery を使うファイル選択。JPEG handler の導入で `.jpg` / `.jpeg` に対応 |
 | `tilia-url-import` | — | HTTP/HTTPS URL から取得する URL 入力コントロール（サーバー側 CORS 許可が必要）。timeout とサイズ上限を設定可能 |
 | `tilia-query-import` | — | `tilia-url-import` と同じですが、コントロールを持たず、代わりにクエリーパラメータ `gpx` にセットされている URL を入力とします |
-| `tilia-settings` | `tilia-panel` | 写真タイムスタンプ解釈のデフォルトモード（Auto / ローカル / UTC / 固定オフセット） |
+| `tilia-settings` | `tilia-panel` | エントリごとの設定 host。Photo は Auto / ローカル / UTC のみ |
 | `tilia-dropzone` | — | 地図全体をドロップ対象にするドラッグ＆ドロップ機能 |
 
 このリポジトリには、`plugins/` 配下に optional なサードパーティ形式プラグインも含まれます:

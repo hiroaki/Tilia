@@ -1,3 +1,4 @@
+import { createDomainContributions } from "./ui/domain-contributions.js";
 import { builtins as defaultBuiltins } from "./builtins.js";
 import { createTileLayer, defaultBaseLayerDefinitions } from "./map/base.js";
 import { createPluginRuntime } from "./plugins/runtime/index.js";
@@ -132,6 +133,7 @@ export function createApplicationComposition({
     semanticApi = createApplicationSemanticApi(foundation);
     return foundation;
   });
+  const domainContributions = createDomainContributions({ onError: onDiagnostic });
   const serviceRegistry = createServiceRegistry({ onError: onDiagnostic });
   const inputRegistry = createInputRegistry({ onError: onDiagnostic });
   const stylesheetManager = createStylesheetManager({
@@ -161,6 +163,8 @@ export function createApplicationComposition({
   // makes a disabled transitive dependency fail during planning, before either
   // its loader or the consumer setup can run.
   const capabilityFactories = {
+    diagnostics: (input) => input.diagnostics,
+    contributions: (input) => domainContributions.createFacade(input),
     renderers: (input) => rendering.createCapabilities(input).renderers,
     rendering: (input) => rendering.createCapabilities(input).rendering,
     interactions: (input) => rendering.createCapabilities(input).interactions,
@@ -229,7 +233,7 @@ export function createApplicationComposition({
         typeof pluginOrId === "string" ? pluginOrId : pluginOrId?.id;
       if (getPhase4dPluginClassification(pluginId) === "disabled") {
         const error = new Error(
-          `Plugin "${pluginId}" is disabled during the Phase 4D migration`,
+          `Plugin "${pluginId}" is disabled during the Phase 4G migration`,
         );
         error.code = "PLUGIN_DISABLED_BY_MIGRATION";
         return Promise.reject(error);
@@ -293,7 +297,7 @@ export function createApplicationComposition({
           : configuredPlugin.plugin?.id;
       if (getPhase4dPluginClassification(pluginId) === "disabled") {
         const error = new Error(
-          `Plugin "${pluginId}" is disabled during the Phase 4D migration`,
+          `Plugin "${pluginId}" is disabled during the Phase 4G migration`,
         );
         error.code = "PLUGIN_DISABLED_BY_MIGRATION";
         throw error;

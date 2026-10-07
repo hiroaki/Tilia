@@ -1,67 +1,42 @@
-import { createPanel, installMapControl } from "../../map/controls.js";
-import { processInputItems } from "../../core/input-processing.js";
-
-export function installFileImportPlugin({ fileInput, registry, context, onStatus, onError, onItemLoaded }) {
-  fileInput?.addEventListener("change", async (event) => {
-    const target = event.target;
-    const files = Array.from(target.files || []);
-
-    await processInputItems({
-      items: files,
-      registry,
-      context,
-      onStatus,
-      onError,
-      sourceLabel: "file",
-      onItemLoaded,
-    });
-
-    target.value = "";
-  });
-}
-
-export function installFileImportControl({ map, registry, context, onStatus, onError, onItemLoaded, position = "topleft", priority = "normal" }) {
-  let fileInput = null;
-
-  const control = installMapControl({
-    map,
-    position,
-    priority,
-    className: "tilia-file-import-control",
-    createContent() {
-      const panel = createPanel("tilia-control-panel-compact");
-      const label = document.createElement("label");
-      label.className = "tilia-file-label tilia-control-button-icon";
-      label.textContent = "+";
-      label.title = "Open GPX or JPEG files";
-      label.setAttribute("aria-label", "Open GPX or JPEG files");
-
-      fileInput = document.createElement("input");
-      fileInput.type = "file";
-      fileInput.multiple = true;
-      fileInput.accept = ".gpx,application/gpx+xml,application/xml,text/xml,image/jpeg,.jpg,.jpeg";
-      label.appendChild(fileInput);
-      panel.appendChild(label);
-
-      installFileImportPlugin({
-        fileInput,
-        registry,
-        context,
-        onStatus,
-        onError,
-        onItemLoaded,
-      });
-
-      return panel;
-    },
-  });
-
-  return {
-    destroy() {
-      control.remove();
-    },
-    getInput() {
-      return fileInput;
-    },
-  };
-}
+import { createMapControl } from "../../map/controls.js";
+import { statusServiceKey } from "../contracts/status.js";
+import { listen, node, reportError } from "../../ui/scoped-dom.js";
+export default Object.freeze({
+  id: "tilia-file-import",
+  setup(context, options = {}) {
+    const status = (text) => context.services.optional(statusServiceKey)?.set(text);
+    const report = (error) => reportError(context, error);
+    let fileInput;
+    const control = createMapControl({ ...options, className: "tilia-file-import-control", createContent(container) {
+      const label = node(container, "label", "tilia-file-label tilia-control-button-icon", "+");
+      label.setAttribute("aria-label", "Open files");
+      fileInput = node(label, "input", ""); fileInput.type = "file"; fileInput.multiple = true;
+      const discovery = () => {
+        fileInput.accept = [...new Set(context.inputs.getSnapshot().flatMap(({ discovery }) =>
+          [...discovery.extensions, ...discovery.mimeTypes]))].join(",");
+      };
+      context.inputs.subscribe(discovery);
+      listen(context.scope, fileInput, "change", async () => {
+        const files = [...fileInput.files];
+        let loaded = 0;
+        const details = [];
+        try {
+          for (const file of files) {
+            if (!context.scope.alive) break;
+            try {
+              const result = await context.inputs.dispatch(file);
+              if (!context.scope.alive) break;
+              loaded++;
+              details.push(`${result?.name ?? file.name}${result?.locationSource ? ` (${result.locationSource})` : ""}`);
+            } catch (error) {
+              report(error); details.push(`${file.name}: ${error.message}`);
+            }
+          }
+          if (context.scope.alive) status(`Loaded ${loaded} file(s) from file. ${details.join("; ")}`);
+        } finally { fileInput.value = ""; }
+      }, report);
+      return label;
+    } });
+    context.map.mountControl(control);
+  },
+});

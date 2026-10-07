@@ -2,11 +2,12 @@ export const phase4dPluginClassification = Object.freeze({
   enabled: Object.freeze([
     "tilia-status", "tilia-base-maps-control", "tilia-gpx-domain", "tilia-photo-domain",
     "x-gsi-base-maps", "x-opentopomap-base-maps",
+    "tilia-panel", "tilia-layers", "tilia-settings", "tilia-file-import",
+    "tilia-photo-renderer", "tilia-jpeg-input", "tilia-photo-ui", "tilia-map-selection-presenter",
   ]),
   disabled: Object.freeze([
-    "tilia-panel", "tilia-layers",
-    "tilia-elevation", "tilia-file-import", "tilia-url-import", "tilia-query-import",
-    "tilia-settings", "tilia-dropzone",
+    "tilia-elevation", "tilia-url-import", "tilia-query-import",
+    "tilia-dropzone",
     "x-gpx-export", "x-route-search", "x-track-editor", "x-milestone",
   ]),
 });
@@ -23,8 +24,8 @@ export function getPhase4dPluginClassification(pluginId) {
 export function assertPluginEnabledForComposition(pluginId) {
   if (enabled.has(pluginId)) return;
   const error = new Error(disabled.has(pluginId)
-    ? `Plugin "${pluginId}" is disabled during the Phase 4D migration`
-    : `Plugin "${pluginId}" is not classified by the Phase 4D migration allowlist`);
+    ? `Plugin "${pluginId}" is disabled during the Phase 4G migration`
+    : `Plugin "${pluginId}" is not classified by the Phase 4G migration allowlist`);
   error.code = disabled.has(pluginId)
     ? "PLUGIN_DISABLED_BY_MIGRATION"
     : "PLUGIN_NOT_CLASSIFIED_BY_MIGRATION";

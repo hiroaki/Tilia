@@ -1,3 +1,4 @@
+import { forwardAbort } from "../ownership/abort.js";
 import { copyPoint } from "./generation.js";
 import {
   assertDeepImmutablePlainData,
@@ -49,7 +50,9 @@ export function createPresentationFacade({
         return null;
       const exposure = generation.exposure,
         revision = generation.revision;
+      let invalidation = null;
       const current = () =>
+        !invalidation?.signal.aborted &&
         scope.alive &&
         exposure.alive &&
         generation.exposure === exposure &&
@@ -82,7 +85,10 @@ export function createPresentationFacade({
         return null;
       }
       if (!current()) return null;
+      invalidation = forwardAbort([exposure.signal, scope.signal]);
+      if (!current()) { invalidation.dispose(); return null; }
       return Object.freeze({
+        signal: invalidation.signal,
         token: generation.token,
         revision,
         anchor,
