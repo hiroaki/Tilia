@@ -1,6 +1,9 @@
 import { expect, test } from "@playwright/test";
 
 async function loadGpx(page, name, fixture = "/tests/fixtures/sample-track.gpx") {
+  // This launcher is installed after Drop in the sample's normal bootstrap.
+  // Navigation alone does not wait for asynchronous plugin installation.
+  await expect(page.getByRole("button", { name: "Track editor", exact: true })).toBeVisible();
   await page.evaluate(async ({ fileName, fixturePath }) => {
     const target = document.querySelector("#map");
     const response = await fetch(fixturePath);

@@ -25,11 +25,8 @@ export function createRectangleSelection({ map, scope, parent, onComplete, onAct
   };
   const container = map.getContainer();
   let active = false;
-  let dragging = false;
-  let dragPointerId = null;
-  let dragStart = null;
+  let dragState = null;
   let shield = null;
-  let rectangle = null;
   let restoreDragging = false;
   let suppressNextClick = false;
   let suppressClickTimer = null;
@@ -51,21 +48,26 @@ export function createRectangleSelection({ map, scope, parent, onComplete, onAct
     return { x: event.clientX - rect.left, y: event.clientY - rect.top };
   }
 
-  function clearDrag() {
-    if (dragPointerId !== null && container.hasPointerCapture?.(dragPointerId)) container.releasePointerCapture(dragPointerId);
-    dragging = false;
-    dragPointerId = null;
-    dragStart = null;
-    rectangle?.remove();
-    rectangle = null;
+  function clearDrag(state = dragState) {
+    if (!state) return;
+    // A later gesture may have reused this pointer before an old cleanup retry.
+    const reusedPointer = state !== dragState && dragState?.pointerId === state.pointerId;
+    if (!reusedPointer && state.pointerId !== null && container.hasPointerCapture?.(state.pointerId)) {
+      container.releasePointerCapture(state.pointerId);
+    }
+    state.dragging = false;
+    state.pointerId = null;
+    state.start = null;
+    state.rectangle?.remove();
+    state.rectangle = null;
   }
 
-  function updateRectangle(end) {
-    const bounds = normalizeBounds(dragStart, end);
-    rectangle.style.left = `${bounds.min.x}px`;
-    rectangle.style.top = `${bounds.min.y}px`;
-    rectangle.style.width = `${bounds.max.x - bounds.min.x}px`;
-    rectangle.style.height = `${bounds.max.y - bounds.min.y}px`;
+  function updateRectangle(state, end) {
+    const bounds = normalizeBounds(state.start, end);
+    state.rectangle.style.left = `${bounds.min.x}px`;
+    state.rectangle.style.top = `${bounds.min.y}px`;
+    state.rectangle.style.width = `${bounds.max.x - bounds.min.x}px`;
+    state.rectangle.style.height = `${bounds.max.y - bounds.min.y}px`;
     return bounds;
   }
 
@@ -73,7 +75,8 @@ export function createRectangleSelection({ map, scope, parent, onComplete, onAct
     if (!active) return;
     active = false;
     const ended = gesture; gesture = null;
-    for (const cleanup of [clearDrag, () => shield?.remove(), restoreMapDragging]) {
+    const endedDrag = dragState; dragState = null;
+    for (const cleanup of [() => clearDrag(endedDrag), () => shield?.remove(), restoreMapDragging]) {
       try { cleanup?.(); } catch (error) { report(error); }
     }
     restoreMapDragging = null;
@@ -87,34 +90,37 @@ export function createRectangleSelection({ map, scope, parent, onComplete, onAct
   }
 
   function onPointerDown(event) {
-    if (event.button !== 0 || dragging) return;
+    const state = dragState;
+    if (!state || event.button !== 0 || state.dragging) return;
     // Route capture only for the map, preserving shell controls and assigned UI.
     if (event.target?.closest?.(".leaflet-control, .leaflet-popup, .tilia-ui-surface-root")) return;
     event.preventDefault();
     event.stopPropagation();
-    dragging = true;
-    dragPointerId = event.pointerId;
-    dragStart = containerPoint(event);
-    rectangle = document.createElement("div");
-    rectangle.className = "tilia-track-editor-selection-rectangle";
-    shield.appendChild(rectangle);
+    state.dragging = true;
+    state.pointerId = event.pointerId;
+    state.start = containerPoint(event);
+    state.rectangle = document.createElement("div");
+    state.rectangle.className = "tilia-track-editor-selection-rectangle";
+    shield.appendChild(state.rectangle);
     container.setPointerCapture?.(event.pointerId);
-    updateRectangle(dragStart);
+    updateRectangle(state, state.start);
   }
 
   function onPointerMove(event) {
-    if (!dragging || event.pointerId !== dragPointerId) return;
+    const state = dragState;
+    if (!state?.dragging || event.pointerId !== state.pointerId) return;
     event.preventDefault();
-    updateRectangle(containerPoint(event));
+    updateRectangle(state, containerPoint(event));
   }
 
   function onPointerUp(event) {
-    if (!dragging || event.pointerId !== dragPointerId) return;
+    const state = dragState;
+    if (!state?.dragging || event.pointerId !== state.pointerId) return;
     event.preventDefault();
     event.stopPropagation();
-    const bounds = updateRectangle(containerPoint(event));
+    const bounds = updateRectangle(state, containerPoint(event));
     if (container.hasPointerCapture?.(event.pointerId)) container.releasePointerCapture(event.pointerId);
-    clearDrag();
+    clearDrag(state);
     suppressGestureClick();
     const outcome = onComplete?.(bounds) || "retry";
     if (outcome === "success" || outcome === "cancel") {
@@ -123,8 +129,9 @@ export function createRectangleSelection({ map, scope, parent, onComplete, onAct
   }
 
   function onPointerCancel(event) {
-    if (dragging && event.pointerId === dragPointerId) {
-      clearDrag();
+    const state = dragState;
+    if (state?.dragging && event.pointerId === state.pointerId) {
+      clearDrag(state);
     }
   }
 
@@ -156,6 +163,8 @@ export function createRectangleSelection({ map, scope, parent, onComplete, onAct
       scope.assertAlive();
       if (active) return;
       gesture = scope.child({ label: "rectangle-active-gesture" });
+      const state = { dragging: false, pointerId: null, start: null, rectangle: null };
+      dragState = state;
       active = true;
       restoreDragging = map.dragging.enabled();
       const wasDragging = restoreDragging;
@@ -163,7 +172,7 @@ export function createRectangleSelection({ map, scope, parent, onComplete, onAct
       const restore = () => { if (!restored && wasDragging) { map.dragging.enable(); restored = true; } };
       restoreMapDragging = restore;
       gesture.defer(restore, { label: "restore-map-dragging", retry: "safe" });
-      gesture.defer(clearDrag, { label: "release-rectangle-gesture", retry: "safe" });
+      gesture.defer(() => clearDrag(state), { label: "release-rectangle-gesture", retry: "safe" });
       if (restoreDragging) map.dragging.disable();
       shield = document.createElement("div");
       shield.className = "tilia-track-editor-selection-shield";
@@ -182,7 +191,7 @@ export function createRectangleSelection({ map, scope, parent, onComplete, onAct
     },
     cancel() { deactivate(); },
     isActive() { return active; },
-    isDragging() { return dragging; },
+    isDragging() { return dragState?.dragging ?? false; },
     destroy() {
       deactivate();
       clearTimeout(suppressClickTimer);

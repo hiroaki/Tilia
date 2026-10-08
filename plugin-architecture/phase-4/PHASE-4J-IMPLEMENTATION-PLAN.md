@@ -2,7 +2,7 @@
 
 **Target document:** `plugin-architecture/phase-4/PHASE-4J-IMPLEMENTATION-PLAN.md`
 
-**Execution authority:** The user approved A/B/C and authorized implementation on 2026-10-08; see [approved contract record](PHASE-4J-CONTRACT-AMENDMENTS.md). Historical unapproved/review-gated wording below is superseded for this exact scope by that record. Implementation checkpoints A–D and measured verification are recorded in [the implementation report](PHASE-4J-IMPLEMENTATION-REPORT.md); implementation review/acceptance remains pending.
+**Execution authority:** The user approved A/B/C and authorized implementation on 2026-10-08; see [approved contract record](PHASE-4J-CONTRACT-AMENDMENTS.md). Historical unapproved/review-gated wording below is superseded for this exact scope by that record. Implementation checkpoints A–D and measured verification are recorded in [the implementation report](PHASE-4J-IMPLEMENTATION-REPORT.md); final implementation review completed on 2026-10-08 after the gesture-cleanup fix and whole-phase revalidation. Phase 4J is complete within the recorded scope and verification limits.
 
 **Planning status:** The user wrote the reviewed plan into this file and it was committed as `281b4bc`. The investigation below records baseline `6e12a85a0172c663787747e77ba5fa619ff17330` and the reviewed proposal wording at that time. Subsequent architecture approval, roadmap reconciliation, implementation and new test results are recorded separately in the approved contract record and implementation report; historical “unapproved”/“pending” statements below do not override that execution record.
 

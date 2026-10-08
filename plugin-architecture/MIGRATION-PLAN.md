@@ -1094,7 +1094,7 @@ Migrating GPX export, route search, editor, milestone, or declaring app destruct
 
 ## 16. Phase 4J — Complex Plugin Migration
 
-**Implementation status (2026-10-08):** Checkpoints Export → Route Search → Track Editor → Milestone have been implemented with the approved A/B/C contracts and verified in that order. All intended repository plugins are enabled; implementation review/acceptance remains pending. See [the Phase 4J report](phase-4/PHASE-4J-IMPLEMENTATION-REPORT.md) for measured results and limits. Phase 4K retains public application destruction and allowlist-scaffold removal.
+**Implementation status (2026-10-08):** Checkpoints Export → Route Search → Track Editor → Milestone have been implemented with the approved A/B/C contracts and verified in that order. All intended repository plugins are enabled. Final implementation review, review fixes and whole-phase revalidation are complete; Phase 4J meets its completion criteria within the recorded scope and verification limits. See [the Phase 4J report](phase-4/PHASE-4J-IMPLEMENTATION-REPORT.md) for measured results and limits. Phase 4K retains public application destruction and allowlist-scaffold removal.
 
 ### Goal
 
