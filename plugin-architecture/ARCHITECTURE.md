@@ -620,6 +620,10 @@ Generic rendering infrastructure MUST NOT contain GPX-specific branches. It forw
 
 Whole-entry hiding normally detaches/suppresses a generation without destroying semantic data or clearing selection. Invisible resources MUST NOT dispatch interaction. Domain visibility changes MAY update child membership in place when target binding validity and rollback guarantees hold; otherwise they replace the generation.
 
+### Phase 4J temporary presentation suppression
+
+[Approved Phase 4J Amendment A](phase-4/PHASE-4J-CONTRACT-AMENDMENTS.md#a-temporary-target-presentation-suppression) adds consumer-owned `rendering.suppress({entryId,domain,target,expectedRevision,scope})`, `getSuppressionSnapshot()` and `subscribeSuppression(listener,{scope,emitCurrent})`. Phase 4J admits GPX track targets. Aggregate live leases suppress presentation independently of persistent visibility preferences, semantic revisions, SelectionStore and renderer registrations. Owner closure releases synchronously; overlapping leases compose by OR; release respects current preferences. The frozen snapshot/read and serialized notification, private reference reconciliation, replacement/deletion invalidation and renderer-independent lifecycle follow the exact approved record. No renderer resources or lease-owner identities are exposed.
+
 ## 32. Semantic Target Binding
 
 Generation-local bindings map physical resources to a domain-issued target equivalent to:
@@ -707,6 +711,8 @@ Application-owned semantic bands, bottom to top, are:
 Plugins use the appropriate band through MapFacade. Local order within a band is deterministic and contract-defined, not arbitrary cross-plugin z-index competition.
 
 When bands are insufficient, a plugin MAY acquire an owner-namespaced private pane lease. The pane MUST be scoped and removed when its last lease ends. Private panes MUST NOT be used to bypass modal, selection, popup, or shell policy.
+
+Phase 4J Amendment B allows only editing point/midpoint markers and drag helper lines created internally by the unchanged `PartiallyEditablePolyline` library to retain library default placement where public options cannot supply the appropriate band. All editor-direct resources still follow this policy. This is not a general third-party pane exception. Usable real-browser stacking/interaction and public composite teardown must be verified; unsupported behavior requires focused review, not private internals, monkey-patching or a compatibility framework. Existing cleanup-failure/quarantine contracts remain unchanged. See [approved B](phase-4/PHASE-4J-CONTRACT-AMENDMENTS.md#b-vendor-editing-marker-and-drag-helper-pane-exception).
 
 ## 37. Temporary and Session Rendering
 
@@ -798,6 +804,8 @@ Entry removal ordering is normative:
 Cleanup uses captured handles and MUST NOT require public lookup of the removed entry. If cleanup fails, the entry remains logically absent and its ID remains reserved. Retry-safe residuals and the provider lease remain privately tracked until disposal completes. A half-disposed public entry MUST NOT be restored.
 
 `clear()` is deterministic reverse-insertion-order removal with batched public notifications, not an atomic rollbackable transaction.
+
+[Approved Phase 4J Amendment C](phase-4/PHASE-4J-CONTRACT-AMENDMENTS.md#c-entry-associated-presentation-lifetime) adds `entries.bindPresentationLifetime(entryId,{scope})` returning a captured disposal lease. It binds an existing consumer-owned child presentation scope, validates ancestry/liveness and synchronously closes/withdraws bound effects on logical deletion before remaining entry cleanup. Entry removal awaits required bound presentation cleanup attempts, continues after errors and retains existing residual/provider-lease obligations. Final `removed` timing remains unchanged. Explicit lease disposal closes its bound scope; no detached active overlay is permitted. This is generic entry infrastructure, not Milestone-specific code, an arbitrary-work barrier or an editor source-lifetime dependency.
 
 ## 43. Plugin Uninstall Lifecycle
 

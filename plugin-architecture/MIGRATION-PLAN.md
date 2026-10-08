@@ -1161,7 +1161,7 @@ Migrate the four plugins in the following order, using one authority cut per plu
 - Ownership: plugin scope -> editor-session child -> rectangle/operation children. Draft UI/layers/history/local selection remain session-owned.
 - Map resources: temporary session resources only; advanced Leaflet map access permitted for PartiallyEditablePolyline with immediate ownership registration.
 - Commit behavior: Save Copy sends semantic GPX to provider, producing a new app-owned entry and fresh normal render generation; no draft resource transfer. Cancel commits nothing.
-- Required behavior: track/segment structure, point move/insert/delete, undo/redo, rectangle/local multi-selection, form editing, Save Copy, cancel/restart, original removal cancellation, visibility restoration, track switching.
+- Required behavior: track/segment structure, point move/insert/delete, undo/redo, rectangle/local multi-selection, form editing, Save Copy, cancel/restart, source-independent detached track-only draft editing and Save Copy after source modification/deletion or renderer removal, temporary suppression release revealing current authoritative visibility (subject to other live leases), track switching. Cancel discards the draft/resources and never restores or recreates the source semantic entry. See [approved Phase 4J contracts](phase-4/PHASE-4J-CONTRACT-AMENDMENTS.md).
 - Regression tests: existing editor unit and smoke behaviors adapted to target APIs plus uninstall/destroy/stale callback/resource cleanup.
 
 #### `x-milestone`

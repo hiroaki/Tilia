@@ -2,6 +2,8 @@
 
 **Target document:** `plugin-architecture/phase-4/PHASE-4J-IMPLEMENTATION-PLAN.md`
 
+**Execution authority:** The user approved A/B/C and authorized implementation on 2026-10-08; see [approved contract record](PHASE-4J-CONTRACT-AMENDMENTS.md). Historical unapproved/review-gated wording below is superseded for this exact scope by that record. Implementation and new verification remain pending.
+
 **Planning status:** The user has written the reviewed plan into this file. This revision strengthens the plan against HEAD `6e12a85a0172c663787747e77ba5fa619ff17330`; only this planning document is changed. No production code, tests, vendor files or normative documents are changed. Verified implementation facts, confirmed user decisions and unapproved proposals are distinguished below.
 
 ## 1. Executive summary
