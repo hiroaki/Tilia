@@ -30,11 +30,11 @@ function createIdFactory() {
 }
 
 export function createDraftDocument(source) {
-  const clonedSource = source;
+  const canonicalSource = source;
   const createId = createIdFactory();
   return {
-    name: clonedSource.name ?? "track.gpx",
-    tracks: clonedSource.tracks.map((track, originalTrackIndex) => ({
+    name: canonicalSource.name ?? "track.gpx",
+    tracks: canonicalSource.tracks.map((track, originalTrackIndex) => ({
       id: createId("track"),
       originalTrackIndex,
       name: track.name,

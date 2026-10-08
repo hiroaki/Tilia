@@ -2,9 +2,9 @@
 
 **Target document:** `plugin-architecture/phase-4/PHASE-4J-IMPLEMENTATION-PLAN.md`
 
-**Execution authority:** The user approved A/B/C and authorized implementation on 2026-10-08; see [approved contract record](PHASE-4J-CONTRACT-AMENDMENTS.md). Historical unapproved/review-gated wording below is superseded for this exact scope by that record. Implementation and new verification remain pending.
+**Execution authority:** The user approved A/B/C and authorized implementation on 2026-10-08; see [approved contract record](PHASE-4J-CONTRACT-AMENDMENTS.md). Historical unapproved/review-gated wording below is superseded for this exact scope by that record. Implementation checkpoints A–D and measured verification are recorded in [the implementation report](PHASE-4J-IMPLEMENTATION-REPORT.md); implementation review/acceptance remains pending.
 
-**Planning status:** The user has written the reviewed plan into this file. This revision strengthens the plan against HEAD `6e12a85a0172c663787747e77ba5fa619ff17330`; only this planning document is changed. No production code, tests, vendor files or normative documents are changed. Verified implementation facts, confirmed user decisions and unapproved proposals are distinguished below.
+**Planning status:** The user wrote the reviewed plan into this file and it was committed as `281b4bc`. The investigation below records baseline `6e12a85a0172c663787747e77ba5fa619ff17330` and the reviewed proposal wording at that time. Subsequent architecture approval, roadmap reconciliation, implementation and new test results are recorded separately in the approved contract record and implementation report; historical “unapproved”/“pending” statements below do not override that execution record.
 
 ## 1. Executive summary
 
@@ -19,7 +19,7 @@ Reuse the accepted GPX model, serializer, typed creation commands, standard UI, 
 
 The confirmed editor workflow creates an independent draft and saves a new entry. Source modification or deletion does not terminate editing or prevent Save Copy. Route Search retains automatic creation of GPX entries; a separate preview-and-confirm workflow is excluded.
 
-Three issues require architecture review before affected implementation:
+Three issues required architecture review before affected implementation; the linked approval record now authorizes their exact scope:
 
 - **A:** Temporary semantic-target presentation suppression, independent of persistent visibility preferences.
 - **B:** A pane exception limited to internal editing markers and drag helper lines created by the unmodified `PartiallyEditablePolyline` library.
@@ -717,3 +717,8 @@ Phase 4J is complete only when:
 - **Later:** Route preview-and-confirm workflow; batch atomic route creation; in-place editor save; complete detached GPX editor; route/waypoint editing; stable application point IDs; speculative structural commands; Segment-mode milestones; new milestone settings UI; unrelated visual/product changes.
 
 Correct plugin uninstall, cancellation and cleanup are required now. No legacy mechanism is retained for 4K.
+
+
+## 26. Execution record — 2026-10-08
+
+The reviewed plan was committed before implementation. A/B/C approvals and the source-independent roadmap correction were recorded in `3f0005a` before dependent production changes. Export, Route Search and Editor were implemented and verified in order (`6374080`, `0d6f3b1`, `91b8b69`); Milestone and C then completed the final checkpoint. The [implementation report](PHASE-4J-IMPLEMENTATION-REPORT.md) records current measured contract/race/browser verification and remaining limits. All intended plugins are enabled; migration exclusions and forbidden-symbol exceptions are empty, while the allowlist scaffold remains for its scheduled 4K removal. This execution record does not broaden A/B/C or approve the resulting implementation on behalf of the user.

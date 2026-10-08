@@ -1,5 +1,31 @@
 import { expect, test } from "@playwright/test";
 import { readFile } from "node:fs/promises";
+
+async function instrumentDocumentPointers(page) {
+  // Test-only native document-listener instrumentation, without vendor internals.
+  await page.addInitScript(() => {
+    const records = new Map(), add = document.addEventListener, remove = document.removeEventListener;
+    const capture = options => typeof options === "boolean" ? options : Boolean(options?.capture);
+    document.addEventListener = function(type, callback, options) {
+      const result = add.call(this, type, callback, options);
+      if (/^pointer(?:move|up|cancel)$/.test(type)) {
+        if (!records.has(type)) records.set(type, new Map());
+        const callbacks = records.get(type);
+        if (!callbacks.has(callback)) callbacks.set(callback, new Set());
+        callbacks.get(callback).add(capture(options));
+      }
+      return result;
+    };
+    document.removeEventListener = function(type, callback, options) {
+      const result = remove.call(this, type, callback, options);
+      const callbacks = records.get(type); callbacks?.get(callback)?.delete(capture(options));
+      if (callbacks?.get(callback)?.size === 0) callbacks.delete(callback);
+      return result;
+    };
+    window.documentPointerCount = () => [...records.values()].reduce((sum, callbacks) => sum + [...callbacks.values()].reduce((n, values) => n + values.size, 0), 0);
+  });
+}
+
 test("4J-A exports rich immutable GPX and reimports its supported values", async ({ page }) => {
   const errors = []; page.on("pageerror", error => errors.push(error.message));
   await page.goto("/samples/phase-4j/");
@@ -93,7 +119,9 @@ test("4J-C continues initialized editing, Undo/Redo and Save Copy after source d
   await expect(page.locator(".leaflet-partially-editable-polyline-point")).toHaveCount(0);
 });
 test("4J-C vendor default panes permit real point/midpoint dragging over overlapping draft geometry and clean active gestures",async({page})=>{
+  await instrumentDocumentPointers(page);
   await editorSession(page,{overlap:true});
+  const pointerBaseline = await page.evaluate(() => window.documentPointerCount());
   const placement=await page.evaluate(()=>({
     markerPane:document.querySelector(".leaflet-partially-editable-polyline-point").parentElement.classList.contains("leaflet-marker-pane"),
     modal:document.querySelector(".tilia-track-editor-draft").closest(".leaflet-pane").dataset.tiliaMapBand,
@@ -107,18 +135,24 @@ test("4J-C vendor default panes permit real point/midpoint dragging over overlap
   await expect(page.locator(".leaflet-partially-editable-polyline-point")).toHaveCount(4);
   await dragMarker(page,".leaflet-partially-editable-polyline-point",10,15,{release:false});
   await expect(page.locator(".leaflet-overlay-pane path[stroke-dasharray='5,1']")).not.toHaveCount(0);
+  expect(await page.evaluate(() => window.documentPointerCount())).toBeGreaterThan(pointerBaseline);
+  const overlapImage = test.info().outputPath("vendor-overlap-active-drag.png");
+  await page.screenshot({ path: overlapImage });
+  await test.info().attach("vendor-overlap-active-drag", { path: overlapImage, contentType: "image/png" });
   // End editing during the native pointer gesture without fabricating pointerup first.
   await page.evaluate(()=>document.querySelectorAll(".tilia-track-editor-action").forEach(button=>{if(button.textContent==="Cancel")button.click();}));
   await page.mouse.up();
   await expect(page.locator(".leaflet-partially-editable-polyline-point")).toHaveCount(0);
   await expect(page.locator(".leaflet-overlay-pane path[stroke-dasharray='5,1']")).toHaveCount(0);
   await expect(page.locator("body")).not.toHaveClass(/leaflet-dragging/);
+  expect(await page.evaluate(() => window.documentPointerCount())).toBe(pointerBaseline);
   await page.getByRole("button",{name:"Start Edit",exact:true}).click();
   await page.evaluate(()=>window.phase4j.map.fire("click",{latlng:{lat:35.68,lng:139.76}}));
   await dragMarker(page,".leaflet-partially-editable-polyline-new-point",10,-10,{release:false});
   await page.evaluate(()=>window.phase4j.app.unuse("x-track-editor")); await page.mouse.up();
   await expect(page.locator(".leaflet-partially-editable-polyline-point")).toHaveCount(0); await expect(page.locator(".tilia-track-editor-draft")).toHaveCount(0);
   await expect(page.locator(".leaflet-overlay-pane path[stroke-dasharray='5,1']")).toHaveCount(0);
+  expect(await page.evaluate(() => window.documentPointerCount())).toBe(pointerBaseline);
   await page.evaluate(()=>window.phase4j.app.use("x-track-editor")); await expect(page.getByRole("button",{name:"Track editor",exact:true})).toBeVisible();
 });
 test("4J-C unresolved vendor helper residue quarantines uninstall and prohibits successful reinstall",async({page})=>{
@@ -156,4 +190,97 @@ test("4J-C overlapping draft geometry preserves popup and shell-control interact
   await expect.poll(() => page.evaluate(() => window.phase4j.map.getZoom())).toBe(before + 1);
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(page.getByRole("button", { name: "Popup probe", exact: true })).toBeVisible();
+});
+
+async function milestoneSource(page) {
+  await page.goto("/samples/phase-4j/");
+  await page.waitForFunction(()=>document.body.dataset.phase4jReady==="true");
+  return page.evaluate(async()=>{
+    const {app,map}=window.phase4j;map.setMaxZoom(20);map.setView([35.68,139.761],20);
+    const entry=await app.domains.gpx.create({tracks:[
+      {segments:[{points:[{lat:35.68,lon:139.76},{lat:35.68,lon:139.762}]}]},
+      {segments:[{points:[{lat:35.681,lon:139.76},{lat:35.681,lon:139.763}]}]},
+    ]});return entry.id;
+  });
+}
+test("4J-D uses overlays-band Milestone without renderer, observes overlapping suppression and current preferences",async({page})=>{
+  const id=await milestoneSource(page), markers=page.locator(".tilia-milestone");
+  await expect(markers).toHaveCount(3);
+  expect(await markers.first().evaluate(node=>node.closest(".leaflet-pane").dataset.tiliaMapBand)).toBe("overlays");
+  await page.evaluate(()=>window.phase4j.app.unuse("tilia-gpx-renderer"));await expect(markers).toHaveCount(3);
+  await page.evaluate(async id=>{
+    const {app,context}=window.phase4j, {gpxDomainKey}=await import("/src/domains/index.js");
+    window.milestoneLeases=[context.scope.child(),context.scope.child()].map(scope=>context.rendering.suppress({entryId:id,domain:gpxDomainKey,target:{kind:"track",trackIndex:0},expectedRevision:1,scope}));
+  },id);await expect(markers).toHaveCount(2);
+  await page.evaluate(()=>window.milestoneLeases[0].dispose());await expect(markers).toHaveCount(2);
+  await page.evaluate(id=>window.phase4j.app.domains.gpx.setTrackVisibility(id,{trackIndex:0,visible:false},{expectedRevision:1}),id);
+  await page.evaluate(()=>window.milestoneLeases[1].dispose());await expect(markers).toHaveCount(2);
+  await page.evaluate(()=>window.phase4j.app.use("tilia-gpx-renderer"));await expect(markers).toHaveCount(2);
+  await page.evaluate(id=>window.phase4j.app.domains.gpx.setTrackVisibility(id,{trackIndex:0,visible:true},{expectedRevision:2}),id);await expect(markers).toHaveCount(3);
+  await page.evaluate(()=>window.phase4j.map.setZoom(14));await expect(markers).toHaveCount(0);
+  await page.evaluate(()=>window.phase4j.map.setZoom(20));await expect(markers).toHaveCount(3);
+  await page.evaluate(()=>window.phase4j.app.unuse("x-milestone"));await expect(markers).toHaveCount(0);
+  await page.evaluate(()=>window.phase4j.app.use("x-milestone"));await expect(markers).toHaveCount(3);
+  await page.evaluate(id=>window.phase4j.app.entries.remove(id),id);await expect(markers).toHaveCount(0);
+});
+test("4J-D editing suppression and source deletion withdraw Milestone while the detached draft remains usable",async({page})=>{
+  const id=await milestoneSource(page), markers=page.locator(".tilia-milestone");await expect(markers).toHaveCount(3);
+  await page.getByRole("button",{name:"Track editor",exact:true}).click();await page.getByRole("button",{name:"Start Edit",exact:true}).click();await expect(markers).toHaveCount(0);
+  await page.evaluate(id=>window.phase4j.app.entries.remove(id),id);
+  await expect(page.locator(".tilia-track-editor-draft")).toHaveCount(2);
+  await page.getByRole("button",{name:"Save Copy",exact:true}).click();await expect(markers).toHaveCount(3);
+  await page.evaluate(()=>window.phase4j.app.entries.clear());await expect(markers).toHaveCount(0);
+});
+test("4J-D entry deletion withdraws real markers before held remaining entry cleanup and final removed",async({page})=>{
+  const id=await milestoneSource(page);await expect(page.locator(".tilia-milestone")).toHaveCount(3);
+  await page.evaluate(async id=>{
+    const {app,context}=window.phase4j;window.removalOrder=[];
+    const scope=context.scope.child();scope.defer(()=>new Promise(resolve=>window.finishPresentationCleanup=resolve));
+    context.entries.bindPresentationLifetime(id,{scope});
+    context.entries.subscribe(event=>{if(event.type==="removed")window.removalOrder.push("removed");},{emitCurrent:false});
+    window.deleting=app.entries.remove(id);
+  },id);
+  await expect(page.locator(".tilia-milestone")).toHaveCount(0);
+  await page.waitForFunction(()=>typeof window.finishPresentationCleanup==="function");
+  expect(await page.evaluate(()=>window.removalOrder)).toEqual([]);
+  await page.evaluate(async()=>{window.finishPresentationCleanup();await window.deleting;});
+  expect(await page.evaluate(()=>window.removalOrder)).toEqual(["removed"]);
+  await page.evaluate(()=>window.phase4j.app.unuse("x-milestone"));await page.evaluate(()=>window.phase4j.app.use("x-milestone"));await expect(page.locator(".tilia-milestone")).toHaveCount(0);
+});
+
+test("4J-C vendor point dragging remains usable under an unrelated noninteractive Milestone overlay", async ({ page }) => {
+  await editorSession(page);
+  await page.evaluate(async () => {
+    const { app, map } = window.phase4j;
+    map.setView([35.68, 139.76], 18);
+    await app.domains.gpx.create({ tracks: [{ segments: [{ points: [{ lat:35.66,lon:139.74 },{ lat:35.68,lon:139.76 }] }] }] });
+  });
+  await expect(page.locator(".tilia-milestone")).not.toHaveCount(0);
+  const overlayImage = test.info().outputPath("vendor-unrelated-overlay.png");
+  await page.screenshot({ path: overlayImage });
+  await test.info().attach("vendor-unrelated-overlay", { path: overlayImage, contentType: "image/png" });
+  await page.locator(".leaflet-partially-editable-polyline-point").first().click();
+  await expect(page.locator(".tilia-track-editor-selection-ring")).toHaveCount(1);
+  await dragMarker(page,".leaflet-partially-editable-polyline-point",15,12);
+  await expect(page.getByRole("button",{name:"Undo",exact:true})).toBeEnabled();
+  await page.getByRole("button",{name:"Cancel",exact:true}).click();
+  await expect(page.locator(".tilia-milestone")).not.toHaveCount(0);
+});
+
+
+test("4J-C public outer-layer removal terminates an active gesture and releases native document handlers", async ({ page }) => {
+  await instrumentDocumentPointers(page);await editorSession(page);
+  const baseline=await page.evaluate(()=>window.documentPointerCount());
+  await dragMarker(page,".leaflet-partially-editable-polyline-point",15,12,{release:false});
+  expect(await page.evaluate(()=>window.documentPointerCount())).toBeGreaterThan(baseline);
+  await page.evaluate(()=>{
+    // Test-only public Leaflet inventory identifies the directly owned draft path.
+    window.phase4j.map.eachLayer(layer=>{if(layer.options?.className==="tilia-track-editor-draft")layer.remove();});
+  });
+  await page.mouse.up();
+  await expect(page.locator(".leaflet-partially-editable-polyline-point")).toHaveCount(0);
+  await expect(page.locator(".leaflet-overlay-pane path[stroke-dasharray='5,1']")).toHaveCount(0);
+  expect(await page.evaluate(()=>window.documentPointerCount())).toBe(baseline);
+  await page.getByRole("button",{name:"Cancel",exact:true}).click();
+  expect(await page.evaluate(()=>window.documentPointerCount())).toBe(baseline);
 });

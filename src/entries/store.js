@@ -3,6 +3,7 @@ import { createSubscriptionChannel } from "../extensions/subscriptions.js";
 import { assertDomainKey } from "../domains/identity.js";
 import { assertDeepImmutablePlainData } from "../domains/immutable.js";
 import { semanticError, semanticErrorCodes } from "../domains/errors.js";
+import { isScopeWithin, retryScopeCleanup } from "../ownership/scope.js";
 
 function entryView(record) {
   return Object.freeze({ id: record.id, domain: record.domainKey, visible: record.visible });
@@ -206,6 +207,7 @@ export function createEntryStore({ applicationController, domainRegistry, semant
       currentDispose: null,
       terminalResidual: null,
       cleanupObligations: [],
+      presentationBindings: new Set(),
     };
     let forwarding = null;
     let committed = false;
@@ -462,13 +464,54 @@ export function createEntryStore({ applicationController, domainRegistry, semant
     });
   }
 
+  function bindPresentationLifetime(consumer, id, { scope } = {}) {
+    consumer.assertAlive();
+    applicationScope.assertAlive();
+    if (scope === consumer || !isScopeWithin(scope, consumer)) {
+      throw new TypeError("Presentation lifetime requires a consumer-owned child Scope");
+    }
+    scope.assertAlive();
+    const record = requireRecord(id);
+    let closePromise = null;
+    const binding = { close() {
+      if (!closePromise) {
+        // dispose revokes authority synchronously; this association never
+        // transfers ownership or admits arbitrary plugin work.
+        // Reserve the join before abort callbacks can reenter this lease.
+        let resolveClose, rejectClose;
+        closePromise = new Promise((resolve, reject) => {
+          resolveClose = resolve; rejectClose = reject;
+        });
+        void closePromise.then(() => record.presentationBindings.delete(binding), () => {});
+        try { void scope.dispose().then(resolveClose, rejectClose); }
+        catch (error) { rejectClose(error); }
+      }
+      return closePromise;
+    } };
+    // Entry cleanup retains failed captured-scope joins. An explicit retry
+    // delegates to the existing Scope machinery: only safe failed records run.
+    let joined = false;
+    record.scope.defer(() => {
+      const operation = joined ? retryScopeCleanup(scope) : binding.close();
+      joined = true;
+      return operation;
+    }, { label: `entry:${id}:bound-presentation`, retry: "safe" });
+    record.presentationBindings.add(binding);
+    return Object.freeze({ dispose: () => binding.close().then(() => {}) });
+  }
+
   async function removeRecord(record, { notify = true } = {}) {
     record.state = "removing";
     entries.delete(record.id);
     semanticLifecycle?.afterLogicalRemoval(record);
-    renderingHook("afterLogicalRemoval", record);
+    renderingHook("afterLogicalRemoval", record, { deferSuppressionNotification: true });
+    const presentationAttempts = [...record.presentationBindings].map(binding => binding.close());
+    renderingHook("afterPresentationWithdrawal", record);
     const previous = entryView(record);
     let cleanupError = null;
+    // All independent presentation attempts begin before awaiting any one.
+    // Remaining entry resources are still attempted after presentation failure.
+    await Promise.allSettled(presentationAttempts);
     try { await record.scopeController.close(); } catch (error) { cleanupError = error; }
     pruneCompletedControlledObligations(record);
     if (cleanupError) {
@@ -617,5 +660,5 @@ export function createEntryStore({ applicationController, domainRegistry, semant
     });
   }
 
-  return Object.freeze({ create, get, list, getDomainView, getSemanticTarget, update, setVisible, remove, retryCleanup, clear, subscribe, inspect });
+  return Object.freeze({ create, get, list, getDomainView, getSemanticTarget, update, setVisible, remove, retryCleanup, clear, subscribe, bindPresentationLifetime, inspect });
 }

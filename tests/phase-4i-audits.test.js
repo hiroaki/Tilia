@@ -6,7 +6,7 @@ import { init, parse } from "es-module-lexer";
 import { builtinPluginCatalog } from "../src/builtins.js";
 import { phase4dPluginClassification } from "../src/plugins/migration-allowlist.js";
 const root=resolve(import.meta.dirname,".."),source=p=>readFileSync(resolve(root,p),"utf8");
-const disabled=["x-milestone"];
+const disabled=[];
 const exceptions=new Set(disabled.map(id=>`plugins/${id}/loader.js`));
 function files(directory){return readdirSync(resolve(root,directory),{withFileTypes:true}).flatMap(item=>item.isDirectory()?files(`${directory}/${item.name}`):[`${directory}/${item.name}`]);}
 async function edges(path){await init;const text=source(path);const modules=path.endsWith(".html")?[...text.matchAll(/<script\b[^>]*type=["']module["'][^>]*>([\s\S]*?)<\/script>/g)].map(m=>m[1]):[text];return modules.flatMap(module=>parse(module)[0].filter(item=>item.d!==-2).map(item=>{expect(item.n,`nonliteral import: ${path}:${module.slice(item.ss,item.se)}`).toBeTypeOf("string");return{target:item.n.startsWith(".")?relative(root,resolve(dirname(resolve(root,path)),item.n)):item.n,lazy:item.d>=0};}));}
@@ -22,14 +22,17 @@ describe("Phase 4I qualified architecture audits",()=>{
   const loadRoots=imports.map(item=>{expect(item.n).toBeTypeOf("string");return relative(root,resolve(root,"src",item.n));});
   const all=await graph(["src/index.js",...loadRoots,...files("samples").filter(p=>/\.(js|html)$/.test(p))]);
   for(const path of exceptions)expect(all.has(path)).toBe(false);
-  for(const path of ["src/core/input-processing.js","src/core/remote-url-import.js","src/ui/styles.js","src/ui/surfaces.js"]){expect(all.has(path)).toBe(false);expect(existsSync(resolve(root,path))).toBe(false);}
-  expect(phase4dPluginClassification.enabled).toHaveLength(25);expect([...phase4dPluginClassification.disabled].sort()).toEqual([...disabled].sort());
+  for(const path of ["src/core/input-processing.js","src/core/remote-url-import.js","src/ui/styles.js","src/ui/surfaces.js","src/gpx/source.js"]){expect(all.has(path)).toBe(false);expect(existsSync(resolve(root,path))).toBe(false);}
+  expect(phase4dPluginClassification.enabled).toHaveLength(26);expect([...phase4dPluginClassification.disabled].sort()).toEqual([...disabled].sort());
  });
- it("keeps the public eager graph free of Photo implementation and EXIF",async()=>{const eager=await graph(["src/index.js"],{lazy:false});expect([...eager].filter(p=>p.startsWith("src/photo/")||/plugins\/(?:domains\/photo|renderers\/photo|ui\/photo)/.test(p))).toEqual([]);});
+ it("keeps the public eager graph free of Photo, complex plugin implementations and vendor",async()=>{const eager=await graph(["src/index.js"],{lazy:false});expect([...eager].filter(p=>p.startsWith("plugins/x-")||p.includes("/vendor/")||p.startsWith("src/photo/")||/plugins\/(?:domains\/photo|renderers\/photo|ui\/photo)/.test(p))).toEqual([]);});
  it("keeps generic hosts domain-neutral and prevents foreign renderer readback",async()=>{
   const hosts=[...files("src/ui").filter(p=>p.endsWith(".js")),...['panel','toolbar','layers-control','settings-panel','status-control','base-map-control','map-selection-presenter'].map(n=>`src/plugins/ui/${n}.js`)];
   for(const path of hosts){for(const edge of await edges(path))expect(edge.target,`${path} -> ${edge.target}`).not.toMatch(/^src\/(?:gpx|photo)\/|^src\/plugins\/(?:domains|renderers)\//);expect(source(path)).not.toMatch(/\bsemanticSnapshot\b|snapshot\.(?:data|preferences|derived)/);}
   for(const path of [...hosts,...files("src/plugins/input").filter(p=>p.endsWith(".js")),"src/plugins/ui/elevation-panel.js","src/gpx/ui.js","src/photo/ui.js"])expect(source(path)).not.toMatch(/\b(?:getLayers|eachLayer|getLatLng|getLatLngs|advancedLeafletMap)\b|entry\.(?:layer|interactions)/);
+ });
+ it("preserves pinned Editor vendor files byte-for-byte",()=>{
+  for(const path of files("plugins/x-track-editor/vendor"))expect(readFileSync(resolve(root,path)).equals(execFileSync("git",["show",`6e12a85:${path}`]))).toBe(true);
  });
  it("leases every standard feature sheet and leaves only shell primitives in shared CSS",()=>{
   expect(source("src/ui/styles.css")).not.toMatch(/\.tilia-(?:side-panel|elevation|layer-|photo|gpx|url-|file-|status-|popup|info-|time-mode)/);

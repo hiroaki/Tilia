@@ -1094,6 +1094,8 @@ Migrating GPX export, route search, editor, milestone, or declaring app destruct
 
 ## 16. Phase 4J — Complex Plugin Migration
 
+**Implementation status (2026-10-08):** Checkpoints Export → Route Search → Track Editor → Milestone have been implemented with the approved A/B/C contracts and verified in that order. All intended repository plugins are enabled; implementation review/acceptance remains pending. See [the Phase 4J report](phase-4/PHASE-4J-IMPLEMENTATION-REPORT.md) for measured results and limits. Phase 4K retains public application destruction and allowlist-scaffold removal.
+
 ### Goal
 
 Migrate all remaining repository external/complex plugins directly to public target contracts.
@@ -1155,7 +1157,7 @@ Migrate the four plugins in the following order, using one authority cut per plu
 
 #### `x-track-editor`
 
-- Prerequisites: GPX editor snapshot/create/visibility commands, EntryStore subscriptions, UI hosts, MapFacade advanced escape hatch, nested scopes.
+- Prerequisites: GPX snapshot/create, EntryStore subscriptions, approved temporary presentation suppression, UI hosts, MapFacade advanced escape hatch, nested scopes.
 - Reuse: draft model, stable local IDs, history, local selection, form, editing-layer controller, rectangle selection, PartiallyEditablePolyline unchanged.
 - Replace: `app.core`, mutable entries/sources, Interaction Hub, foreign renderer layers, refresh, manual root/session cleanup.
 - Ownership: plugin scope -> editor-session child -> rectangle/operation children. Draft UI/layers/history/local selection remain session-owned.
@@ -1166,7 +1168,7 @@ Migrate the four plugins in the following order, using one authority cut per plu
 
 #### `x-milestone`
 
-- Prerequisites: GPX geometry/distance snapshots, typed entry/domain subscriptions, MapFacade overlay band.
+- Prerequisites: GPX geometry/distance snapshots, typed entry/domain subscriptions, renderer-independent suppression read/notification, generic entry-associated presentation lifetime, MapFacade overlay band.
 - Reuse: milestone distance calculation/labels where valid.
 - Replace: raw track-layer subscription, `app.state`, anonymous foreign-layer listeners, arbitrary z-index offsets.
 - Ownership: plugin scope plus per-entry overlay children.

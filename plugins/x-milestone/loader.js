@@ -1,5 +1,6 @@
 import { DivIcon, Marker } from "leaflet";
-import { getTrackDistanceSummary, getTrackModePointDetails } from "../../src/gpx/interpretation.js";
+import { getTrackModePointDetails } from "../../src/gpx/interpretation.js";
+import { gpxDomainKey } from "../../src/domains/index.js";
 
 const defaultIntervalDefinition = Object.freeze({
   mapping: {
@@ -91,138 +92,127 @@ function createMilestoneMarker(milestone, options) {
   return new Marker([milestone.lat, milestone.lon], {
     interactive: false,
     keyboard: false,
-    pane: options.pane,
-    zIndexOffset: options.zIndexOffset,
     icon: new DivIcon({
-      className: "",
+      className: "tilia-milestone",
       html: `<span style="display:inline-block;padding:1px 5px;border:1px solid #0f766e33;border-radius:999px;background:#fffcf7f0;color:#134e4a;font:600 11px/1.4 'Hiragino Sans','Yu Gothic',sans-serif;white-space:nowrap;box-shadow:0 2px 8px #00000014;">${label}</span>`,
     }),
   });
 }
 
-function createTrackState(entry, layer, trackIndex) {
-  return {
-    entry,
-    layer,
-    trackIndex,
-    markers: [],
-    milestoneCache: new Map(),
-    currentInterval: null,
-  };
-}
-
-function clearTrackMarkers(trackState) {
-  for (const marker of trackState.markers) {
-    marker.remove();
-  }
-  trackState.markers = [];
-  trackState.currentInterval = null;
-}
-
 export const milestonePlugin = {
   id: "x-milestone",
-  setup(app, options = {}) {
-    if (!app.subscribeInteractions) {
-      throw new Error('Plugin "x-milestone" requires interaction subscriptions');
+  requires: ["tilia-gpx-domain"],
+  setup(context, options = {}) {
+    const owner = context.scope;
+    const gpx = context.domains.require(gpxDomainKey);
+    const definition = options.intervalDefinition ?? defaultIntervalDefinition;
+    if (!definition || !Number.isInteger(definition.minZoom) || !Number.isInteger(definition.maxZoom)
+      || definition.maxZoom <= definition.minZoom || !Number.isInteger(definition.maxNumberOfSigns)
+      || definition.maxNumberOfSigns < 1 || !Number.isFinite(definition.minIntervalMeters) || definition.minIntervalMeters <= 0
+      || !definition.mapping || typeof definition.mapping !== "object" || Array.isArray(definition.mapping)
+      || Object.values(definition.mapping).some(value => !Number.isFinite(value) || value <= 0)) {
+      throw new TypeError("Invalid Milestone interval definition");
     }
+    const config = { intervalDefinition: Object.freeze({ ...definition, mapping: Object.freeze({ ...definition.mapping }) }),
+      formatLabel: options.formatLabel ?? formatMilestoneLabel };
+    if (typeof config.formatLabel !== "function") throw new TypeError("Milestone formatLabel must be a function");
+    const report = error => { try { context.diagnostics?.report(error); } catch {} };
+    const states = new Map();
+    const caches = new Map();
+    owner.defer(() => { states.clear(); caches.clear(); }, { retry: "safe" });
+    let refreshing = false, refreshAgain = false;
 
-    const config = {
-      intervalDefinition: defaultIntervalDefinition,
-      formatLabel: formatMilestoneLabel,
-      pane: "markerPane",
-      zIndexOffset: -1000,
-      ...options,
-    };
-    const map = app.getMap();
-    const tracks = new Map();
-    let destroyed = false;
-
-    function renderTrack(trackState) {
-      if (destroyed) {
-        return;
-      }
-      const track = trackState.entry.source?.tracks?.[trackState.trackIndex];
-      const trackPointDetails = getTrackModePointDetails(track, trackState.trackIndex);
-      if (!Array.isArray(trackPointDetails) || trackPointDetails.length < 2) {
-        clearTrackMarkers(trackState);
-        return;
-      }
-
-      if (trackState.entry.visible === false || !map.hasLayer(trackState.layer)) {
-        clearTrackMarkers(trackState);
-        return;
-      }
-
-      const fullLengthMeters = getTrackDistanceSummary(track).totalDistanceMeters;
-      if (!Number.isFinite(fullLengthMeters) || fullLengthMeters < config.intervalDefinition.minIntervalMeters) {
-        clearTrackMarkers(trackState);
-        return;
-      }
-
-      const intervalMeters = resolveInterval(fullLengthMeters, map.getZoom(), config.intervalDefinition);
-      if (trackState.currentInterval === intervalMeters && trackState.markers.length > 0) {
-        return;
-      }
-
-      clearTrackMarkers(trackState);
-
-      let milestones = trackState.milestoneCache.get(intervalMeters);
-      if (!milestones) {
-        milestones = buildMilestones(trackPointDetails, intervalMeters);
-        trackState.milestoneCache.set(intervalMeters, milestones);
-      }
-
-      trackState.markers = milestones.map((milestone) => {
-        const marker = createMilestoneMarker(milestone, config);
-        marker.addTo(map);
-        return marker;
-      });
-      trackState.currentInterval = intervalMeters;
+    function close(state) {
+      states.delete(state.id);
+      void state.scope.dispose().catch(report);
     }
-
-    function refresh() {
-      if (destroyed) {
-        return;
-      }
-      for (const [trackKey, trackState] of tracks) {
-        if (!app.state.entries.some((entry) => entry.id === trackState.entry.id)) {
-          clearTrackMarkers(trackState);
-          tracks.delete(trackKey);
-          continue;
+    function visible(view, trackIndex) {
+      const preferences = view.snapshot.preferences;
+      return view.entry.visible && preferences.tracksVisible && preferences.trackVisibility[trackIndex] !== false
+        && !context.rendering.getSuppressionSnapshot().some(value => value.entryId === view.entry.id
+          && value.domain === gpxDomainKey && value.ref.revision === view.revision && value.ref.trackIndex === trackIndex);
+    }
+    function refreshOnce() {
+      const zoom = context.map.getViewport().zoom;
+      const entries = context.entries.list().filter(entry => entry.domain === gpxDomainKey);
+      for (const id of [...caches.keys()]) if (!entries.some(entry => entry.id === id)) caches.delete(id);
+      for (const state of [...states.values()]) if (!entries.some(entry => entry.id === state.id)) close(state);
+      for (const entry of entries) {
+        if (!owner.alive || !context.entries.get(entry.id)) continue;
+        const view = gpx.get(entry.id);
+        let cache = caches.get(entry.id);
+        if (!cache || cache.revision !== view.revision) {
+          cache = { revision: view.revision, tracks: new Map() }; caches.set(entry.id, cache);
         }
-        renderTrack(trackState);
+        const desired = view.snapshot.data.tracks.flatMap((track, trackIndex) => {
+          if (!visible(view, trackIndex)) return [];
+          let trackCache = cache.tracks.get(trackIndex);
+          if (!trackCache) {
+            trackCache = { distance: gpx.getDistance(entry.id, { target: { kind: "track", trackIndex } }).totalMeters,
+              details: getTrackModePointDetails(track, trackIndex), intervals: new Map() };
+            cache.tracks.set(trackIndex, trackCache);
+          }
+          const distance = trackCache.distance;
+          if (!Number.isFinite(distance) || distance < config.intervalDefinition.minIntervalMeters) return [];
+          return [{ trackIndex, interval: resolveInterval(distance, zoom, config.intervalDefinition) }];
+        });
+        const key = JSON.stringify([view.revision, desired]);
+        const old = states.get(entry.id);
+        if (old?.key === key && old.scope.alive) continue;
+        if (old) close(old);
+        if (!desired.length || !context.entries.get(entry.id)) continue;
+        const scope = owner.child({ label: `milestone-entry:${entry.id}` });
+        const state = { id: entry.id, key, scope, attachments: [] };
+        states.set(entry.id, state);
+        // Physical withdrawal is synchronous. Disposal records separately retain
+        // failed attempts and join cleanup through the generic entry binding.
+        const withdraw = () => {
+          if (states.get(state.id) === state) states.delete(state.id);
+          if (!owner.alive || !context.entries.get(state.id)) caches.delete(state.id);
+          for (const attachment of state.attachments) {
+            try { attachment.dispose(); } catch (error) { report(error); }
+          }
+        };
+        scope.signal.addEventListener("abort", withdraw, { once: true });
+        scope.defer(() => scope.signal.removeEventListener("abort", withdraw), { retry: "safe" });
+        try {
+          context.entries.bindPresentationLifetime(entry.id, { scope });
+          for (const { trackIndex, interval } of desired) {
+            const trackCache = cache.tracks.get(trackIndex);
+            let milestones = trackCache.intervals.get(interval);
+            if (!milestones) { milestones = buildMilestones(trackCache.details, interval); trackCache.intervals.set(interval, milestones); }
+            for (const milestone of milestones) {
+              if (!scope.alive || !context.entries.get(entry.id)) break;
+              const admitted = gpx.get(entry.id);
+              if (admitted.revision !== view.revision || !visible(admitted, trackIndex)) break;
+              let attachment = null;
+              scope.defer(() => attachment?.dispose(), { label: "milestone-marker", retry: "safe" });
+              const marker = createMilestoneMarker(milestone, config);
+              if (!scope.alive || !owner.alive) break;
+              attachment = context.map.attachLayer(marker, { band: "overlays" });
+              state.attachments.push(attachment);
+              // Leaflet attachment may invoke callbacks that delete the source,
+              // uninstall this plugin, replace data or acquire suppression.
+              const current = context.entries.get(entry.id) ? gpx.get(entry.id) : null;
+              if (!scope.alive || !current || current.revision !== view.revision || !visible(current, trackIndex)) {
+                attachment.dispose(); refreshAgain = owner.alive;
+              }
+            }
+          }
+        } catch (error) { close(state); report(error); }
       }
     }
-
-    const unsubscribeInteractions = app.subscribeInteractions({
-      onTrackLayer({ entry, layer, trackIndex }) {
-        const trackState = createTrackState(entry, layer, trackIndex);
-        tracks.set(`${entry.id}:${trackIndex}`, trackState);
-        layer.on("add", () => renderTrack(trackState));
-        layer.on("remove", () => clearTrackMarkers(trackState));
-        renderTrack(trackState);
-      },
+    const refresh = owner.guard(() => {
+      if (refreshing) { refreshAgain = true; return; }
+      refreshing = true;
+      try {
+        do { refreshAgain = false; refreshOnce(); } while (refreshAgain && owner.alive);
+      } finally { refreshing = false; }
     });
-
-    map.on("zoomend", refresh);
-    const removeRefreshHandler = app.addRefreshHandler(refresh);
-
-    return {
-      refresh,
-      getTrackCount() {
-        return tracks.size;
-      },
-      destroy() {
-        destroyed = true;
-        unsubscribeInteractions();
-        removeRefreshHandler();
-        map.off("zoomend", refresh);
-        for (const trackState of tracks.values()) {
-          clearTrackMarkers(trackState);
-        }
-        tracks.clear();
-      },
-    };
+    context.entries.subscribe(refresh, { emitCurrent: false });
+    context.rendering.subscribeSuppression(refresh, { emitCurrent: false });
+    context.map.listen("zoomend", refresh);
+    refresh();
   },
 };
 

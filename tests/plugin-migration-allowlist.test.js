@@ -12,7 +12,7 @@ describe("Phase 4D migration allowlist", () => {
     const repositoryIds = [...new Set([...builtinPluginCatalog.map(({ id }) => id), ...external])].sort();
     const classified = [...phase4dPluginClassification.enabled, ...phase4dPluginClassification.disabled];
     expect(phase4dPluginClassification.enabled).toEqual([
-      "x-gpx-export", "x-route-search", "x-track-editor",
+      "x-gpx-export", "x-route-search", "x-track-editor", "x-milestone",
       "tilia-status", "tilia-base-maps-control", "tilia-gpx-domain", "tilia-photo-domain",
       "x-gsi-base-maps", "x-opentopomap-base-maps",
       "tilia-elevation", "tilia-url-import", "tilia-query-import", "tilia-dropzone",

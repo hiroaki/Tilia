@@ -529,14 +529,15 @@ export function createRenderingCoordinator({
         applyVisibility(c);
       }
     },
-    afterLogicalRemoval(record) {
-      suppression.remove(record.id);
+    afterLogicalRemoval(record, { deferSuppressionNotification = false } = {}) {
+      suppression.remove(record.id, { notify: !deferSuppressionNotification });
       const c = controllers.get(record.id);
       if (c) {
         c.epoch++;
         void closeController(c).catch(report);
       }
     },
+    afterPresentationWithdrawal() { suppression.publish(); },
   });
   const readFacade = (scope) =>
     Object.freeze({

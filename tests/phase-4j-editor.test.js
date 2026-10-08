@@ -48,8 +48,12 @@ it("preserves postcommit copy when cancellation is triggered by the created call
   action("Save Copy"); await settle(); expect(f.app.entries.list()).toHaveLength(2); expect(draftLayer()).toBeUndefined();
 });
 it("keeps unresolved vendor child cleanup quarantined and blocks reinstall without retrying unverified records",async()=>{
-  await start(); const layer=draftLayer(); const terminate=vi.spyOn(layer,"disableEditing").mockImplementation(()=>{throw new Error("vendor helper residue");});
-  await expect(f.app.unuse("x-track-editor")).rejects.toMatchObject({code:"PLUGIN_TEARDOWN_FAILED"});
+  await start(); const layer=draftLayer(); const removal=vi.spyOn(layer,"remove"); const terminate=vi.spyOn(layer,"disableEditing").mockImplementation(()=>{throw new Error("vendor helper residue");});
+  let failure;try { await f.app.unuse("x-track-editor"); } catch(error) { failure=error; }
+  expect(failure).toMatchObject({code:"PLUGIN_TEARDOWN_FAILED"});
+  expect(failure.cause.errors.map(error=>error.message)).toContain("vendor helper residue");
+  expect(failure.cause.report.failures.some(record=>record.label==="vendor-edit-termination"&&record.retry==="never")).toBe(true);
+  expect(removal).toHaveBeenCalledOnce();
   expect(f.app.listPlugins()).not.toContain("x-track-editor");
   await expect(f.app.use("x-track-editor")).rejects.toMatchObject({code:"PLUGIN_QUARANTINED"});
   await expect(f.app.unuse("x-track-editor")).rejects.toMatchObject({code:"PLUGIN_TEARDOWN_FAILED"}); expect(terminate).toHaveBeenCalledOnce();

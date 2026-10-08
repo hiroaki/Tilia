@@ -105,4 +105,41 @@ describe("approved 4J-A temporary presentation suppression contract", () => {
     expect(() => suppress(entry,{},0)).toThrow(); expect(() => suppress(entry,f.context.scope.child(),99)).toThrow();
     expect(() => suppress(entry,f.context.scope.child(),0,999)).toThrow(); expect(snapshot()).toEqual([]);
   });
+  it("does not invalidate unrelated entry presentation handles", async () => {
+    const entry=await setup(true), other=await f.app.domains.gpx.create(data);await settle();
+    const handle=f.context.presentation.resolve(other.id,{kind:"track",trackIndex:0,revision:1});
+    expect(handle.isCurrent()).toBe(true);const lease=suppress(entry,f.context.scope.child());
+    expect(handle.isCurrent()).toBe(true);expect(handle.signal.aborted).toBe(false);await lease.dispose();expect(handle.isCurrent()).toBe(true);
+  });
+  it("retains logical suppression and fail-closed presentation when physical renderer withdrawal fails", async () => {
+    const entry=await setup(true), layer=[...f.map.layers].find(layer=>Array.isArray(layer.point));
+    const handle=f.context.presentation.resolve(entry.id,{kind:"track",trackIndex:0,revision:1});
+    const original=layer.remove;const removal=vi.spyOn(layer,"remove").mockImplementation(()=>{throw new Error("physical withdrawal residue");});
+    const lease=suppress(entry,f.context.scope.child());await settle();
+    expect(snapshot()).toHaveLength(1);expect(handle.signal.aborted).toBe(true);
+    expect(f.context.presentation.resolve(entry.id,{kind:"track",trackIndex:0,revision:1})).toBeNull();
+    expect(f.app.rendering.getStatus(entry.id).state).toBe("failed");expect(f.app.domains.gpx.get(entry.id).revision).toBe(1);
+    removal.mockImplementation(function(){return original.call(this);});
+    await f.foundations.rendering.retryCleanup();await lease.dispose();f.app.rendering.retry(entry.id);await settle();
+    expect(snapshot()).toEqual([]);expect(f.app.rendering.getStatus(entry.id).state).toBe("active");
+  });
+
+  it.each([false,true])("composes lease disposal in either order (reverse=%s)", async reverse => {
+    const entry=await setup(), events=[];f.context.rendering.subscribeSuppression(value=>events.push(value.length));
+    const leases=[suppress(entry,f.context.scope.child()),suppress(entry,f.context.scope.child())];
+    if(reverse)leases.reverse();await leases[0].dispose();expect(snapshot()).toHaveLength(1);await leases[1].dispose();
+    expect(events).toEqual([0,1,0]);
+  });
+  it("reconciles attribute/style changes then reveals a current category preference", async () => {
+    const entry=await setup(true), lease=suppress(entry,f.context.scope.child());
+    await f.app.domains.gpx.updatePoint(entry.id,{target:{kind:"track-point",trackIndex:0,segmentIndex:0,pointIndex:0},patch:{lat:0.2}},{expectedRevision:1});
+    expect(snapshot()[0].ref.revision).toBe(2);
+    await f.app.domains.gpx.setStylePreset(entry.id,"indigo",{expectedRevision:2});
+    expect(snapshot()[0].ref.revision).toBe(3);
+    const revision=f.app.domains.gpx.get(entry.id).revision;
+    await f.app.domains.gpx.setCategoryVisibility(entry.id,{category:"tracks",visible:false},{expectedRevision:revision});
+    await lease.dispose();await settle();expect([...f.map.layers].filter(layer=>Array.isArray(layer.point))).toHaveLength(0);
+    expect(f.app.domains.gpx.get(entry.id).snapshot.preferences.tracksVisible).toBe(false);
+  });
+
 });

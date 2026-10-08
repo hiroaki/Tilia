@@ -115,11 +115,11 @@ export function createSuppressionState({ getSemantics, assertAlive, onChange, re
       }
     }, notify: publish });
   }
-  function remove(entryId) {
+  function remove(entryId, { notify = true } = {}) {
     for (const lease of [...leases]) if (lease.entryId === entryId) {
       lease.active = false; leases.delete(lease); lease.scope.signal.removeEventListener("abort", lease.abort);
     }
-    publish();
+    if (notify) publish();
   }
   return Object.freeze({ facade, prepare, remove, publish, isSuppressed(entryId, ref, revision) {
     return snapshot().some(value => value.entryId === entryId && value.ref.trackIndex === ref.trackIndex && value.ref.revision === revision);

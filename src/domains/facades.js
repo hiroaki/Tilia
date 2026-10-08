@@ -88,6 +88,7 @@ export function createEntryFacade({ scope, entries }) {
     setVisible(id, visible) { scope.assertAlive(); return entries.setVisible(scope, id, visible); },
     remove(id) { scope.assertAlive(); return entries.remove(scope, id); },
     subscribe(listener, options) { scope.assertAlive(); return entries.subscribe(scope, listener, options); },
+    bindPresentationLifetime(id, options) { scope.assertAlive(); return entries.bindPresentationLifetime(scope, id, options); },
   });
 }
 

@@ -53,42 +53,40 @@ describe("createTiliaApp Phase 4B plugin boundary", () => {
     expect(events).toEqual(["ready"]);
   });
 
-  it("rejects disabled repository plugins before loading", async () => {
-    const load = vi.fn();
+  it("loads the final migrated repository plugin through the normal runtime", async () => {
+    const setup = vi.fn();
+    const load = vi.fn(async () => ({ default: { id: "x-milestone", requires: [], setup } }));
     const app = createTiliaApp({ map: {}, builtins: [{ id: "x-milestone", requires: [], load }], plugins: ["x-milestone"] });
-    await expect(app.ready).rejects.toMatchObject({ code: "PLUGIN_DISABLED_BY_MIGRATION" });
-    expect(load).not.toHaveBeenCalled();
+    await expect(app.ready).resolves.toBe(app);
+    expect(load).toHaveBeenCalledOnce();
+    expect(setup).toHaveBeenCalledOnce();
+    await app.unuse("x-milestone");
   });
 
-  it("rejects a disabled dependency before loading it or setting up its consumer", async () => {
-    const disabledLoad = vi.fn();
+  it("rejects a missing dependency before setting up its consumer", async () => {
     const consumerSetup = vi.fn();
     const app = createTiliaApp({
       map: {},
-      builtins: [{ id: "x-milestone", requires: [], load: disabledLoad }],
+      builtins: [],
     });
 
     await expect(app.use({ id: "vendor-consumer", requires: ["x-milestone"], setup: consumerSetup }))
       .rejects.toMatchObject({ code: "PLUGIN_DEPENDENCY_MISSING" });
-    expect(disabledLoad).not.toHaveBeenCalled();
     expect(consumerSetup).not.toHaveBeenCalled();
   });
 
-  it("rejects a transitive disabled dependency before loading any implementation", async () => {
-    const disabledLoad = vi.fn();
+  it("rejects a transitive missing dependency before loading any implementation", async () => {
     const middleLoad = vi.fn();
     const rootSetup = vi.fn();
     const app = createTiliaApp({
       map: {},
       builtins: [
-        { id: "x-milestone", requires: [], load: disabledLoad },
         { id: "vendor-middle", requires: ["x-milestone"], load: middleLoad },
       ],
     });
 
     await expect(app.use({ id: "vendor-root", requires: ["vendor-middle"], setup: rootSetup }))
       .rejects.toMatchObject({ code: "PLUGIN_DEPENDENCY_MISSING" });
-    expect(disabledLoad).not.toHaveBeenCalled();
     expect(middleLoad).not.toHaveBeenCalled();
     expect(rootSetup).not.toHaveBeenCalled();
   });
