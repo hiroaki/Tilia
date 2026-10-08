@@ -277,7 +277,6 @@ export function createEntryStore({ applicationController, domainRegistry, semant
       channel.deliver(Object.freeze({ type: "created", current: view }));
       return view;
     } catch (failure) {
-      if (!committed) entries.delete(id);
       // Post-publication failure/cancellation cannot roll back an app-owned entry.
       if (committed) throw failure;
       let cleanupError = null;
@@ -300,7 +299,12 @@ export function createEntryStore({ applicationController, domainRegistry, semant
       lease.release();
       throw originalError;
     } finally {
-      try { forwarding?.dispose(); } finally { creationFinished(); }
+      try { forwarding?.dispose(); } finally {
+        // Keep unpublished creation/rollback discoverable by shutdown until
+        // its disposer handoff and lease release/residual recording finish.
+        if (!committed && entries.get(id) === record) entries.delete(id);
+        creationFinished();
+      }
     }
   }
 
@@ -667,7 +671,7 @@ export function createEntryStore({ applicationController, domainRegistry, semant
   }
   async function drainShutdown() {
     const failures = [];
-    await Promise.all([...entries.values()].filter(record => record.state === "preparing").map(record => record.creationDone));
+    await Promise.all([...entries.values()].map(record => record.creationDone));
     if (clearOperation) { try { await clearOperation; } catch (error) { failures.push(error); } }
     await Promise.all([...queues.values()]);
     const targets = [...entries.values()].filter(record => record.state === "active").sort((a, b) => b.insertionSequence - a.insertionSequence);

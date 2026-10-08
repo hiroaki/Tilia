@@ -145,7 +145,7 @@ describe("public application lifetime", () => {
   });
 });
 
-async function dependentProvider({ prepareGate = null, failures = 0, providerFailure = null } = {}) {
+async function dependentProvider({ prepareGate = null, disposalGate = null, failures = 0, providerFailure = null } = {}) {
   const f = construct(); await app.ready;
   const key = defineServiceKey({ id: "x-prerequisite", createFacade: ({ implementation, assertAvailable }) => ({ acquire() { assertAvailable(); return implementation.acquire(); } }) });
   const order = f.map.events;
@@ -165,7 +165,11 @@ async function dependentProvider({ prepareGate = null, failures = 0, providerFai
       async prepareCreate() {
         const dispose = dependency.acquire();
         if (prepareGate) await prepareGate.promise;
-        return { instance: {}, snapshot: Object.freeze({}), dispose };
+        return { instance: {}, snapshot: Object.freeze({}), dispose: disposalGate ? async () => {
+          disposalGate.started.resolve();
+          await disposalGate.promise;
+          dispose();
+        } : dispose };
       }, prepareMutation() {}, getSnapshot() {},
     });
     return () => { order.push("provider"); if (providerFailure) throw providerFailure; };
@@ -175,6 +179,47 @@ async function dependentProvider({ prepareGate = null, failures = 0, providerFai
 }
 
 describe("entry handoff and retained prerequisites", () => {
+  it.each([0, 1, Infinity])("joins an already-cancelled creation rollback before provider drain (failures=%s)", async failures => {
+    const prepareGate = deferred(), disposalGate = { ...deferred(), started: deferred() };
+    const f = await dependentProvider({ prepareGate, disposalGate, failures });
+    const cancel = new AbortController();
+    const creation = app.domains.gpx.create({}, { signal: cancel.signal }).catch(error => error);
+    await settle();
+    cancel.abort(); prepareGate.resolve();
+    await disposalGate.started.promise;
+    // The candidate remains private while rollback owns its pending handoff.
+    expect(app.entries.list()).toEqual([]);
+    expect(app.entries.get(1)).toBeNull();
+    const closing = app.destroy();
+    let done = false;
+    closing.then(() => { done = true; }, () => { done = true; });
+    await settle();
+    expect(done).toBe(false);
+    expect(f.order).toEqual(["independent"]);
+    expect(f.providerContext.scope.alive).toBe(true);
+    expect(f.map.remove).not.toHaveBeenCalled();
+    disposalGate.resolve();
+    const creationError = await creation;
+    if (failures === 0) {
+      expect(creationError.code).toBe("ENTRY_CREATION_ABORTED");
+      await closing;
+      expect(f.attempts()).toBe(1);
+      expect(f.order).toEqual(["independent", "instance", "provider", "dependency", "map"]);
+    } else {
+      expect(creationError.code).toBe("SEMANTIC_CLEANUP_FAILED");
+      const error = await closing.catch(error => error);
+      expect(error.code).toBe("APP_CLEANUP_FAILED");
+      expect(f.attempts()).toBe(2);
+      if (failures === Infinity) {
+        expect(error.details.failures.find(item => item.resource === "cleanup prerequisite").blocked.map(item => item.id).sort()).toEqual(["x-dependency", "x-provider"]);
+        expect(f.order).toEqual(["independent", "instance", "instance", "map"]);
+      } else {
+        expect(f.order).toEqual(["independent", "instance", "instance", "provider", "dependency", "map"]);
+      }
+    }
+    expect(app.destroy()).toBe(closing);
+  });
+
   it("awaits required late creation handoff without publication and releases its prerequisite last", async () => {
     const gate = deferred();
     const f = await dependentProvider({ prepareGate: gate });
