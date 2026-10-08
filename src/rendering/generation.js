@@ -1,3 +1,4 @@
+import { cloneAndFreezePlainData } from "../domains/immutable.js";
 import {
   renderingError,
   renderingErrorCodes as codes,
@@ -18,6 +19,7 @@ export function createGeneration({
   report,
   lateResidual,
   resourceOwners,
+  isTargetVisible = () => true,
 }) {
   const lifetime = controller.createChildController({
     label: `generation:${token}`,
@@ -26,6 +28,8 @@ export function createGeneration({
     effects = [],
     ownedValues = new WeakSet(),
     paneLeases = new WeakMap();
+  const groups = new WeakMap(), surfaceGroups = new WeakMap();
+  const groupVisible = group => !group || isTargetVisible(groups.get(group), generation.revision);
   let sealed = false,
     retired = false,
     updateHook = false,
@@ -35,6 +39,7 @@ export function createGeneration({
   let closePromise = null;
   const generation = {
     token,
+    isTargetVisible: ref => isTargetVisible(ref, generation.revision),
     revision,
     snapshot,
     registration,
@@ -115,20 +120,23 @@ export function createGeneration({
         if (candidate) assertCandidate();
         if (!validate())
           throw renderingError(codes.stale, "Visibility authority changed");
-        // Listener effects are mounted once; layer effects follow whole visibility.
+        // Ungrouped listener effects mount once; grouped layers follow current target gates.
         for (const effect of effects) {
           if (effect.disposed) continue;
-          if (effect.attempted && (visible || !effect.visibility)) continue;
-          if (visible || !effect.visibility) {
+          const expose = (visible || !effect.visibility) && groupVisible(effect.group);
+          if (expose && !effect.attempted) {
             effect.attempted = true;
             synchronous(effect.definition.mount);
-          } else if (effect.attempted) {
+          } else if (!expose && effect.attempted) {
             synchronous(effect.definition.withdraw);
             effect.attempted = false;
           }
           if (candidate) assertCandidate();
-          if (!validate())
-            throw renderingError(codes.stale, "Visibility authority changed");
+          if (!validate()) throw renderingError(codes.stale, "Visibility authority changed");
+          // A mount callback may acquire suppression without changing entry revision.
+          if (effect.attempted && !groupVisible(effect.group)) {
+            synchronous(effect.definition.withdraw); effect.attempted = false;
+          }
         }
         generation.displayed = visible;
       });
@@ -200,7 +208,7 @@ export function createGeneration({
       resourceOwners.set(value, scope);
     }
   }
-  function stageEffect(definition, visibility = false) {
+  function stageEffect(definition, visibility = false, group = null) {
     generation.assertRegistration();
     if (
       !definition ||
@@ -221,6 +229,7 @@ export function createGeneration({
         ),
       }),
       attempted: false,
+      group,
       visibility,
       disposed: false,
       released: false,
@@ -259,6 +268,17 @@ export function createGeneration({
       },
     });
   }
+  const visibility = Object.freeze({
+    createGroup(target) {
+      generation.assertRegistration();
+      if (!target || target.kind !== "track" || !Number.isInteger(target.trackIndex) || target.trackIndex < 0)
+        throw new TypeError("Invalid track visibility target");
+      const handle = Object.freeze(Object.create(null));
+      groups.set(handle, cloneAndFreezePlainData(target));
+      return handle;
+    },
+    isVisible(target) { scope.assertAlive(); return isTargetVisible(target, generation.revision); },
+  });
   const resources = Object.freeze({
     own(value, dispose, options = {}) {
       generation.assertRegistration();
@@ -490,6 +510,7 @@ export function createGeneration({
     },
     attachLayer(layer, options = {}) {
       generation.assertRegistration();
+      if (options.group && !groups.has(options.group)) throw new TypeError("Foreign visibility group");
       if (!ownedValues.has(layer))
         throw new TypeError("Layer must be owned by this generation");
       if (
@@ -516,6 +537,7 @@ export function createGeneration({
           retry: "safe",
         },
         true,
+        options.group ?? null,
       );
       return Object.freeze({
         id: `${token}:attachment:${effects.length}`,
@@ -553,7 +575,7 @@ export function createGeneration({
   });
   function select(target) {
     generation.assertMutation();
-    if (!generation.current() || !issuer?.alive)
+    if (!generation.current() || !issuer?.alive || !isTargetVisible(target, generation.revision))
       return Promise.reject(
         renderingError(codes.stale, "No current interaction authority"),
       );
@@ -572,7 +594,10 @@ export function createGeneration({
       generation.assertRegistration();
       if (!ownedValues.has(options?.target))
         throw new TypeError("Interaction target must be generation-owned");
-      return ordinary.createSurface(options);
+      if (options.group && !groups.has(options.group)) throw new TypeError("Foreign visibility group");
+      const surface = ordinary.createSurface(options);
+      surfaceGroups.set(surface, options.group ?? null);
+      return surface;
     },
     bind({ id, surface, event, consume = true, resolve }) {
       generation.assertRegistration();
@@ -584,7 +609,7 @@ export function createGeneration({
         event,
         tier: "object",
         handle(input) {
-          if (!generation.current()) return { consume: false };
+          if (!generation.current() || !groupVisible(surfaceGroups.get(surface))) return { consume: false };
           const target = synchronous(
             resolve,
             input,
@@ -595,7 +620,7 @@ export function createGeneration({
               semanticSnapshot: generation.snapshot,
             }),
           );
-          if (target === null || target === undefined || !generation.current())
+          if (target === null || target === undefined || !generation.current() || !groupVisible(surfaceGroups.get(surface)))
             return { consume: false };
           // Even consume:false permits the semantic object action, while background processing continues.
           if (!consume) {
@@ -620,6 +645,7 @@ export function createGeneration({
       isCurrent: () => generation.candidateCurrent() || generation.current(),
     }),
     map: generationMap,
+    visibility,
     resources,
     interactions,
     selection: Object.freeze({

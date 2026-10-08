@@ -3,7 +3,7 @@ import { createApplicationComposition } from "../../src/application-composition.
 const map = new Map("map").setView([35.68,139.76], 13);
 const composition = createApplicationComposition({ map, plugins: [
   "tilia-gpx-input", "tilia-gpx-renderer", "tilia-gpx-ui", "tilia-map-selection-presenter",
-  "tilia-file-import", "tilia-layers", "tilia-settings", "x-gpx-export", "x-route-search",
+  "tilia-file-import", "tilia-layers", "tilia-settings", "x-gpx-export", "x-route-search", "x-track-editor",
 ] });
 await composition.app.ready;
 let context;

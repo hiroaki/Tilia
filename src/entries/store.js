@@ -371,6 +371,9 @@ export function createEntryStore({ applicationController, domainRegistry, semant
           const effect = semanticLifecycle?.prepareDomainCommit({
             record, prepared, command, nextRevision: previousRevision + (revisioned ? 1 : 0),
           });
+          const presentationEffect = entryRenderingLifecycle?.prepareDomainCommit?.({
+            record, prepared, command, nextRevision: previousRevision + (revisioned ? 1 : 0),
+          });
           requesterScope.assertAlive();
           applicationScope.assertAlive();
           record.instance = prepared.nextInstance;
@@ -378,6 +381,7 @@ export function createEntryStore({ applicationController, domainRegistry, semant
           record.currentDispose = prepared.disposeNext ?? null;
           if (revisioned) record.revision += 1;
           effect?.commit();
+          presentationEffect?.commit();
           committed = true;
           if (revisioned) {
             renderingHook("afterDomainCommit", record, prepared.change ?? Object.freeze({}));
@@ -389,6 +393,7 @@ export function createEntryStore({ applicationController, domainRegistry, semant
               change: prepared.change ?? Object.freeze({}),
             }));
           }
+          presentationEffect?.notify();
           effect?.notify();
         };
         if (semanticLifecycle) semanticLifecycle.runCommit(commit);

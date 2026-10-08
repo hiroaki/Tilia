@@ -1,5 +1,6 @@
 import { createSubscriptionChannel } from "../extensions/subscriptions.js";
 import { createDomainRendererRegistry } from "./registry.js";
+import { createSuppressionState } from "./suppression.js";
 import { createGeneration } from "./generation.js";
 import { createPaneManager } from "../map/panes.js";
 import { createInteractionHost } from "../interactions/host.js";
@@ -51,6 +52,9 @@ export function createRenderingCoordinator({
     getSnapshot: () => list(),
     onError: report,
   });
+  const suppression = createSuppressionState({ getSemantics, assertAlive, report, onChange(entryIds) {
+    for (const id of entryIds) { const c = controllers.get(id); if (c) applyVisibility(c); }
+  } });
   function truth(c) {
     try {
       const entries = getSemantics().entries;
@@ -147,7 +151,7 @@ export function createRenderingCoordinator({
     notify(c);
   }
   function applyVisibility(c) {
-    for (const g of new Set([c.current, c.fallback].filter(Boolean))) {
+    for (const g of new Set([c.current, c.fallback, c.pending?.publicationReady ? c.pending : null].filter(Boolean))) {
       g.revoke();
       const epoch = c.epoch,
         visible = c.visible;
@@ -155,13 +159,13 @@ export function createRenderingCoordinator({
         !terminated &&
         controllers.get(c.id) === c &&
         c.epoch === epoch &&
-        (c.current === g || c.fallback === g) &&
+        (c.current === g || c.fallback === g || c.pending === g) &&
         registry.resolve(c.domain) === g.registration &&
         g.scope.alive;
       try {
         g.applyVisibility(
           visible,
-          false,
+          c.pending === g,
           () => remainsOwned() && c.visible === visible,
         );
         if (c.current === g) g.renew();
@@ -200,6 +204,11 @@ export function createRenderingCoordinator({
       report,
       lateResidual,
       resourceOwners,
+      isTargetVisible: (ref, revision) => {
+        if (!["track", "segment", "track-point"].includes(ref?.kind)) return true;
+        const view = truth(c);
+        return view?.revision === revision && !suppression.isSuppressed(c.id, ref, revision);
+      },
     });
     generation.entryId = c.id;
     c.pending = generation;
@@ -250,6 +259,7 @@ export function createRenderingCoordinator({
           );
         generation.seal();
         generation.preflight();
+        generation.publicationReady = true;
         const visible = truth(c).entry.visible;
         generation.applyVisibility(visible, true);
         const assertPublicationCurrent = () => {
@@ -467,6 +477,7 @@ export function createRenderingCoordinator({
     },
   });
   const lifecycle = Object.freeze({
+    prepareDomainCommit: input => suppression.prepare(input),
     afterCreated(record) {
       assertAlive();
       const lifetime = root.createChildController({
@@ -519,6 +530,7 @@ export function createRenderingCoordinator({
       }
     },
     afterLogicalRemoval(record) {
+      suppression.remove(record.id);
       const c = controllers.get(record.id);
       if (c) {
         c.epoch++;
@@ -528,6 +540,7 @@ export function createRenderingCoordinator({
   });
   const readFacade = (scope) =>
     Object.freeze({
+      ...suppression.facade(scope),
       getStatus(entryId) {
         assertAlive();
         scope.assertAlive();

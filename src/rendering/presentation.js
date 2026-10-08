@@ -48,6 +48,7 @@ export function createPresentationFacade({
         !generation.descriptor?.presentation
       )
         return null;
+      if (generation.isTargetVisible?.(ref) === false) return null;
       const exposure = generation.exposure,
         revision = generation.revision;
       let invalidation = null;

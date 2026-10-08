@@ -6,7 +6,7 @@ import { init, parse } from "es-module-lexer";
 import { builtinPluginCatalog } from "../src/builtins.js";
 import { phase4dPluginClassification } from "../src/plugins/migration-allowlist.js";
 const root=resolve(import.meta.dirname,".."),source=p=>readFileSync(resolve(root,p),"utf8");
-const disabled=["x-track-editor","x-milestone"];
+const disabled=["x-milestone"];
 const exceptions=new Set(disabled.map(id=>`plugins/${id}/loader.js`));
 function files(directory){return readdirSync(resolve(root,directory),{withFileTypes:true}).flatMap(item=>item.isDirectory()?files(`${directory}/${item.name}`):[`${directory}/${item.name}`]);}
 async function edges(path){await init;const text=source(path);const modules=path.endsWith(".html")?[...text.matchAll(/<script\b[^>]*type=["']module["'][^>]*>([\s\S]*?)<\/script>/g)].map(m=>m[1]):[text];return modules.flatMap(module=>parse(module)[0].filter(item=>item.d!==-2).map(item=>{expect(item.n,`nonliteral import: ${path}:${module.slice(item.ss,item.se)}`).toBeTypeOf("string");return{target:item.n.startsWith(".")?relative(root,resolve(dirname(resolve(root,path)),item.n)):item.n,lazy:item.d>=0};}));}
@@ -23,7 +23,7 @@ describe("Phase 4I qualified architecture audits",()=>{
   const all=await graph(["src/index.js",...loadRoots,...files("samples").filter(p=>/\.(js|html)$/.test(p))]);
   for(const path of exceptions)expect(all.has(path)).toBe(false);
   for(const path of ["src/core/input-processing.js","src/core/remote-url-import.js","src/ui/styles.js","src/ui/surfaces.js"]){expect(all.has(path)).toBe(false);expect(existsSync(resolve(root,path))).toBe(false);}
-  expect(phase4dPluginClassification.enabled).toHaveLength(24);expect([...phase4dPluginClassification.disabled].sort()).toEqual([...disabled].sort());
+  expect(phase4dPluginClassification.enabled).toHaveLength(25);expect([...phase4dPluginClassification.disabled].sort()).toEqual([...disabled].sort());
  });
  it("keeps the public eager graph free of Photo implementation and EXIF",async()=>{const eager=await graph(["src/index.js"],{lazy:false});expect([...eager].filter(p=>p.startsWith("src/photo/")||/plugins\/(?:domains\/photo|renderers\/photo|ui\/photo)/.test(p))).toEqual([]);});
  it("keeps generic hosts domain-neutral and prevents foreign renderer readback",async()=>{

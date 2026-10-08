@@ -1,3 +1,4 @@
+import { createScopeController } from "../src/ownership/index.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createRectangleSelection,
@@ -29,7 +30,7 @@ describe("x-track-editor rectangle selection", () => {
     expect(selectPointIdsInContainerBounds(map, null, null)).toEqual([]);
   });
 
-  it("restores map dragging only when it was enabled before activation", () => {
+  it("restores map dragging only when it was enabled before activation", async () => {
     class FakeElement extends EventTarget {
       constructor() {
         super();
@@ -57,7 +58,9 @@ describe("x-track-editor rectangle selection", () => {
           enable: vi.fn(() => { enabled = true; }),
         },
       };
-      const rectangleSelection = createRectangleSelection({ map });
+      const controller = createScopeController(); await controller.commit();
+      const scope = controller.scope.child();
+      const rectangleSelection = createRectangleSelection({ map, scope, parent: container });
       rectangleSelection.activate();
       expect(enabled).toBe(false);
       expect(rectangleSelection.isActive()).toBe(true);
@@ -66,6 +69,7 @@ describe("x-track-editor rectangle selection", () => {
       expect(map.dragging.enable).toHaveBeenCalledTimes(initiallyEnabled ? 1 : 0);
       expect(container.children).toEqual([]);
       rectangleSelection.destroy();
+      await controller.close();
     }
   });
 });

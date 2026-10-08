@@ -12,6 +12,7 @@ export class Element extends EventTarget {
   }
   get isConnected() { return !!this.parentNode || this === this.ownerDocument.body || this === this.ownerDocument.head; }
   appendChild(child) { child.remove(); this.children.push(child); child.parentNode = this; return child; }
+  append(...children) { children.forEach(child => this.appendChild(child)); }
   replaceChildren(...children) { for (const child of [...this.children]) child.remove(); children.forEach((child) => this.appendChild(child)); }
   remove() { if (this.parentNode) this.parentNode.children = this.parentNode.children.filter((x) => x !== this); this.parentNode = null; }
   setAttribute(key, value) { this.attributes[key] = String(value); if (key === "class") this.className = String(value); }

@@ -1,9 +1,10 @@
 import { createDefaultTiliaApp } from "../../src/index.js";
-import { GeoJSON } from "leaflet";
 
 export function createEditorApp(phloemUrlBase) {
   return createDefaultTiliaApp("map", {
     plugins: [
+      "tilia-gpx-domain", "tilia-gpx-input", "tilia-gpx-renderer", "tilia-gpx-ui",
+      "tilia-map-selection-presenter", "tilia-file-import",
       "tilia-panel",
       "tilia-status",
       "tilia-dropzone",

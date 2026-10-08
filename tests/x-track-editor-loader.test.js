@@ -21,8 +21,8 @@ import {
 describe("x-track-editor plugin definition", () => {
   it("declares its UI dependencies", () => {
     expect(trackEditorPlugin.id).toBe("x-track-editor");
-    expect(trackEditorPlugin.requires).toEqual(["tilia-panel"]);
-    expect(trackEditorPlugin.stylesheets).toHaveLength(2);
+    expect(trackEditorPlugin.requires).toEqual(["tilia-gpx-domain", "tilia-panel", "tilia-toolbar"]);
+    expect(trackEditorPlugin.stylesheets).toBeUndefined();
     expect(typeof trackEditorPlugin.setup).toBe("function");
   });
 
