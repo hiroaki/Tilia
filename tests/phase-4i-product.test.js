@@ -22,6 +22,24 @@ describe("Phase 4I semantic product behavior",()=>{
   f=await uiFixture(["tilia-elevation"]);const entry=await f.app.domains.gpx.create({name:"single",tracks:[{segments:[{points:[{lat:1,lon:2,elevation:10}]}]}],waypoints:[{lat:3,lon:4}]});f.app.selection.request(f.app.domains.gpx.selection.createCandidate(entry.id,{kind:"waypoint",waypointIndex:0}));const previous=f.app.selection.getCurrent();f.click("Elevation");await settle();expect(f.app.selection.getCurrent()).toBe(previous);
   const chart=byClass(f.map.container,"tilia-elevation-chart")[0];const event=new Event("keydown",{cancelable:true});Object.defineProperty(event,"key",{value:"Enter"});chart.dispatchEvent(event);await settle();expect(f.app.selection.getCurrent()).toMatchObject({entryId:entry.id,ref:{kind:"track-point",revision:1,trackIndex:0,segmentIndex:0,pointIndex:0}});expect(f.map.panTo).not.toHaveBeenCalled();
  });
+ it("removes an elevation hover layer when its attachment synchronously replaces the chart", async () => {
+  f = await uiFixture(["tilia-elevation", "tilia-gpx-renderer"]);
+  const entry = await f.app.domains.gpx.create(data());
+  await f.app.selection.request(f.app.domains.gpx.selection.createCandidate(entry.id, { kind: "track", trackIndex: 0 }));
+  f.click("Elevation"); await settle();
+  const { CircleMarker } = await import("leaflet");
+  const original = CircleMarker.prototype.addTo;
+  const attach = vi.spyOn(CircleMarker.prototype, "addTo").mockImplementation(function (map) {
+    const result = original.call(this, map);
+    if (this.options.radius === 7) void f.app.selection.clear();
+    return result;
+  });
+  try {
+    const event = new Event("keydown", { cancelable: true }); Object.defineProperty(event, "key", { value: "ArrowRight" });
+    byClass(f.map.container, "tilia-elevation-chart")[0].dispatchEvent(event); await settle();
+    expect([...f.map.layers].filter(layer => layer.options.radius === 7)).toHaveLength(0);
+  } finally { attach.mockRestore(); }
+ });
  it("breaks missing strokes, excludes inferred ascent, and resolves zero-distance ties canonically",()=>{
   const p=(e,d,k="recorded")=>({elevation:e,distanceMeters:d,edgeKind:k,locator:{kind:"track-point",trackIndex:0,segmentIndex:0,pointIndex:d}});
   const layout=elevationLayout([{target:{kind:"track",trackIndex:0},samples:[p(10,0,"start"),p(20,0),p(null,1),p(30,2),p(50,3,"inferred-gap")]}]);expect(layout.strokes).toHaveLength(2);expect(layout.ascent).toBe(10);expect(nearestElevationSample(layout,layout.points[0].x)).toBe(layout.points[0]);expect(layout.strokes.at(-1).inferred).toBe(true);

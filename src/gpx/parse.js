@@ -40,7 +40,7 @@ function readText(file, { signal, scope } = {}) {
       const reason = forwarding ? signalReason(forwarding.signal) : new DOMException("Read cancelled", "AbortError");
       abortFailure = undefined;
       try { if (reader?.readyState === 1) reader.abort(); } catch (error) { abortFailure = error; }
-      finish(reason ?? new DOMException("Read cancelled", "AbortError"));
+      finish(reason);
       // Scope disposal retries a failed native cancellation and retains its error.
 
     };
@@ -56,7 +56,8 @@ function readText(file, { signal, scope } = {}) {
       forwarding = forwardAbort([...(signal === undefined ? [] : [signal]), ...(scope ? [scope.signal] : [])], { scope });
       reader.onload = () => finish(undefined, String(reader.result || ""));
       reader.onerror = () => finish(reader.error || new Error("Failed to read file"));
-      reader.onabort = () => finish(new DOMException("Read cancelled", "AbortError"));
+      reader.onabort = () => finish(forwarding.signal.aborted
+        ? signalReason(forwarding.signal) : new DOMException("Read cancelled", "AbortError"));
       forwarding.signal.addEventListener("abort", abort, { once: true });
       if (forwarding.signal.aborted) { abort(); return; }
       scope?.assertAlive(); reader.readAsText(file);

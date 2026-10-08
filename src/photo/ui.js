@@ -41,16 +41,40 @@ export function mountPhotoRow(input) {
   let image;
   const button = node(container, "button", "tilia-layer-name"); button.type = "button";
   const meta = node(container, "div", "tilia-layer-meta");
+  const fit = node(container, "button", "tilia-photo-fit", "Fit"); fit.type = "button";
   const reveal = node(container, "button", "tilia-photo-reveal", "Reveal"); reveal.type = "button";
+  const coordinate = (view) => {
+    const point = view.snapshot.data.coordinate ?? view.snapshot.derived.inferredLocation;
+    return point && Number.isFinite(point.lat) && Number.isFinite(point.lon) ? point : null;
+  };
   const render = (view) => {
     const { data, derived, preferences } = view.snapshot;
     button.textContent = data.name; if (image) image.alt = data.name;
     meta.textContent = `${formatCaptured(data.capturedAt, preferences.requestedTimeMode)} / ${derived.locationSource ?? "-"}`;
-    reveal.disabled = !(data.coordinate ?? derived.inferredLocation);
+    fit.disabled = reveal.disabled = !coordinate(view);
+    fit.setAttribute("aria-label", `Fit ${data.name}`);
+    reveal.setAttribute("aria-label", `Reveal ${data.name}`);
+    fit.title = reveal.title = reveal.disabled ? "No coordinates available" : "";
     button.setAttribute("aria-pressed", String(selection.getCurrent()?.entryId === entry.id));
   };
-  listen(scope, button, "click", () => { if (model.current()) selection.request(photo.selection.createCandidate(entry.id)); }, report);
-  listen(scope, reveal, "click", () => { const view = model.current(); if (!view) return; const coordinate = view.snapshot.data.coordinate ?? view.snapshot.derived.inferredLocation; if (coordinate && model.current()) map?.panTo({ lat: coordinate.lat, lng: coordinate.lon }); }, report);
+  listen(scope, button, "click", () => { if (model.current()) return selection.request(photo.selection.createCandidate(entry.id)); }, report);
+  const revealPhoto = async () => {
+    const view = model.current(); if (!view || !coordinate(view)) return;
+    const requested = await selection.request(photo.selection.createCandidate(entry.id));
+    const latest = model.current();
+    if (!latest || latest.revision !== view.revision || selection.getCurrent() !== requested) return;
+    const point = coordinate(latest);
+    if (point) map?.panTo({ lat: point.lat, lng: point.lon });
+  };
+  listen(scope, reveal, "click", revealPhoto, report);
+  listen(scope, button, "dblclick", (event) => { event.preventDefault(); return revealPhoto(); }, report);
+  listen(scope, fit, "click", () => {
+    const view = model.current(); if (!view) return;
+    const point = coordinate(view), latest = model.current();
+    if (point && latest?.revision === view.revision) map?.fitBounds(
+      [[point.lat, point.lon], [point.lat, point.lon]], { padding: [20, 20], maxZoom: 18 },
+    );
+  }, report);
   model.subscribe(render);
   const subscription = selection.subscribe(() => model.update(render)); scope.defer(() => subscription.unsubscribe(), { retry: "safe" });
   model.update(render); image = mountPreview({ ...input, className: "tilia-layer-thumbnail" });

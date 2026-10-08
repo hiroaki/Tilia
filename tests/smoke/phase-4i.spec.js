@@ -17,6 +17,9 @@ test("pinned exifr uses native FileReader; uninstall does not join reads and lat
 });
 test("Drop imports actual JPEG through the shared domain handler",async({page})=>{
  const errors=[];page.on("pageerror",e=>errors.push(e.message));await page.goto("/samples/viewer/");
+ // The Viewer installs plugins asynchronously after its module has loaded.
+ // File UI is installed after Drop; its JPEG discovery proves both are ready.
+ await expect(page.locator('input[type="file"]')).toHaveAttribute("accept", /\.jpg/);
  const bytes=await import("node:fs/promises").then(fs=>fs.readFile(jpeg));
  const transfer=await page.evaluateHandle(encoded=>{const data=new DataTransfer();data.items.add(new File([Uint8Array.from(atob(encoded),c=>c.charCodeAt(0))],"dropped.jpg",{type:"image/jpeg"}));return data;},bytes.toString("base64"));
  await page.locator("#map").dispatchEvent("drop",{dataTransfer:transfer});await expect(page.locator(".tilia-status-text")).toContainText("dropped.jpg");await expect(page.locator(".tilia-status-text")).toContainText("from drop");expect(errors).toEqual([]);

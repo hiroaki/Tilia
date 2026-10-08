@@ -80,6 +80,19 @@ describe("GPX actual cancellation boundaries", () => {
     op.abort("cancel"); expect(await pending).toBe("cancel"); expect(abort).toHaveBeenCalledOnce();
     expect(reader.onload).toBeNull(); expect(reader.onerror).toBeNull(); reader.result = "<gpx/>"; late();
   });
+  it.each(["original cancellation", null, 0])("retains reason %j when native abort delivers onabort synchronously", async (reason) => {
+    let reader;
+    vi.stubGlobal("FileReader", class {
+      constructor() { reader = this; this.readyState = 0; }
+      readAsText() { this.readyState = 1; }
+      abort() { this.readyState = 2; this.onabort?.(); }
+    });
+    const operation = new AbortController();
+    const work = parseGpxFile(new File(["x"], "x.gpx"), { signal: operation.signal }).catch(error => error);
+    operation.abort(reason);
+    expect(await work).toBe(reason);
+    expect(reader.onload).toBeNull(); expect(reader.onerror).toBeNull(); expect(reader.onabort).toBeNull();
+  });
   it("checks cancellation after synchronous parsing returns before create can run", async () => {
     const op = new AbortController(); let reads = 0;
     vi.stubGlobal("FileReader", class { readAsText() { reads++; this.result = "<gpx/>"; this.onload(); } });
@@ -94,6 +107,16 @@ describe("dispatch residual/error edge cases", () => {
     const f = await fixture(() => Promise.reject(value));
     const error = await f.inputs.dispatch({}).catch((e) => e);
     expect(error.code).toBe("INPUT_DISPATCH_FAILED"); expect(error.details.handlerOutcome).toBe("rejected"); expect(Object.hasOwn(error.details,"handlerError")).toBe(true); expect(error.details.handlerError).toBe(value);
+  });
+  it.each([undefined, null, false, 0, ""])("keeps rejection %j as primary cause when cancellation also occurs", async (value) => {
+    const operation = new AbortController();
+    const f = await fixture(() => { operation.abort("cancel"); throw value; });
+    const error = await f.inputs.dispatch({}, { signal: operation.signal }).catch((e) => e);
+    expect(error.code).toBe("INPUT_DISPATCH_CANCELLED");
+    expect(error.cause).toBe(value);
+    expect(error.details).toMatchObject({ handlerOutcome: "rejected", cancellationReason: "cancel" });
+    expect(Object.hasOwn(error.details, "handlerError")).toBe(true);
+    expect(error.details.handlerError).toBe(value);
   });
   it("retains failed source listener removal as cleanup evidence and supports explicit retry", async () => {
     const f = await fixture(() => "result"), op = new AbortController(); let failed = true;

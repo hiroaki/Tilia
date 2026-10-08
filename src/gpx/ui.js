@@ -30,13 +30,49 @@ export function mountGpxRow(input) {
         const value = resolveGpxTarget(view.snapshot.data, target);
         button.textContent = target.kind === "document" ? value.name : target.kind === "track" ? getTrackDisplayName(value, target.trackIndex) : target.kind === "segment" ? `Segment #${target.segmentIndex + 1} (${value.points.length} points)` : value.name || label;
       });
-      listen(child, button, "click", () => { const view = model.current(); if (view && view.revision === viewRevision) selection.request(gpx.selection.createCandidate(entry.id, target)); }, report);
+      const current = () => {
+        if (!child.alive) return null;
+        const view = model.current();
+        return view?.revision === viewRevision ? view : null;
+      };
+      listen(child, button, "click", () => { if (current()) return selection.request(gpx.selection.createCandidate(entry.id, target)); }, report);
+      const isPoint = ["waypoint", "route-point", "track-point"].includes(target.kind);
+      const coordinate = (view) => {
+        const point = resolveGpxTarget(view.snapshot.data, target);
+        return Number.isFinite(point.lat) && Number.isFinite(point.lon) ? point : null;
+      };
+      const extent = (view) => gpx.getExtent(entry.id, {
+        target: target.kind === "document" ? target : { ...target, revision: view.revision },
+      }).bounds;
+      const navigate = async () => {
+        const view = current(); if (!view) return;
+        if (isPoint) {
+          if (!coordinate(view)) return;
+          const requested = await selection.request(gpx.selection.createCandidate(entry.id, target));
+          const latest = current();
+          if (!latest || latest.revision !== view.revision || selection.getCurrent() !== requested) return;
+          const point = coordinate(latest);
+          if (point) map?.panTo({ lat: point.lat, lng: point.lon });
+        } else {
+          const bounds = extent(view), latest = current();
+          if (bounds && latest?.revision === view.revision) map?.fitBounds(
+            [[bounds.southWest.lat, bounds.southWest.lon], [bounds.northEast.lat, bounds.northEast.lon]],
+            { padding: [20, 20], maxZoom: 18 },
+          );
+        }
+      };
+      const action = node(parent, "button", isPoint ? "tilia-gpx-reveal" : "tilia-gpx-fit", isPoint ? "Reveal" : "Fit");
+      action.type = "button";
+      projections.push((view) => {
+        action.disabled = isPoint ? !coordinate(view) : !extent(view);
+        action.setAttribute("aria-label", `${isPoint ? "Reveal" : "Fit"} ${button.textContent}`);
+        action.title = action.disabled ? "No coordinates available" : "";
+      });
+      listen(child, action, "click", navigate, report);
+      listen(child, button, "dblclick", (event) => { event.preventDefault(); return navigate(); }, report);
     };
     select(container, data.name, { kind: "document" }, "tilia-layer-name");
     const summary = node(container, "div", "tilia-layer-meta"); projections.push((v) => { summary.textContent = formatGpxSummary(v.snapshot.data); });
-    const fit = node(container, "button", "tilia-gpx-fit", "Fit"); fit.type = "button";
-    projections.push(() => { fit.disabled = !gpx.getExtent(entry.id).bounds; });
-    listen(child, fit, "click", () => { if (!model.current()) return; const extent = gpx.getExtent(entry.id); if (extent.bounds && model.current()) map?.fitBounds([[extent.bounds.southWest.lat, extent.bounds.southWest.lon], [extent.bounds.northEast.lat, extent.bounds.northEast.lon]], { padding: [20, 20] }); }, report);
     const tree = node(container, "ul", "tilia-gpx-tree");
     for (const category of ["tracks", "routes", "waypoints"]) {
       const item = node(tree, "li", "tilia-gpx-category"), label = node(item, "label", "", category);

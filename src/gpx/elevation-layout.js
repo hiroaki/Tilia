@@ -1,9 +1,14 @@
 // Profiles come from the semantic query; visual gaps never add distance/ascent.
 export function elevationLayout(profiles, { width = 320, height = 160, padding = 8, gap = 4 } = {}) {
   const tracks = profiles.filter((p) => p.target.kind === "track");
-  const finite = tracks.flatMap((p) => p.samples).filter((s) => Number.isFinite(s.elevation));
-  const minimum = finite.length ? Math.min(...finite.map((s) => s.elevation)) : null;
-  const maximum = finite.length ? Math.max(...finite.map((s) => s.elevation)) : null;
+  let minimum = null, maximum = null;
+  for (const profile of tracks) {
+    for (const { elevation } of profile.samples) {
+      if (!Number.isFinite(elevation)) continue;
+      if (minimum === null || elevation < minimum) minimum = elevation;
+      if (maximum === null || elevation > maximum) maximum = elevation;
+    }
+  }
   const distances = tracks.map((p) => p.samples.at(-1)?.distanceMeters ?? 0);
   const weights = distances.map((d) => d > 0 ? d : 1), total = weights.reduce((a, b) => a + b, 0);
   const available = Math.max(1, width - 2 * padding - gap * Math.max(0, tracks.length - 1));

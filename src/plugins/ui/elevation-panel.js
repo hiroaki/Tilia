@@ -47,7 +47,9 @@ export default Object.freeze({ id: "tilia-elevation", requires: ["tilia-panel", 
         child.defer(() => handle.signal.removeEventListener("abort", detach), { retry: "safe" }); handle.signal.addEventListener("abort", detach, { once: true });
         if (!handle.isCurrent()) { detach(); return; }
         const marker = new CircleMarker(handle.anchor, { radius: 7, color: "#0f766e", fillOpacity: 0.8, interactive: false });
-        const lease = context.map.attachLayer(marker, { band: "overlays" }); child.defer(() => lease.dispose(), { retry: "safe" });
+        // Attachment can synchronously trigger a new chart; reserve cleanup first.
+        let lease; child.defer(() => lease?.dispose(), { retry: "safe" });
+        lease = context.map.attachLayer(marker, { band: "overlays" });
       };
       const render = () => {
         if (!scope.alive) return;
