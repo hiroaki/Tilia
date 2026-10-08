@@ -39,7 +39,7 @@ function normalizeSingleRoute(route) {
   const coordinates = geometry?.type === "LineString"
     ? normalizeCoordinates(geometry.coordinates)
     : [];
-  if (coordinates.length < 2) {
+  if (coordinates.length < 2 || coordinates.some(point => !isValidLatitude(point.lat) || !isValidLongitude(point.lon))) {
     return null;
   }
 

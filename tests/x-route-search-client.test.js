@@ -66,7 +66,7 @@ describe("x-route-search client", () => {
 
   it("throws a timeout error for aborted requests", async () => {
     const fetchImpl = vi.fn(async (_url, options) => {
-      options.signal.dispatchEvent(new Event("abort"));
+      await new Promise(resolve => options.signal.addEventListener("abort", resolve, { once: true }));
       const error = new Error("aborted");
       error.name = "AbortError";
       throw error;

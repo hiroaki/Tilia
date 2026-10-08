@@ -1,6 +1,7 @@
 // Metadata stays separate from implementation imports so dependency planning and
 // migration classification never evaluate disabled plugin modules.
 export const builtinPluginCatalog = Object.freeze([
+  Object.freeze({ id: "x-route-search", requires: Object.freeze(["tilia-gpx-domain", "tilia-toolbar"]), load: () => import("../plugins/x-route-search/loader.js") }),
   Object.freeze({ id: "x-gpx-export", requires: Object.freeze(["tilia-gpx-domain", "tilia-panel", "tilia-toolbar"]), load: () => import("../plugins/x-gpx-export/loader.js") }),
   Object.freeze({ id: "tilia-toolbar", requires: Object.freeze([]), load: () => import("./plugins/ui/toolbar.js") }),
   Object.freeze({ id: "tilia-gpx-renderer", requires: Object.freeze(["tilia-gpx-domain"]), load: () => import("./plugins/renderers/gpx.js") }),

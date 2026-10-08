@@ -1,18 +1,6 @@
 import { createPhloemHeaders, createPhloemRequestBody, normalizeRouteResponse } from "./helpers.js";
 
-function createTimeoutController(timeoutMs) {
-  const controller = new AbortController();
-  const timerId = globalThis.setTimeout(() => {
-    controller.abort();
-  }, timeoutMs);
-
-  return {
-    signal: controller.signal,
-    dispose() {
-      globalThis.clearTimeout(timerId);
-    },
-  };
-}
+import { forwardAbort, signalAborted, signalReason } from "../../src/ownership/abort.js";
 
 async function parseJsonResponse(response) {
   const text = await response.text();
@@ -35,21 +23,42 @@ export async function requestPhloemRoutes({
   options = {},
   timeoutMs = 5000,
   fetchImpl = globalThis.fetch,
+  signal,
+  scope,
 }) {
   if (typeof fetchImpl !== "function") {
     throw new Error("Fetch API is not available");
   }
 
-  const timeoutController = createTimeoutController(timeoutMs);
+  scope?.assertAlive();
+  if (signal !== undefined) signalAborted(signal);
+  const body = JSON.stringify(createPhloemRequestBody({ profile, points, options }));
+  const timeout = new AbortController();
+  const forwarding = forwardAbort(signal === undefined ? [timeout.signal] : [signal, timeout.signal], { scope });
+  const check = () => {
+    if (!forwarding.signal.aborted) return;
+    const timedOut = timeout.signal.aborted && !(signal && signalAborted(signal));
+    const error = new Error(timedOut ? `Route request timed out after ${timeoutMs} ms` : "Route request cancelled",
+      { cause: signalReason(forwarding.signal) });
+    error.code = timedOut ? "route_timeout" : "route_cancelled";
+    throw error;
+  };
+  let timer;
+  const clear = () => { if (timer !== undefined) globalThis.clearTimeout(timer); };
+  scope?.defer(clear, { label: "route-timeout", retry: "safe" });
 
   try {
+    check();
+    timer = globalThis.setTimeout(() => timeout.abort(), timeoutMs);
     const response = await fetchImpl(endpoint, {
       method: "POST",
       headers: createPhloemHeaders({ apiKey }),
-      body: JSON.stringify(createPhloemRequestBody({ profile, points, options })),
-      signal: timeoutController.signal,
+      body,
+      signal: forwarding.signal,
     });
+    check();
     const payload = await parseJsonResponse(response);
+    check();
 
     if (response.ok && payload == null) {
       const error = new Error("Route response was empty or not valid JSON");
@@ -77,11 +86,10 @@ export async function requestPhloemRoutes({
       routes,
     };
   } catch (error) {
-    if (error?.name === "AbortError") {
-      throw new Error(`Route request timed out after ${timeoutMs} ms`);
-    }
+    check();
     throw error;
   } finally {
-    timeoutController.dispose();
+    clear();
+    forwarding.dispose();
   }
 }

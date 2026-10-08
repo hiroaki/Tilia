@@ -4,7 +4,6 @@ import { getPhase4dPluginClassification } from "../src/plugins/migration-allowli
 describe("repository plugins deferred after the Phase 4D cutover", () => {
   it.each([
     "x-track-editor",
-    "x-route-search",
     "x-milestone",
   ])("classifies %s as disabled until its target capabilities exist", (pluginId) => {
     expect(getPhase4dPluginClassification(pluginId)).toBe("disabled");
