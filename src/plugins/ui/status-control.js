@@ -41,9 +41,6 @@ export function createStatusControl({ position = "bottomleft", priority = "norma
 
   return {
     control,
-    destroy() {
-      control.remove();
-    },
     setStatus(text) {
       if (statusNode) {
         statusNode.textContent = text;

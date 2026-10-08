@@ -1,3 +1,4 @@
+import { scopeIsOperational } from "../ownership/scope.js";
 import { createSubscriptionChannel } from "../extensions/subscriptions.js";
 import { createDomainRendererRegistry } from "./registry.js";
 import { createSuppressionState } from "./suppression.js";
@@ -36,7 +37,7 @@ export function createRenderingCoordinator({
     } catch {}
   };
   const assertAlive = () => {
-    if (terminated || !root.scope.alive)
+    if (terminated || !scopeIsOperational(root.scope))
       throw renderingError(
         codes.terminated,
         "Rendering subsystem is terminated",
@@ -53,6 +54,7 @@ export function createRenderingCoordinator({
     onError: report,
   });
   const suppression = createSuppressionState({ getSemantics, assertAlive, report, onChange(entryIds) {
+    if (terminated || !scopeIsOperational(root.scope)) return;
     for (const id of entryIds) { const c = controllers.get(id); if (c) applyVisibility(c); }
   } });
   function truth(c) {
@@ -68,7 +70,7 @@ export function createRenderingCoordinator({
     const view = truth(c);
     return (
       !terminated &&
-      root.scope.alive &&
+      scopeIsOperational(root.scope) &&
       c.lifetime.scope.alive &&
       c.entryScope.alive &&
       g.scope.alive &&
@@ -578,6 +580,7 @@ export function createRenderingCoordinator({
   root.scope.signal.addEventListener("abort", terminate, { once: true });
   return Object.freeze({
     registry,
+    terminate,
     lifecycle,
     panes,
     createCapabilities(input) {

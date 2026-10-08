@@ -18,9 +18,25 @@ function normalize(definition) {
   });
 }
 
-export function createBaseMapCatalog({ map, onError = () => {} }) {
+export function createBaseMapCatalog({ map, scope = null, onError = () => {} }) {
   const providers = new Map();
   const pending = new Map();
+  let terminal = false;
+  const retiring = new Set();
+  scope?.defer(() => {
+    terminal = true;
+    if (selectedLayer) retiring.add(selectedLayer);
+    selected = selectedLayer = null;
+    const failures = [];
+    for (const layer of [...retiring]) { try { layer.remove(); retiring.delete(layer); } catch (error) { failures.push(error); } }
+    if (failures.length) throw new AggregateError(failures, "Base layer cleanup failed");
+  }, { label: "base-map-layers", retry: "safe" });
+  function removeLayer(layer) {
+    if (!layer) return;
+    retiring.add(layer);
+    layer.remove();
+    retiring.delete(layer);
+  }
   let selected = null;
   let selectedLayer = null;
   const channel = createSubscriptionChannel({ getSnapshot, onError });
@@ -36,18 +52,23 @@ export function createBaseMapCatalog({ map, onError = () => {} }) {
     });
   }
   function replace(record) {
+    if (terminal) return null;
     let layer;
     try {
       layer = record.factory();
+      if (terminal) throw new Error("Base-map acquisition cancelled");
+      retiring.add(layer);
       layer.addTo(map);
+      if (terminal) throw new Error("Base-map acquisition cancelled");
     } catch (cause) {
-      layer?.remove?.();
+      try { removeLayer(layer); } catch (error) { onError(error); }
       throw extensionError(extensionErrorCodes.baseMapSelectionFailed, `Failed to select base map "${record.metadata.id}"`, { cause, providerId: record.metadata.id });
     }
     const previous = selectedLayer;
     selected = record;
     selectedLayer = layer;
-    if (previous !== layer) previous?.remove?.();
+    retiring.delete(layer);
+    if (previous !== layer) removeLayer(previous);
     channel.deliver(getSnapshot());
     return record.metadata;
   }
@@ -65,17 +86,17 @@ export function createBaseMapCatalog({ map, onError = () => {} }) {
     selectedLayer = null;
     const candidates = liveProviders(record);
     const defaults = candidates.filter(({ metadata }) => metadata.isDefault);
-    const attempts = [...defaults, ...candidates.filter((candidate) => !defaults.includes(candidate))];
+    const attempts = terminal ? [] : [...defaults, ...candidates.filter((candidate) => !defaults.includes(candidate))];
     for (const candidate of attempts) {
       try {
         replace(candidate);
-        departingLayer?.remove?.();
+        removeLayer(departingLayer);
         return;
       } catch (error) {
         onError(error);
       }
     }
-    departingLayer?.remove?.();
+    removeLayer(departingLayer);
     channel.deliver(getSnapshot());
   }
 
@@ -98,7 +119,7 @@ export function createBaseMapCatalog({ map, onError = () => {} }) {
             providers.set(metadata.id, record);
             enqueuePostCommit(() => {
               channel.deliver(getSnapshot());
-              if (!selected && (metadata.isDefault || liveProviders()[0] === record)) {
+              if (!terminal && !selected && (metadata.isDefault || liveProviders()[0] === record)) {
                 try { replace(record); } catch (error) { onError(error); }
               }
             });
@@ -119,5 +140,5 @@ export function createBaseMapCatalog({ map, onError = () => {} }) {
     });
   }
 
-  return Object.freeze({ createFacade, getSnapshot, getSelectedLayer: () => selectedLayer });
+  return Object.freeze({ createFacade, getSnapshot, getSelectedLayer: () => selectedLayer, beginShutdown() { terminal = true; } });
 }

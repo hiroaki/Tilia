@@ -1,4 +1,5 @@
 import { createScopeController } from "../../ownership/index.js";
+import { setScopeCleanupInvoker, setScopeOperationalCheck, isScopeWithin } from "../../ownership/scope.js";
 import {
   assertPluginId,
   normalizeCatalog,
@@ -12,8 +13,12 @@ import { planDependencies } from "./planner.js";
 
 function deferred() {
   let resolve;
-  const promise = new Promise((resolvePromise) => { resolve = resolvePromise; });
-  return { promise, resolve };
+  let reject;
+  const promise = new Promise((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
 }
 
 function cleanupFor(result, pluginId) {
@@ -36,7 +41,7 @@ function frozenDiagnostic(record) {
   });
 }
 
-export function createPluginRuntime({ catalog = [], capabilityFactories = {}, onDiagnostic = () => {} } = {}) {
+export function createPluginRuntime({ catalog = [], capabilityFactories = {}, onDiagnostic = () => {}, assertOperational = () => {} } = {}) {
   const metadata = normalizeCatalog(catalog);
   const builtinIds = new Set([...metadata.keys()].filter((id) => id.startsWith("tilia-")));
   const resolved = new Map();
@@ -52,6 +57,11 @@ export function createPluginRuntime({ catalog = [], capabilityFactories = {}, on
   let destroyPromise = null;
   const destruction = deferred();
 
+  function invokePluginCallback(callback) {
+    callbackDepth += 1;
+    try { return callback(); } finally { callbackDepth -= 1; }
+  }
+
   const enqueue = (operation) => {
     const result = queue.then(operation, operation);
     queue = result.catch(() => {});
@@ -62,6 +72,7 @@ export function createPluginRuntime({ catalog = [], capabilityFactories = {}, on
     if (callbackDepth > 0) {
       throw pluginError(pluginErrorCodes.reentrant, "Plugin lifecycle mutation is not allowed from setup or cleanup");
     }
+    assertOperational();
     if (state === "destroying") throw pluginError(pluginErrorCodes.destroying, "Plugin runtime is destroying");
     if (state === "destroyed") throw pluginError(pluginErrorCodes.destroyed, "Plugin runtime is destroyed");
   }
@@ -104,9 +115,11 @@ export function createPluginRuntime({ catalog = [], capabilityFactories = {}, on
     if (existing?.state === "quarantined") {
       throw pluginError(pluginErrorCodes.quarantined, `Plugin "${id}" is quarantined`, { pluginId: id });
     }
-    const implementation = await resolveImplementation(id);
+    const implementation = await Promise.race([resolveImplementation(id), destruction.promise.then(() => { throw pluginError(pluginErrorCodes.destroying, "Plugin resolution interrupted by shutdown", { pluginId: id }); })]);
     if (state !== "active") throw pluginError(pluginErrorCodes.destroying, "Plugin runtime is destroying", { pluginId: id });
     const controller = createScopeController({ label: `plugin:${id}` });
+    setScopeCleanupInvoker(controller.scope, invokePluginCallback);
+    setScopeOperationalCheck(controller.scope, assertOperational);
     const record = {
       id,
       metadata: metadata.get(id),
@@ -139,25 +152,17 @@ export function createPluginRuntime({ catalog = [], capabilityFactories = {}, on
       capabilityFactories,
     });
     const stopped = destruction.promise.then(() => { throw pluginError(pluginErrorCodes.destroying, "Plugin runtime destruction interrupted setup", { pluginId: id }); });
+    stopped.catch(() => {});
     let setupPromise;
     let setupSettled = false;
     let phase = "setup";
     try {
-      let setupResultPromise;
-      callbackDepth += 1;
-      try {
-        setupResultPromise = implementation.setup(context, options);
-      } finally {
-        callbackDepth -= 1;
-      }
+      const setupResultPromise = invokePluginCallback(() => implementation.setup(context, options));
       setupPromise = Promise.resolve(setupResultPromise);
       const setupResult = await Promise.race([setupPromise, stopped]);
       setupSettled = true;
       const cleanup = cleanupFor(setupResult, id);
-      if (cleanup) controller.setSetupCleanup(() => {
-        callbackDepth += 1;
-        try { return cleanup(); } finally { callbackDepth -= 1; }
-      }, { label: `${id}:setup-cleanup` });
+      if (cleanup) controller.setSetupCleanup(cleanup, { label: `${id}:setup-cleanup` });
       if (state !== "active") throw pluginError(pluginErrorCodes.destroying, "Plugin runtime destruction prevented setup commit", { pluginId: id });
       phase = "commit";
       await controller.commit();
@@ -186,15 +191,17 @@ export function createPluginRuntime({ catalog = [], capabilityFactories = {}, on
         setupPromise.then(async (lateResult) => {
           try {
             const cleanup = cleanupFor(lateResult, id);
-            if (cleanup) await cleanup();
+            if (cleanup) await invokePluginCallback(cleanup);
             detached.state = "detached-settled";
           } catch (error) {
             detached.state = "detached-cleanup-failed";
             detached.error = error;
+            onDiagnostic(error);
           }
         }, (error) => {
           detached.state = "detached-rejected";
           detached.error = error;
+          onDiagnostic(error);
         });
       } else {
         setupPromise?.catch(() => {});
@@ -252,6 +259,7 @@ export function createPluginRuntime({ catalog = [], capabilityFactories = {}, on
     const precedingUnuse = unuseOperations.get(id);
     let operation;
     operation = enqueue(async () => {
+      assertRequestAllowed();
       if (precedingUnuse) await precedingUnuse.catch(() => {});
       return installRoot(id, options);
     }).finally(() => {
@@ -308,6 +316,7 @@ export function createPluginRuntime({ catalog = [], capabilityFactories = {}, on
     const precedingUse = useOperations.get(id);
     let operation;
     operation = enqueue(async () => {
+      assertRequestAllowed();
       if (precedingUse) await precedingUse.catch(() => {});
       const record = records.get(id);
       if (!record) return;
@@ -323,9 +332,12 @@ export function createPluginRuntime({ catalog = [], capabilityFactories = {}, on
     return operation;
   }
 
-  function destroy() {
-    if (destroyPromise) return destroyPromise;
-    if (callbackDepth > 0) return Promise.reject(pluginError(pluginErrorCodes.reentrant, "Runtime destruction is not allowed from setup or cleanup"));
+  function assertLifecycleEntry() {
+    if (callbackDepth > 0) throw pluginError(pluginErrorCodes.reentrant, "Lifecycle entry is not allowed from setup or cleanup");
+  }
+  function beginShutdown() {
+    assertLifecycleEntry();
+    if (state !== "active") return;
     state = "destroying";
     destruction.resolve();
     for (const record of records.values()) {
@@ -336,7 +348,57 @@ export function createPluginRuntime({ catalog = [], capabilityFactories = {}, on
         record.abortPromise.catch(() => {});
       }
     }
-    destroyPromise = enqueue(async () => {
+  }
+  function retainedClosure(owners) {
+    const retained = new Set();
+    for (const record of records.values()) {
+      if (!record.shutdownBlocked && !owners.some(owner => isScopeWithin(owner, record.controller.scope))) continue;
+      for (const id of planDependencies(record.id, metadata, new Set()).order) retained.add(id);
+    }
+    return retained;
+  }
+  function drainShutdown(excluded = new Set()) {
+    return enqueue(async () => {
+      const failures = [];
+      const withheld = new Set([...excluded, ...retainedClosure([])]);
+      const remaining = [...records.values()].filter(record => !withheld.has(record.id) && !record.shutdownAttempted).sort((a, b) => b.sequence - a.sequence);
+      while (remaining.length) {
+        const index = remaining.findIndex(candidate => !remaining.some(other => other.metadata.requires.includes(candidate.id)));
+        const [record] = remaining.splice(index < 0 ? 0 : index, 1);
+        if (withheld.has(record.id)) continue;
+        record.shutdownAttempted = true;
+        const wasResidual = record.state === "quarantined";
+        if (wasResidual && record.error) failures.push(record.error);
+        try { await teardownRecord(record, { retry: true }); }
+        catch (error) {
+          failures.push(error);
+          // Hold explicit prerequisites through the one eligible safe attempt.
+          // A second drain must neither repeat this record nor close its closure.
+          if (!wasResidual && record.state === "quarantined") {
+            try { await teardownRecord(record, { retry: true }); }
+            catch (retryError) { failures.push(retryError); }
+          }
+          if (records.has(record.id)) {
+            record.shutdownBlocked = true;
+            for (const id of planDependencies(record.id, metadata, new Set()).order) withheld.add(id);
+          }
+        }
+      }
+      return failures;
+    });
+  }
+  function finishShutdown(blocked) {
+    state = "destroyed";
+    return Object.freeze([...blocked].filter(id => records.has(id)).map(id => frozenDiagnostic(records.get(id))));
+  }
+
+  function destroy() {
+    if (callbackDepth > 0) return Promise.reject(pluginError(pluginErrorCodes.reentrant, "Runtime destruction is not allowed from setup or cleanup"));
+    if (destroyPromise) return destroyPromise;
+    const completion = deferred();
+    destroyPromise = completion.promise;
+    beginShutdown();
+    enqueue(async () => {
       const failures = [];
       const remaining = [...records.values()].sort((a, b) => b.sequence - a.sequence);
       while (remaining.length) {
@@ -348,13 +410,14 @@ export function createPluginRuntime({ catalog = [], capabilityFactories = {}, on
       if (failures.length) {
         throw pluginError(pluginErrorCodes.destroyFailed, "Plugin runtime destruction completed with cleanup failures", { errors: Object.freeze(failures) });
       }
-    });
+    }).then(completion.resolve, completion.reject);
     return destroyPromise;
   }
 
   return Object.freeze({
     use,
     unuse,
+    assertLifecycleEntry, beginShutdown, retainedClosure, drainShutdown, finishShutdown,
     destroy,
     has(id) { return records.get(id)?.state === "active"; },
     list() { return Object.freeze([...records.values()].filter((record) => record.state === "active").sort((a, b) => a.sequence - b.sequence).map((record) => record.id)); },

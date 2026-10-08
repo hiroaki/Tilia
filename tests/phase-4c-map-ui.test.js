@@ -6,7 +6,7 @@ import { createUiMountManager } from "../src/ui/mounts.js";
 
 function element(ownerDocument) {
   return {
-    ownerDocument, nodeType: 1, children: [], dataset: {},
+    ownerDocument, nodeType: 1, children: [], dataset: {}, style: {},
     appendChild(child) { child.parent = this; this.children = this.children.filter((item) => item !== child); this.children.push(child); },
     remove() { if (this.parent) this.parent.children = this.parent.children.filter((item) => item !== this); },
     setAttribute(name, value) { this[name] = value; },
@@ -89,7 +89,7 @@ describe("Phase 4C map and UI ownership", () => {
   it("gives plugins only assigned containers and removes mounts on rollback", async () => {
     const ownerDocument = { createElement: () => element(ownerDocument) };
     const mapContainer = element(ownerDocument);
-    const manager = createUiMountManager({ map: { getContainer: () => mapContainer } });
+    const manager = createUiMountManager({ scope: createScopeController({ label: "ui-host" }).scope, map: { getContainer: () => mapContainer } });
     const controller = createScopeController();
     let assigned;
     manager.createFacade({ pluginId: "x-test", scope: controller.scope }).mountSurface({
@@ -106,7 +106,7 @@ describe("Phase 4C map and UI ownership", () => {
   it("coordinates synchronous mount failure with parent rollback", async () => {
     const ownerDocument = { createElement: () => element(ownerDocument) };
     const mapContainer = element(ownerDocument);
-    const manager = createUiMountManager({ map: { getContainer: () => mapContainer } });
+    const manager = createUiMountManager({ scope: createScopeController({ label: "ui-host" }).scope, map: { getContainer: () => mapContainer } });
     const controller = createScopeController();
     let releaseCleanup;
     const cleanupBlocker = new Promise((resolve) => { releaseCleanup = resolve; });
@@ -133,7 +133,7 @@ describe("Phase 4C map and UI ownership", () => {
   it("removes wrappers after child cleanup failure and keeps repeated unmount idempotent", async () => {
     const ownerDocument = { createElement: () => element(ownerDocument) };
     const mapContainer = element(ownerDocument);
-    const manager = createUiMountManager({ map: { getContainer: () => mapContainer } });
+    const manager = createUiMountManager({ scope: createScopeController({ label: "ui-host" }).scope, map: { getContainer: () => mapContainer } });
     const controller = createScopeController();
     const handle = manager.createFacade({ pluginId: "x-cleanup", scope: controller.scope }).mountSurface({
       id: "one",
@@ -149,7 +149,7 @@ describe("Phase 4C map and UI ownership", () => {
   it("observes failed mount cleanup without an unhandled rejection", async () => {
     const ownerDocument = { createElement: () => element(ownerDocument) };
     const mapContainer = element(ownerDocument);
-    const manager = createUiMountManager({ map: { getContainer: () => mapContainer } });
+    const manager = createUiMountManager({ scope: createScopeController({ label: "ui-host" }).scope, map: { getContainer: () => mapContainer } });
     const controller = createScopeController();
     const unhandled = [];
     const observe = (reason) => unhandled.push(reason);
@@ -174,7 +174,7 @@ describe("Phase 4C map and UI ownership", () => {
   it("supports uninstall and reinstall without duplicate or orphaned mounts", async () => {
     const ownerDocument = { createElement: () => element(ownerDocument) };
     const mapContainer = element(ownerDocument);
-    const manager = createUiMountManager({ map: { getContainer: () => mapContainer } });
+    const manager = createUiMountManager({ scope: createScopeController({ label: "ui-host" }).scope, map: { getContainer: () => mapContainer } });
     const install = async () => {
       const controller = createScopeController();
       manager.createFacade({ pluginId: "x-reinstall", scope: controller.scope }).mountSurface({ id: "one", mount() {} });

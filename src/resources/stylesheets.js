@@ -25,6 +25,7 @@ export function createStylesheetManager({ document: ownerDocument, onError = () 
     scope.assertAlive();
     const definition = normalized(input);
     let record = records.get(definition.id);
+    let acquired = false;
     if (record && !same(record.definition, definition)) {
       throw extensionError(extensionErrorCodes.resourceConflict, `Stylesheet "${definition.id}" has a conflicting definition`, { resourceId: definition.id });
     }
@@ -57,31 +58,40 @@ export function createStylesheetManager({ document: ownerDocument, onError = () 
           committed: true,
           resourceId: definition.id,
         });
-        link.remove?.();
+        try { link.remove?.(); }
+        catch (cleanupError) { onError(cleanupError); }
         rejectReady(error);
         onError(error);
       }, { once: true });
-      ownerDocument.head.appendChild(link);
       // DOM fakes and already-loaded data URLs may not dispatch load.
       if (!link.addEventListener) {
         settled = true;
         resolveReady();
       }
-      record = { definition, link, ready, leases: new Set() };
+      record = { definition, link, ready, leases: new Set(), removed: false };
+      acquired = true;
       records.set(definition.id, record);
     }
     const lease = { active: true };
     record.leases.add(lease);
     const release = () => {
       if (!lease.active) return;
-      lease.active = false;
       record.leases.delete(lease);
       if (record.leases.size === 0) {
-        record.link.remove?.();
+        if (!record.removed) record.link.remove?.();
+        record.removed = true;
         if (records.get(definition.id) === record) records.delete(definition.id);
       }
+      lease.active = false;
     };
     scope.defer(release, { label: `stylesheet:${definition.id}`, retry: "safe" });
+    if (acquired) {
+      try { ownerDocument.head.appendChild(record.link); scope.assertAlive(); }
+      catch (error) {
+        try { release(); } catch (cleanupError) { onError(cleanupError); }
+        throw error;
+      }
+    }
     return Object.freeze({ id: definition.id, ready: record.ready, release });
   }
 

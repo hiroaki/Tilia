@@ -19,6 +19,7 @@ export function createUiMountManager({ map, scope: hostScope, onError = () => {}
       root = ownerDocument.createElement("div");
       root.className = `tilia-ui-surface-root tilia-ui-surface-root-${surface}`;
       root.dataset.tiliaSurfaceRoot = surface;
+      hostScope.defer(() => { root.remove(); roots.delete(surface); }, { label: `ui-root:${surface}`, retry: "safe" });
       container.appendChild(root);
       roots.set(surface, root);
     }
@@ -39,6 +40,7 @@ export function createUiMountManager({ map, scope: hostScope, onError = () => {}
       bindDropTarget: bindDrop(input),
       mountSurface({ id, surface = "floating", rank = 0, ariaLabel, mount }) {
         scope.assertAlive();
+        hostScope.assertAlive();
         if (typeof id !== "string" || !id || !SURFACES.has(surface) || !Number.isFinite(rank) || typeof mount !== "function") {
           throw extensionError(extensionErrorCodes.uiMountInvalid, "Invalid UI mount");
         }
@@ -49,10 +51,7 @@ export function createUiMountManager({ map, scope: hostScope, onError = () => {}
         wrapper.dataset.tiliaSurface = surface;
         wrapper.dataset.tiliaMount = key;
         if (ariaLabel) wrapper.setAttribute("aria-label", ariaLabel);
-        rootFor(surface).appendChild(wrapper);
         const record = { key, surface, rank, wrapper, mountScope };
-        mounts.set(key, record);
-        reorder(surface);
         let cleanupPromise = null;
         const unmount = () => {
           if (cleanupPromise) return cleanupPromise;
@@ -68,6 +67,11 @@ export function createUiMountManager({ map, scope: hostScope, onError = () => {}
         };
         scope.defer(unmount, { label: `ui-mount:${id}`, retry: "safe" });
         try {
+          rootFor(surface).appendChild(wrapper);
+          hostScope.assertAlive();
+          scope.assertAlive();
+          mounts.set(key, record);
+          reorder(surface);
           mount({ container: wrapper, scope: mountScope });
           layout();
         } catch (error) {

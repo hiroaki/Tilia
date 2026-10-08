@@ -3,7 +3,6 @@ export const pluginErrorCodes = Object.freeze({
   descriptorInvalid: "PLUGIN_DESCRIPTOR_INVALID",
   descriptorConflict: "PLUGIN_DESCRIPTOR_CONFLICT",
   unknown: "PLUGIN_UNKNOWN",
-  disabled: "PLUGIN_DISABLED_BY_MIGRATION",
   resolutionFailed: "PLUGIN_RESOLUTION_FAILED",
   implementationInvalid: "PLUGIN_IMPLEMENTATION_INVALID",
   dependencyMissing: "PLUGIN_DEPENDENCY_MISSING",

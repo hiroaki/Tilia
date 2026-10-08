@@ -13,7 +13,8 @@ import { uiFixture, byClass, settle } from "./helpers/production-ui.js";
 import { builtinPluginCatalog } from "../src/builtins.js";
 import gpxPlugin from "../src/plugins/domains/gpx.js";
 let f, release;
-afterEach(async()=>{ release?.(); release=null; await f?.close(); f=null; });
+let expectedDestroyFailure = false;
+afterEach(async()=>{ release?.(); release=null; if (expectedDestroyFailure) { await expect(f.app.destroy()).rejects.toMatchObject({ code: "APP_CLEANUP_FAILED" }); vi.unstubAllGlobals(); expectedDestroyFailure = false; } else await f?.close(); f=null; });
 const source = { name:"initial.gpx", tracks:[{segments:[{points:[{lat:1,lon:2,elevation:0},{lat:3,lon:4}]}]}], routes:[{points:[{lat:5,lon:6}]}], waypoints:[{lat:7,lon:8}] };
 const action = label => byClass(f.map.container,"tilia-track-editor-action").find(button=>button.textContent===label).click();
 async function start(options={}) {
@@ -58,4 +59,5 @@ it("keeps unresolved vendor child cleanup quarantined and blocks reinstall witho
   await expect(f.app.use("x-track-editor")).rejects.toMatchObject({code:"PLUGIN_QUARANTINED"});
   await expect(f.app.unuse("x-track-editor")).rejects.toMatchObject({code:"PLUGIN_TEARDOWN_FAILED"}); expect(terminate).toHaveBeenCalledOnce();
   // No invented recovery: terminal/non-retry-safe residual intentionally remains.
+  expectedDestroyFailure = true;
 });

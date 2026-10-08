@@ -10,6 +10,31 @@ import {
 } from "./records.js";
 
 const scopeNodes = new WeakMap();
+export function setScopeOperationalCheck(scope, check) {
+  const node = scopeNodes.get(scope);
+  if (!node || typeof check !== "function") throw new TypeError("Expected an owned Scope and operational check");
+  assertAliveNode(node);
+  node.root.assertOperational = check;
+}
+
+export function scopeIsOperational(scope) {
+  const node = scopeNodes.get(scope);
+  if (!node || !scope.alive) return false;
+  try { node.root.assertOperational?.(); return true; } catch { return false; }
+}
+// Private Runtime integration, deliberately absent from the ownership barrel
+// and public Scope. Descendants use their root's synchronous invocation stack.
+export function setScopeCleanupInvoker(scope, invoke) {
+  const node = scopeNodes.get(scope);
+  if (!node || typeof invoke !== "function") throw new TypeError("Expected an owned Scope and cleanup invoker");
+  assertOwnershipMutationAllowed(node, "configure cleanup invocation");
+  node.root.invokeCleanup = invoke;
+}
+
+function invokeCleanup(node, callback) {
+  return node.root.invokeCleanup ? node.root.invokeCleanup(callback) : callback();
+}
+
 // Private integrity metadata; never exposed on public Scope objects.
 export function isScopeWithin(scope, ancestor) {
   let node = scopeNodes.get(scope);
@@ -55,6 +80,7 @@ function assertAliveNode(node) {
   if (node.state !== "open-uncommitted" && node.state !== "active") {
     throw notAlive(node);
   }
+  node.root.assertOperational?.();
 }
 
 function commitMutationFailure(node, action) {
@@ -162,6 +188,9 @@ function markTreeClosing(node) {
   if (node.state === "closing" || node.state === "closed" || node.state === "cleanup-failed") {
     return;
   }
+  // An earlier child residual is eligible for parent cleanup retry. A child
+  // closed by this shutdown's abort delivery must instead be joined once.
+  node.priorChildResiduals = new Set(node.children.filter(child => child.state === "cleanup-failed"));
   node.state = "closing";
   for (const child of node.children) {
     markTreeClosing(child);
@@ -188,9 +217,9 @@ function disposeRecord(node, record, phase) {
   record.disposePromise = (async () => {
     try {
       if (record.kind === "staged") {
-        await record.dispose({ committed: record.committed });
+        await invokeCleanup(node, () => record.dispose({ committed: record.committed }));
       } else {
-        await record.dispose();
+        await invokeCleanup(node, () => record.dispose());
       }
       record.state = "disposed";
       record.lastError = null;
@@ -217,7 +246,7 @@ async function cancelTasks(node, retryOnly) {
     }
     task.cancelState = "running";
     try {
-      const result = task.cancel();
+      const result = invokeCleanup(node, () => task.cancel());
       if (result && typeof result.then === "function") {
         // Cancellation is deliberately synchronous. Observe a violating
         // thenable only to prevent an unhandled rejection; never await it.
@@ -248,7 +277,7 @@ async function cleanupNode(node, kind, retryOnly = false) {
       continue;
     }
     try {
-      if (child.state === "cleanup-failed") {
+      if (child.state === "cleanup-failed" && (retryOnly || node.priorChildResiduals?.has(child))) {
         await retryNode(child, kind);
       } else {
         await closeNode(child, kind);
@@ -301,14 +330,20 @@ function closeNode(node, kind = "dispose") {
     return node.closePromise;
   }
 
-  // Authority is revoked for the complete tree before the first asynchronous
-  // cleanup step. Callers never need to await close to observe dead scopes.
+  // Reserve completion before synchronous abort delivery can reenter close.
+  // The complete tree still loses authority before any cleanup begins.
+  let resolve;
+  let reject;
+  node.closePromise = new Promise((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  node.closeKind = kind;
   markTreeClosing(node);
   abortTree(node);
-  node.closeKind = kind;
-  node.closePromise = cleanupNode(node, kind).then(
+  cleanupNode(node, kind).then(
     (failures) => finalizeClose(node, failures, kind),
-  );
+  ).then(resolve, reject);
   return node.closePromise;
 }
 
@@ -363,6 +398,7 @@ function activateTree(node) {
 }
 
 function commitNode(node) {
+  try { node.root.assertOperational?.(); } catch (error) { return Promise.reject(error); }
   if (node.root.commitOperation) {
     const failure = new OwnershipError(`Scope "${node.path}" commit is already in progress`, {
       code: ownershipErrorCodes.scopeCommitInvalid,
@@ -382,6 +418,7 @@ function commitNode(node) {
   node.root.commitOperation = operation;
   const staged = collectStaged(node);
   const assertCommitAuthority = () => {
+    node.root.assertOperational?.();
     if (operation.violation) {
       throw operation.violation;
     }
@@ -576,6 +613,7 @@ function createNode({ label = "scope", parent = null, root = null, sequence = 0 
         if (node.state !== "open-uncommitted" && node.state !== "active") {
           return undefined;
         }
+        if (!scopeIsOperational(node.scope)) return undefined;
         return callback.apply(this, args);
       };
     },

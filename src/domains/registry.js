@@ -160,5 +160,5 @@ export function createDomainRegistry({ onError = () => {} } = {}) {
       }));
   }
 
-  return Object.freeze({ createFacade, resolve, inspect });
+  return Object.freeze({ createFacade, resolve, inspect, leasedOwners: () => [...providers.values()].filter(record => record.leases.size > 0).map(record => record.owner) });
 }

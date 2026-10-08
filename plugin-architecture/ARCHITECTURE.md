@@ -8,6 +8,8 @@ The Phase 2A–2G reports remain design records for evidence, rejected alternati
 
 This is not an implementation or migration plan.
 
+**Subsequent Phase 4K approval (2026-10-08):** The approved [Phase 4K plan](phase-4/PHASE-4K-IMPLEMENTATION-PLAN.md) narrows public construction to `createDefaultTiliaApp(container, options)` and one Tilia-owned Map. This supersedes earlier supplied-Map preservation clauses, without changing caller-owned inputs/page resources or accepted 4A–4J asynchronous, editor and presentation policies. R1/R2/R3/R5 integration policies below are approved; implementation acceptance remains pending. No new Leaflet-private cleanup exception is approved.
+
 ## 2. Design Goals
 
 The architecture MUST:
@@ -167,7 +169,7 @@ revoke liveness and abort scope
 
 Complete rollback permits retry. Incomplete rollback places the ID in non-discoverable `cleanup-failed` quarantine and blocks reinstall until eligible residual cleanup succeeds or terminal destruction reports it.
 
-Concurrent `use()` calls for the same ID MUST share one installation and outcome. Lifecycle mutation MUST be deterministically serialized. Reentrant lifecycle mutation from setup/cleanup MUST be rejected; dependencies belong in `requires`.
+Concurrent `use()` calls for the same ID MUST share one installation and outcome. Lifecycle mutation MUST be deterministically serialized. Reentrant lifecycle mutation from setup/cleanup MUST be rejected; dependencies belong in `requires`. Identifiable synchronous setup/cleanup entry MUST be checked before returning an already pending destruction promise. Registered plugin disposer/cancel invocation uses a private per-runtime synchronous stack; unrelated runtimes are independent. Ordinary abort-notification reentry outside that stack shares completion. Asynchronous self-await after an arbitrary `await` is prohibited but cannot generally be attributed or detected; no general self-await detector is required.
 
 ## 9. Ownership and Scopes
 
@@ -193,6 +195,8 @@ interface Scope {
 ```
 
 The runtime alone creates plugin scopes. Plugins MAY create child scopes for editor sessions, requests, temporary interactions, or other shorter lifetimes. A child MUST NOT detach from or outlive its parent. General ownership transfer is prohibited.
+
+One in-flight completion MUST be reserved before abort notification; ordinary concurrent/abort-reentrant close shares its first-attempt result or error. Reentry MUST NOT trigger an implicit retry. A child close initiated during the same parent shutdown is joined even if it fails while the parent awaits required work. An earlier child residual remains eligible for the existing parent safe-cleanup attempt; explicit parent retry remains available. Standalone Scope liveness remains physical ownership liveness; application shutdown separately fences operational acquisition/publication on retained roots while captured cleanup remains callable.
 
 Scope close ordering is normative:
 
@@ -480,7 +484,7 @@ interface MapFacade {
 
 Normal plugins use owned helpers for caller-owned layers, controls, events, viewport actions, panes, and surfaces. Direct `map.addControl()` is not the supported lifecycle path.
 
-An explicit advanced escape hatch MAY expose the Leaflet Map for operations not covered by the facade. The caller still owns every effect it creates and MUST register cleanup. Raw access MUST NOT expose or legitimize private renderer layers.
+An explicit advanced escape hatch MAY expose the Leaflet Map for operations not covered by the facade. The caller still owns every effect it creates and MUST register cleanup. The Map is borrowed from the application, not ownership-transferred: all Map-attached effects end with the Tilia-owned Map lifetime. Callers MUST NOT independently remove that Map or use an old Map after app destruction. External timers/global listeners/unrelated page resources remain their creator's responsibility. Raw references cannot be revoked or sandboxed. Raw access MUST NOT expose or legitimize private renderer layers.
 
 This architecture provides lifecycle and integrity boundaries, not a JavaScript security sandbox.
 
@@ -835,21 +839,27 @@ Repeated `unuse()` of an absent plugin is idempotent. Repeated `unuse()` of a qu
 ```text
 mark app destroying; abort app authority; prevent pending commits
         -> retain domain providers and their hard-dependency closure
-           while live entries require them
+           while creation, entry or cleanup-residual leases require them
         -> teardown all other plugins dependents-first
         -> clear global selection and close presentations/interactions
         -> remove entries reverse insertion order while providers live
         -> teardown retained providers/dependencies dependents-first
         -> dispose EntryStore, RenderingCoordinator, registries, UI roots,
            core/runtime subscriptions and Tilia host attachments
-        -> destroy factory-created map/container infrastructure
-        -> preserve caller-owned map/container infrastructure
+        -> attempt public remove() on the Tilia-owned Map last
+        -> preserve caller-owned container and unrelated page resources
         -> report aggregate errors after all cleanup attempts
 ```
 
 Pending setup loses commit authority and rolls back when it settles. All Tilia-owned controls, layers, panes, popups, overlays, DOM roots, listeners, subscriptions, tasks, and render generations MUST be removed or reported as residual cleanup failures.
 
-The destroyed application can never be reused.
+The destroyed application can never be reused. The sole supported public factory is `createDefaultTiliaApp(container, options)`, accepting an existing container ID/element and always creating its own Map. Public `createTiliaApp({map,...})`, external `options.map`, ownership switches and compatibility aliases are not supported. Internal composition may inject a Map for isolated machinery tests; that is not a public embedding mode. Successful cleanup permits distinct fresh app/Map construction on the same preserved container; failed removal does not promise immediate reuse. No terminal Leaflet-private index/cache mutation or private-reference-zero guarantee is required or authorized.
+
+Reserve the application destruction promise and terminal admission before notifications. Cached operational capabilities, retained-root acquisition, callbacks and final semantic publication MUST lose authority immediately; captured hooks/dispose/release/unsubscribe and eligible safe cleanup remain available privately. Coordinate exact provider registrations/leases and hard dependencies through existing records. Hold proved cleanup prerequisites through required/eligible attempts; where independence is unknown, keep the implicated provider root/hard closure operationally unavailable and report blocked residuals. Attempt independent cleanup, never force-release leases, infer arbitrary closure dependencies, add a second resource inventory or retry indefinitely. Final Map removal cannot erase preceding failures.
+
+During initialization, the first initiating cause wins: an external destroy rejects pending ready with app-destroyed; a bootstrap failure preserves its original error and initiates cleanup. Already settled ready is unchanged. Ready MUST NOT await cleanup, and destroy MUST NOT await ready or a continuation waiting for destroy. Existing required resource acquisition/preparation handoffs are joined; approved detached setup/render acquisition and resource-free work do not acquire a blanket settlement barrier. Synchronous construction failure preserves its original thrown error and observes any outstanding asynchronous rollback internally without promising immediate container reuse.
+
+Ordinary repeated destruction shares the same settled outcome, including rejection, without implicit retries or resurrection. Operational app getters/calls reject; guarded callbacks no-op under their existing contracts. Ready/whenReady/destroy remain callable, terminal plugin discovery is false/empty. Stable app-boundary destroyed/cleanup-failed codes retain original causes and frozen contextual summaries; established subsystem error/commit semantics remain. Existing ledgers and internal diagnostics report residual, detached and late failures; no new public diagnostic/recovery API is required.
 
 ## 45. Failure Semantics
 
@@ -891,12 +901,14 @@ Shipping with Tilia is not sufficient reason for mutable core access or privileg
 
 | Concept | Classification |
 |---|---|
+| `createDefaultTiliaApp(container, options)`, `app.destroy()` | public application lifecycle; one Tilia-owned Map, caller-owned container |
+| `createTiliaApp({map,...})`, raw application composition | unsupported public factory / internal machinery only |
 | `PluginDefinition`, guarded `PluginContext` | public plugin API |
 | scope `signal`, child/defer/track escape hatches | public plugin API, constrained |
 | typed service/domain/input/contribution/entry/selection/map facades | public plugin API |
 | standard domain contracts such as GPX/Photo | domain-facing built-in/public contracts |
 | host-specific contribution facades and domain UI adapters | presentation-facing public/built-in contracts |
-| advanced raw Leaflet Map escape hatch | public advanced API for caller-owned effects |
+| advanced raw Leaflet Map escape hatch | borrowed app-owned Map; caller/plugin owns its effects within that lifetime |
 | EntryStore/SelectionStore guarded views | public facades over internal infrastructure |
 | raw scope records and ownership engine | internal runtime infrastructure |
 | mutable registry indexes and atomic commit engine | internal runtime infrastructure |
@@ -941,13 +953,13 @@ No compatibility shim is required merely to preserve these obsolete responsibili
 4. Reachable dependency cycles are rejected before setup.
 5. Concurrent installation of one ID shares one operation and result.
 6. Dependencies remain until explicit removal or app destruction.
-7. A destroyed app never returns to active state.
+7. A destroyed app never returns to active state; every supported app owns its distinct Map, removes it last and preserves its caller-owned container.
 
 ### Ownership
 
 8. Every Tilia-visible effect has exactly one owner scope or shared-manager lease.
 9. A child cannot detach from or outlive its parent.
-10. Scope closing revokes authority and aborts descendants before cleanup.
+10. Scope closing reserves shared completion before notification, revokes authority and aborts descendants before cleanup; app operational fencing precedes ordered retained-root cleanup.
 11. Children dispose reverse-creation-order; local records dispose LIFO.
 12. Cleanup is best-effort; successful records never rerun.
 13. Only explicitly retry-safe failed records may be retried.

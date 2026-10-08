@@ -1,3 +1,4 @@
+import { scopeIsOperational } from "../ownership/scope.js";
 import { forwardAbort } from "../ownership/abort.js";
 
 // Provider-private canonical resource; consumer release never revokes the URL.
@@ -17,7 +18,7 @@ export function createPreviewResource(blob, createUrl, revokeUrl) {
       if (controller.signal.aborted) return null;
       const released = new AbortController();
       const forwarding = forwardAbort([controller.signal, scope.signal, released.signal]);
-      const isCurrent = () => !forwarding.signal.aborted && scope.alive && isEntryCurrent();
+      const isCurrent = () => !forwarding.signal.aborted && scopeIsOperational(scope) && isEntryCurrent();
       const handle = Object.freeze({
         signal: forwarding.signal,
         isCurrent,

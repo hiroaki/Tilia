@@ -10,8 +10,6 @@ export async function uiFixture(plugins = [], options = {}) {
   const f = createApplicationComposition({ map, plugins, ...options }); await f.app.ready;
   let context; await f.app.use({ id: "x-ui-observer", setup(value) { context = value; } });
   return { ...f, map, doc, context, click(label) { byClass(container, "tilia-control-button").find((n) => n.attributes["aria-label"] === label).click(); }, async close() {
-    for (const entry of f.app.entries.list()) await f.app.entries.remove(entry.id);
-    for (const id of [...f.app.listPlugins()].reverse()) await f.app.unuse(id);
-    await f.foundations.rendering.close(); vi.unstubAllGlobals();
+    await f.app.destroy(); vi.unstubAllGlobals();
   } };
 }

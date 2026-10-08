@@ -1,5 +1,4 @@
-// Metadata stays separate from implementation imports so dependency planning and
-// migration classification never evaluate disabled plugin modules.
+// Lazy metadata lets dependency planning run without evaluating optional implementations.
 export const builtinPluginCatalog = Object.freeze([
   Object.freeze({ id: "x-milestone", requires: Object.freeze(["tilia-gpx-domain"]), load: () => import("../plugins/x-milestone/loader.js") }),
   Object.freeze({ id: "x-track-editor", requires: Object.freeze(["tilia-gpx-domain", "tilia-panel", "tilia-toolbar"]), load: () => import("../plugins/x-track-editor/loader.js") }),

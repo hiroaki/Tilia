@@ -1,12 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
-import { createTiliaApp } from "../src/app.js";
+import { createApplicationComposition } from "../src/application-composition.js";
+const createMachineryApp = options => createApplicationComposition(options).app;
 
 describe("Phase 4E production composition", () => {
   it("selects GPX and Photo through the normal headless factory without rendering or legacy hubs", async () => {
-    const app = createTiliaApp({ map: {}, plugins: ["tilia-gpx-domain", "tilia-photo-domain"] });
+    const app = createMachineryApp({ map: {}, plugins: ["tilia-gpx-domain", "tilia-photo-domain"] });
     await app.whenReady();
     expect(app.listPlugins()).toEqual(["tilia-gpx-domain", "tilia-photo-domain"]);
-    for (const removed of ["core", "state", "refreshView", "addRefreshHandler", "subscribeInteractions", "destroy"]) {
+    for (const removed of ["core", "state", "refreshView", "addRefreshHandler", "subscribeInteractions"]) {
       expect(app).not.toHaveProperty(removed);
     }
     const gpx = await app.domains.gpx.create({

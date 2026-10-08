@@ -1,3 +1,4 @@
+import { scopeIsOperational } from "../ownership/scope.js";
 import { createSubscriptionChannel } from "../extensions/subscriptions.js";
 import { cloneAndFreezePlainData, assertDeepImmutablePlainData } from "../domains/immutable.js";
 import { assertDomainKey } from "../domains/identity.js";
@@ -21,7 +22,7 @@ export function createSelectionStore({ applicationScope, getTarget, onError = ()
   const destroyed = () => semanticError(codes.selectionStoreDestroyed, "Selection authority has terminated");
 
   function assertActive() {
-    if (terminal || !applicationScope.alive) throw destroyed();
+    if (terminal || !scopeIsOperational(applicationScope)) throw destroyed();
   }
 
   function assertCaller(scope) {
@@ -31,7 +32,7 @@ export function createSelectionStore({ applicationScope, getTarget, onError = ()
 
   function adapterFor(target) {
     const provider = target.providerRegistration;
-    if (!provider.owner.alive) {
+    if (!scopeIsOperational(provider.owner)) {
       throw semanticError(codes.providerUnavailable, "Selection provider is unavailable", { entryId: target.id, domainId: target.domainKey.id });
     }
     const adapter = provider.provider.selection;
@@ -74,7 +75,7 @@ export function createSelectionStore({ applicationScope, getTarget, onError = ()
   }
 
   function ticketMatches(ticket) {
-    return !terminal && applicationScope.alive && current !== null
+    return !terminal && scopeIsOperational(applicationScope) && current !== null
       && generation === ticket.generation && current.entryId === ticket.entryId
       && current.domain === ticket.domainKey && registration === ticket.providerRegistration;
   }
@@ -331,6 +332,6 @@ export function createSelectionStore({ applicationScope, getTarget, onError = ()
   }
 
   applicationScope.signal.addEventListener("abort", terminate, { once: true });
-  if (!applicationScope.alive) terminate();
+  if (!scopeIsOperational(applicationScope)) terminate();
   return Object.freeze({ createFacade, createDomainFacade, runCommit, prepareDomainCommit, invalidateEntry, terminate });
 }

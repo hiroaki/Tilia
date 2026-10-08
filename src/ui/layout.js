@@ -1,3 +1,4 @@
+import { scopeIsOperational } from "../ownership/scope.js";
 // Application-owned presentation annotations. Plugins expose only their assigned
 // surface subtree; measurements and map-container writes remain inside the host.
 const leases = new WeakMap();
@@ -16,7 +17,7 @@ export function createLayoutHost({ container, scope, onError }) {
   const measure = (node, axis) => Math.ceil(node?.getBoundingClientRect?.()[axis] ?? node?.[axis === "width" ? "offsetWidth" : "offsetHeight"] ?? 0);
   const resize = typeof ResizeObserver === "function" ? new ResizeObserver(() => schedule()) : null;
   const apply = () => {
-    if (!scope.alive || leases.get(container) !== token) return;
+    if (!scopeIsOperational(scope) || leases.get(container) !== token) return;
     resize?.disconnect();
     const panel = query("[data-tilia-panel-layout]").find((n) => n !== container && !n.classList.contains("tilia-side-panel-hidden"));
     const layout = panel?.dataset.tiliaPanelLayout;
@@ -40,15 +41,24 @@ export function createLayoutHost({ container, scope, onError }) {
       if (!relinquished.has(key)) set(key, values[key]);
     }
   };
-  const schedule = () => { if (queued || !scope.alive) return; queued = true; queueMicrotask(() => { queued = false; try { apply(); } catch (error) { onError(error); } }); };
+  const schedule = () => { if (queued || !scopeIsOperational(scope)) return; queued = true; queueMicrotask(() => { queued = false; try { apply(); } catch (error) { onError(error); } }); };
   const mutation = typeof MutationObserver === "function" ? new MutationObserver((records) => { if (records.some((record) => record.target !== container || record.type !== "attributes")) schedule(); }) : null;
-  scope.defer(() => { mutation?.disconnect(); resize?.disconnect(); if (leases.get(container) !== token) return;
+  scope.defer(() => {
+    const errors = [];
+    for (const observer of [mutation, resize]) {
+      try { observer?.disconnect(); } catch (error) { errors.push(error); }
+    }
+    if (leases.get(container) !== token) {
+      if (errors.length) throw new AggregateError(errors, "Layout observer cleanup failed");
+      return;
+    }
     for (const [key, last] of writes) if (get(key) === last.value && priority(key) === last.priority) {
       const prior = original.get(key); if (prior.value) { if (style.setProperty) style.setProperty(key, prior.value, prior.priority); else style[key] = prior.value; }
       else if (style.removeProperty) style.removeProperty(key); else delete style[key];
     }
     if (layoutWritten && container.dataset.tiliaPanelLayout === layoutWrite) { if (originalLayout === undefined) delete container.dataset.tiliaPanelLayout; else container.dataset.tiliaPanelLayout = originalLayout; }
     leases.delete(container);
+    if (errors.length) throw new AggregateError(errors, "Layout observer cleanup failed");
   }, { label: "ui-layout", retry: "safe" });
   // Observe presentation/control mutations; omit style and the map's own layout
   // attribute so our annotation writes do not schedule a feedback loop.

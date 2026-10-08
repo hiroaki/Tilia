@@ -60,6 +60,8 @@ export function createEntryStore({ applicationController, domainRegistry, semant
   let nextEntryId = 1;
   let insertionSequence = 0;
   let clearing = false;
+  let clearOperation = null;
+  let shuttingDown = false;
   const channel = createSubscriptionChannel({ getSnapshot: list, onError });
 
   function enqueueFor(entryId, operation) {
@@ -106,6 +108,7 @@ export function createEntryStore({ applicationController, domainRegistry, semant
 
   function assertMutationAllowed() {
     applicationScope.assertAlive();
+    if (shuttingDown) throw semanticError(semanticErrorCodes.entryRemoving, "EntryStore is shutting down");
     if (clearing) throw semanticError(semanticErrorCodes.entryRemoving, "EntryStore is clearing entries");
   }
 
@@ -209,6 +212,9 @@ export function createEntryStore({ applicationController, domainRegistry, semant
       cleanupObligations: [],
       presentationBindings: new Set(),
     };
+    let creationFinished;
+    record.creationDone = new Promise(resolve => { creationFinished = resolve; });
+    entries.set(id, record);
     let forwarding = null;
     let committed = false;
     try {
@@ -271,6 +277,7 @@ export function createEntryStore({ applicationController, domainRegistry, semant
       channel.deliver(Object.freeze({ type: "created", current: view }));
       return view;
     } catch (failure) {
+      if (!committed) entries.delete(id);
       // Post-publication failure/cancellation cannot roll back an app-owned entry.
       if (committed) throw failure;
       let cleanupError = null;
@@ -293,7 +300,7 @@ export function createEntryStore({ applicationController, domainRegistry, semant
       lease.release();
       throw originalError;
     } finally {
-      forwarding?.dispose();
+      try { forwarding?.dispose(); } finally { creationFinished(); }
     }
   }
 
@@ -330,6 +337,7 @@ export function createEntryStore({ applicationController, domainRegistry, semant
         });
       }
       const operationController = record.scopeController.createChildController({ label: `entry:${id}:update:${record.revision}` });
+      record.operationController = operationController;
       const operationScope = operationController.scope;
       let prepared;
       let committed = false;
@@ -436,10 +444,12 @@ export function createEntryStore({ applicationController, domainRegistry, semant
       } catch (cause) {
         if (committed) throw cause;
         if (record.revision === expectedRevision && typeof prepared?.disposeNext === "function") {
-          try { await prepared.disposeNext(); } catch (error) { onError(error); }
+          try { await prepared.disposeNext(); } catch (error) { retainCleanupObligation(record, "update-next-instance", prepared.disposeNext, error); onError(error); }
         }
         try { await operationController.close(); } catch (error) { onError(error); }
         throw cause;
+      } finally {
+        record.operationController = null;
       }
     });
   }
@@ -547,63 +557,71 @@ export function createEntryStore({ applicationController, domainRegistry, semant
   function retryCleanup(requesterScope, id) {
     requesterScope.assertAlive();
     applicationScope.assertAlive();
-    return enqueueFor(id, async () => {
-      requesterScope.assertAlive();
-      const record = residuals.get(id);
-      if (!record) return null;
-      const phases = [];
-      const failures = [];
-      const retriedTerminalController = Boolean(record.terminalResidual);
-      if (record.terminalResidual) {
-        phases.push(record.terminalResidual.phase);
-        try {
-          await record.scopeController.retryCleanup();
-          record.terminalResidual = null;
-        } catch (cleanupError) {
-          record.terminalResidual.cleanupError = cleanupError;
-          failures.push(cleanupError);
-        }
-        pruneCompletedControlledObligations(record);
-      }
-      for (const obligation of [...record.cleanupObligations]) {
-        if (!record.cleanupObligations.includes(obligation)) continue;
-        phases.push(obligation.phase);
-        if (obligation.controller?.snapshot().state === "closed") {
-          record.cleanupObligations.splice(record.cleanupObligations.indexOf(obligation), 1);
-          continue;
-        }
-        if (retriedTerminalController && obligation.controller) continue;
-        try {
-          await obligation.cleanup();
-          record.cleanupObligations.splice(record.cleanupObligations.indexOf(obligation), 1);
-        } catch (cleanupError) {
-          obligation.cleanupError = cleanupError;
-          failures.push(cleanupError);
-        }
-      }
-      if (failures.length > 0) {
-        residuals.set(id, record);
-        const cleanupError = failures[0];
-        const error = semanticError(semanticErrorCodes.cleanupFailed, `Entry "${id}" residual cleanup remains incomplete`, {
-          cause: cleanupError,
-          committed: record.terminalResidual?.phase !== "creation",
-          entryId: id,
-          domainId: record.domainKey.id,
-          phases: Object.freeze(phases),
-          failures: Object.freeze(failures.map(errorSummary)),
-          ...(record.terminalResidual?.originalError ? { originalError: errorSummary(record.terminalResidual.originalError) } : {}),
-        });
-        onError(error);
-        throw error;
-      }
-      finishResidualState(record);
-      const uniquePhases = [...new Set(phases)];
-      const result = Object.freeze({ id, phase: uniquePhases.length === 1 ? uniquePhases[0] : "multiple", cleaned: true });
-      return result;
-    });
+    return enqueueFor(id, () => { requesterScope.assertAlive(); return retryRecord(id); });
   }
 
-  async function clear(requesterScope) {
+  async function retryRecord(id) {
+    const record = residuals.get(id);
+    if (!record) return null;
+    const phases = [];
+    const failures = [];
+    const retriedTerminalController = Boolean(record.terminalResidual);
+    if (record.terminalResidual) {
+      phases.push(record.terminalResidual.phase);
+      try {
+        await record.scopeController.retryCleanup();
+        record.terminalResidual = null;
+      } catch (cleanupError) {
+        record.terminalResidual.cleanupError = cleanupError;
+        failures.push(cleanupError);
+      }
+      pruneCompletedControlledObligations(record);
+    }
+    for (const obligation of [...record.cleanupObligations]) {
+      if (!record.cleanupObligations.includes(obligation)) continue;
+      phases.push(obligation.phase);
+      if (obligation.controller?.snapshot().state === "closed") {
+        record.cleanupObligations.splice(record.cleanupObligations.indexOf(obligation), 1);
+        continue;
+      }
+      if (retriedTerminalController && obligation.controller) continue;
+      try {
+        await obligation.cleanup();
+        record.cleanupObligations.splice(record.cleanupObligations.indexOf(obligation), 1);
+      } catch (cleanupError) {
+        obligation.cleanupError = cleanupError;
+        failures.push(cleanupError);
+      }
+    }
+    if (failures.length > 0) {
+      residuals.set(id, record);
+      const cleanupError = failures[0];
+      const error = semanticError(semanticErrorCodes.cleanupFailed, `Entry "${id}" residual cleanup remains incomplete`, {
+        cause: cleanupError,
+        committed: record.terminalResidual?.phase !== "creation",
+        entryId: id,
+        domainId: record.domainKey.id,
+        phases: Object.freeze(phases),
+        failures: Object.freeze(failures.map(errorSummary)),
+        ...(record.terminalResidual?.originalError ? { originalError: errorSummary(record.terminalResidual.originalError) } : {}),
+      });
+      onError(error);
+      throw error;
+    }
+    finishResidualState(record);
+    const uniquePhases = [...new Set(phases)];
+    const result = Object.freeze({ id, phase: uniquePhases.length === 1 ? uniquePhases[0] : "multiple", cleaned: true });
+    return result;
+  }
+
+  function clear(requesterScope) {
+    const operation = clearEntries(requesterScope);
+    if (!clearOperation) clearOperation = operation;
+    operation.finally(() => { if (clearOperation === operation) clearOperation = null; }).catch(() => {});
+    return operation;
+  }
+
+  async function clearEntries(requesterScope) {
     requesterScope.assertAlive();
     assertMutationAllowed();
     clearing = true;
@@ -640,6 +658,34 @@ export function createEntryStore({ applicationController, domainRegistry, semant
     return channel.subscribe(scope, listener, options);
   }
 
+  function beginShutdown() {
+    shuttingDown = true;
+    for (const record of entries.values()) {
+      if (record.state === "preparing") record.scopeController.close().catch(() => {});
+      else record.operationController?.close().catch(onError);
+    }
+  }
+  async function drainShutdown() {
+    const failures = [];
+    await Promise.all([...entries.values()].filter(record => record.state === "preparing").map(record => record.creationDone));
+    if (clearOperation) { try { await clearOperation; } catch (error) { failures.push(error); } }
+    await Promise.all([...queues.values()]);
+    const targets = [...entries.values()].filter(record => record.state === "active").sort((a, b) => b.insertionSequence - a.insertionSequence);
+    const removed = Object.freeze(targets.map(entryView));
+    for (const record of targets) {
+      try { await enqueueFor(record.id, () => record.state === "active" && entries.get(record.id) === record ? removeRecord(record, { notify: false }) : null); }
+      catch (error) { failures.push(error); }
+    }
+    channel.deliver(Object.freeze({ type: "cleared", removed }));
+    for (const id of [...residuals.keys()]) {
+      const record = residuals.get(id);
+      const priorErrors = [record.terminalResidual?.cleanupError, ...record.cleanupObligations.map(obligation => obligation.cleanupError)].filter(Boolean);
+      for (const error of priorErrors) if (!failures.includes(error)) failures.push(error);
+      try { await enqueueFor(id, () => retryRecord(id)); } catch (error) { failures.push(error); }
+    }
+    return failures;
+  }
+
   function inspect() {
     return Object.freeze({
       nextEntryId,
@@ -660,5 +706,5 @@ export function createEntryStore({ applicationController, domainRegistry, semant
     });
   }
 
-  return Object.freeze({ create, get, list, getDomainView, getSemanticTarget, update, setVisible, remove, retryCleanup, clear, subscribe, bindPresentationLifetime, inspect });
+  return Object.freeze({ create, get, list, getDomainView, getSemanticTarget, update, setVisible, remove, retryCleanup, clear, subscribe, bindPresentationLifetime, inspect, beginShutdown, drainShutdown });
 }

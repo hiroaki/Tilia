@@ -5,12 +5,9 @@ import {
   mergeBaseLayerOverrides,
 } from "./application-composition.js";
 
-export function createTiliaApp(options = {}) {
-  return createApplicationComposition(options).app;
-}
-
-// High-level factory for the common case: create the Leaflet base map and attach Tilia to it.
+// Sole public application factory. The container is borrowed; the Map is owned.
 export function createDefaultTiliaApp(container, options = {}) {
+  if (Object.hasOwn(options, "map")) throw new TypeError("External Map initialization is not supported");
   const {
     builtins = defaultBuiltins,
     baseMapOptions = {},
@@ -27,7 +24,7 @@ export function createDefaultTiliaApp(container, options = {}) {
       }
     : baseMapOptions;
   const baseMap = createBaseMap(container, resolvedBaseMapOptions);
-  return createTiliaApp({
+  return createApplicationComposition({
     ...appOptions,
     builtins,
     map: baseMap.map,
@@ -36,5 +33,5 @@ export function createDefaultTiliaApp(container, options = {}) {
     baseLayerOverrides,
     selectedBaseLayerId: baseMap.baseLayer?.id || null,
     tileLayer: baseMap.tileLayer,
-  });
+  }, { removeMap: () => baseMap.map.remove() }).app;
 }

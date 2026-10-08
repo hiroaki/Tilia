@@ -168,7 +168,8 @@ export const milestonePlugin = {
         // failed attempts and join cleanup through the generic entry binding.
         const withdraw = () => {
           if (states.get(state.id) === state) states.delete(state.id);
-          if (!owner.alive || !context.entries.get(state.id)) caches.delete(state.id);
+          // Cleanup only uses captured attachments; operational reads may reject.
+          caches.delete(state.id);
           for (const attachment of state.attachments) {
             try { attachment.dispose(); } catch (error) { report(error); }
           }

@@ -2,9 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../src/map/controls.js", () => ({ createButton: vi.fn(), createPanel: vi.fn(), createSelect: vi.fn(), installMapControl: vi.fn() }));
 
-import { createTiliaApp } from "../src/app.js";
+import { createApplicationComposition } from "../src/application-composition.js";
+const createMachineryApp = options => createApplicationComposition(options).app;
 
-describe("createTiliaApp Phase 4B plugin boundary", () => {
+describe("createMachineryApp Phase 4B plugin boundary", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("delegates external definitions to PluginRuntime with guarded context", async () => {
@@ -15,7 +16,7 @@ describe("createTiliaApp Phase 4B plugin boundary", () => {
       expect(context).not.toHaveProperty("state");
       expect(options).toEqual({ mode: "test" });
     });
-    const app = createTiliaApp({ map: {}, builtins: [] });
+    const app = createMachineryApp({ map: {}, builtins: [] });
     await expect(app.use({ id: "vendor-plugin", setup }, { mode: "test" })).resolves.toEqual({ id: "vendor-plugin" });
     expect(app.hasPlugin("vendor-plugin")).toBe(true);
     expect(app.listPlugins()).toEqual(["vendor-plugin"]);
@@ -26,7 +27,7 @@ describe("createTiliaApp Phase 4B plugin boundary", () => {
     let release;
     const setup = vi.fn(() => new Promise((resolve) => { release = resolve; }));
     const plugin = { id: "vendor-pending", setup };
-    const app = createTiliaApp({ map: {}, builtins: [] });
+    const app = createMachineryApp({ map: {}, builtins: [] });
     const first = app.use(plugin);
     const second = app.use(plugin);
     while (!release) await Promise.resolve();
@@ -38,7 +39,7 @@ describe("createTiliaApp Phase 4B plugin boundary", () => {
 
   it("uses cleanup-only setup results and removes through the runtime", async () => {
     const cleanup = vi.fn();
-    const app = createTiliaApp({ map: {}, builtins: [] });
+    const app = createMachineryApp({ map: {}, builtins: [] });
     await app.use({ id: "vendor-cleanup", setup: () => cleanup });
     await app.unuse("vendor-cleanup");
     expect(cleanup).toHaveBeenCalledOnce();
@@ -48,7 +49,7 @@ describe("createTiliaApp Phase 4B plugin boundary", () => {
   it("bootstraps configured external definitions through the same runtime path", async () => {
     const events = [];
     const plugin = { id: "vendor-startup", setup: (_context, options) => { events.push(options.mode); } };
-    const app = createTiliaApp({ map: {}, builtins: [], plugins: [[plugin, { mode: "ready" }]] });
+    const app = createMachineryApp({ map: {}, builtins: [], plugins: [[plugin, { mode: "ready" }]] });
     await expect(app.whenReady()).resolves.toBe(app);
     expect(events).toEqual(["ready"]);
   });
@@ -56,7 +57,7 @@ describe("createTiliaApp Phase 4B plugin boundary", () => {
   it("loads the final migrated repository plugin through the normal runtime", async () => {
     const setup = vi.fn();
     const load = vi.fn(async () => ({ default: { id: "x-milestone", requires: [], setup } }));
-    const app = createTiliaApp({ map: {}, builtins: [{ id: "x-milestone", requires: [], load }], plugins: ["x-milestone"] });
+    const app = createMachineryApp({ map: {}, builtins: [{ id: "x-milestone", requires: [], load }], plugins: ["x-milestone"] });
     await expect(app.ready).resolves.toBe(app);
     expect(load).toHaveBeenCalledOnce();
     expect(setup).toHaveBeenCalledOnce();
@@ -65,7 +66,7 @@ describe("createTiliaApp Phase 4B plugin boundary", () => {
 
   it("rejects a missing dependency before setting up its consumer", async () => {
     const consumerSetup = vi.fn();
-    const app = createTiliaApp({
+    const app = createMachineryApp({
       map: {},
       builtins: [],
     });
@@ -78,7 +79,7 @@ describe("createTiliaApp Phase 4B plugin boundary", () => {
   it("rejects a transitive missing dependency before loading any implementation", async () => {
     const middleLoad = vi.fn();
     const rootSetup = vi.fn();
-    const app = createTiliaApp({
+    const app = createMachineryApp({
       map: {},
       builtins: [
         { id: "vendor-middle", requires: ["x-milestone"], load: middleLoad },
@@ -92,7 +93,7 @@ describe("createTiliaApp Phase 4B plugin boundary", () => {
   });
 
   it("exposes only target semantic authority after the Phase 4D cutover", async () => {
-    const app = createTiliaApp({ map: {}, builtins: [] });
+    const app = createMachineryApp({ map: {}, builtins: [] });
     await app.ready;
     expect(app).not.toHaveProperty("core");
     expect(app).not.toHaveProperty("state");

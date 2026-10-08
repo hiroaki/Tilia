@@ -1,5 +1,5 @@
 import { queryGpx } from "../gpx/queries.js";
-import { isScopeWithin } from "../ownership/scope.js";
+import { isScopeWithin, scopeIsOperational } from "../ownership/scope.js";
 import { gpxDomainKey, photoDomainKey } from "./keys.js";
 import { assertDomainKey } from "./identity.js";
 import { semanticError, semanticErrorCodes } from "./errors.js";
@@ -67,7 +67,7 @@ export function createPhotoFacade({ scope, entries, selection }) {
       return target.providerRegistration.provider.getPreview(target.instance, {
         scope: consumer,
         isCurrent() {
-          if (!scope.alive || !target.providerRegistration.owner.alive) return false;
+          if (!scopeIsOperational(scope) || !scopeIsOperational(target.providerRegistration.owner)) return false;
           try {
             const current = entries.getSemanticTarget(id, photoDomainKey);
             return current.providerRegistration === target.providerRegistration &&

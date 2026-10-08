@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { createTiliaApp } from "../src/app.js";
+import { createApplicationComposition } from "../src/application-composition.js";
+const createMachineryApp = options => createApplicationComposition(options).app;
 import { gpxDomainKey, photoDomainKey, semanticErrorCodes } from "../src/domains/index.js";
 
 describe("Phase 4D-C production semantic authority cutover", () => {
   it("activates production providers without exposing the legacy semantic model", async () => {
-    const app = createTiliaApp({
+    const app = createMachineryApp({
       map: {},
       plugins: ["tilia-gpx-domain", "tilia-photo-domain"],
       pluginOptions: {

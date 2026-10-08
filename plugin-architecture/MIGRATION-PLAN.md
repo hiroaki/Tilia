@@ -24,6 +24,8 @@ The plan contains eleven implementation phases:
 
 These boundaries are architectural review units. They do not prescribe an arbitrary number of commits within a phase.
 
+**Subsequent Phase 4K approval (2026-10-08):** The approved [Phase 4K plan](phase-4/PHASE-4K-IMPLEMENTATION-PLAN.md) and current Architecture supersede the earlier supplied-Map preservation direction. Public construction uses only `createDefaultTiliaApp(container, options)` and a Tilia-owned Map, removed publicly last; the caller owns the container and unrelated page resources. Borrowed Map effects share its lifetime. R1/R2/R3/R5 private integration policies are approved, not yet acceptance-verified. Historical phase baselines below remain historical; no Leaflet-private cache/index exception is authorized.
+
 ## 2. Inputs and Precedence
 
 When documents differ, use this precedence:
@@ -1261,7 +1263,7 @@ Phases 4A–4J complete.
 - reverse entry disposal and provider lease release;
 - retained provider/dependency teardown;
 - core/runtime/UI/render/map resource disposal;
-- caller-owned versus factory-owned map/container distinction;
+- sole public factory and Tilia-owned Map lifetime, borrowed access and caller-owned container/page preservation;
 - aggregate cleanup errors and residual diagnostics;
 - full import-graph optionality.
 
@@ -1304,8 +1306,8 @@ Remove the Phase 4B composition allowlist. No migration scaffold remains.
 - every scope/registration/generation/presenter/overlay/control/listener/task disposed;
 - cleanup failures aggregated after later cleanup continues;
 - retry-safe versus terminal residual reporting;
-- caller-supplied map/container preserved with all Tilia attachments removed;
-- factory-created map removed last;
+- sole public createDefaultTiliaApp factory; external Map injection rejects and createTiliaApp is withdrawn;
+- Tilia-owned Map removed last, preserving caller container/unrelated page resources; distinct fresh Map/app after successful cleanup;
 - GPX-only composition never resolves/imports Photo/EXIF;
 - renderer/UI/provider absent configurations remain coherent.
 
@@ -1646,8 +1648,8 @@ The migration is complete only when all of the following are true:
 - editor temporary layers remain session-owned and PartiallyEditablePolyline is unchanged;
 - Photo-from-GPX inference uses a guarded GPX semantic capability;
 - `app.destroy()` is terminal, provider-aware, best-effort, and fully tested;
-- caller-owned maps/containers survive with all Tilia attachments removed;
-- factory-created infrastructure is destroyed last;
+- caller-owned containers/unrelated page resources survive; borrowed Map-attached effects end with the app-owned Map;
+- the Tilia-owned Map is removed last through public API; no private cache/index mutation or old-Map reuse guarantee;
 - temporary composition allowlist and every migration scaffold are gone;
 - legacy runtime/state/hub/refresh/entry-layer APIs and modules are deleted;
 - all meaningful preserved behavior has target tests;
@@ -1719,7 +1721,8 @@ Use this checklist for every implementation review.
 - [ ] UI state is not semantic/configuration authority.
 - [ ] Normal map effects use MapFacade ownership.
 - [ ] Advanced raw-map use creates only caller/plugin-owned resources.
-- [ ] Caller-owned infrastructure is never destroyed by Tilia.
+- [ ] Caller-owned container and unrelated page resources survive; the sole public factory owns/removes its distinct Map last.
+- [ ] Borrowed Map effects end with that Map; unsupported external-Map construction and public createTiliaApp are removed.
 
 ### Failure, teardown, and verification
 
