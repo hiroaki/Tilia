@@ -8,7 +8,7 @@ The Phase 2A–2G reports remain design records for evidence, rejected alternati
 
 This is not an implementation or migration plan.
 
-**Subsequent Phase 4K approval (2026-10-08):** The approved [Phase 4K plan](phase-4/PHASE-4K-IMPLEMENTATION-PLAN.md) narrows public construction to `createDefaultTiliaApp(container, options)` and one Tilia-owned Map. This supersedes earlier supplied-Map preservation clauses, without changing caller-owned inputs/page resources or accepted 4A–4J asynchronous, editor and presentation policies. R1/R2/R3/R5 integration policies below are approved; implementation acceptance remains pending. No new Leaflet-private cleanup exception is approved.
+**Subsequent Phase 4K approval (2026-10-08):** The approved [Phase 4K plan](phase-4/PHASE-4K-IMPLEMENTATION-PLAN.md) narrows public construction to `createDefaultTiliaApp(container, options)` and one Tilia-owned Map. This supersedes earlier supplied-Map preservation clauses, without changing caller-owned inputs/page resources or accepted 4A–4J asynchronous, editor and presentation policies. R1/R2/R3/R5 integration policies below are implemented and acceptance-verified in Phase 4K. No new Leaflet-private cleanup exception is approved.
 
 ## 2. Design Goals
 

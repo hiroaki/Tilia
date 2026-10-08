@@ -24,7 +24,7 @@ The plan contains eleven implementation phases:
 
 These boundaries are architectural review units. They do not prescribe an arbitrary number of commits within a phase.
 
-**Subsequent Phase 4K approval (2026-10-08):** The approved [Phase 4K plan](phase-4/PHASE-4K-IMPLEMENTATION-PLAN.md) and current Architecture supersede the earlier supplied-Map preservation direction. Public construction uses only `createDefaultTiliaApp(container, options)` and a Tilia-owned Map, removed publicly last; the caller owns the container and unrelated page resources. Borrowed Map effects share its lifetime. R1/R2/R3/R5 private integration policies are approved, not yet acceptance-verified. Historical phase baselines below remain historical; no Leaflet-private cache/index exception is authorized.
+**Subsequent Phase 4K approval (2026-10-08):** The approved [Phase 4K plan](phase-4/PHASE-4K-IMPLEMENTATION-PLAN.md) and current Architecture supersede the earlier supplied-Map preservation direction. Public construction uses only `createDefaultTiliaApp(container, options)` and a Tilia-owned Map, removed publicly last; the caller owns the container and unrelated page resources. Borrowed Map effects share its lifetime. R1/R2/R3/R5 private integration policies are implemented and acceptance-verified in Phase 4K. Historical phase baselines below remain historical; no Leaflet-private cache/index exception is authorized.
 
 ## 2. Inputs and Precedence
 
@@ -1239,6 +1239,8 @@ Creator versus entry ownership, nested session lifetime, async liveness, no fore
 Changing editor product semantics, modifying PartiallyEditablePolyline, introducing a renderer augmentation registry, or treating route search as InputRegistry input.
 
 ## 17. Phase 4K — Lifecycle Closure and Legacy Purge
+
+**Execution status (2026-10-08):** K0–K6 and the approved acceptance criteria are complete. Full current verification passed: 81 unit files / 863 tests and 70 Chromium product scenarios, including 11 new public application-lifecycle scenarios. The [Phase 4K plan](phase-4/PHASE-4K-IMPLEMENTATION-PLAN.md) records the approved scope; detailed implementation reports remain intentionally outside the repository. Required handoffs, permitted detached work, terminal failures and shared Leaflet page infrastructure retain their documented limits.
 
 ### Goal
 

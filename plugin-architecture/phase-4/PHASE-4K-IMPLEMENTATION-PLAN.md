@@ -1,6 +1,8 @@
 # Phase 4K — Lifecycle Closure and Legacy Purge Implementation Plan
 
-**Status:** Approved design — implementation-ready within the bounded scope below. Production implementation and acceptance verification have not started in this plan-finalization task.
+**Execution status (2026-10-08):** K0–K6 implemented and acceptance-verified. The full current unit suite (81 files / 863 tests) and Chromium product suite (70 scenarios, including 11 new public lifecycle scenarios) pass. Detailed implementation evidence is intentionally maintained outside the repository.
+
+**Plan-finalization status (historical):** Approved design — implementation-ready within the bounded scope below. Production implementation and acceptance verification had not started in the plan-finalization task. The baseline/current-task descriptions below record that approved planning snapshot; they do not undo this subsequent execution status.
 **Investigation date:** 2026-10-08 (Asia/Tokyo).
 **Verified HEAD:** `fa790ac9cd403ead8138b353b2ee4fcd840d3c65`.
 **Final design approval:** 2026-10-08 (Asia/Tokyo). The user approved the recommended R1/R2/R3/R5 policies after approving single Tilia-owned Map construction, and requested a coherent implementation-ready plan. R4's private Leaflet access proposal is withdrawn. This approval covers the architecture/document alignment and bounded implementation specified here; it does not authorize new generic capabilities or unrelated changes. The current task edits this plan only. A material unresolved contradiction must be reported rather than marked complete.

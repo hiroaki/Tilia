@@ -45,6 +45,12 @@ Current smoke coverage includes:
 - Viewer dropzone
 - Embed sample boot
 
+- Public factory destroy/recreate on the same container (SVG and Canvas)
+- Native editor point drag/rectangle capture and pending Save Copy at destroy
+- Route/remote GPX cancellation, pinned EXIF late settlement, Photo preview/styles and export URL/timer cleanup
+
+The Phase 4B–4H pages retain internal composition injection for isolated foundation contracts; they do not demonstrate supported external-Map construction. Application-lifecycle scenarios and the Phase 4J page exercise the public factory. Listener counters distinguish Tilia/editor handlers from Leaflet’s shared document pointer detection and unrelated page owners.
+
 
 ## Local Server
 
@@ -66,3 +72,4 @@ http://localhost:8010/samples/viewer/index.html
 ## Practical Scope
 
 At the current alpha stage, the goal is broad regression coverage over the main user flows rather than deep specification locking. When adding tests, prefer checks that confirm a whole flow still works over brittle assertions tied to incidental UI details.
+The internal `src/photo/infer-location.js` offline `inferPhotoLocationFromGpx` helper accepts canonical GPX documents and is retained with `phase-4h-inference` regressions. It is a pure semantic utility, not a mutable-entry compatibility bridge or a public root-barrel export. `createBaseMap` remains a separate standalone utility; tests use its base-layer manager directly.

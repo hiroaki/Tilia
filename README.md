@@ -44,9 +44,25 @@ http://localhost:8010/samples/
 ```
 
 
-The Phase 4H viewer supports GPX file import, logical tracks/routes/waypoints, visibility/style controls and semantic selection popups/highlights, alongside JPEG import and guarded Photo previews. Timestamp-only Photos can save a one-time location estimate from the current GPX timeline; GPX changes or deletion leave that estimate unchanged. Per-Photo `auto` / `local` / `utc` settings and explicit `recomputeDerived` use fresh evidence when requested. URL/drop/elevation, global defaults and custom offsets remain in 4I; external editing plugins remain in 4J. Unmigrated features listed below remain disabled. See the [Phase 4H report](plugin-architecture/phase-4/PHASE-4H-IMPLEMENTATION-REPORT.md) for implementation and verification results.
+The viewer supports GPX tracks/routes/waypoints, JPEG Photos, semantic selection, popups/highlights, file/URL/drop input, elevation and settings. Optional export, route search, Track Editor and Milestone plugins use the same guarded lifecycle. Photo location inference is saved once; later GPX changes do not rewrite it. Track Editor drafts remain independent of their source and Save Copy creates a new entry.
 
 ## Usage
+
+### Application lifetime
+
+`createDefaultTiliaApp(container, options)` is the sole application factory. It creates and owns a distinct Map. Await `app.ready` before loading data. On SPA unmount, call `await app.destroy()`; ordinary repeated calls share the same outcome, including failure. The old app becomes unusable immediately, its Map is removed last, and the existing container and unrelated page resources survive. After successful cleanup, construct a new app on the same container.
+
+```js
+const app = createDefaultTiliaApp("map", {
+  plugins: ["tilia-gpx-domain", "tilia-gpx-renderer", "tilia-gpx-input"],
+});
+await app.ready;
+await app.load(file);
+// Host unmount:
+await app.destroy();
+```
+
+`app.map` is borrowed access during app life. Map-attached external layers end with the Map; unrelated timers/listeners remain their creator's responsibility. External Map injection is not supported. See [API](docs/API.md) and [plugin operations](docs/PLUGIN-OPERATIONS.md) for errors, cleanup and async limits.
 
 ### Leaflet setup
 
@@ -169,7 +185,7 @@ External dependencies are loaded from CDN via an importmap — an internet conne
 
 Tilia runs entirely in the browser and does not sandbox remote code or content.
 
-- Third-party plugins loaded via `app.use("plugin-id")` or a custom `pluginLoader` execute as normal page JavaScript. Only load plugins you trust.
+- Third-party plugins loaded via `app.use("plugin-id")` or an explicit lazy catalog entry execute as normal page JavaScript. Only load plugins you trust.
 - `tilia-url-import` plugin fetches remote GPX data over HTTP/HTTPS and still depends on the target server's CORS policy. Treat remote URLs as untrusted input and expect failures.
 - CDN-hosted dependencies are part of the runtime trust boundary. Pin versions deliberately and review changes before updating them.
 

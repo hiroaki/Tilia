@@ -1,161 +1,47 @@
-# Plugin Operations
+# Plugin operations
 
-This note documents the current plugin contract as implemented today. It is intentionally narrow: the goal is to make plugin installation, dependency order, and dynamic loading predictable for future plugin work without introducing a new manifest system.
+[日本語](PLUGIN-OPERATIONS.ja.md) · [API](API.md)
 
-## Scope
+## Installation
 
-This document describes the current behaviour of:
-
-- `app.use()` / `app.unuse()`
-- startup installation through `createDefaultTiliaApp(..., { plugins })`
-- `requires` handling
-- built-in vs third-party plugin IDs
-- dynamic loading through `pluginUrls` and `pluginLoader`
-- stylesheet registration through built-in UI styles and plugin-declared stylesheets
-
-It does **not** describe future manifest auto-resolution, selective enablement, or plugin sandboxing. Those remain out of scope for the current runtime.
-
-## Current model
-
-Tilia has a single plugin lifecycle path:
-
-- startup `plugins: [...]` is convenience sugar only
-- each startup entry is normalized, then installed by calling `app.use(...)` in array order
-- `app.use(...)` is the source of truth for installation, duplicate detection, dependency checks, and teardown bookkeeping
-
-This means plugin startup order is explicit and manual.
-
-## Plugin IDs and ownership
-
-Plugin IDs must follow these rules:
-
-- IDs must be `lower-kebab-case`
-- the `tilia-` namespace is reserved for built-in plugins
-- third-party plugins must include a prefix and at least one hyphen, for example `x-milestone` or `acme-heatmap`
-
-Built-in plugins are resolved from the built-in registry first. If a string ID is not built-in, Tilia treats it as a dynamically loaded third-party plugin. Current examples include `x-gsi-base-maps` and `x-opentopomap-base-maps`.
-
-## `requires` semantics
-
-`requires` is a validation list, not a resolver.
-
-- a plugin may declare `requires: ["tilia-panel"]` when its primary UI needs the panel
-- when that plugin is installed, Tilia checks whether those plugin IDs are already installed
-- if any required plugin is missing, installation fails immediately
-- Tilia does not auto-install missing dependencies
-- Tilia does not reorder startup plugins to satisfy dependencies
-
-Implication: callers must install plugins in the correct order themselves.
-
-Optional status reporting through `app.setStatus()` does not require declaring `tilia-status`.
-Without a status provider it is a no-op; if one is installed later, subsequent messages are displayed.
-
-Recommended startup pattern:
+Plugin metadata is `{id, requires, load}` in an explicit lazy catalog. `load` returns an implementation/default module whose `id` matches metadata. Catalog metadata is authoritative for hard dependencies. Built-in IDs use `tilia-`; external IDs use a valid vendor/`x-` prefix. A catalog can extend `builtins` when constructing the public factory. There is no convention URL resolver, pluginUrls/pluginLoader option or migration allowlist.
 
 ```js
-createDefaultTiliaApp("map", {
-  plugins: [
-    "tilia-panel",
-    "tilia-status",
-    "tilia-layers",
-  ],
-});
+const plugin = (await import("../plugins/x-milestone/loader.js")).default;
+await app.use(plugin, { enabled: true });
+await app.unuse(plugin.id);
 ```
 
-Recommended manual pattern:
+Setup receives guarded PluginContext, not the app. Hard dependencies belong in `requires`; services are explicit typed registrations. Setup returns only undefined, a cleanup function or `{dispose}`. Registrations are staged/atomic, and failure rolls back owned effects. Never return service APIs or descriptor stylesheets; lease styles with `context.styles.use`. `afterCommit` callbacks return void, run only after commit and must own any request/resources they start.
+
+## Owned resources
 
 ```js
-await app.use("tilia-panel");
-await app.use("tilia-status");
-await app.use("tilia-layers");
-```
-
-## Dynamic loading contract
-
-When `app.use("plugin-id")` receives a string ID that is not built-in, Tilia resolves it through the plugin loader.
-
-Default behaviour:
-
-- load `plugins/<plugin-id>/loader.js` relative to the application
-- import it as a normal ES module
-
-Customisation points:
-
-- `pluginUrls`: override specific plugin paths
-- `pluginLoader`: replace the whole loading strategy
-
-Accepted module shapes:
-
-- a plugin object exported as the module itself
-- a `default` export containing the plugin object
-- any named export whose `.id` matches the requested plugin ID
-- otherwise, the first exported plugin-shaped object found in the module
-
-If no valid plugin object is found, installation fails.
-
-## Stylesheet contract
-
-Tilia now distinguishes JavaScript plugin loading from stylesheet ownership.
-
-- built-in UI styles are injected automatically by the runtime once per document
-- a third-party plugin may declare `stylesheets` on its plugin object
-- each stylesheet is registered before `setup()` runs
-- stylesheet entries may be either strings or `{ href, id }` objects
-
-Recommended pattern for third-party plugins:
-
-```js
-const plugin = {
-  id: "x-my-plugin",
-  stylesheets: [
-    new URL("./my-plugin.css", import.meta.url).href,
-  ],
-  setup(app) {
-    // ...
+export default {
+  id: "x-example",
+  requires: [],
+  setup(context) {
+    const timer = setTimeout(context.scope.guard(() => {
+      // guarded operational work
+    }), 1000);
+    context.scope.defer(() => clearTimeout(timer), {
+      label: "example-timer", retry: "safe",
+    });
+    context.map.listen("click", () => {});
   },
 };
 ```
 
-Because the runtime receives only the plugin object, relative stylesheet paths should be resolved by the plugin module itself.
+Use MapFacade layer/control/listener/pane handles, assigned UI mounts, styles leases and Scope children. Reserve cleanup before physical acquisition. Capture dispose/unsubscribe/release handles so cleanup does not look up operational services or acquire replacements. Mark retry safe only when partial disposal is actually safe. Cleanup is best-effort and successful records never repeat.
 
-## UI surface contract
+Closing revokes the tree/aborts before cancellation, explicitly awaitable work, reverse children, setup-return cleanup and LIFO local cleanup. One in-flight completion is reserved before notifications. A child close initiated during the same parent shutdown is joined; an earlier child residual remains eligible for accepted safe parent cleanup, and explicit safe retry is separate. A disposer must not await its own Scope completion.
 
-Tilia also owns a small set of shared UI surfaces above the map container.
+`scope.track` defaults to non-awaitable. Resource-specific required preparation/disposer handoffs are awaited; plain parsing and approved detached acquisitions remain observed/guarded without a blanket barrier. Abort is authority/cancellation notification, not proof of physical cleanup. Never recreate effects after application operational fencing even if a retained provider Scope is physically alive. Guard callbacks and final commits; captured cleanup remains callable.
 
-- `panel`: for persistent side or bottom panels such as `tilia-panel`
-- `floating`: for transient overlay UI such as the URL import form
+Do not call app/Runtime use/unuse/destroy from setup or cleanup. Identifiable synchronous calls reject; async provenance/self-await cannot generally be detected. Borrowed advanced Map access transfers no ownership and does not expose another renderer's private layers. Map-attached effects end with app destruction; unrelated page work needs its own cleanup.
 
-Plugin authors should mount this kind of UI through `app.ui.mountSurface(...)` or `app.ui.surfaceManager`, not by appending directly to `map.getContainer()`.
+## Product lifetimes
 
-This keeps stacking and future layout arbitration in the core runtime instead of scattering `z-index` ownership across plugins.
+Entry-bound Milestone presentation withdraws synchronously at logical deletion and joins cleanup before final removed notification. Editor owns an independent draft/session: source deletion/modification or renderer uninstall does not destroy it or block Save Copy; Cancel never recreates a source. Temporary suppression is distinct from persistent visibility. Vendor interaction helpers retain the approved narrow placement exception; vendor internals are unchanged.
 
-## Runtime expectations for plugin authors
-
-Plugin authors should assume:
-
-- plugin code runs with normal page JavaScript privileges
-- no sandbox or capability isolation exists
-- dependency order must be satisfied before installation starts
-- shared cross-plugin coordination happens through `app.provide(...)` and `app.services[...]`
-- built-in UI plugins own their shared stylesheet through the core runtime rather than viewer HTML
-- UI plugins may use `position`, `priority`, and `edgePolicy` options to negotiate control placement without hard-coding page-level CSS
-- panel-like and floating overlay UI should use managed surfaces rather than directly mutating the map container DOM
-- when a panel competes with controls for the same edge, `priority: "high"` allows the control to keep that corner and pushes the panel instead
-- teardown is optional but recommended via `destroy()` or a returned cleanup function
-
-If a plugin depends on another plugin's UI or service surface, prefer documenting that dependency in both places:
-
-- `requires` for runtime validation
-- plugin docs for the human-facing installation order
-
-## Current non-goals
-
-The current runtime does **not** provide:
-
-- manifest-based dependency solving
-- automatic topological sort of plugin startup order
-- selective enablement based on capability negotiation
-- sandboxing for remote plugins
-- compatibility promises for arbitrary legacy plugin loaders
-
-Those items should be treated as future design work, not as implied behaviour of the current API.
+Cleanup faults quarantine plugin IDs where required, prevent successful reinstall, and remain residual evidence. Application destruction is terminal; blocked prerequisites stay unavailable, leases are not forced free, independent cleanup continues and Map.remove is attempted last. No automatic recovery or new public diagnostics/retry capability is provided.

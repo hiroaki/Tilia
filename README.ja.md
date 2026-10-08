@@ -43,7 +43,7 @@ http://localhost:8010/samples/
 ```
 
 
-Phase 4G の現行 viewer は JPEG Photo の入力・GPS marker・選択 popup/highlight・プレビュー・写真ごとの `auto` / `local` / `utc` 設定に対応しています。撮影時刻のみの写真はレイヤー一覧から選択でき、位置は推定しません。GPX の表示と Photo 位置推定は 4H、URL/drop/elevation・global default/custom offset は 4I、外部編集プラグインは 4J で復旧予定です。下記の未移行機能は現在の composition では無効です。実装と検証結果は [Phase 4G report](plugin-architecture/phase-4/PHASE-4G-IMPLEMENTATION-REPORT.md) を参照してください。
+viewer は GPX の track/route/waypoint、JPEG Photo、選択・popup/highlight、file/URL/drop 入力、elevation、settings に対応します。export、route search、Track Editor、Milestone は任意のプラグインです。Photo の位置推定は保存時の結果を維持し、後の GPX 変更では書き換えません。Track Editor の draft は元 entry から独立し、Save Copy は新しい entry を作成します。
 
 ## 使い方
 
@@ -166,7 +166,7 @@ Tilia を利用するには、Leaflet の JavaScript と CSS をページに読�
 
 Tilia は完全にブラウザ上で動作します。また、リモートのコードやコンテンツをサンドボックス化しません。
 
-- `app.use("plugin-id")` またはカスタムの `pluginLoader` を通じて読み込まれるサードパーティ製プラグインは、通常のページ JavaScript として実行されます。信頼できるプラグインのみを読み込んでください。
+- `app.use("plugin-id")` または明示的な lazy catalog entry を通じて読み込まれるサードパーティ製プラグインは、通常のページ JavaScript として実行されます。信頼できるプラグインのみを読み込んでください。
 - `tilia-url-import` プラグインは HTTP/HTTPS 経由でリモートの GPX データを取得しますが、対象サーバーの CORS ポリシーにも依存します。リモート URL は信頼されていない入力として扱い、失敗する可能性があることを前提にしてください。
 - CDN でホストされている依存関係は、ランタイムの信頼境界の一部です。バージョンは意図的に固定し、更新前に変更内容を確認してください。
 
@@ -188,3 +188,19 @@ Tilia は完全にブラウザ上で動作します。また、リモートの�
 ## ライセンス
 
 このプロジェクトは Zero-Clause BSD ライセンス（0BSD）の下で提供されています。詳細は [LICENSE](LICENSE) ファイルを参照してください。
+
+
+## アプリケーションの終了
+
+唯一のアプリ factory は `createDefaultTiliaApp(container, options)` です。Tilia が固有の Map を作成・所有します。`app.ready` の後に load し、SPA の unmount では `await app.destroy()` を呼びます。通常の繰り返し呼び出しは、失敗を含め同じ Promise／結果を返します。
+
+```js
+const app = createDefaultTiliaApp("map", {
+  plugins: ["tilia-gpx-domain", "tilia-gpx-renderer", "tilia-gpx-input"],
+});
+await app.ready;
+await app.load(file);
+await app.destroy();
+```
+
+終了開始時に旧 app の操作は不可となり、所有 Map は最後に削除されます。既存 container と無関係なページ資源は保持され、後始末の成功後は同じ container に別の app／Map を作成できます。`app.map` は借用参照であり、Map に追加した layer もその Map とともに終了します。外部 Map の注入は非対応です。外部 timer/global listener は作成者が管理してください。詳細は [API](docs/API.ja.md)／[プラグイン運用](docs/PLUGIN-OPERATIONS.ja.md) を参照してください。

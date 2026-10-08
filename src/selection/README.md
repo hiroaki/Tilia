@@ -59,27 +59,8 @@ and clears return rejected Promises. Existing unsubscribe handles remain safe.
 
 Semantic foundation disposal retains its entry/residual precondition. A rejected
 preflight leaves selection active; valid disposal terminates it before root
-cleanup. Root abort is an idempotent termination fallback. Public `app.destroy()`
-and application-wide teardown remain Phase 4K.
+cleanup. Root abort is an idempotent termination fallback. Application destroy terminates selection without a final event, fences queued/cached requests immediately, and preserves ordered entry presentation/provider cleanup.
 
-## Phase 4E audit
+## Current boundary
 
-Selection Hub source/tests are deleted. Selection modules transitively import no
-browser, renderer, popup, Interaction Hub, or domain implementation. There is no
-GPX/Photo branching in the generic store. Contract tests enforce these boundaries.
-
-Remaining migration-symbol matches are intentionally classified as follows:
-
-| Location | Classification / restoration phase |
-|---|---|
-| Base-map catalog `selectedLayer` | Active target map infrastructure, separate from semantic selection |
-| GPX renderer and popup adapters | Active 4H domain/presentation path, outside generic selection |
-| Legacy overlay and Interaction Hub | Source and obsolete authority tests deleted in 4H |
-| Legacy input-processing helper | Inactive legacy input path, input restoration / final purge |
-| Full layers/elevation UX | Minimum layers host active; elevation and extended UX deferred to 4I |
-| Disabled export/route/editor/milestone integrations | Inactive legacy, 4J |
-| Legacy unit mocks and product smoke fixtures | Preserved tests for their scheduled migration |
-| Architecture plans and this note | Documentation |
-
-The production allowlist remains the accepted six-plugin set. Popup restoration,
-renderer generation/interaction infrastructure, and editor migration are absent.
+Selection modules import no browser, renderer, popup, legacy hub or domain implementation. The generic store contains no GPX/Photo branching. Domain providers issue candidates and resolve immutable semantic references; presenters own popup/highlight resources. The application operational fence is distinct from physical retained-provider liveness. Existing unsubscribe handles remain safe.

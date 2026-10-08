@@ -66,3 +66,11 @@ http://localhost:8010/samples/viewer/index.html
 ## 現段階での考え方
 
 現状はアルファ段階なので、細かい仕様を固定することよりも、主要なユーザーフローの回帰を広く検知できることを優先します。テスト追加時は、些細な UI 詳細に強く依存するものより、ひとまとまりのフローが壊れていないことを確認するものを優先してください。
+
+- 公開 factory の destroy／同一 container 再作成（SVG／Canvas）
+- editor の native point drag／矩形 capture／Save Copy 待機中の終了
+- Route／remote GPX cancellation、pinned EXIF 遅延 settlement、Photo preview／styles、export URL／timer cleanup
+
+Phase 4B–4H のページは基盤契約の隔離検証のため internal composition injection を保持します。外部 Map の公開 construction API ではありません。application-lifecycle と Phase 4J は公開 factory を使用します。listener 計測では app/editor handler と Leaflet の document 共通 pointer detection／無関係な page owner を区別します。
+
+internal `src/photo/infer-location.js` の offline `inferPhotoLocationFromGpx` は canonical GPX document を受け取り、`phase-4h-inference` regression とともに保持しています。mutable entry の互換 bridge や公開 root-barrel export ではなく pure semantic utility です。`createBaseMap` は独立 utility として保持し、base-layer manager は直接テストします。

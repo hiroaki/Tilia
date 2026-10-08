@@ -1,162 +1,42 @@
-# Plugin 運用仕様
+# プラグイン運用
 
-この文書は、現在の実装に基づく plugin 運用契約を短く固定するためのものです。manifest 自動解決のような新しい仕組みを提案するものではなく、次に plugin を増やすときにインストール順序・依存関係・dynamic loading の前提で迷わないようにすることを目的としています。
+[English](PLUGIN-OPERATIONS.md) · [API](API.ja.md)
 
-## 対象範囲
+## 導入
 
-この文書が扱うのは、現在の以下の挙動です。
-
-- `app.use()` / `app.unuse()`
-- `createDefaultTiliaApp(..., { plugins })` による起動時導入
-- `requires` の意味
-- built-in と third-party plugin ID の扱い
-- `pluginUrls` と `pluginLoader` による dynamic loading
-- built-in UI stylesheet と plugin 宣言 stylesheet の登録
-- panel / floating UI surface の使い方
-
-manifest の自動解決、selective enablement、plugin sandboxing は現在のスコープ外です。
-
-## 現在のモデル
-
-Tilia の plugin lifecycle は 1 系統です。
-
-- 起動時の `plugins: [...]` はあくまで記法上の sugar
-- 各エントリは正規化されたうえで、配列順に `app.use(...)` される
-- インストール、重複回避、依存確認、teardown 管理の source of truth は常に `app.use(...)`
-
-つまり、起動時の plugin 順序は明示的かつ手動です。
-
-## Plugin ID と所有境界
-
-plugin ID には次の規則があります。
-
-- ID は `lower-kebab-case`
-- `tilia-` namespace は built-in plugin 専用の予約語
-- third-party plugin は prefix を持ち、少なくとも 1 つハイフンを含む。例: `x-milestone`, `acme-heatmap`
-
-built-in plugin はまず built-in registry から解決されます。文字列 ID が built-in でなければ、Tilia はそれを dynamic loading 対象の third-party plugin として扱います。現在の例として `x-gsi-base-maps` と `x-opentopomap-base-maps` があります。
-
-## `requires` の意味
-
-`requires` は自動解決リストではなく、検証用リストです。
-
-- plugin は主要 UI に panel が必須なら `requires: ["tilia-panel"]` のように依存を宣言できる
-- インストール時に、それらの plugin がすでに導入済みかを確認する
-- 足りないものがあれば、その場でインストールを失敗させる
-- 不足依存を自動導入しない
-- 起動時 plugin 配列を依存関係に合わせて並べ替えない
-
-したがって、呼び出し側が順序を正しく与える必要があります。
-
-`app.setStatus()` による任意のステータス通知では、`tilia-status` を依存宣言する必要はありません。
-ステータスプロバイダーがなければ何もせず、後から導入すると、それ以降の通知が表示されます。
-
-推奨される起動時パターン:
+明示的 lazy catalog の metadata は `{id, requires, load}` です。load の implementation/default module は id が一致する必要があります。hard dependency は catalog metadata が正本です。built-in は `tilia-`、外部は valid vendor／`x-` prefix。factory の `builtins` catalog を拡張するか、import した definition を `app.use` に渡してください。convention resolver、pluginUrls/pluginLoader、migration allowlist はありません。
 
 ```js
-createDefaultTiliaApp("map", {
-  plugins: [
-    "tilia-panel",
-    "tilia-status",
-    "tilia-layers",
-  ],
-});
+const plugin = (await import("../plugins/x-milestone/loader.js")).default;
+await app.use(plugin, { enabled: true });
+await app.unuse(plugin.id);
 ```
 
-推奨される手動導入パターン:
+setup は app ではなく guarded PluginContext を受け取り、undefined／cleanup function／`{dispose}` だけを返します。依存は requires、service は typed registration で明示します。登録は staged/atomic で、失敗は rollback します。service API を setup result で公開しません。styles は `context.styles.use` で lease し、afterCommit は void を返して、開始する request/resource を Scope に所有させます。
+
+## 所有権と後始末
 
 ```js
-await app.use("tilia-panel");
-await app.use("tilia-status");
-await app.use("tilia-layers");
-```
-
-## Dynamic loading の契約
-
-`app.use("plugin-id")` に built-in ではない文字列 ID を渡すと、Tilia は plugin loader を使って解決します。
-
-デフォルト動作:
-
-- `plugins/<plugin-id>/loader.js` をアプリ相対で読み込む
-- 通常の ES module として import する
-
-差し替えポイント:
-
-- `pluginUrls`: 特定 plugin のパスだけ上書きする
-- `pluginLoader`: 読み込み戦略そのものを差し替える
-
-受け付ける module 形状:
-
-- module 自体が plugin object
-- `default` export が plugin object
-- `.id` が要求 ID に一致する named export
-- それ以外では、module 内で最初に見つかった plugin object
-
-有効な plugin object が見つからなければ、インストールは失敗します。
-
-## Stylesheet の契約
-
-Tilia では JavaScript plugin の読み込みと stylesheet の所有を分けて扱います。
-
-- built-in UI stylesheet は runtime が document ごとに 1 回だけ注入する
-- third-party plugin は plugin object に `stylesheets` を宣言できる
-- 各 stylesheet は `setup()` 実行前に登録される
-- stylesheet entry は文字列、または `{ href, id }` オブジェクトを受け付ける
-
-third-party plugin での推奨形:
-
-```js
-const plugin = {
-  id: "x-my-plugin",
-  stylesheets: [
-    new URL("./my-plugin.css", import.meta.url).href,
-  ],
-  setup(app) {
-    // ...
+export default {
+  id: "x-example", requires: [],
+  setup(context) {
+    const timer = setTimeout(context.scope.guard(() => {}), 1000);
+    context.scope.defer(() => clearTimeout(timer), {
+      label: "example-timer", retry: "safe",
+    });
+    context.map.listen("click", () => {});
   },
 };
 ```
 
-runtime が受け取るのは plugin object のみなので、相対 stylesheet パスは plugin module 側で解決してください。
+MapFacade、割り当てられた UI mount、stylesheet lease、Scope child を使用し、物理取得前に cleanup を予約してください。捕捉済み dispose/unsubscribe/release を使い、cleanup 中の operational lookup／新規取得を避けます。部分失敗後も安全な場合だけ retry safe を指定します。成功済み record は繰り返さず、failure 後も独立 cleanup を続けます。
 
-## UI surface の契約
+close は完了 Promise を通知前に予約し、tree の失効・abort → cancellation → 明示的 awaitable work → child 逆順 → setup-return cleanup → local LIFO の順序です。同じ親 shutdown 中に開始した child close は join し、以前からの child residual の親 safe cleanup／明示的 safe retry は維持します。disposer が自身の Scope completion を await することは禁止です。
 
-Tilia は map container の上に共有 UI surface をいくつか持ちます。
+scope.track の既定は非 awaitable。必須 resource preparation/disposer handoff は待機しますが、plain parsing や承認済み detached acquisition は一律待機に変更しません。abort は物理 cleanup の完了証拠ではありません。retained provider Scope が物理的に alive でも app shutdown 後の新規 operation/publication は不可。guard と final commit を確認し、捕捉済み cleanup は呼べるままにします。
 
-- `panel`: `tilia-panel` のような持続的な side / bottom panel 用
-- `floating`: URL import form のような一時的 overlay UI 用
+setup/cleanup から app/Runtime use/unuse/destroy を呼ばないでください。識別可能な同期 call は拒否しますが、任意の await 後の provenance/self-await は一般に検出できません。advanced Map は借用で、他 renderer の private layer へのアクセス権ではありません。Map 上の effect は app とともに終了し、無関係な page work は作成者が管理します。
 
-この種の UI は `map.getContainer()` に直接 `appendChild()` せず、`app.ui.mountSurface(...)` または `app.ui.surfaceManager` を通して mount してください。
+Milestone は entry の logical deletion 時に同期撤去し、final removed 前に cleanup を join します。Editor は source から独立した draft/session を所有し、source 変更・削除や renderer uninstall は Save Copy を妨げません。Cancel は source を復元しません。suppression は persistent visibility を変更せず、vendor helper の承認済み pane 例外・vendor bytes を維持します。
 
-これにより、重なり順と将来の layout 仲裁を plugin ごとの `z-index` ではなく core runtime 側で管理できます。
-
-## Plugin author 向けの実運用前提
-
-plugin author は次を前提にしてください。
-
-- plugin code は通常のページ JavaScript と同じ権限で動く
-- sandbox や capability isolation はない
-- 依存順序はインストール前に満たされている必要がある
-- plugin 間の共有は `app.provide(...)` と `app.services[...]` を使う
-- built-in UI plugin の共通 stylesheet は viewer HTML ではなく core runtime が所有する
-- UI plugin の control 配置は `position`、`priority`、`edgePolicy` で調整し、page-level CSS に依存しない
-- panel / floating overlay は managed surface を使い、map container DOM を直接いじらない
-- panel と control が同じ辺で競合した場合、`priority: "high"` の control は corner を維持し、代わりに panel 側が退避することがある
-- teardown は必須ではないが、`destroy()` または cleanup function の返却を推奨する
-
-ある plugin が別 plugin の UI や service surface に依存する場合は、次の 2 つを両方書くのがよいです。
-
-- `requires` による実行時検証
-- plugin 文書上での人間向け順序説明
-
-## 現在の非目標
-
-現在の runtime は次を提供しません。
-
-- manifest ベースの依存解決
-- 起動時 plugin 順序の自動トポロジカルソート
-- capability negotiation に基づく selective enablement
-- リモート plugin の sandboxing
-- 任意の legacy plugin loader 互換の保証
-
-これらは現行 API の暗黙仕様ではなく、将来の設計課題として扱うべき項目です。
+failure は quarantine／residual として報告され、成功 reinstall は保証しません。app は終端となり、必要な prerequisite は unavailable のまま保守的に保持し、lease の強制解放・自動回復は行いません。独立 cleanup 後の Map.remove が最後の試行です。新しい公開 diagnostic/retry API はありません。

@@ -1,481 +1,54 @@
-**[Japanese 日本語版 API リファレンス](API.ja.md)**
+# Tilia API
 
-# Tilia API Reference
+[日本語](API.ja.md) · [Plugin operations](PLUGIN-OPERATIONS.md) · [Architecture](../plugin-architecture/ARCHITECTURE.md)
 
-The primary entry point for most use cases is [`createDefaultTiliaApp()`](#createdefaulttiliaappcontainer-options).
-
-
-## Factory Functions
-
-### `createDefaultTiliaApp(container, options?)`
-
-Creates a Leaflet base map and attaches a Tilia app runtime in one step. This is the recommended entry point for the majority of use cases.
-
-**Parameters**
-
-| Name | Type | Description |
-|------|------|-------------|
-| `container` | `string \| HTMLElement` | Map container element or its `id` |
-| `options` | `object?` | See below |
-
-**Options**
-
-| Name | Type | Description |
-|------|------|-------------|
-| `plugins` | `Array?` | Plugin list to install at startup (string IDs, plugin objects, or `[plugin, options]` tuples) |
-| `pluginOptions` | `object?` | Per-plugin option map keyed by plugin ID. Built-in UI plugins accept options such as `position` and `priority` here. |
-| `pluginUrls` | `object?` | Override loader paths for specific IDs: `{ "x-my-plugin": "./path/loader.js" }` |
-| `pluginLoader` | `function?` | Fully custom async loader: `async (pluginId) => pluginModule` |
-| `baseMapOptions` | `object?` | Passed to `createBaseMap()` (see below) |
-| `defaultPhotoTimeMode` | `"auto" \| "local" \| "utc" \| string` | Default EXIF timestamp interpretation mode for newly loaded photos (default: `"auto"`). Fixed offsets such as `"+09:00"` are supported. |
-
-**Returns** a [Tilia app instance](#app-instance-api).
-
-**Example**
+## Construction and ownership
 
 ```js
-import { createDefaultTiliaApp } from "./src/index.js";
-
+import { createDefaultTiliaApp, builtins } from "../src/index.js";
 const app = createDefaultTiliaApp("map", {
-  plugins: [
-    "tilia-panel",
-    "tilia-status",
-    "tilia-base-maps-control",
-    "tilia-layers",
-    "x-gsi-base-maps",
-  ],
+  plugins: ["tilia-gpx-input", "tilia-gpx-renderer", "tilia-gpx-ui"],
+  pluginOptions: {},
 });
-
-// Wait for startup plugins to finish (only needed for advanced chaining)
-await app.whenReady();
-app.load(myGpxFile);
+await app.ready;
 ```
 
-### `createBaseMap(container, options?)`
+The container is an existing element or ID. Give it a size and load Leaflet CSS/import-map dependencies as in README. Every public app creates/owns one Map; `options.map` rejects. There is no external-Map factory or ownership switch. `baseMapOptions` configures map options, center, zoom, tile URL/options, base definitions and selection; app base-layer overrides merge by ID. `plugins` accepts IDs, `[definitionOrId, options]` or `{plugin, options}`; `pluginOptions` supplies options by ID. `builtins` accepts an explicit lazy metadata catalog (default: repository catalog). Optional implementations resolve only when requested. JPEG input additionally requires the pinned exifr import mapping.
 
-Initializes a Leaflet map with an OpenStreetMap tile layer. Called internally by `createDefaultTiliaApp()`, but available for advanced setups.
+## Application methods
 
-**Options**
+| API | Behavior |
+|---|---|
+| `ready`, `whenReady()` | Same startup Promise, resolving to app after configured plugins. Ready failure automatically initiates cleanup |
+| `use(definitionOrId, options)` | Serialized guarded installation; returns opaque `{id}`. Hard dependencies install first |
+| `unuse(idOrHandle)` | Dependents/provider leases can block removal; safe residual retry follows existing ownership rules |
+| `hasPlugin(id)`, `listPlugins()` | Discovery of active plugins; false/frozen empty array once destruction starts |
+| `load(input)` | Waits for ready and uses typed input dispatch. Preserves dispatch errors and actual handler settlement |
+| `destroy()` | Asynchronous, terminal, ordinary idempotent shared completion; no public retry/reinitialize |
+| `map`, `getMap()` | Borrowed live app-owned Leaflet Map |
+| `getBaseLayer()`, `getBaseMap()` | Current base layer / borrowed Map bundle |
+| `entries`, `domains`, `selection`, `rendering` | Guarded immutable capability facades |
 
-| Name | Type | Default | Description |
-|------|------|---------|-------------|
-| `center` | `[lat, lng]` | `[35.681236, 139.767125]` | Initial map center (Tokyo Station) |
-| `zoom` | `number` | `10` | Initial zoom level |
-| `tileUrl` | `string` | `https://tile.openstreetmap.org/{z}/{x}/{y}.png` | Custom tile URL template |
-| `tileOptions` | `object` | — | Leaflet `TileLayer` options (e.g., `attribution`, `maxZoom`) |
-| `baseLayers` | `Array<object>` | OSM only | Base layer definition list. Each entry must include `id` and `url`; may also define `label`, `provider`, `category`, `options`, `attributionLabel`, `isDefault`, and `visibleInSelector` |
-| `selectedBaseLayerId` | `string` | first default entry | Initial active base layer ID |
-| `baseLayerOverrides` | `object` | — | Per-ID override map applied after definitions are loaded: `{ [id]: { label, visibleInSelector, options, ... } }` |
-| `mapOptions` | `object` | — | Leaflet `Map` constructor options |
+Destroy fences operations/cached capabilities synchronously, aborts pending work, removes entries while exact providers and required dependencies remain, withdraws UI/resources, and calls public Map.remove last. Caller container/unrelated page resources survive; Map-attached effects end with the Map. Never independently remove the borrowed Map or use an old Map/app after destruction. After successful cleanup a fresh public app creates a distinct Map on the same container. Cleanup failure leaves the app terminal and does not promise immediate container reuse.
 
-**Returns** `{ map: L.Map, tileLayer: L.TileLayer, baseLayer, baseLayers, baseLayerManager }`
+Ready never waits for cleanup and destroy never waits for ready. The initiating cause wins: external destroy rejects pending ready with `APP_DESTROYED`; startup failure preserves its original error. Settled ready is unchanged. Leaflet retains shared document pointer detection independently of any one Map; destroy removes app/editor handlers while preserving that page-wide library infrastructure. Required resource handoffs can keep destroy pending; resource-free noncooperative parsing, detached setup and approved detached renderer acquisition do not gain a universal wait/cancel guarantee. Late failures remain internally accounted for.
 
-### `createTiliaApp({ map, ...options })`
+## Semantic and display APIs
 
-Low-level factory for callers that already own a Leaflet map instance. Accepts the same options as `createDefaultTiliaApp()` (except `baseMapOptions`), plus:
+| Facade | Methods |
+|---|---|
+| `entries` | `list`, `get`, `remove`, `clear`, `setVisible`, `subscribe`; plugin facade additionally binds owned child presentation lifetime |
+| `domains.gpx` | `create`, `get`, `replaceData`, `updatePoint`, category/track visibility, style preset, recompute; document/extent/distance/elevation/nearest queries; `selection` |
+| `domains.photo` | `create`, `get`, `replaceData`, requested time mode/recompute, guarded `getPreview`; `selection` |
+| `selection` | `getCurrent`, `request(candidate)`, `clear`, `subscribe` |
+| `rendering` | `getStatus`, `list`, `subscribe`, `retry` while live; approved temporary suppression capability |
 
-| Name | Type | Description |
-|------|------|-------------|
-| `map` | `L.Map` | **Required.** Existing Leaflet map to attach to |
-| `tileLayer` | `L.TileLayer?` | Base tile layer to associate with this app |
-| `baseLayer` | `object?` | Current base layer definition associated with this app |
-| `baseLayers` | `Array<object>?` | Base layer definitions to register into the runtime manager |
-| `selectedBaseLayerId` | `string?` | Initial active base layer ID when registering definitions |
-| `baseLayerOverrides` | `object?` | Per-ID override map applied to built-in and plugin-registered base layer definitions |
+Entries expose immutable `{id,domain,visible}`; domain views include revision/snapshot. Mutation commands require their documented `expectedRevision`. GPX data is canonical tracks/segments/points, routes and waypoints. Generic core has no mutable sources/layers. Selection candidates come from the domain's guarded selection facade; raw renderer layers are private. Closing a popup does not clear semantic selection. Deletion preserves presentation/generation/provider/lease/final-notification ordering; clear is best-effort reverse insertion with a final batch notification.
 
+Track Editor maintains an independent draft. Source mutation/deletion and renderer uninstall do not terminate it or block Save Copy. Cancel never restores a source. Temporary suppression does not overwrite persistent preferences. App/editor disposal does terminate its session.
 
-## App Instance API
+## Errors and extension boundary
 
-All properties and methods below are available on the object returned by `createDefaultTiliaApp()` or `createTiliaApp()`.
+`APP_DESTROYED` identifies a dead app boundary; `APP_CLEANUP_FAILED` reports destruction failures with original causes in `errors` and frozen contextual summaries in `details.failures`. Existing PluginError/SemanticError/InputDispatchError/RenderingError codes and commit information remain; in-flight/cached failures are not all converted to app errors. Ordinary repeated destroy retains the same rejected outcome without implicitly retrying. Identifiable synchronous setup/cleanup app lifecycle calls reject `PLUGIN_LIFECYCLE_REENTRANT`, even when destroy is pending. Asynchronous self-await cannot generally be detected and is prohibited.
 
-### Plugin lifecycle
-
-#### `app.use(pluginOrId, options?) → Promise<pluginApi>`
-
-Installs a plugin. The first argument may be:
-
-- A **string ID** — resolves a built-in, or dynamically imports from `plugins/<id>/loader.js`
-- A **plugin object** with `{ id, setup }` (see [Authoring Plugins](#authoring-plugins))
-
-Calling `use()` on an already-installed plugin returns the existing API without reinstalling.
-
-#### `app.unuse(pluginOrId) → Promise<pluginApi>`
-
-Removes a plugin and calls its `destroy()` method if defined. Returns the plugin's API object.
-
-#### `app.ready → Promise<app>`
-
-Resolves once all plugins listed in `options.plugins` have finished installing.
-
-#### `app.whenReady() → Promise<app>`
-
-Returns `app.ready`. Convenient for chaining after startup:
-
-```js
-const app = createDefaultTiliaApp("map", { plugins: [...] });
-app.whenReady().then(() => app.load(myFile));
-```
-
-### Map access
-
-| Member | Returns | Description |
-|--------|---------|-------------|
-| `app.map` | `L.Map` | The underlying Leaflet map instance |
-| `app.baseMaps` | `object` | Base layer catalog facade for listing, registering, and selecting base maps |
-| `getMap()` | `L.Map` | Same as `app.map` |
-| `getBaseLayer()` | `L.TileLayer` | The base tile layer |
-| `getBaseMap()` | `{ map, tileLayer }` | Both |
-
-#### `app.baseMaps`
-
-The base-map service is available directly as `app.baseMaps` and is also published to other plugins as `app.services["tilia-base-maps"]`.
-
-| Member | Returns | Description |
-|--------|---------|-------------|
-| `list()` | `Array<object>` | All registered base layer definitions |
-| `listVisible()` | `Array<object>` | Definitions whose `visibleInSelector !== false` |
-| `get(id)` | `object \| null` | One definition by ID |
-| `has(id)` | `boolean` | Whether a definition is registered |
-| `getCurrent()` | `object \| null` | Current base layer definition |
-| `getCurrentLayer()` | `L.TileLayer \| null` | Current active Leaflet tile layer |
-| `register(definition)` | `object` | Register one base layer definition |
-| `registerMany(definitions)` | `Array<object>` | Register multiple base layer definitions |
-| `select(id)` | `{ definition, layer }` | Switch the active base layer |
-
-### Data loading
-
-#### `app.load(input) → Promise`
-
-Processes one GPX file or JPEG image. `input` may be a `File`, a URL string, or an equivalent object accepted by the registered input handlers.
-
-**GPX files** (`.gpx`):
-- Preserves `<trk>` / `<trkseg>` / `<trkpt>` structure in the loaded source
-- Draws one logical polyline per `<trk>`; segments within that track are intentionally connected in Track mode
-- Preserves each `<rte>` independently with its ordered `<rtept>` points
-- Draws each GPX route with two or more points as a dashed polyline and places a distinct marker at every route point
-- Places a marker for each waypoint (`<wpt>` element)
-- Parses elevation (`<ele>`) and timestamp (`<time>`) per track point
-- Provides independent global visibility controls for Tracks, Routes, and Waypoints in the Layers panel
-- Automatically fits the map view to the loaded layer
-- As provisional resource limits, the current Tilia XML importer accepts up to 20 `<rte>` elements per file and up to 100 `<rtept>` elements per `<rte>`. These are Tilia limits, not GPX specification limits.
-
-After normalization, a GPX source always has `tracks`, `routes`, and `waypoints` arrays:
-
-```js
-{
-  type: "gpx",
-  name: "example.gpx",
-  tracks: [/* <trk> values */],
-  routes: [{
-    name: "Planned path",
-    points: [{ lat: 35.0, lon: 135.0, name: "Start" }],
-  }],
-  waypoints: [/* <wpt> values */],
-}
-```
-
-In a programmatic GPX source, each of the `tracks`, `routes`, and `waypoints` arrays may be omitted. Normalization supplies an empty array for each omitted field.
-
-The currently supported GPX route fields are `name` on `<rte>`, and latitude, longitude, and `name` on `<rtept>`.
-
-**JPEG files** (`.jpg`, `.jpeg`):
-- Location is determined in this order:
-  1. **EXIF GPS** — used directly when present
-  2. **GPX timestamp interpolation** — when EXIF GPS is absent, the EXIF capture timestamp is interpolated against the timeline of all loaded GPX tracks
-  3. **Error** — thrown when neither GPS nor a usable timestamp is available in EXIF
-- The timestamp is interpreted according to the current photo time mode (`"auto"`, `"local"`, `"utc"`, or a fixed offset such as `"+09:00"`)
-
-### Plugin utilities
-
-#### `app.subscribeInteractions(handlers) → unsubscribeFn`
-
-Subscribe to events triggered when GPX layers and photo markers are added to the map. Called once for each existing entry when first subscribing, then for each new entry as it is loaded. Returns an unsubscribe function.
-
-```js
-const unsub = app.subscribeInteractions({
-  // Called for each logical GPX <trk> layer
-  onTrackLayer({ entry, layer, trackIndex }) { /* layer is a Leaflet Polyline */ },
-
-  // Called for each GPX waypoint marker
-  onWaypointLayer({ entry, layer, waypoint }) { /* layer is a Leaflet Marker */ },
-
-  // Called for each photo marker
-  onPhotoMarker({ entry, layer }) { /* layer is a Leaflet Marker */ },
-});
-
-// Unsubscribe when done:
-unsub();
-```
-
-GPX route polylines and route-point markers are not currently exposed through `subscribeInteractions()`. This API remains track-, waypoint-, and photo-specific.
-
-#### `app.provide(name, service)`
-
-Registers a named shared service so other plugins can access it via `app.services[name]`.
-
-#### `app.addRefreshHandler(fn) → unsubscribeFn`
-
-Registers a callback that fires whenever `app.refreshView()` is called (e.g., after a layer is added or removed). Returns an unsubscribe function.
-
-#### `app.refreshView()`
-
-Triggers all registered refresh handlers.
-
-#### `app.setStatus(text)`
-
-Optionally reports status through `tilia-status`. When no status provider is installed, the call safely has no visible effect; installing one later enables subsequent messages.
-
-#### `app.setError(error)`
-
-Records an error into the app state (`app.state.lastError`).
-
-### State and services
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `app.state` | `object` | Runtime state: `entries` (loaded layers), `sources`, `layers`, `lastError` |
-| `app.services` | `object` | Shared services published by plugins, keyed by plugin ID |
-| `app.plugins` | `Map` | Registry of installed plugins, keyed by plugin ID |
-
-
-## Built-In Plugins
-
-Install by passing a string ID to `app.use()`, or by listing in `options.plugins`.
-
-| ID | Requires | Description |
-|----|----------|-------------|
-| `tilia-panel` | — | Side panel container rendered inside the map area; used by layers, elevation, and settings plugins |
-| `tilia-status` | — | Status bar in the bottom-left corner of the map; shows load results and errors |
-| `tilia-base-maps-control` | — | Base map selector control; shows visible entries from `app.baseMaps`, grouped by provider when applicable |
-| `tilia-layers` | `tilia-panel` | Layer list with global Tracks / Routes / Waypoints visibility, per-entry visibility, delete, fit-to-view, and photo timestamp mode override |
-| `tilia-elevation` | `tilia-panel` | Interactive elevation profile chart in the side panel; hover highlights the corresponding track point on the map |
-| `tilia-file-import` | — | Map control (top-left) with a file picker; accepts `.gpx`, `.jpg`, `.jpeg`; supports multiple files at once |
-| `tilia-url-import` | — | Map control that opens a URL input; fetches via HTTP/HTTPS with CORS; filename inferred from `Content-Disposition` or the URL path; `timeoutMs` aborts slow fetches and `maxBytes` rejects oversized remote files |
-| `tilia-query-import` | — | Same as `tilia-url-import`, but without a form or control; instead, it reads the input URL from the query parameter `gpx` |
-| `tilia-settings` | `tilia-panel` | Settings panel with a single control: the default photo timestamp interpretation mode applied to newly loaded photos |
-| `tilia-dropzone` | — | Makes the entire map container a drag-and-drop target; visual highlight shown during drag |
-
-### Optional repository plugins
-
-These plugins are provided in this repository under `plugins/` as third-party style modules. They are not built-ins and must be installed explicitly.
-
-| ID | Requires | Description |
-|----|----------|-------------|
-| `x-track-editor` | `tilia-panel` | Starts a GPX editing session from a working copy, edits track points, and keeps the edited copy as a new layer on save |
-| `x-gpx-export` | `tilia-panel` | Exports a selected GPX layer to a `.gpx` download |
-| `x-route-search` | — | Shows a left-side route form, calls Phloem `POST /route`, and imports each routing result as a GPX Track with Start/Via/Goal Waypoints |
-
-#### `x-route-search` options
-
-`x-route-search` accepts plugin options through `app.use("x-route-search", options)` or `pluginOptions["x-route-search"]`:
-
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `endpoint` | `string` | `"http://127.0.0.1:3000/route"` | Phloem route endpoint URL |
-| `apiKey` | `string` | `""` | Optional API key; sent as `Authorization: Bearer <key>` |
-| `defaultProfile` | `string` | `"car"` | Initial route profile shown in the form |
-| `profileOptions` | `string[]` | `[defaultProfile, "car", "bike", "foot"]` | Allowed profile values in the profile selector (`car`, `bike`, `foot`). Unknown values are ignored. |
-| `timeoutMs` | `number` | `5000` | Request timeout for Phloem calls |
-| `importLimit` | `number` | `3` | Maximum number of routes imported per search (capped at 3) |
-| `position` | `string` | `"topleft"` | Map control button position |
-| `priority` | `string` | `"normal"` | Map control button priority |
-
-### Photo timestamp interpretation modes
-
-| Mode | Behaviour |
-|------|-----------|
-| `auto` | Tries `local` and `utc`, then keeps the interpretation that best matches the loaded GPX timeline. This is the default for newly loaded non-GPS photos. |
-| `local` | Treats the EXIF timestamp as the device's local wall-clock time (no timezone conversion). |
-| `utc` | Treats the EXIF timestamp as UTC. |
-| `+09:00`-style fixed offset | Treats the EXIF timestamp as a wall-clock time in the given numeric offset. Both `+0900` and `+09:00` forms are accepted. |
-
-> **Published embed warning.** `auto` depends on the viewer's runtime environment. If a public page infers photo positions from GPX tracks and needs stable results across timezones, set an explicit photo time mode instead of relying on `auto`. Use `utc` or a fixed offset string such as `+09:00`.
-
-
-## Authoring Plugins
-
-For the current operational contract around `requires`, startup order, built-in vs third-party IDs, and dynamic loading, see [PLUGIN-OPERATIONS.md](PLUGIN-OPERATIONS.md).
-
-A plugin is a plain object with `id` and `setup`:
-
-```js
-const myPlugin = {
-  id: "x-my-plugin",           // lower-kebab-case, vendor-prefixed
-  // Declare only plugins required for primary functionality. Status reporting via
-  // app.setStatus() is optional and does not require tilia-status here.
-  stylesheets: [
-    new URL("./my-plugin.css", import.meta.url).href,
-  ],
-
-  setup(app, options) {
-    const control = app.ui.installMapControl({
-      map: app.map,
-      position: "topright",
-      priority: "high",
-      className: "my-plugin-control",
-      createContent() {
-        const panel = app.ui.createPanel();
-        const button = app.ui.createButton("M");
-        button.addEventListener("click", () => {
-          app.setStatus("My plugin was clicked");
-        });
-        panel.appendChild(button);
-        return panel;
-      },
-    });
-
-    // Return an API object with plugin-specific operations. If the returned API
-    // owns resources, expose destroy() and release all of them there.
-    return {
-      doSomething() { /* ... */ },
-      destroy() {
-        control.remove?.();
-      },
-    };
-
-    // If no public API is needed, return a cleanup function directly:
-    // return () => { control.remove?.(); };
-  },
-};
-
-await app.use(myPlugin);
-```
-
-`setup()` may return an API object, a cleanup function, or `undefined` when the plugin exposes no API and owns no resources requiring cleanup. Before removing the plugin and its service registration, `app.unuse()` invokes an explicitly returned cleanup function or the API object's `destroy()` method.
-
-Each plugin is responsible for releasing every resource it owns, where applicable: Leaflet controls, DOM and map event listeners, application subscriptions, refresh handlers, timers, observers, markers, and other retained UI state. Methods such as `remove()` are not automatically treated as lifecycle cleanup; expose cleanup explicitly through `destroy()` or by returning a cleanup function.
-
-`stylesheets` is optional. When present, Tilia registers each stylesheet before `setup()` runs. Use absolute URLs or resolve relative files inside the plugin module with `new URL(..., import.meta.url).href`.
-
-### Plugin ID rules
-
-- Must be `lower-kebab-case` (only lowercase letters, digits, and hyphens)
-- `tilia-` prefix is **reserved** for built-in plugins
-- Third-party IDs must include at least one hyphen (use a vendor prefix or `x-` for experiments)
-- Examples: `x-milestone`, `acme-heatmap`, `myco-tracker`
-
-### Dynamic loading
-
-String IDs are resolved by default from `plugins/<plugin-id>/loader.js`:
-
-```
-plugins/
-  x-milestone/
-    loader.js   ← must export a default plugin object,
-                   or a named export whose id matches the plugin ID
-```
-
-**Override a specific URL:**
-
-```js
-createDefaultTiliaApp("map", {
-  pluginUrls: {
-    "x-milestone": "./custom-plugins/x-milestone/loader.js",
-  },
-});
-```
-
-**Fully custom loader:**
-
-```js
-createTiliaApp({
-  map,
-  pluginLoader: async (pluginId) => {
-    return import(`/plugins/${pluginId}/index.js`);
-  },
-});
-```
-
-### UI styling contract
-
-- Built-in UI styles are loaded automatically by the runtime.
-- Third-party plugins can declare `stylesheets` on the plugin object. Tilia injects each declared stylesheet once per document before `setup()` executes.
-- Built-in UI plugin options flow through `pluginOptions`. `position` selects the Leaflet control corner, `priority` controls relative visual strength, and `edgePolicy` controls whether a conflicting control yields to a panel or keeps its corner.
-- Floating UI that should live above the map but outside Leaflet controls can be mounted through the shared UI surface manager instead of appending directly to the map container.
-- During panel/layout arbitration, `edgePolicy: "keep"` lets a conflicting control keep its corner and makes the panel yield space instead. When `edgePolicy` is omitted, `priority: "high"` defaults to `keep` and other priorities default to `yield`.
-
-```js
-createDefaultTiliaApp("map", {
-  plugins: ["tilia-status", "tilia-file-import"],
-  pluginOptions: {
-    "tilia-file-import": {
-      position: "topright",
-      priority: "high",
-      edgePolicy: "keep",
-    },
-  },
-});
-```
-
-Use `app.ui.mountSurface()` for panel-like or floating UI that is not a Leaflet control:
-
-```js
-const panel = document.createElement("aside");
-panel.className = "my-plugin-panel";
-
-const mounted = app.ui.mountSurface({
-  id: "x-my-plugin-panel",
-  surface: "panel",       // or "floating"
-  element: panel,
-  priority: "high",
-});
-
-// Later, during teardown:
-mounted.unmount();
-```
-
-> **Security note:** dynamically loaded plugins run with the same privileges as any other JavaScript on the page. Tilia does not sandbox plugin code.
-
-### Trust and network assumptions
-
-- Remote plugin modules loaded by string ID, `pluginUrls`, or `pluginLoader` are fully trusted code from the browser's point of view.
-- `tilia-url-import` plugin accepts only HTTP/HTTPS, but it still depends on the remote server's CORS policy and availability.
-- CDN dependencies referenced by your importmap are part of the application's runtime trust boundary.
-
-### Available API inside `setup(app, options)`
-
-```js
-// Install a native Leaflet map control that wraps your content
-app.ui.installMapControl({ map, position, priority, edgePolicy, className, createContent })
-
-// Create common UI elements
-app.ui.createPanel()               // returns a class-based panel element styled by the core stylesheet
-app.ui.createButton(label)         // returns a <button>
-app.ui.createSelect(optionValues, onChange)  // returns a <select>
-
-// Register an additional stylesheet for the current document
-app.ui.registerStylesheet({ href, id? })
-
-// Mount UI into a managed surface above the map container
-app.ui.mountSurface({ id, surface, element, priority? })
-
-// Access the low-level surface manager if needed
-app.ui.surfaceManager
-
-// Subscribe to track / waypoint / photo events (returns unsubscribe fn)
-app.subscribeInteractions({ onTrackLayer, onWaypointLayer, onPhotoMarker })
-
-// Register a view refresh callback (returns unsubscribe fn)
-app.addRefreshHandler(fn)
-
-// Trigger all refresh callbacks (call after mutating data)
-app.refreshView()
-
-// Publish a named service for other plugins
-app.provide(name, service)
-
-// Read services published by other plugins
-app.services["tilia-panel"]   // { openPanel, closePanel, togglePanel, rerenderPanel, isOpen }
-app.services["tilia-status"]  // { setStatus }
-app.services["tilia-base-maps"]  // same object as app.baseMaps
-app.services["tilia-ui-surfaces"] // same object as app.ui.surfaceManager
-```
-
-
-## Samples
-
-| Sample | Path |
-|--------|------|
-| Full viewer | [`samples/viewer/index.html`](../samples/viewer/index.html) |
-| Embed gallery | [`samples/embed/index.html`](../samples/embed/index.html) |
-| Third-party plugin example | [`plugins/x-milestone/loader.js`](../plugins/x-milestone/loader.js) |
+The public barrel exposes the factory/catalog, typed domain/service keys, established error contracts, service contract keys and pure `cloneAndFreezePlainData`. The standalone `createBaseMap` utility is independent of app construction: it does not enable Map injection. Infrastructure stores/registries/foundations/context factories are internal direct imports for machinery tests, not public app APIs. Deep imports are not physically sandboxed. There is no new public diagnostic/recovery/privileged cleanup API.
