@@ -27,7 +27,7 @@ describe("x-track-editor plugin definition", () => {
   });
 
   it("keeps status optional for repository plugins while preserving panel dependencies", () => {
-    expect(gpxExportPlugin.requires).toEqual(["tilia-panel"]);
+    expect(gpxExportPlugin.requires).toEqual(["tilia-gpx-domain", "tilia-panel", "tilia-toolbar"]);
     expect(routeSearchPlugin.requires).toBeUndefined();
   });
 

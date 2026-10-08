@@ -5,13 +5,14 @@ import { builtinPluginCatalog } from "../src/builtins.js";
 import { phase4dPluginClassification } from "../src/plugins/migration-allowlist.js";
 
 describe("Phase 4D migration allowlist", () => {
-  it("enables exactly the Phase 4I plugins and classifies every repository plugin once", () => {
+  it("enables exactly the current Phase 4J checkpoint plugins and classifies every repository plugin once", () => {
     const pluginsDirectory = fileURLToPath(new URL("../plugins/", import.meta.url));
     const external = readdirSync(pluginsDirectory).filter((name) =>
       statSync(new URL(`../plugins/${name}/loader.js`, import.meta.url), { throwIfNoEntry: false })?.isFile());
     const repositoryIds = [...new Set([...builtinPluginCatalog.map(({ id }) => id), ...external])].sort();
     const classified = [...phase4dPluginClassification.enabled, ...phase4dPluginClassification.disabled];
     expect(phase4dPluginClassification.enabled).toEqual([
+      "x-gpx-export",
       "tilia-status", "tilia-base-maps-control", "tilia-gpx-domain", "tilia-photo-domain",
       "x-gsi-base-maps", "x-opentopomap-base-maps",
       "tilia-elevation", "tilia-url-import", "tilia-query-import", "tilia-dropzone",

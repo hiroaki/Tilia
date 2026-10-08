@@ -1,5 +1,6 @@
 export const phase4dPluginClassification = Object.freeze({
   enabled: Object.freeze([
+    "x-gpx-export",
     "tilia-status", "tilia-base-maps-control", "tilia-gpx-domain", "tilia-photo-domain",
     "x-gsi-base-maps", "x-opentopomap-base-maps",
     "tilia-elevation", "tilia-url-import", "tilia-query-import", "tilia-dropzone",
@@ -8,7 +9,7 @@ export const phase4dPluginClassification = Object.freeze({
     "tilia-photo-renderer", "tilia-jpeg-input", "tilia-photo-ui", "tilia-map-selection-presenter",
   ]),
   disabled: Object.freeze([
-    "x-gpx-export", "x-route-search", "x-track-editor", "x-milestone",
+    "x-route-search", "x-track-editor", "x-milestone",
   ]),
 });
 
