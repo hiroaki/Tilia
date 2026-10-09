@@ -1,206 +1,185 @@
-**[English README](README.md)**
+[English](README.md)
+
+<a id="tilia"></a>
 
 # Tilia
 
-[Leaflet 2](https://leafletjs.com/) 上で地理空間データを地図に表示するための JavaScript ライブラリおよびプラグインシステムです。[maps.gpx](https://github.com/hiroaki/maps.gpx) の後継プロジェクトです。
+[Leaflet 2](https://leafletjs.com/)の地図上にGPXトラック、ルート、ウェイポイント、JPEG写真を表示するJavaScriptライブラリです。[maps.gpx](https://github.com/hiroaki/maps.gpx)の精神を引き継いでいます。
 
-> 現在アルファ版です。予告なく変更が入る可能性があります。
+> 初期アルファ版です。APIや動作は予告なく変更されることがあります。
 
+<a id="overview"></a>
 
 ## 概要
 
-Tilia は、ウェブページに地図を手軽に組み込めるランタイムとプラグインシステムを提供します。単独で動くビューアとして使うこともできますし、ブログや CMS のページに地図パーツとして埋め込んだり、プラグインを組み合わせてカスタムの地図アプリを構築したりすることもできます。
+Tiliaは単独のビューアとして使うほか、ブログやCMSへの地図の埋め込み、独自の地図アプリケーションの構築にも利用できます。小さなランタイムと任意のプラグインを組み合わせて、必要なデータ形式、表示、操作部品を選べます。同じページに複数の独立した地図を配置できます。
 
-GPXでは、単独のウェイポイント（`<wpt>`）、計画されたGPX route（`<rte>`）、記録されたtrack（`<trk>`）をそれぞれ異なるfeature typeとして扱います。
+- **GPX表示：** 記録されたトラック（`<trk>`）、計画されたルート（`<rte>`）、独立したウェイポイント（`<wpt>`）を、それぞれ異なる種類として扱います。
+- **写真地図：** JPEG写真をEXIFのGPS座標に表示します。適切なGPXデータがある場合は、時刻の対応から位置を推定できます。
+- **対話的な表示：** 選択した対象のポップアップと強調表示、レイヤーの表示切り替え、標高グラフ、データごとの設定を追加できます。
+- **柔軟な入力：** アプリケーションからファイルを読み込むほか、ファイル選択、URL入力、クエリパラメーター、ドラッグ＆ドロップを追加できます。
+- **追加ツール：** トラックを編集して新しいコピーを作成し、GPXを出力し、経路サービスで検索し、距離ラベルを表示できます。
+- **ビルド不要：** ブラウザのES Modulesから、組み込みプラグインや独自プラグインを直接利用できます。
 
-機能は**プラグイン**によって提供されます。コアランタイムは小さく保ち、データの読み込みや UI コントロール、可視化はプラグインが担当します。必要なものだけ選んで使うことも、サードパーティプラグインを追加することも、自分でプラグインを作ることもできます。
+[公開サンプル](https://hiroaki.github.io/Tilia/samples/)をお試しください。
 
-動かせるデモがこちらにあります： [https://hiroaki.github.io/Tilia/samples/](https://hiroaki.github.io/Tilia/samples/)
-
+<a id="quick-start"></a>
 
 ## クイックスタート
 
-`file://` 直開きはブラウザのセキュリティ制限で動作しないため、ローカル HTTP サーバーが必要です。
-
-リポジトリ root で、次のような静的サーバーを使って起動できます。
+リポジトリをクローンまたはダウンロードし、そのルートで静的HTTPサーバーを起動します。
 
 ```bash
 python3 -m http.server 8010
 ```
 
-```bash
-ruby -run -e httpd . -p 8010
-```
+`ruby -run -e httpd . -p 8010`も利用できます。Node.jsがある場合は`npm run serve -- 8010`でも起動できます。
 
-```bash
-npm run serve -- 8010
-```
+[サンプル一覧](http://localhost:8010/samples/)を開き、ビューアまたは埋め込み例を選びます。ページはHTTP/HTTPSで配信してください。`file://`で開く方法では、モジュールとfetchを使う処理に対応できません。
 
-サンプルのインデックス・ページを開いてください：
+<a id="basic-usage"></a>
 
-```
-http://localhost:8010/samples/
-```
+## 基本的な使い方
 
+<a id="embed-a-gpx-map"></a>
 
-viewer は GPX の track/route/waypoint、JPEG Photo、選択・popup/highlight、file/URL/drop 入力、elevation、settings に対応します。export、route search、Track Editor、Milestone は任意のプラグインです。Photo の位置推定は保存時の結果を維持し、後の GPX 変更では書き換えません。Track Editor の draft は元 entry から独立し、Save Copy は新しい entry を作成します。
+### GPX地図を埋め込む
 
-## 使い方
-
-### Leaflet のセットアップ
-
-Tilia を利用するには、Leaflet の JavaScript と CSS をページに読み込む必要があります。画像ファイルの EXIF 情報を利用する場合は exifr も読み込んでください。
+次のページをリポジトリのルートに`example.html`として保存し、HTTPサーバー経由で開きます。既存のサンプルトラックを読み込みます。組み込む際は、URLを自分のGPXファイルに置き換えてください。
 
 ```html
-<link rel="stylesheet" href="https://unpkg.com/leaflet@2.0.0-alpha.1/dist/leaflet.css" />
-<script type="importmap">
-{ "imports": {
-  "leaflet": "https://unpkg.com/leaflet@2.0.0-alpha.1/dist/leaflet.js",
-  "exifr":   "https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/lite.esm.js"
-} }
-</script>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tilia GPX map</title>
+  <link rel="stylesheet"
+        href="https://unpkg.com/leaflet@2.0.0-alpha.1/dist/leaflet.css" />
+  <script type="importmap">
+  {
+    "imports": {
+      "leaflet": "https://unpkg.com/leaflet@2.0.0-alpha.1/dist/leaflet.js"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div id="map" style="height: 400px;"></div>
+  <script type="module">
+    import { createDefaultTiliaApp } from "./src/index.js";
+
+    const app = createDefaultTiliaApp("map", {
+      plugins: ["tilia-gpx-input", "tilia-gpx-renderer"],
+    });
+
+    try {
+      await app.ready;
+      const response = await fetch("./samples/embed/biwakososui.gpx");
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const blob = await response.blob();
+      await app.load(new File([blob], "track.gpx", {
+        type: "application/gpx+xml",
+      }));
+    } catch (error) {
+      console.error("Could not initialize or load the map:", error);
+    }
+  </script>
+</body>
+</html>
 ```
 
-### ページに地図を埋め込む
+`createDefaultTiliaApp`には既存の要素またはそのIDを指定します。コンテナーには高さを設定してください。この例では標準のOpenStreetMap背景地図を使い、GPX入力プラグインが読み込んだデータの範囲に地図を合わせます。必要な依存プラグインは自動的にインストールされます。
 
-コンテナとなる `<div>` を用意して、短いモジュールスクリプトを書くだけです。ビューア用の UI は必要ない場合、Photo の provider・renderer・JPEG handler を指定してファイルを読み込みます。
+> 起動時に決まったファイルを読み込む必要がない場合は、`fetch`と`app.load`の部分を省き、入力プラグインを有効にできます。ユーザーがローカルファイルを選択したりURLを入力したりするための操作部品と、ファイルの読み込み処理をプラグインが提供します。
 
-```html
-<div id="mymap" style="height: 300px;"></div>
-
-<script type="module">
-  import { createDefaultTiliaApp } from "./src/index.js";
-
-  const app = createDefaultTiliaApp("mymap", {
-    plugins: ["tilia-photo-domain", "tilia-photo-renderer", "tilia-jpeg-input"],
-  });
-
-  const res  = await fetch("./my-photo.jpg");
-  const blob = await res.blob();
-  await app.load(new File([blob], "my-photo.jpg", { type: "image/jpeg" }));
-</script>
-```
-
-1 ページに複数の地図インスタンスを共存させることもできます。`data-*` 属性でデータを指定するパターンにすれば、CMS テンプレートで同じマークアップを繰り返し利用できます。例は [`samples/embed/index.html`](samples/embed/index.html) を参照してください。
-
-### UI コントロールを追加する
-
-`plugins` リストを渡すと、Photo viewer とレイヤー・設定・ファイル入力の最小 UI を有効にできます。
-
-```html
-<div id="map" style="height: 100vh;"></div>
-
-<script type="module">
-  import { createDefaultTiliaApp } from "./src/index.js";
-
-  createDefaultTiliaApp("map", {
-    plugins: [
-      "tilia-panel",
-      "tilia-photo-domain",
-      "tilia-photo-renderer",
-      "tilia-jpeg-input",
-      "tilia-photo-ui",
-      "tilia-map-selection-presenter",
-      "tilia-status",
-      "tilia-base-maps-control",
-      "tilia-layers",
-      "tilia-file-import",
-      "tilia-settings",
-      "x-gsi-base-maps",
-      "x-opentopomap-base-maps",
-    ],
-  });
-</script>
-```
-
-詳細なランタイム API とプラグイン作成ガイドは [docs/API.ja.md](docs/API.ja.md) を参照してください。
-
-
-## プラグイン
-
-すべての built-in プラグイン ID は `tilia-` prefix を持ちます。サードパーティプラグインはベンダー prefix または `x-` prefix を使い、`plugins/<plugin-id>/loader.js` に配置します。
-
-現在の plugin 読み込み、依存順序、dynamic loading の契約は [docs/PLUGIN-OPERATIONS.ja.md](docs/PLUGIN-OPERATIONS.ja.md) にまとめています。
-
-| ID | 依存 | 説明 |
-|----|------|------|
-| `tilia-photo-domain` | — | Photo の semantic provider・private preview・typed commands |
-| `tilia-photo-renderer` | `tilia-photo-domain` | 所有された GPS marker generation（位置推定なし） |
-| `tilia-jpeg-input` | `tilia-photo-domain` | EXIF を遅延ロードする JPEG handler |
-| `tilia-photo-ui` | `tilia-photo-domain` | layers/popup/settings への typed contribution |
-| `tilia-map-selection-presenter` | — | 現在の選択に対する独立した popup/highlight |
-| `tilia-panel` | — | レイヤー・高度・設定プラグインが必要とするサイドパネルコンテナ |
-| `tilia-status` | — | 独立したステータスコントロール |
-| `tilia-base-maps-control` | — | ベースマップ選択コントロール。`app.baseMaps` の可視エントリを一覧表示する |
-| `tilia-layers` | `tilia-panel` | エントリ単位の表示切替・削除と typed Photo adapter によるファイル名・時刻・プレビュー |
-| `tilia-elevation` | `tilia-panel` | GPX トラックのインタラクティブな高度プロファイルチャート |
-| `tilia-file-import` | — | InputRegistry の discovery を使うファイル選択。JPEG handler の導入で `.jpg` / `.jpeg` に対応 |
-| `tilia-url-import` | — | HTTP/HTTPS URL から取得する URL 入力コントロール（サーバー側 CORS 許可が必要）。timeout とサイズ上限を設定可能 |
-| `tilia-query-import` | — | `tilia-url-import` と同じですが、コントロールを持たず、代わりにクエリーパラメータ `gpx` にセットされている URL を入力とします |
-| `tilia-settings` | `tilia-panel` | エントリごとの設定 host。Photo は Auto / ローカル / UTC のみ |
-| `tilia-dropzone` | — | 地図全体をドロップ対象にするドラッグ＆ドロップ機能 |
-
-このリポジトリには、`plugins/` 配下に optional なサードパーティ形式プラグインも含まれます:
-
-| ID | 依存 | 説明 |
-|----|------|------|
-| `x-track-editor` | `tilia-panel` | GPX レイヤーの複製（working copy）を作り、トラックポイントを編集して新規レイヤーとして保存する |
-| `x-gpx-export` | `tilia-panel` | 選択した GPX レイヤーをローカル `.gpx` ファイルとして書き出す |
-| `x-route-search` | — | 左側フォームから Phloem `POST /route` を呼び出し、各検索結果を Start/Via/Goal のウェイポイントを伴う GPX トラックとして取り込む |
-
-`app.use()` でサードパーティ・カスタムプラグインも追加できます。プラグインの作成にビルドツールは不要です。詳細は [docs/API.ja.md](docs/API.ja.md) を参照。
-
-
-## 配布・ホスティング
-
-このリポジトリのルート内容をそのまま静的ホスティングサービスに配置するだけで動作します。ビルド手順は不要です。
-
-必要なコンテンツ: `src` が必須です。必要に応じて `plugins` を同じディレクトリに配備してください。
-
-外部依存は importmap で CDN にピン留めしています。インターネット接続が必要です:
-- [Leaflet 2.0.0-alpha.1](https://unpkg.com/leaflet@2.0.0-alpha.1/) (unpkg)
-- [exifr 7.1.3](https://cdn.jsdelivr.net/npm/exifr@7.1.3/) (jsDelivr)
-
-
-## 信頼モデル
-
-Tilia は完全にブラウザ上で動作します。また、リモートのコードやコンテンツをサンドボックス化しません。
-
-- `app.use("plugin-id")` または明示的な lazy catalog entry を通じて読み込まれるサードパーティ製プラグインは、通常のページ JavaScript として実行されます。信頼できるプラグインのみを読み込んでください。
-- `tilia-url-import` プラグインは HTTP/HTTPS 経由でリモートの GPX データを取得しますが、対象サーバーの CORS ポリシーにも依存します。リモート URL は信頼されていない入力として扱い、失敗する可能性があることを前提にしてください。
-- CDN でホストされている依存関係は、ランタイムの信頼境界の一部です。バージョンは意図的に固定し、更新前に変更内容を確認してください。
-
-
-## コントリビュート
-
-バグ報告、ドキュメント修正、機能追加など、プロジェクトへの貢献を歓迎します。  
-コントリビュートの際は、以下のルールに従ってください。
-
-- 振る舞いが大きく変わる提案や新機能の提案は、まず [Discussions](https://github.com/hiroaki/Tilia/discussions) で相談してください。
-- Pull Request は 1 つの関心事に絞ってください。
-- Pull Request は `develop` ブランチ向けに作成してください。
-- テストがすべて通ることを確認してください。
-- コントリビュートされた内容は、このプロジェクトと同じライセンスで提供されるものとします。
-
-リポジトリ固有の開発フロー、テストコマンド、ローカルでの検証手順については、[docs/DEVELOPMENT.ja.md](docs/DEVELOPMENT.ja.md) を参照してください。
-
-
-## ライセンス
-
-このプロジェクトは Zero-Clause BSD ライセンス（0BSD）の下で提供されています。詳細は [LICENSE](LICENSE) ファイルを参照してください。
-
-
-## アプリケーションの終了
-
-唯一のアプリ factory は `createDefaultTiliaApp(container, options)` です。Tilia が固有の Map を作成・所有します。`app.ready` の後に load し、SPA の unmount では `await app.destroy()` を呼びます。通常の繰り返し呼び出しは、失敗を含め同じ Promise／結果を返します。
+同じHTML設定のまま、上のモジュールスクリプトを次の内容に置き換えると、ユーザーの入力を待つ構成になります。
 
 ```js
+import { createDefaultTiliaApp } from "./src/index.js";
+
 const app = createDefaultTiliaApp("map", {
-  plugins: ["tilia-gpx-domain", "tilia-gpx-renderer", "tilia-gpx-input"],
+  plugins: [
+    "tilia-gpx-input", "tilia-gpx-renderer",
+    "tilia-file-import", "tilia-url-import",
+  ],
 });
 await app.ready;
-await app.load(file);
+```
+
+ローカルGPXファイルは**Open files**、リモートファイルのURLは**Load URL**から指定します。プラグインが操作部品と読み込みを提供し、依存するツールバーも自動的にインストールされます。リモートへのリクエストには、引き続き配信元サーバーのCORS許可が必要です。オプションは[入力設定](docs/PLUGINS.ja.md#input-settings)を参照してください。
+
+最初の例の起動時URL読み込みを残し、入力プラグインを追加して、ユーザーが別のファイルも読み込めるようにすることもできます。
+
+<a id="add-photos-or-viewer-controls"></a>
+
+### 写真やビューアの操作部品を追加する
+
+JPEGを表示するにはPhoto入力とレンダラーを有効にし、[Tiliaプラグインガイド](docs/PLUGINS.ja.md#photos)の`exifr`のimport map設定を追加します。レイヤー操作、ポップアップ、標高、設定には対応するUIプラグインを追加してください。ガイドには組み合わせと設定の例があります。
+
+動作例は[ビューア](samples/viewer/index.html)と[埋め込みギャラリー](samples/embed/index.html)で確認できます。ギャラリーは`data-*`属性から複数の地図にデータを設定する例で、CMSの再利用可能なテンプレートにも適しています。
+
+<a id="application-lifetime"></a>
+
+### アプリケーションの寿命
+
+各アプリケーションは独自のLeaflet地図を作成し、所有します。利用前に`app.ready`を待ってください。SPAのアンマウントなどで地図コンポーネントを取り除く際は、アプリケーションを破棄します。
+
+```js
 await app.destroy();
 ```
 
-終了開始時に旧 app の操作は不可となり、所有 Map は最後に削除されます。既存 container と無関係なページ資源は保持され、後始末の成功後は同じ container に別の app／Map を作成できます。`app.map` は借用参照であり、Map に追加した layer もその Map とともに終了します。外部 Map の注入は非対応です。外部 timer/global listener は作成者が管理してください。詳細は [API](docs/API.ja.md)／[プラグイン運用](docs/PLUGIN-OPERATIONS.ja.md) を参照してください。
+破棄を開始するとアプリケーションは直ちに利用できなくなり、後処理の完了後に地図が取り除かれます。コンテナーは残るため、破棄が成功した後は同じコンテナーに新しいアプリケーションを作れます。繰り返し呼んでも、後処理の失敗を含む同じ結果を共有します。外部の地図の注入には対応していません。`app.map`は動作中の地図を借用するためのアクセスです。無関係なタイマーやリスナーは呼び出し側で管理してください。
+
+公開API、エラー、ライフサイクルの詳細は[Tilia APIリファレンス](docs/API.ja.md)を参照してください。
+
+<a id="plugins"></a>
+
+## プラグイン
+
+アプリケーションに必要な機能を選びます。
+
+| 機能グループ | 提供する機能 |
+| --- | --- |
+| GPXと写真 | データ読み込み、地図描画、形式ごとのUI |
+| ビューア操作 | 選択ポップアップと強調表示、レイヤー、標高、設定、ステータス |
+| 入力 | ファイル選択、リモートURL、クエリパラメーター、地図全体へのドロップ |
+| 背景地図 | 地図選択と、任意の地理院地図・OpenTopoMapプロバイダー |
+| 追加ツール | Track Editor、GPX出力、経路検索、距離目盛り |
+
+[Tiliaプラグインガイド](docs/PLUGINS.ja.md)に、全プラグイン、依存関係、設定、使い方をまとめています。独自プラグインやインストール・後処理の契約は[Tiliaプラグイン開発](docs/PLUGIN-OPERATIONS.ja.md)を参照してください。[Tiliaアーキテクチャ](docs/ARCHITECTURE.ja.md)では設計原則と各構成要素の寿命を説明しています。
+
+<a id="deployment"></a>
+
+## 配置
+
+ページと`src/`を静的ホスティングで配信します。このリポジトリの任意の`x-*`プラグインを使う場合は`plugins/`も含め、相対的なディレクトリ構造を維持してください。サンプルページも配信する場合は`samples/`とその素材を含めます。バンドラーやビルド処理は不要です。
+
+LeafletのJavaScriptをimport mapで読み込み、CSSも含めます。例ではLeaflet `2.0.0-alpha.1`を使い、JPEG入力には追加でexifr `7.1.3`を使います。[依存関係の設定](docs/PLUGINS.ja.md#photos)を参照してください。ページの場所に合わせて`src/index.js`へのimportパスを調整します。
+
+CDNを使う例とリモートの地図タイルにはネットワーク接続が必要です。依存ライブラリをローカルで配信する場合は、import mapと素材のパスを変更してください。
+
+<a id="trust-model"></a>
+
+## 信頼モデル
+
+Tiliaはブラウザ内で動作します。プラグインは通常のページJavaScriptとして実行されるため、信頼できるコードだけを読み込んでください。リモート読み込みはサーバーのCORSポリシーに依存し、失敗することがあります。CDNの依存ライブラリもアプリケーションの一部です。バージョンを固定し、更新内容を確認してから変更してください。
+
+<a id="contributing"></a>
+
+## コントリビュート
+
+不具合報告、文書の修正、機能の貢献を歓迎します。
+
+- 大きな動作変更や新機能は、先に[Discussions](https://github.com/hiroaki/Tilia/discussions)で相談してください。
+- プルリクエストは一つの関心事に絞り、`develop`ブランチを対象にしてください。
+- 提出前にテストが通ることを確認してください。
+- 貢献にはプロジェクトのライセンスが適用されます。
+
+テストコマンドとローカルでの確認方法は[Tiliaの開発](docs/DEVELOPMENT.ja.md)を参照してください。
+
+<a id="license"></a>
+
+## ライセンス
+
+Tiliaは[0BSDライセンス](LICENSE)で提供されています。
