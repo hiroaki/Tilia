@@ -1,5 +1,6 @@
-.tilia-gpx-tree, .tilia-gpx-children, .tilia-gpx-segments, .tilia-gpx-route-points { list-style: none; padding-left: 12px; }
-.tilia-gpx-node { border: 0; background: transparent; cursor: pointer; text-align: left; }
+.tilia-gpx-tree { list-style: none; margin: 8px 0 0; padding-left: 0; }
+.tilia-gpx-children, .tilia-gpx-segments, .tilia-gpx-route-points { list-style: none; margin: 6px 0; padding-left: 12px; }
+.tilia-gpx-node { border: 0; background: transparent; cursor: pointer; text-align: left; padding: 0; font: inherit; color: #1c1917; }
 .tilia-gpx-style-select { max-width: 100%; }
 .tilia-route-point-marker {
   display: flex;
@@ -33,3 +34,11 @@
   transform: translateX(-50%);
 }
 .tilia-gpx-selected { background: #ccfbf1; border-radius: 4px; }
+
+.tilia-gpx-category { margin-top: 8px; }
+.tilia-gpx-fit, .tilia-gpx-reveal { padding: 3px 6px; font-size: 11px; margin: 2px 0 2px 6px; }
+.tilia-gpx-settings-name { margin: 0; font-size: 12px; color: #1c1917; }
+.tilia-gpx-settings { display: flex; flex-direction: column; gap: 8px; }
+.tilia-gpx-setting-label { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tilia-gpx-visibility-settings { display: flex; flex-direction: column; gap: 6px; }
+.tilia-gpx-visibility-settings label { display: flex; align-items: center; justify-content: space-between; gap: 8px; }

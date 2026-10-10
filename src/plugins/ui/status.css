@@ -1,3 +1,8 @@
+.tilia-status-text {
+  font-size: 12px;
+  color: #57534e;
+}
+
 .tilia-status-control .tilia-control-panel {
   width: auto;
   max-width: min(320px, 70vw);

@@ -9,6 +9,7 @@ export default Object.freeze({
     registerLauncher(context, options, { kind: "action", label: "Settings", iconText: "S", className: "tilia-settings-control", activate() {
       if (panel.isOpen("settings")) return panel.close("settings");
       handles.add(panel.open({ id: "settings", title: "Settings", layout: "side", mount({ container, scope }) {
+        container.classList.add("tilia-settings-panel-content");
         const records = new Map();
         const close = (record) => { if (records.get(record.key) === record) records.delete(record.key); record.item.remove(); void record.scope.dispose().catch(report); };
         const reconcile = () => {

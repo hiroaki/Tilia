@@ -23,11 +23,12 @@ export default Object.freeze({
           className: `tilia-toolbar-item ${d.className}`, createContent(container) {
             record.element = container;
             container.setAttribute("aria-label", d.label);
-            bindToolbarMount(d, { container, scope });
+            const content = node(container, "div", "tilia-control-panel tilia-control-panel-compact tilia-toolbar-content");
+            bindToolbarMount(d, { container: content, scope });
             if (!scope.alive) return;
-            if (d.kind === "mount") d.mount({ container, scope });
+            if (d.kind === "mount") d.mount({ container: content, scope });
             else {
-              const button = node(container, "button", "tilia-control-button tilia-control-button-icon", d.iconText);
+              const button = node(content, "button", "tilia-control-button tilia-control-button-icon", d.iconText);
               button.type = "button"; button.setAttribute("aria-label", d.label);
               listen(scope, button, "click", async () => {
                 if (!scope.alive || items.get(item.id) !== record || record.pending || button.disabled) return;

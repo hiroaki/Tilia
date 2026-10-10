@@ -14,7 +14,12 @@ export function createEditorApp(phloemUrlBase) {
       "x-gpx-export",
     ],
     pluginOptions: {
+      "tilia-layers": { rank: 10 },
+      "tilia-file-import": { rank: 40 },
+      "x-track-editor": { rank: 20 },
+      "x-gpx-export": { rank: 30 },
       "x-route-search": {
+        rank: 0,
         endpoint: `${phloemUrlBase}/route`,
         defaultProfile: "car",
         profileOptions: ["car", "bike", "foot"]

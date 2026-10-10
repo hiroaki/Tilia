@@ -101,6 +101,26 @@
   background: #f5f5f4;
 }
 
+.tilia-control-button-icon {
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.tilia-control-close {
+  border: 1px solid #d6d3d1;
+  border-radius: 999px;
+  background: #fff;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
 .tilia-control-title {
   margin: 0 0 6px;
   font-size: 12px;

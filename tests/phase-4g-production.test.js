@@ -59,7 +59,7 @@ describe("Phase 4G actual production plugins", () => {
     marker.fire("click"); await settle();
     expect(f.app.selection.getCurrent()).toMatchObject({ entryId: entry.id, ref: { kind: "photo" } });
     const popup = [...f.map.layers].find((l) => l instanceof Popup);
-    expect(popup.content.children.some((n) => n.textContent.includes("1970"))).toBe(true);
+    expect(byClass(popup.content, "tilia-popup-value").some((n) => n.textContent.includes("1970"))).toBe(true);
     popup.remove(); await settle();
     expect([...f.map.layers].filter((l) => l.options.radius === 18)).toHaveLength(1);
     expect([...f.map.layers].filter((l) => l instanceof Popup)).toHaveLength(0);
@@ -176,7 +176,7 @@ describe("Phase 4G actual production plugins", () => {
     const dispatches = [];
     await f.app.use({ id: "x-input", setup(context) { context.inputs.register({ id: "test-file", discovery: { extensions: [".test"] }, recognize: () => true,
       async handle({ input }) { dispatches.push(input.name); if (input.name === "bad.test") throw new Error("bad input"); return { name: input.name }; } }); } });
-    const input = byClass(f.map.container, "tilia-file-import-control")[0].children[0].children[0];
+    const input = byClass(f.map.container, "tilia-file-label")[0].children[0];
     expect(input.accept).toBe(".test"); input.files = [{ name: "bad.test" }, { name: "good.test" }]; input.value = "chosen";
     input.dispatchEvent(new Event("change")); await settle();
     expect(dispatches).toEqual(["bad.test", "good.test"]); expect(input.value).toBe("");

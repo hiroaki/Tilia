@@ -10,8 +10,10 @@ export default Object.freeze({
     registerLauncher(context, options, { kind: "action", label: "Layers", iconText: "L", className: "tilia-layers-control", activate() {
       if (panel.isOpen("layers")) return panel.close("layers");
       handles.add(panel.open({ id: "layers", title: "Layers", layout: "side", mount({ container, scope }) {
+        container.classList.add("tilia-layers-panel-content");
+        node(container, "p", "tilia-layers-panel-text", "Layers panel: show or hide layers and inspect their contents.");
         const mutations = node(container, "fieldset", "tilia-layer-mutations");
-        const clear = node(mutations, "button", "tilia-layer-clear-button", "Delete all"); clear.type = "button";
+        const clear = node(mutations, "button", "tilia-control-button tilia-layer-clear-button", "Delete all"); clear.type = "button";
         const list = node(mutations, "ul", "tilia-layer-list"), rows = new Map();
         let empty;
         const withdraw = (row) => { if (rows.get(row.id) === row) rows.delete(row.id); row.item.remove(); void row.scope.dispose().catch(report); };
@@ -30,7 +32,8 @@ export default Object.freeze({
               row.content = node(item, "div", "tilia-layer-card-body");
               const captured = row;
               listen(child, row.toggle, "change", async () => { if (!present(captured)) return; try { await context.entries.setVisible(entry.id, captured.toggle.checked); } finally { if (present(captured)) captured.toggle.checked = context.entries.get(entry.id).visible; } }, report);
-              const remove = node(item, "button", "tilia-layer-delete-button", "Remove"); remove.type = "button";
+              const remove = node(item, "button", "tilia-control-button tilia-layer-delete-button", "×"); remove.type = "button";
+              remove.setAttribute("aria-label", "Remove"); remove.title = `Remove entry ${entry.id}`;
               listen(child, remove, "click", async () => { if (!present(captured) || remove.disabled) return; remove.disabled = true; try { await context.entries.remove(entry.id); } finally { if (present(captured)) remove.disabled = false; } }, report);
             }
             row.toggle.checked = entry.visible;

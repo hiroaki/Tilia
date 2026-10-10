@@ -247,7 +247,13 @@
         const statusNode = card.querySelector(".story-status");
 
         // Each content block creates its own independent map and Tilia application.
-        const app = createDefaultTiliaApp(mapNode, { plugins: ["tilia-toolbar", "tilia-status", "tilia-base-maps-control", "tilia-panel", "tilia-layers", "tilia-settings", "tilia-file-import", "tilia-url-import", "tilia-query-import", "tilia-dropzone", "tilia-elevation", "tilia-gpx-domain", "tilia-gpx-renderer", "tilia-gpx-input", "tilia-gpx-ui", "tilia-photo-domain", "tilia-photo-renderer", "tilia-jpeg-input", "tilia-photo-ui", "tilia-map-selection-presenter"] });
+        const app = createDefaultTiliaApp(mapNode, {
+          plugins: [
+            "tilia-gpx-renderer",
+            "tilia-gpx-input",
+            "tilia-gpx-ui",
+            "tilia-map-selection-presenter",
+          ] });
 
         // The GPX URL comes from the card's data attribute.
         const result = await loadIntoApp(app, gpxUrl);
@@ -263,7 +269,14 @@
 
         // Photo cards follow the same flow; only the source data attribute changes.
         const app = createDefaultTiliaApp(mapNode, {
-          plugins: ["tilia-toolbar", "tilia-status", "tilia-base-maps-control", "tilia-panel", "tilia-layers", "tilia-settings", "tilia-file-import", "tilia-url-import", "tilia-query-import", "tilia-dropzone", "tilia-elevation", "tilia-gpx-domain", "tilia-gpx-renderer", "tilia-gpx-input", "tilia-gpx-ui", "tilia-photo-domain", "tilia-photo-renderer", "tilia-jpeg-input", "tilia-photo-ui", "tilia-map-selection-presenter"],
+          plugins: [
+            "tilia-gpx-renderer",
+            "tilia-gpx-input",
+            "tilia-photo-renderer",
+            "tilia-jpeg-input",
+            "tilia-photo-ui",
+            "tilia-map-selection-presenter",
+          ],
         });
 
         if (gpxUrl) {

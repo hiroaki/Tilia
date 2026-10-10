@@ -17,6 +17,7 @@
 }
 
 .tilia-elevation-chart {
+  box-sizing: border-box;
   width: 100%;
   height: 100%;
   min-width: 0;
@@ -41,12 +42,15 @@
 
 .tilia-elevation-guide-overlay {
   position: absolute;
-  inset: 0;
+  /* Match the SVG content box inside its one-pixel border. */
+  inset: 1px;
   pointer-events: none;
 }
 
 .tilia-elevation-guide-line {
   position: absolute;
+  top: 0;
+  bottom: 0;
   width: 0;
   border-left: 1.5px dashed #0f766e66;
   transform: translateX(-0.75px);

@@ -355,10 +355,10 @@ describe("Phase 4H production rendering and independent presentation", () => {
     expect(byClass(f.map.container, "tilia-gpx-segment")).toHaveLength(1);
     const toggle = byClass(f.map.container, "tilia-gpx-category-visible")[0]; toggle.checked = false; toggle.dispatchEvent(new Event("change")); await settle();
     expect(f.app.domains.gpx.get(entry.id).revision).toBe(2); expect(f.ownedLayers()).toHaveLength(0);
-    byClass(f.map.container, "tilia-settings-control")[0].children[0].click(); await settle();
+    byClass(byClass(f.map.container, "tilia-settings-control")[0], "tilia-control-button")[0].click(); await settle();
     const style = byClass(f.map.container, "tilia-gpx-style-select")[0]; style.value = "amber"; style.dispatchEvent(new Event("change")); await settle();
     expect(f.app.domains.gpx.get(entry.id).snapshot.preferences.stylePresetId).toBe("amber");
-    byClass(f.map.container, "tilia-layers-control")[0].children[0].click(); await settle();
+    byClass(byClass(f.map.container, "tilia-layers-control")[0], "tilia-control-button")[0].click(); await settle();
     await f.app.unuse("tilia-gpx-ui"); await settle(); expect(byClass(f.map.container, "tilia-gpx-tree")).toHaveLength(0);
     toggle.checked = true; toggle.dispatchEvent(new Event("change")); await settle(); expect(f.app.domains.gpx.get(entry.id).revision).toBe(3);
     await f.app.use("tilia-gpx-ui"); await settle(); expect(byClass(f.map.container, "tilia-gpx-tree")).toHaveLength(1);

@@ -34,7 +34,7 @@ export default Object.freeze({
       if (!adapter || record.dismissed || !record.handle.anchor) return;
       const scope = record.scope.child({ label: "popup" });
       const container = document.createElement("div");
-      const layer = new Popup().setLatLng(record.handle.anchor).setContent(container);
+      const layer = new Popup({ className: "tilia-info-popup-window" }).setLatLng(record.handle.anchor).setContent(container);
       const popup = { scope, layer, attachment: null, dismiss() {
         if (state === record && record.popup === popup) {
           record.dismissed = true; closePopup(record);

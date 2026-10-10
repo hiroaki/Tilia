@@ -39,10 +39,13 @@ export function mountPhotoRow(input) {
   const { container, scope, entry, photo, selection, report, map } = input;
   const model = domainMount({ ...input, domain: photo });
   let image;
-  const button = node(container, "button", "tilia-layer-name"); button.type = "button";
-  const meta = node(container, "div", "tilia-layer-meta");
-  const fit = node(container, "button", "tilia-photo-fit", "Fit"); fit.type = "button";
-  const reveal = node(container, "button", "tilia-photo-reveal", "Reveal"); reveal.type = "button";
+  container.classList.add("tilia-photo-layer-content");
+  const text = node(container, "div", "tilia-photo-row-text");
+  const button = node(text, "button", "tilia-layer-name"); button.type = "button";
+  const meta = node(text, "div", "tilia-layer-meta");
+  const navigation = node(text, "div", "tilia-photo-navigation");
+  const fit = node(navigation, "button", "tilia-control-button tilia-photo-fit", "Fit"); fit.type = "button";
+  const reveal = node(navigation, "button", "tilia-control-button tilia-photo-reveal", "Reveal"); reveal.type = "button";
   const coordinate = (view) => {
     const point = view.snapshot.data.coordinate ?? view.snapshot.derived.inferredLocation;
     return point && Number.isFinite(point.lat) && Number.isFinite(point.lon) ? point : null;
@@ -80,20 +83,33 @@ export function mountPhotoRow(input) {
   model.update(render); image = mountPreview({ ...input, className: "tilia-layer-thumbnail" });
 }
 export function mountPhotoPopup({ container, scope, selection, photo, report }) {
+  container.classList.add("tilia-popup");
   const entry = photo.get(selection.entryId).entry;
   const { data, derived, preferences } = photo.get(entry.id).snapshot;
   node(container, "h3", "tilia-popup-title", data.name);
+  mountPreview({ container, scope, entry, photo, report, className: "tilia-popup-thumbnail" });
+  const coordinate = data.coordinate ?? derived.inferredLocation;
+  const formatCoordinate = (value) => Number.isFinite(value) ? value.toFixed(6) : "-";
   const values = [["Captured", formatCaptured(data.capturedAt, preferences.requestedTimeMode)],
     ["Camera", `${data.make} ${data.model}`.trim() || "-"],
-    ["Latitude", (data.coordinate ?? derived.inferredLocation)?.lat ?? "-"], ["Longitude", (data.coordinate ?? derived.inferredLocation)?.lon ?? "-"],
+    ["Latitude", formatCoordinate(coordinate?.lat)], ["Longitude", formatCoordinate(coordinate?.lon)],
     ["Location", derived.locationSource ?? "-"]];
-  for (const [label, value] of values) node(container, "div", "tilia-popup-row", `${label}: ${value}`);
-  mountPreview({ container, scope, entry, photo, report, className: "tilia-popup-thumbnail" });
+  const body = node(container, "div", "tilia-popup-body");
+  for (const [label, value] of values) {
+    const row = node(body, "div", "tilia-popup-row");
+    node(row, "span", "tilia-popup-label", label);
+    node(row, "strong", "tilia-popup-value", value);
+  }
+  if (derived.locationSource === "exif-gps") {
+    node(container, "div", "tilia-popup-detail", "Read directly from EXIF GPS");
+  }
 }
 export function mountPhotoSettings(input) {
   const { container, scope, entry, photo, report } = input, model = domainMount({ ...input, domain: photo });
+  container.classList.add("tilia-photo-settings");
   const title = node(container, "h3", "tilia-photo-settings-name");
-  const select = node(container, "select", "tilia-photo-time-mode-select"); model.controls.add(select);
+  const label = node(container, "label", "tilia-photo-setting-label", "Photo time");
+  const select = node(label, "select", "tilia-control-select tilia-photo-time-mode-select"); model.controls.add(select);
   for (const mode of ["auto", "local", "utc"]) { const option = node(select, "option", "", mode === "utc" ? "UTC" : mode); option.value = mode; }
   const render = (view) => { title.textContent = view.snapshot.data.name; select.setAttribute("aria-label", `${title.textContent} photo time mode`); select.value = view.snapshot.preferences.requestedTimeMode; };
   listen(scope, select, "change", () => { const mode = select.value; return model.command((view) => photo.setRequestedTimeMode(entry.id, mode, { expectedRevision: view.revision }), render); }, report);

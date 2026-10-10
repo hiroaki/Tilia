@@ -61,7 +61,7 @@ export function mountGpxRow(input) {
           );
         }
       };
-      const action = node(parent, "button", isPoint ? "tilia-gpx-reveal" : "tilia-gpx-fit", isPoint ? "Reveal" : "Fit");
+      const action = node(parent, "button", isPoint ? "tilia-control-button tilia-gpx-reveal" : "tilia-control-button tilia-gpx-fit", isPoint ? "Reveal" : "Fit");
       action.type = "button";
       projections.push((view) => {
         action.disabled = isPoint ? !coordinate(view) : !extent(view);
@@ -108,7 +108,10 @@ export function mountGpxRow(input) {
 }
 export function mountGpxSettings(input) {
   const { container, scope, entry, gpx, report } = input, model = domainMount({ ...input, domain: gpx });
-  const title = node(container, "h3", "tilia-gpx-settings-name"), style = node(container, "select", "tilia-gpx-style-select");
+  container.classList.add("tilia-gpx-settings");
+  const title = node(container, "h3", "tilia-gpx-settings-name");
+  const label = node(container, "label", "tilia-gpx-setting-label", "GPX style");
+  const style = node(label, "select", "tilia-control-select tilia-gpx-style-select");
   model.controls.add(style); style.setAttribute("aria-label", "GPX style");
   for (const id of [...new Set(["default", ...TRACK_STYLE_PRESETS.map((p) => p.id)])]) { const option = node(style, "option", "", id); option.value = id; }
   let data, controlsScope, project = [];
@@ -145,6 +148,7 @@ export function mountGpxPopup({ container, selection, gpx }) {
     const sample = samples.find((s) => s.locator.segmentIndex === ref.segmentIndex && s.locator.pointIndex === ref.pointIndex);
     container.appendChild(createTrackPointPopupContent({ ...document, name: document.tracks[ref.trackIndex].name || document.name }, { ...value, distanceMeters: sample?.distanceMeters }));
   } else {
+    container.classList.add("tilia-popup");
     node(container, "h3", "tilia-popup-title", value.name || document.name);
     node(container, "div", "tilia-popup-row", `Type: ${ref.kind}`);
     const metadata = ref.kind === "document" ? document.metadata : value;
