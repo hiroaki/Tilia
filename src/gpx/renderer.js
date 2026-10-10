@@ -62,6 +62,9 @@ export function createGpxRenderer() {
         },
         highlightDescriptor(ref) {
           const paths = geometry(ref); if (!paths?.length) return null;
+          if (["waypoint", "track-point", "route-point"].includes(ref?.kind)) {
+            return cloneAndFreezePlainData({ kind: "point", symbol: "crosshair", point: position(paths[0].points[0].point) });
+          }
           return cloneAndFreezePlainData({ kind: "geometry", lines: paths.filter((path) => path.points.length > 1).map((path) => path.points.map(({ point }) => position(point))),
             points: paths.filter((path) => path.points.length === 1).map((path) => position(path.points[0].point)) });
         },

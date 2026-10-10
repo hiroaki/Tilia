@@ -74,3 +74,23 @@
   overflow-wrap: anywhere;
   word-break: break-word;
 }
+.tilia-selection-crosshair {
+  pointer-events: none;
+}
+
+.tilia-selection-crosshair::before,
+.tilia-selection-crosshair::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 36px;
+  height: 3px;
+  background: #0f766e;
+  transform: translateY(-50%) rotate(45deg);
+  transform-origin: center;
+}
+
+.tilia-selection-crosshair::after {
+  transform: translateY(-50%) rotate(-45deg);
+}

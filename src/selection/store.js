@@ -19,6 +19,7 @@ export function createSelectionStore({ applicationScope, getTarget, onError = ()
   const subscriptions = new Set();
   const report = (error) => { try { onError(error); } catch { /* Diagnostics cannot revoke committed state or peer delivery. */ } };
   const channel = createSubscriptionChannel({ onError: report });
+  const requests = createSubscriptionChannel({ onError: report });
   const destroyed = () => semanticError(codes.selectionStoreDestroyed, "Selection authority has terminated");
 
   function assertActive() {
@@ -132,10 +133,13 @@ export function createSelectionStore({ applicationScope, getTarget, onError = ()
             if (command.internal) command.execute();
             else {
               assertCaller(command.scope);
-              const { result, event } = command.execute();
+              const { result, event, requested } = command.execute();
               // Settle at commit, before any callback can terminate/reenter.
               command.resolve(result);
               notify(event);
+              if (!terminal && applicationScope.alive && command.scope.alive && requested) {
+                requests.deliver(Object.freeze({ selection: requested, issuer: command.scope }));
+              }
             }
           } catch (error) {
             if (command.internal) report(error);
@@ -251,26 +255,44 @@ export function createSelectionStore({ applicationScope, getTarget, onError = ()
           const equal = current && current.entryId === value.entryId && current.domain === value.domainKey
             && equals(adapter, current.ref, value.canonicalRef);
           assertCaller(scope);
-          if (equal) return { result: current };
+          if (equal) return { result: current, requested: current };
           const next = Object.freeze({ entryId: value.entryId, domain: value.domainKey, ref: value.canonicalRef });
-          return { result: next, event: transition(next, value.providerRegistration, "requested") };
+          return { result: next, requested: next, event: transition(next, value.providerRegistration, "requested") };
         });
       },
-      clear() {
-        return enqueue(scope, () => ({ result: undefined, event: current === null ? null : transition(null, null, "cleared") }));
+      clear({ ifCurrent } = {}) {
+        return enqueue(scope, () => {
+          if (ifCurrent !== undefined && current !== null) {
+            if (!ifCurrent || current.entryId !== ifCurrent.entryId || current.domain !== ifCurrent.domain) return { result: undefined };
+            const target = getTarget(current.entryId, current.domain);
+            if (!equals(adapterFor(target), current.ref, ifCurrent.ref)) return { result: undefined };
+            assertCaller(scope);
+          }
+          return { result: undefined, event: current === null ? null : transition(null, null, "cleared") };
+        });
       },
       subscribe(listener) {
-        assertCaller(scope);
-        if (typeof listener !== "function") throw new TypeError("Selection subscriber must be a function");
-        const underlying = channel.subscribe(scope, (event) => {
-          if (!terminal && applicationScope.alive) listener(event);
-        }, { emitCurrent: false });
-        const handle = Object.freeze({ unsubscribe() { underlying.unsubscribe(); subscriptions.delete(handle); } });
-        subscriptions.add(handle);
-        scope.defer(handle.unsubscribe, { label: "selection-subscription-index", retry: "safe" });
-        return handle;
+        return subscribe(scope, channel, listener);
+      },
+      subscribeRequests(listener) {
+        return subscribe(scope, requests, listener);
       },
     });
+  }
+
+  function subscribe(scope, source, listener) {
+    assertCaller(scope);
+    if (typeof listener !== "function") throw new TypeError("Selection subscriber must be a function");
+    const underlying = source.subscribe(scope, (event) => {
+      if (terminal || !applicationScope.alive) return;
+      if (source === requests) {
+        if (event.issuer.alive) listener(event.selection);
+      } else listener(event);
+    }, { emitCurrent: false });
+    const handle = Object.freeze({ unsubscribe() { underlying.unsubscribe(); subscriptions.delete(handle); } });
+    subscriptions.add(handle);
+    scope.defer(handle.unsubscribe, { label: "selection-subscription-index", retry: "safe" });
+    return handle;
   }
 
   function prepareDomainCommit({ record, prepared, command, nextRevision }) {

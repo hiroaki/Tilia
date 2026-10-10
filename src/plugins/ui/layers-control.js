@@ -31,7 +31,18 @@ export default Object.freeze({
               row.toggle = node(item, "input", "tilia-layer-visible"); row.toggle.type = "checkbox"; row.toggle.setAttribute("aria-label", `Show entry ${entry.id}`);
               row.content = node(item, "div", "tilia-layer-card-body");
               const captured = row;
-              listen(child, row.toggle, "change", async () => { if (!present(captured)) return; try { await context.entries.setVisible(entry.id, captured.toggle.checked); } finally { if (present(captured)) captured.toggle.checked = context.entries.get(entry.id).visible; } }, report);
+              listen(child, row.toggle, "change", async () => {
+                if (!present(captured)) return;
+                const wasVisible = context.entries.get(entry.id).visible;
+                const visible = captured.toggle.checked;
+                try {
+                  await context.entries.setVisible(entry.id, visible);
+                  if (present(captured) && !visible && wasVisible && !context.entries.get(entry.id).visible) {
+                    const selected = context.selection.getCurrent();
+                    if (selected?.entryId === entry.id) await context.selection.clear({ ifCurrent: selected });
+                  }
+                } finally { if (present(captured)) captured.toggle.checked = context.entries.get(entry.id).visible; }
+              }, report);
               const remove = node(item, "button", "tilia-control-button tilia-layer-delete-button", "×"); remove.type = "button";
               remove.setAttribute("aria-label", "Remove"); remove.title = `Remove entry ${entry.id}`;
               listen(child, remove, "click", async () => { if (!present(captured) || remove.disabled) return; remove.disabled = true; try { await context.entries.remove(entry.id); } finally { if (present(captured)) remove.disabled = false; } }, report);

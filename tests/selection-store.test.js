@@ -159,6 +159,118 @@ describe("SelectionStore contracts", () => {
   });
 });
 
+describe("explicit request notifications and conditional clearing", () => {
+  it("delivers state before every successful request, including canonical no-ops", async () => {
+    const f = await fixture(); const order = [];
+    f.api.subscribe((event) => order.push(`state:${event.reason}`));
+    const requests = vi.fn((selected) => order.push(`request:${selected.ref.target.id}`));
+    f.api.subscribeRequests(requests);
+    const first = await f.api.request(f.candidate());
+    expect(await f.api.request(f.candidate())).toBe(first);
+    await f.api.clear();
+    await expect(f.api.request({})).rejects.toMatchObject({ code: "SELECTION_CANDIDATE_INVALID" });
+    expect(order).toEqual(["state:requested", "request:a", "request:a", "state:cleared"]);
+    expect(requests.mock.calls.map(([selected]) => selected)).toEqual([first, first]);
+  });
+
+  it("does not notify requests for stale candidates or semantic reconciliation", async () => {
+    const f = await fixture(); const requested = vi.fn(); f.api.subscribeRequests(requested);
+    const a = await f.api.request(f.candidate()); requested.mockClear();
+    f.adapter.reconcile = () => ({ type: "refreshed" });
+    const effect = f.store.prepareDomainCommit({ record: f.records.get(1), prepared: { nextInstance: f.records.get(1).instance }, command: {}, nextRevision: 2 });
+    effect.commit(); effect.notify();
+    expect(f.api.getCurrent()).toBe(a); expect(requested).not.toHaveBeenCalled();
+    const stale = f.candidate(); f.setResolvable(false);
+    await expect(f.api.request(stale)).rejects.toMatchObject({ code: "SELECTION_REFERENCE_INVALID" });
+    expect(requested).not.toHaveBeenCalled();
+  });
+
+  it("compares conditional clears through canonical equality rather than object identity", async () => {
+    const f = await fixture(); const a = await f.api.request(f.candidate());
+    await f.api.clear({ ifCurrent: { ...a, ref: { target: { id: "a" } } } });
+    expect(f.api.getCurrent()).toBeNull();
+    const b = await f.api.request(f.candidate("b"));
+    await f.api.clear({ ifCurrent: a });
+    await f.api.clear({ ifCurrent: { ...b, domain: defineDomainKey({ id: "other" }) } });
+    await f.api.clear({ ifCurrent: { ...b, entryId: 99 } });
+    await f.api.clear({ ifCurrent: null });
+    expect(f.api.getCurrent()).toBe(b);
+    await f.api.clear(); expect(f.api.getCurrent()).toBeNull();
+    await f.api.clear({ ifCurrent: b }); expect(f.api.getCurrent()).toBeNull();
+  });
+
+  it("queues reentrant commands until state and request subscribers finish", async () => {
+    const f = await fixture(); const b = f.candidate("b"), order = [], pending = [];
+    f.api.subscribe((event) => {
+      if (event.reason !== "requested") return;
+      order.push(`state:${event.current.ref.target.id}`);
+      if (event.current.ref.target.id === "a") {
+        pending.push(f.api.request(b), f.api.clear({ ifCurrent: event.current }));
+      }
+    });
+    f.api.subscribeRequests((selected) => { order.push(`request:${selected.ref.target.id}`); });
+    f.api.subscribeRequests((selected) => { order.push(`peer:${f.api.getCurrent().ref.target.id}`); expect(f.api.getCurrent()).toBe(selected); });
+    await f.api.request(f.candidate()); await Promise.all(pending);
+    expect(order).toEqual(["state:a", "request:a", "peer:a", "state:b", "request:b", "peer:b"]);
+    expect(f.api.getCurrent().ref.target.id).toBe("b");
+  });
+
+  it("allows request subscribers to queue a clear without affecting peer delivery", async () => {
+    const f = await fixture(); let clearing; const observed = [];
+    f.api.subscribeRequests((selected) => { clearing = f.api.clear({ ifCurrent: selected }); });
+    f.api.subscribeRequests((selected) => observed.push(f.api.getCurrent() === selected));
+    await f.api.request(f.candidate()); await clearing;
+    expect(observed).toEqual([true]); expect(f.api.getCurrent()).toBeNull();
+  });
+
+  it("unsubscribes explicitly and on consumer disposal", async () => {
+    const f = await fixture(); const removed = vi.fn(), disposed = vi.fn();
+    const subscription = f.api.subscribeRequests(removed); subscription.unsubscribe();
+    f.api.subscribeRequests(disposed);
+    const api = f.store.createFacade(f.owner.scope), domain = f.store.createDomainFacade(f.owner.scope, f.key);
+    await f.consumer.close();
+    await api.request(domain.createCandidate(1, { id: "a" }));
+    expect(removed).not.toHaveBeenCalled(); expect(disposed).not.toHaveBeenCalled();
+    subscription.unsubscribe();
+  });
+
+  it("suppresses request activation if its issuer is disposed by a state subscriber", async () => {
+    const f = await fixture(); const api = f.store.createFacade(f.owner.scope), requested = vi.fn();
+    api.subscribeRequests(requested);
+    let closing; f.api.subscribe(() => { closing = f.consumer.close(); });
+    await expect(f.api.request(f.candidate())).resolves.toMatchObject({ ref: { target: { id: "a" } } });
+    await closing; expect(requested).not.toHaveBeenCalled();
+  });
+
+  it("stops request peer delivery if an earlier request subscriber disposes the issuer", async () => {
+    const f = await fixture(); const api = f.store.createFacade(f.owner.scope), peer = vi.fn(); let closing;
+    api.subscribeRequests(() => { closing = f.consumer.close(); });
+    api.subscribeRequests(peer);
+    await expect(f.api.request(f.candidate())).resolves.toMatchObject({ ref: { target: { id: "a" } } });
+    await closing; expect(peer).not.toHaveBeenCalled();
+  });
+
+  it("isolates throwing request subscribers without rolling back committed selection", async () => {
+    const errors = []; const f = await fixture({ onError: (error) => errors.push(error) }), peer = vi.fn();
+    f.api.subscribeRequests(() => { throw new Error("request subscriber failed"); });
+    f.api.subscribeRequests(peer);
+    const result = await f.api.request(f.candidate());
+    expect(f.api.getCurrent()).toBe(result); expect(peer).toHaveBeenCalledWith(result);
+    expect(errors).toHaveLength(1); expect(errors[0].committed).toBe(true);
+  });
+
+  it.each(["state", "request"])("stops delivery and retains committed success on termination during %s delivery", async (phase) => {
+    const f = await fixture(); const peer = vi.fn();
+    if (phase === "state") f.api.subscribe(() => f.store.terminate());
+    else f.api.subscribeRequests(() => f.store.terminate());
+    f.api.subscribeRequests(peer);
+    await expect(f.api.request(f.candidate())).resolves.toMatchObject({ ref: { target: { id: "a" } } });
+    expect(peer).not.toHaveBeenCalled();
+    await expect(f.api.request({})).rejects.toMatchObject({ code: "SELECTION_STORE_DESTROYED" });
+    expect(() => f.api.subscribeRequests(peer)).toThrowError(expect.objectContaining({ code: "SELECTION_STORE_DESTROYED" }));
+  });
+});
+
 describe("guarded deferred invalidation", () => {
   it.each(["replace", "reselect"])("does not clear a newer selection after %s", async (operation) => {
     const f = await fixture();

@@ -3,6 +3,7 @@ import { listen, node } from "../ui/scoped-dom.js";
 import { resolveGpxTarget } from "./document.js";
 import { formatGpxSummary, getTrackDisplayName } from "./interpretation.js";
 import { TRACK_STYLE_PRESETS } from "../map/track-style-presets.js";
+import { clearSelectionHiddenByGpxCheckbox } from "./visibility.js";
 import { createWaypointPopupContent, createRoutePointPopupContent, createTrackPointPopupContent } from "./popup.js";
 
 export function mountGpxRow(input) {
@@ -35,7 +36,14 @@ export function mountGpxRow(input) {
         const view = model.current();
         return view?.revision === viewRevision ? view : null;
       };
-      listen(child, button, "click", () => { if (current()) return selection.request(gpx.selection.createCandidate(entry.id, target)); }, report);
+      listen(child, button, "click", () => {
+        const view = current(); if (!view) return;
+        const selected = selection.getCurrent();
+        const matches = selected?.entryId === entry.id && selected.domain === entry.domain
+          && (target.kind === "document" || selected.ref.revision === view.revision)
+          && selected.ref.kind === target.kind && Object.entries(target).every(([key, value]) => selected.ref[key] === value);
+        return matches ? selection.clear({ ifCurrent: selected }) : selection.request(gpx.selection.createCandidate(entry.id, target));
+      }, report);
       const isPoint = ["waypoint", "route-point", "track-point"].includes(target.kind);
       const coordinate = (view) => {
         const point = resolveGpxTarget(view.snapshot.data, target);
@@ -79,13 +87,19 @@ export function mountGpxRow(input) {
       const toggle = node(label, "input", "tilia-gpx-category-visible"); toggle.type = "checkbox"; model.controls.add(toggle); child.defer(() => model.controls.delete(toggle));
       toggle.setAttribute("aria-label", `${data.name} ${category}`);
       projections.push((v) => { toggle.checked = v.snapshot.preferences[`${category}Visible`]; });
-      listen(child, toggle, "change", () => { const visible = toggle.checked; return model.command((v) => gpx.setCategoryVisibility(entry.id, { category, visible }, { expectedRevision: v.revision }), render); }, report);
+      listen(child, toggle, "change", () => { const visible = toggle.checked; return model.command(async (v) => {
+        await gpx.setCategoryVisibility(entry.id, { category, visible }, { expectedRevision: v.revision });
+        await clearSelectionHiddenByGpxCheckbox(input, v, { category, visible });
+      }, render); }, report);
       const children = node(item, "ul", "tilia-gpx-children");
       if (category === "tracks") data.tracks.forEach((track, trackIndex) => {
         const branch = node(children, "li", "tilia-gpx-track"), check = node(branch, "input", "tilia-gpx-track-visible"); check.type = "checkbox"; model.controls.add(check); child.defer(() => model.controls.delete(check));
         check.setAttribute("aria-label", `${data.name} show track ${trackIndex + 1}`);
         projections.push((v) => { check.checked = v.snapshot.preferences.trackVisibility[trackIndex] !== false; });
-        listen(child, check, "change", () => { const visible = check.checked; return model.command((v) => gpx.setTrackVisibility(entry.id, { trackIndex, visible }, { expectedRevision: v.revision }), render); }, report);
+        listen(child, check, "change", () => { const visible = check.checked; return model.command(async (v) => {
+          await gpx.setTrackVisibility(entry.id, { trackIndex, visible }, { expectedRevision: v.revision });
+          await clearSelectionHiddenByGpxCheckbox(input, v, { trackIndex, visible });
+        }, render); }, report);
         select(branch, getTrackDisplayName(track, trackIndex), { kind: "track", trackIndex });
         const segments = node(branch, "ul", "tilia-gpx-segments");
         track.segments.forEach((segment, segmentIndex) => select(node(segments, "li", "tilia-gpx-segment"), `Segment #${segmentIndex + 1} (${segment.points.length} points)`, { kind: "segment", trackIndex, segmentIndex }));
@@ -123,14 +137,17 @@ export function mountGpxSettings(input) {
     style.value = preset;
     if (!data) {
       data = view.snapshot.data; void controlsScope?.dispose().catch(report); controlsScope = scope.child({ label: "visibility-settings" }); values.replaceChildren(); project = [];
-      const checkbox = (label, checked, admit) => {
+      const checkbox = (label, checked, admit, gate) => {
         const wrap = node(values, "label", "", label), toggle = node(wrap, "input", ""); toggle.type = "checkbox"; toggle.setAttribute("aria-label", label);
         model.controls.add(toggle); controlsScope.defer(() => model.controls.delete(toggle));
         project.push((v) => { toggle.checked = checked(v); });
-        listen(controlsScope, toggle, "change", () => { const visible = toggle.checked; return model.command((v) => admit(visible, v.revision), render); }, report);
+        listen(controlsScope, toggle, "change", () => { const visible = toggle.checked; return model.command(async (v) => {
+          await admit(visible, v.revision);
+          await clearSelectionHiddenByGpxCheckbox(input, v, { ...gate, visible });
+        }, render); }, report);
       };
-      for (const category of ["tracks", "routes", "waypoints"]) checkbox(category, (v) => v.snapshot.preferences[`${category}Visible`], (visible, revision) => gpx.setCategoryVisibility(entry.id, { category, visible }, { expectedRevision: revision }));
-      data.tracks.forEach((track, trackIndex) => checkbox(getTrackDisplayName(track, trackIndex), (v) => v.snapshot.preferences.trackVisibility[trackIndex] !== false, (visible, revision) => gpx.setTrackVisibility(entry.id, { trackIndex, visible }, { expectedRevision: revision })));
+      for (const category of ["tracks", "routes", "waypoints"]) checkbox(category, (v) => v.snapshot.preferences[`${category}Visible`], (visible, revision) => gpx.setCategoryVisibility(entry.id, { category, visible }, { expectedRevision: revision }), { category });
+      data.tracks.forEach((track, trackIndex) => checkbox(getTrackDisplayName(track, trackIndex), (v) => v.snapshot.preferences.trackVisibility[trackIndex] !== false, (visible, revision) => gpx.setTrackVisibility(entry.id, { trackIndex, visible }, { expectedRevision: revision }), { trackIndex }));
     }
     project.forEach((update) => update(view));
   };
