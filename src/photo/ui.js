@@ -1,5 +1,6 @@
 import { domainMount } from "../ui/domain-mount.js";
 import { listen, node } from "../ui/scoped-dom.js";
+import { buildFixedOffsetTimeMode, splitFixedOffsetTimeMode } from "../core/photo-time-utils.js";
 
 export function formatCaptured(value, mode = "auto") {
   if (value === null) return "-";
@@ -110,8 +111,50 @@ export function mountPhotoSettings(input) {
   const title = node(container, "h3", "tilia-photo-settings-name");
   const label = node(container, "label", "tilia-photo-setting-label", "Photo time");
   const select = node(label, "select", "tilia-control-select tilia-photo-time-mode-select"); model.controls.add(select);
-  for (const mode of ["auto", "local", "utc"]) { const option = node(select, "option", "", mode === "utc" ? "UTC" : mode); option.value = mode; }
-  const render = (view) => { title.textContent = view.snapshot.data.name; select.setAttribute("aria-label", `${title.textContent} photo time mode`); select.value = view.snapshot.preferences.requestedTimeMode; };
-  listen(scope, select, "change", () => { const mode = select.value; return model.command((view) => photo.setRequestedTimeMode(entry.id, mode, { expectedRevision: view.revision }), render); }, report);
+  for (const mode of ["auto", "local", "utc", "custom"]) { const option = node(select, "option", "", mode === "custom" ? "Custom offset" : mode === "utc" ? "UTC" : mode); option.value = mode; }
+  const custom = node(container, "div", "tilia-photo-time-custom");
+  const sign = node(custom, "select", "tilia-control-select tilia-photo-time-sign");
+  for (const value of ["+", "-"]) { const option = node(sign, "option", "", value); option.value = value; }
+  const offset = node(custom, "input", "tilia-control-select tilia-photo-time-offset"); offset.type = "time"; offset.step = "60";
+  model.controls.add(sign); model.controls.add(offset);
+  let draft = false, renderedMode;
+  const render = (view) => {
+    title.textContent = view.snapshot.data.name;
+    select.setAttribute("aria-label", `${title.textContent} photo time mode`);
+    sign.setAttribute("aria-label", `${title.textContent} photo time offset sign`);
+    offset.setAttribute("aria-label", `${title.textContent} photo time offset`);
+    const mode = view.snapshot.preferences.requestedTimeMode;
+    if (draft && mode === renderedMode) return;
+    draft = false; renderedMode = mode;
+    const fixed = splitFixedOffsetTimeMode(mode);
+    select.value = fixed ? "custom" : mode;
+    custom.hidden = !fixed; sign.disabled = offset.disabled = !fixed;
+    sign.value = fixed?.sign ?? "+"; offset.value = fixed?.time ?? "00:00";
+  };
+  const apply = async (mode) => {
+    draft = false;
+    await model.command((view) => photo.setRequestedTimeMode(entry.id, mode, { expectedRevision: view.revision }), render);
+  };
+  const applyCustom = async () => {
+    if (select.value !== "custom") return;
+    try {
+      if (!offset.value || !offset.validity.valid) throw new Error("Enter a valid photo time offset");
+      await apply(buildFixedOffsetTimeMode(sign.value, offset.value));
+    } catch (error) { draft = false; model.update(render); throw error; }
+  };
+  listen(scope, select, "change", () => {
+    if (select.value !== "custom") return apply(select.value);
+    draft = true; custom.hidden = false; sign.disabled = offset.disabled = false; offset.focus();
+  }, report);
+  listen(scope, offset, "input", () => { draft = true; }, report);
+  listen(scope, sign, "change", () => { draft = true; }, report);
+  listen(scope, offset, "change", () => { draft = true; }, report);
+  listen(scope, custom, "focusout", (event) => {
+    if (event.relatedTarget === select || custom.contains(event.relatedTarget)) return;
+    return applyCustom();
+  }, report);
+  for (const control of [sign, offset]) listen(scope, control, "keydown", (event) => {
+    if (event.key === "Enter") { event.preventDefault(); return applyCustom(); }
+  }, report);
   model.subscribe(render); model.update(render);
 }

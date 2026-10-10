@@ -149,7 +149,17 @@ await app.ready;
 
 EXIF GPS coordinates take precedence. A photo without GPS can receive an inferred location from a matching GPX timeline supplied by an installed GPX domain. For this, add `tilia-gpx-input` and load the timestamped GPX before the photo; a GPX renderer is optional for inference. Inference may fail to find a location, in which case no photo marker is shown.
 
-The inferred result is saved on the Photo entry. Later GPX changes or deletion do not automatically relocate it. Photo settings support `auto`, `local`, and `utc` time interpretation. Changing the Photo's relevant data or time mode, or explicitly recomputing, can attempt new inference. Fixed offset strings such as `+09:00` are not supported by the current Photo domain.
+The inferred result is saved on the Photo entry. Later GPX changes or deletion do not automatically relocate it. Photo settings support `auto`, `local`, `utc`, and **Custom offset** (sign plus hours/minutes). Commit custom fields with Enter or by moving focus outside the offset controls. Changing the Photo's relevant data or time mode, or explicitly recomputing, can attempt new inference. Failed changes preserve the committed setting and position; settings changes do not move the map automatically.
+
+Set the initial JPEG interpretation through the JPEG plugin, before publication and auto-pan:
+
+```js
+pluginOptions: {
+  "tilia-jpeg-input": { defaultPhotoTimeMode: "+09:00" },
+}
+```
+
+The default is `auto`; invalid defaults fail plugin setup. Fixed offsets also accept compact strings such as `+0900` and `Z`, normalized by the Photo domain. This option affects future imports, not existing entries. There is no application-global default setter. See [Photo domain](API.md#photo-data-commands-and-previews) for time semantics. Embed's second photo uses the original `biwakososui.gpx` timeline and `+09:00`.
 
 To request recomputation after loading new GPX data:
 

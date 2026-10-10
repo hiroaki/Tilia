@@ -64,7 +64,7 @@ test("Phase 4H real EXIF inference is one-shot and independent of GPX renderer, 
   });
   expect(retained).toEqual({ unchanged: true, retryFailed: true, resourceSnapshotSame: true, revision: 1, oldPreviewAborted: true, urls: [2, 1] });
   await page.getByRole("button", { name: "Settings", exact: true }).click();
-  const select = page.locator(".tilia-photo-time-mode-select"); await expect(select.locator("option")).toHaveCount(3);
+  const select = page.locator(".tilia-photo-time-mode-select"); await expect(select.locator("option")).toHaveCount(4);
   await select.selectOption("utc"); await expect(select).toHaveValue("auto");
   expect(await page.evaluate(() => window.phase4h.app.domains.photo.get(window.phase4h.app.entries.list()[0].id).revision)).toBe(1);
   expect(errors).toEqual([]);

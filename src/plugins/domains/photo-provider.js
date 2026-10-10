@@ -2,8 +2,7 @@ import { inferPhotoLocationFromTimeline, PhotoInferenceNoMatchError } from "../.
 import { createPreviewResource } from "../../photo/preview.js";
 import { cloneAndFreezePlainData, semanticError, semanticErrorCodes } from "../../domains/index.js";
 import { createPhotoSelectionAdapter } from "./photo-selection.js";
-
-const timeModes = new Set(["auto", "local", "utc"]);
+import { normalizePhotoTimeMode } from "../../core/photo-time-utils.js";
 
 function invalid(message, details = {}) {
   throw semanticError(semanticErrorCodes.inputInvalid, message, { domainId: "photo", ...details });
@@ -38,8 +37,10 @@ function normalizeData(value = {}) {
 }
 
 function normalizeMode(value = "auto") {
-  if (!timeModes.has(value)) invalid("Invalid Photo requested time mode", { field: "requestedTimeMode" });
-  return value;
+  let mode;
+  try { mode = normalizePhotoTimeMode(value); } catch { /* Report the domain error below. */ }
+  if (!mode) invalid("Invalid Photo requested time mode", { field: "requestedTimeMode" });
+  return mode;
 }
 
 function makeSnapshot(data, requestedTimeMode) {

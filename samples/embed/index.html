@@ -194,7 +194,7 @@
 
         <article
           class="story-card"
-          data-tilia-gpx-url="./img-2892-helper.gpx"
+          data-tilia-gpx-url="./biwakososui.gpx"
         >
           <div class="story-media">
             <img
@@ -277,6 +277,9 @@
             "tilia-photo-ui",
             "tilia-map-selection-presenter",
           ],
+          pluginOptions: {
+            "tilia-jpeg-input": { defaultPhotoTimeMode: gpxUrl ? "+09:00" : "auto" },
+          },
         });
 
         if (gpxUrl) {

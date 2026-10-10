@@ -194,7 +194,7 @@
 
         <article
           class="story-card"
-          data-tilia-gpx-url="./img-2892-helper.gpx"
+          data-tilia-gpx-url="./biwakososui.gpx"
         >
           <div class="story-media">
             <img
@@ -260,6 +260,9 @@
         // Photo cards follow the same flow; only the source data attribute changes.
         const app = createDefaultTiliaApp(mapNode, {
           plugins: ["tilia-toolbar", "tilia-status", "tilia-base-maps-control", "tilia-panel", "tilia-layers", "tilia-settings", "tilia-file-import", "tilia-url-import", "tilia-query-import", "tilia-dropzone", "tilia-elevation", "tilia-gpx-domain", "tilia-gpx-renderer", "tilia-gpx-input", "tilia-gpx-ui", "tilia-photo-domain", "tilia-photo-renderer", "tilia-jpeg-input", "tilia-photo-ui", "tilia-map-selection-presenter"],
+          pluginOptions: {
+            "tilia-jpeg-input": { defaultPhotoTimeMode: gpxUrl ? "+09:00" : "auto" },
+          },
         });
 
         if (gpxUrl) {

@@ -30,6 +30,9 @@
 .tilia-photo-time-mode-select { min-width: 6rem; }
 .tilia-photo-settings { display: flex; flex-direction: column; gap: 8px; }
 .tilia-photo-setting-label { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tilia-photo-time-custom { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tilia-photo-time-custom[hidden] { display: none; }
+.tilia-photo-time-offset { padding: 4px 6px; }
 @media (max-width: 640px) {
   .tilia-layer-thumbnail { width: 56px; height: 56px; flex-basis: 56px; }
   .tilia-photo-layer-content { grid-template-columns: minmax(0, 1fr) 56px; }

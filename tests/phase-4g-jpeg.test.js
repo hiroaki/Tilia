@@ -8,7 +8,7 @@ import { createPhotoProvider } from "../src/plugins/domains/photo-provider.js";
 
 const controllers = [];
 afterEach(async () => { for (const c of controllers.splice(0)) await c.close(); vi.clearAllMocks(); });
-async function fixture({ captureTimeline, afterCreate } = {}) {
+async function fixture({ captureTimeline, afterCreate, defaultPhotoTimeMode } = {}) {
   const owner = createScopeController(), consumer = createScopeController(); controllers.push(owner, consumer);
   const queue = [], inputs = createInputRegistry();
   const input = { scope: owner.scope, stage: (d) => owner.stage(d), enqueuePostCommit: (fn) => queue.push(fn) };
@@ -24,7 +24,7 @@ async function fixture({ captureTimeline, afterCreate } = {}) {
     await afterCreate?.({ owner, consumer, remove });
     return { id: 1 };
   });
-  jpeg.setup({ scope: owner.scope, map: { fitBounds }, entries: { get: () => present ? { id: 1 } : null }, inputs: inputs.createFacade(input), domains: { require: () => ({ create, get: () => ({ snapshot }) }) } });
+  jpeg.setup({ scope: owner.scope, map: { fitBounds }, entries: { get: () => present ? { id: 1 } : null }, inputs: inputs.createFacade(input), domains: { require: () => ({ create, get: () => ({ snapshot }) }) } }, { defaultPhotoTimeMode });
   await owner.commit(); queue.forEach((fn) => fn()); await consumer.commit();
   return { owner, consumer, create, fitBounds, inputs: inputs.createFacade({ scope: consumer.scope }) };
 }
@@ -89,5 +89,20 @@ describe("Phase 4G JPEG input / production EXIF normalization", () => {
     exifr.parse.mockResolvedValue({ DateTimeOriginal: new Date(500) });
     expect(await f.inputs.dispatch(file())).toMatchObject({ locationSource: "gpx-time-inference" });
     expect(f.fitBounds).toHaveBeenCalledExactlyOnceWith([[36, 136], [36, 136]], { padding: [20, 20] });
+  });
+  it("applies and normalizes the configured offset before publication and auto-pan", async () => {
+    const f = await fixture({ defaultPhotoTimeMode: "+0900", captureTimeline: () => ({ points: [
+      { timestamp: Date.UTC(2024, 0, 1, 0), lat: 35, lon: 135 },
+      { timestamp: Date.UTC(2024, 0, 1, 1), lat: 37, lon: 137 },
+    ] }) });
+    exifr.parse.mockResolvedValue({ DateTimeOriginal: new Date(2024, 0, 1, 9, 30) });
+    expect(await f.inputs.dispatch(file())).toMatchObject({ locationSource: "gpx-time-inference" });
+    expect(f.create.mock.calls[0][0].preferences.requestedTimeMode).toBe("+09:00");
+    expect(f.fitBounds).toHaveBeenCalledExactlyOnceWith([[36, 136], [36, 136]], { padding: [20, 20] });
+  });
+  it.each(["+24:00", "+09:60", "custom", null])("rejects invalid default %s before registering a handler", async defaultPhotoTimeMode => {
+    const register = vi.fn();
+    expect(() => jpeg.setup({ inputs: { register } }, { defaultPhotoTimeMode })).toThrow(/Invalid photo time mode/);
+    expect(register).not.toHaveBeenCalled();
   });
 });

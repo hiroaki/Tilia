@@ -1,9 +1,11 @@
 import { photoDomainKey } from "../../domains/keys.js";
+import { assertPhotoTimeMode } from "../../core/photo-time-utils.js";
 
 export default Object.freeze({
   id: "tilia-jpeg-input",
   requires: ["tilia-photo-domain"],
-  setup(context) {
+  setup(context, options = {}) {
+    const defaultPhotoTimeMode = assertPhotoTimeMode(options.defaultPhotoTimeMode === undefined ? "auto" : options.defaultPhotoTimeMode);
     const photo = context.domains.require(photoDomainKey);
     context.inputs.register({
       id: "tilia-jpeg", priority: 0,
@@ -23,7 +25,7 @@ export default Object.freeze({
           data: { name: input.name ?? "photo", coordinate: parsed.hasGps ? { lat: parsed.lat, lon: parsed.lon } : null,
             capturedAt, make: parsed.make, model: parsed.model,
             source: { mediaType: input.type || "image/jpeg", size: input.size } },
-          preferences: { requestedTimeMode: "auto" }, blob: input,
+          preferences: { requestedTimeMode: defaultPhotoTimeMode }, blob: input,
         }, { signal });
         // Publication commits the entry even if cancellation follows. Navigate
         // only while the import and plugin still own a live committed entry.

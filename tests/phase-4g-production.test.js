@@ -93,7 +93,7 @@ describe("Phase 4G actual production plugins", () => {
     expect(f.app.entries.get(entry.id)).toBeNull(); expect(byClass(f.map.container, "tilia-layer-item")).toHaveLength(0);
   });
 
-  it("mounts timestamp-only Photos with three per-entry settings, no inference and no marker", async () => {
+  it("mounts timestamp-only Photos with preset/custom per-entry settings, no inference and no marker", async () => {
     const f = await fixture(); const entry = await photo(f, null);
     expect(f.app.rendering.getStatus(entry.id).state).toBe("active");
     click(f, "Layers"); await settle(); byClass(f.map.container, "tilia-layer-name")[0].click(); await settle();
@@ -101,7 +101,7 @@ describe("Phase 4G actual production plugins", () => {
     expect([...f.map.layers].filter((l) => l.options.title === "photo.jpg")).toHaveLength(0);
     click(f, "Settings"); await settle();
     const select = byClass(f.map.container, "tilia-photo-time-mode-select")[0];
-    expect(select.children.map((n) => n.value)).toEqual(["auto", "local", "utc"]);
+    expect(select.children.map((n) => n.value)).toEqual(["auto", "local", "utc", "custom"]);
     select.value = "utc"; select.dispatchEvent(new Event("change")); await settle();
     expect(f.app.domains.photo.get(entry.id)).toMatchObject({ revision: 2, snapshot: { preferences: { requestedTimeMode: "utc" }, derived: { inferredLocation: null } } });
   });
