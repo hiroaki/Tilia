@@ -42,7 +42,7 @@ export function createGpxRenderer() {
         else if (points.length === 1) own(new CircleMarker(points[0], { ...style, radius: 5 }), `track:${trackIndex}`, target, "geometry", true, group);
       });
       data.routes.forEach((route, routeIndex) => {
-        if (!preferences.routesVisible) return;
+        if (!preferences.routesVisible || preferences.routeVisibility[routeIndex] === false) return;
         const target = { kind: "route", routeIndex };
         const style = resolveGpxObjectStyle(preferences, data, target);
         if (route.points.length > 1) own(new Polyline(route.points.map(position), { ...style, weight: Math.max(1, style.weight - 2), dashArray: "8 6" }), `route:${routeIndex}`, target, "geometry", true);
@@ -58,7 +58,7 @@ export function createGpxRenderer() {
         try {
           return gpxTargetPaths(data, ref).filter(({ target }) => {
             if (["track", "segment", "track-point"].includes(target.kind)) return preferences.tracksVisible && preferences.trackVisibility[target.trackIndex] !== false && input.visibility.isVisible(target);
-            if (["route", "route-point"].includes(target.kind)) return preferences.routesVisible;
+            if (["route", "route-point"].includes(target.kind)) return preferences.routesVisible && preferences.routeVisibility[target.routeIndex] !== false;
             return preferences.waypointsVisible;
           });
         } catch { return null; }

@@ -12,7 +12,7 @@ function text(value, fallback = "") {
   return value == null ? fallback : String(value);
 }
 
-function normalizePreferences(value, trackCount) {
+function normalizePreferences(value, trackCount, routeCount) {
   const preferences = value && typeof value === "object" && !Array.isArray(value) ? value : {};
   const trackVisibility = {};
   if (preferences.trackVisibility !== undefined) {
@@ -27,11 +27,25 @@ function normalizePreferences(value, trackCount) {
       trackVisibility[index] = visible;
     }
   }
+  const routeVisibility = {};
+  if (preferences.routeVisibility !== undefined) {
+    if (!preferences.routeVisibility || typeof preferences.routeVisibility !== "object" || Array.isArray(preferences.routeVisibility)) {
+      invalid("GPX routeVisibility must be an object", { field: "routeVisibility" });
+    }
+    for (const [key, visible] of Object.entries(preferences.routeVisibility)) {
+      const index = Number(key);
+      if (!Number.isInteger(index) || index < 0 || index >= routeCount || typeof visible !== "boolean") {
+        invalid("Invalid GPX per-route visibility", { field: "routeVisibility", routeIndex: key });
+      }
+      routeVisibility[index] = visible;
+    }
+  }
   return {
     tracksVisible: preferences.tracksVisible ?? true,
     routesVisible: preferences.routesVisible ?? true,
     waypointsVisible: preferences.waypointsVisible ?? true,
     trackVisibility,
+    routeVisibility,
     stylePresetId: text(preferences.stylePresetId, "default"),
   };
 }
@@ -52,7 +66,7 @@ export function createGpxProvider() {
     selection: createGpxSelectionAdapter(),
     async prepareCreate({ value }) {
       const data = normalizeGpxDocument(value?.data ?? value);
-      const nextSnapshot = snapshot(data, normalizePreferences(value?.preferences, data.tracks.length));
+      const nextSnapshot = snapshot(data, normalizePreferences(value?.preferences, data.tracks.length, data.routes.length));
       return { instance: nextSnapshot, snapshot: nextSnapshot };
     },
     async prepareMutation({ currentInstance, command, expectedRevision }) {
@@ -64,7 +78,9 @@ export function createGpxProvider() {
         data = normalizeGpxDocument(command.data);
         preferences = normalizePreferences({ ...preferences, trackVisibility: Object.fromEntries(
           Object.entries(preferences.trackVisibility).filter(([key]) => Number(key) < data.tracks.length),
-        ) }, data.tracks.length);
+        ), routeVisibility: Object.fromEntries(
+          Object.entries(preferences.routeVisibility).filter(([key]) => Number(key) < data.routes.length),
+        ) }, data.tracks.length, data.routes.length);
       } else if (command.type === "update-point") {
         if (command.target?.revision !== undefined && command.target.revision !== expectedRevision) {
           throw semanticError(semanticErrorCodes.entryStaleRevision, "GPX point target revision is stale");
@@ -77,6 +93,10 @@ export function createGpxProvider() {
         if (!Number.isInteger(command.trackIndex) || command.trackIndex < 0 || command.trackIndex >= data.tracks.length
             || typeof command.visible !== "boolean") invalid("Invalid GPX track visibility command");
         preferences = { ...preferences, trackVisibility: { ...preferences.trackVisibility, [command.trackIndex]: command.visible } };
+      } else if (command.type === "set-route-visibility") {
+        if (!Number.isInteger(command.routeIndex) || command.routeIndex < 0 || command.routeIndex >= data.routes.length
+            || typeof command.visible !== "boolean") invalid("Invalid GPX route visibility command");
+        preferences = { ...preferences, routeVisibility: { ...preferences.routeVisibility, [command.routeIndex]: command.visible } };
       } else if (command.type === "set-style-preset") {
         if (typeof command.stylePresetId !== "string" || command.stylePresetId.length === 0) invalid("Invalid GPX style preset");
         preferences = { ...preferences, stylePresetId: command.stylePresetId };

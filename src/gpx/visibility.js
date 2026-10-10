@@ -2,12 +2,13 @@
 // deliberately excluded. This policy belongs to checkbox consumers, not APIs.
 export function isGpxTargetVisible({ data, preferences }, ref) {
   const trackVisible = (index) => !!data.tracks[index] && preferences.tracksVisible && preferences.trackVisibility[index] !== false;
+  const routeVisible = (index) => !!data.routes[index] && preferences.routesVisible && preferences.routeVisibility[index] !== false;
   switch (ref.kind) {
     case "track": case "segment": case "track-point": return trackVisible(ref.trackIndex);
-    case "route": case "route-point": return !!data.routes[ref.routeIndex] && preferences.routesVisible;
+    case "route": case "route-point": return routeVisible(ref.routeIndex);
     case "waypoint": return !!data.waypoints[ref.waypointIndex] && preferences.waypointsVisible;
     case "document": return data.tracks.some((_, index) => trackVisible(index))
-      || (data.routes.length > 0 && preferences.routesVisible)
+      || data.routes.some((_, index) => routeVisible(index))
       || (data.waypoints.length > 0 && preferences.waypointsVisible);
     default: return false;
   }
@@ -25,10 +26,14 @@ export async function clearSelectionHiddenByGpxCheckbox({ scope, entry, entries,
   // hide, a show, or an unrelated already-hidden ancestor must not clear it.
   const changedToHidden = gate.category
     ? before.snapshot.preferences[`${gate.category}Visible`] && !preferences[`${gate.category}Visible`]
-    : before.snapshot.preferences.trackVisibility[gate.trackIndex] !== false && preferences.trackVisibility[gate.trackIndex] === false;
+    : gate.routeIndex !== undefined
+      ? before.snapshot.preferences.routeVisibility[gate.routeIndex] !== false && preferences.routeVisibility[gate.routeIndex] === false
+      : before.snapshot.preferences.trackVisibility[gate.trackIndex] !== false && preferences.trackVisibility[gate.trackIndex] === false;
   const withoutHide = { ...latest.snapshot, preferences: gate.category
     ? { ...preferences, [`${gate.category}Visible`]: true }
-    : { ...preferences, trackVisibility: { ...preferences.trackVisibility, [gate.trackIndex]: true } },
+    : gate.routeIndex !== undefined
+      ? { ...preferences, routeVisibility: { ...preferences.routeVisibility, [gate.routeIndex]: true } }
+      : { ...preferences, trackVisibility: { ...preferences.trackVisibility, [gate.trackIndex]: true } },
   };
   if (changedToHidden && isGpxTargetVisible(withoutHide, selected.ref) && !isGpxTargetVisible(latest.snapshot, selected.ref)) {
     await selection.clear({ ifCurrent: selected });

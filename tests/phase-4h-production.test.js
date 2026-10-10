@@ -748,3 +748,101 @@ describe("Phase B update edge cases", () => {
     ]);
   });
 });
+
+const routeVisibilityData = () => ({ name: "routes.gpx", tracks: [{ segments: [{ points: [p(1), p(2)] }] }], routes: [
+  { name: "Route A", points: [p(10), p(11)] }, { name: "Route B", points: [p(20)] }, { name: "Empty route", points: [] },
+], waypoints: [p(30)] });
+describe("Issue 55 per-route visibility", () => {
+  it("updates and returns revisioned domain views, emits changes only for stored preference changes and preserves track contracts", async () => {
+    const f = await fixture(), gpx = f.app.domains.gpx, entry = await gpx.create(routeVisibilityData());
+    const events = []; f.app.entries.subscribe((event) => events.push(event), { emitCurrent: false });
+    const hidden = await gpx.setRouteVisibility(entry.id, { routeIndex: 0, visible: false }, { expectedRevision: 1 });
+    expect(hidden).toEqual(gpx.get(entry.id)); expect(hidden.revision).toBe(2); expect(hidden.snapshot.preferences.routeVisibility).toEqual({ 0: false });
+    const count = events.length; expect(count).toBe(1); expect(events[0].change.type).toBe("set-route-visibility");
+    expect(await gpx.setRouteVisibility(entry.id, { routeIndex: 0, visible: false }, { expectedRevision: 2 })).toEqual(hidden);
+    expect(events).toHaveLength(count);
+    const shown = await gpx.setRouteVisibility(entry.id, { routeIndex: 0, visible: true }, { expectedRevision: 2 }); expect(shown.revision).toBe(3);
+    const track = await gpx.setTrackVisibility(entry.id, { trackIndex: 0, visible: false }, { expectedRevision: 3 });
+    expect(track.snapshot.preferences).toMatchObject({ trackVisibility: { 0: false }, routeVisibility: { 0: true } });
+    expect(await gpx.setTrackVisibility(entry.id, { trackIndex: 0, visible: false }, { expectedRevision: 4 })).toEqual(track);
+    await expect(gpx.setRouteVisibility(entry.id, { routeIndex: 0, visible: false }, { expectedRevision: 1 })).rejects.toMatchObject({ code: "ENTRY_STALE_REVISION" });
+    await expect(gpx.setRouteVisibility("missing", { routeIndex: 0, visible: false }, { expectedRevision: 1 })).rejects.toMatchObject({ code: "ENTRY_NOT_FOUND" });
+    const image = await photo(f);
+    await expect(gpx.setRouteVisibility(image.id, { routeIndex: 0, visible: false }, { expectedRevision: 1 })).rejects.toMatchObject({ code: "ENTRY_DOMAIN_MISMATCH" });
+  });
+  it.each([
+    { routeIndex: -1, visible: false }, { routeIndex: 3, visible: false }, { routeIndex: 0.5, visible: false },
+    { routeIndex: "0", visible: false }, { routeIndex: null, visible: false }, { visible: false },
+    { routeIndex: NaN, visible: false }, { routeIndex: Infinity, visible: false },
+    { routeIndex: 0, visible: "false" }, { routeIndex: 0, visible: null }, { routeIndex: 0, visible: 0 }, { routeIndex: 0 },
+  ])("rejects invalid mutation %j without changing state", async (value) => {
+    const f = await fixture(), gpx = f.app.domains.gpx, entry = await gpx.create(routeVisibilityData()), before = gpx.get(entry.id);
+    await expect(gpx.setRouteVisibility(entry.id, value, { expectedRevision: 1 })).rejects.toMatchObject({ code: "SEMANTIC_INPUT_INVALID" });
+    expect(gpx.get(entry.id)).toEqual(before); expect(gpx.get(entry.id).snapshot).toBe(before.snapshot);
+  });
+  it("hides complete multi/single/empty routes, composes category/entry gates and preserves colors across rebuilds", async () => {
+    const f = await fixture(["tilia-gpx-renderer"]), gpx = f.app.domains.gpx, entry = await gpx.create(routeVisibilityData()); await settle();
+    const lines = () => [...f.map.layers].filter((l) => l instanceof Polyline);
+    const routeMarkers = () => [...f.map.layers].filter((l) => l instanceof Marker && l.options.icon);
+    const colors = () => routeMarkers().map((m) => [m.options.icon.options.html, m.options.icon.options.routeColor]);
+    expect(lines()).toHaveLength(2); expect(colors()).toEqual([["1", "#5c6bc0"], ["2", "#5c6bc0"], ["1", "#c855bc"]]);
+    const oldMarker = routeMarkers()[0];
+    const hide = async (index, visible) => { await gpx.setRouteVisibility(entry.id, { routeIndex: index, visible }, { expectedRevision: gpx.get(entry.id).revision }); await settle(); };
+    await hide(0, false); expect(lines()).toHaveLength(1); expect(colors()).toEqual([["1", "#c855bc"]]);
+    expect([...f.map.layers].filter((l) => l instanceof Marker && !l.options.icon)).toHaveLength(1);
+    oldMarker.fire("click"); await settle(); expect(f.app.selection.getCurrent()).toBeNull();
+    const hiddenPresentation = f.context.presentation.resolve(entry.id, { kind: "route", routeIndex: 0, revision: 2 });
+    expect(hiddenPresentation.anchor).toBeNull(); expect(hiddenPresentation.highlightDescriptor).toBeNull();
+    await hide(1, false); expect(routeMarkers()).toHaveLength(0); await hide(2, false); expect(lines()).toHaveLength(1);
+    await gpx.setCategoryVisibility(entry.id, { category: "routes", visible: false }, { expectedRevision: gpx.get(entry.id).revision });
+    await gpx.setCategoryVisibility(entry.id, { category: "routes", visible: true }, { expectedRevision: gpx.get(entry.id).revision }); await settle(); expect(routeMarkers()).toHaveLength(0);
+    await f.app.entries.setVisible(entry.id, false); await f.app.entries.setVisible(entry.id, true); await settle(); expect(routeMarkers()).toHaveLength(0);
+    await hide(0, true); await hide(1, true); expect(colors()).toEqual([["1", "#5c6bc0"], ["2", "#5c6bc0"], ["1", "#c855bc"]]);
+    await gpx.setStylePreset(entry.id, "forest", { expectedRevision: gpx.get(entry.id).revision }); await settle();
+    expect(colors().map(([, color]) => color)).toEqual(["#2a9d8f", "#2a9d8f", "#2a9d8f"]);
+    await hide(0, false); expect(colors()).toEqual([["1", "#2a9d8f"]]);
+    await gpx.replaceData(entry.id, routeVisibilityData(), { expectedRevision: gpx.get(entry.id).revision }); await settle(); expect(colors()).toEqual([["1", "#2a9d8f"]]);
+    await f.app.entries.remove(entry.id); await settle(); expect(f.ownedLayers()).toHaveLength(0);
+  });
+  it.each([{ kind: "route", routeIndex: 0 }, { kind: "route-point", routeIndex: 0, pointIndex: 0 }])("UI hide clears selected %j while public APIs retain it", async (target) => {
+    const f = await fixture(phaseAPlugins), gpx = f.app.domains.gpx, entry = await gpx.create(routeVisibilityData()); await settle(); launch(f, "Layers"); await settle();
+    await selectIn(f, entry, target); await settle();
+    await gpx.setRouteVisibility(entry.id, { routeIndex: 0, visible: false }, { expectedRevision: 1 }); await settle();
+    expect(f.app.selection.getCurrent().ref).toMatchObject({ ...target, revision: 2 }); expect(popupIn(f)).toBeUndefined();
+    await gpx.setRouteVisibility(entry.id, { routeIndex: 0, visible: true }, { expectedRevision: 2 }); await settle(); expect(popupIn(f)).toBeDefined();
+    const requests = vi.fn(); f.app.selection.subscribeRequests(requests);
+    changeCheckbox(byClass(f.map.container, "tilia-gpx-route-visible")[0], false); await settle();
+    expect(f.app.selection.getCurrent()).toBeNull(); expect(popupIn(f)).toBeUndefined(); expect(crosshairsIn(f)).toHaveLength(0);
+    expect(requests).not.toHaveBeenCalled(); expect(f.map.panTo).not.toHaveBeenCalled(); expect(f.map.fitBounds).not.toHaveBeenCalled();
+  });
+  it("late checkbox completion preserves a newer unrelated route selection and closed popup intent", async () => {
+    let release; const gate = new Promise((resolve) => { release = resolve; });
+    const f = await fixture(phaseAPlugins, {}, null, null, () => gate), entry = await f.app.domains.gpx.create(routeVisibilityData()); await settle(); launch(f, "Layers"); await settle();
+    await selectIn(f, entry, { kind: "route", routeIndex: 0 }); await settle();
+    changeCheckbox(byClass(f.map.container, "tilia-gpx-route-visible")[0], false); await settle();
+    await selectIn(f, entry, { kind: "route-point", routeIndex: 1, pointIndex: 0 }); await settle(); popupIn(f).remove();
+    release(); await settle(); expect(f.app.selection.getCurrent().ref).toMatchObject({ kind: "route-point", routeIndex: 1 }); expect(popupIn(f)).toBeUndefined();
+  });
+  it("a failed route checkbox restores state and disposed listeners cannot mutate after tree replacement or plugin shutdown", async () => {
+    let reject = true;
+    const f = await fixture(phaseAPlugins, {}, null, null, () => { if (reject) throw new Error("rejected"); });
+    const gpx = f.app.domains.gpx, entry = await gpx.create(routeVisibilityData()); await settle(); launch(f, "Layers"); await settle();
+    const toggle = byClass(f.map.container, "tilia-gpx-route-visible")[0];
+    const selected = await selectIn(f, entry, { kind: "route", routeIndex: 0 }); await settle();
+    changeCheckbox(toggle, false); await settle(); expect(toggle.checked).toBe(true); expect(f.app.selection.getCurrent()).toBe(selected); expect(popupIn(f)).toBeDefined();
+    reject = false; await gpx.replaceData(entry.id, { routes: [{ points: [] }] }, { expectedRevision: 1 }); await settle();
+    changeCheckbox(toggle, false); await settle(); expect(gpx.get(entry.id).revision).toBe(2);
+    const latest = byClass(f.map.container, "tilia-gpx-route-visible")[0]; await f.app.unuse("tilia-gpx-ui"); await settle();
+    changeCheckbox(latest, false); await settle(); expect(gpx.get(entry.id).revision).toBe(2);
+  });
+  it("ignores no-op hides and hides beneath an already hidden category; clears document only when its last visible logical route is hidden", async () => {
+    const f = await fixture(phaseAPlugins), gpx = f.app.domains.gpx, entry = await gpx.create({ routes: [{ points: [] }, { points: [] }] }); await settle(); launch(f, "Layers"); await settle();
+    await selectIn(f, entry, { kind: "document" }); await settle();
+    const [a, b] = byClass(f.map.container, "tilia-gpx-route-visible"); changeCheckbox(a, false); await settle(); expect(f.app.selection.getCurrent().ref.kind).toBe("document");
+    changeCheckbox(b, false); await settle(); expect(f.app.selection.getCurrent()).toBeNull();
+    await selectIn(f, entry, { kind: "route", routeIndex: 0 }); await settle(); changeCheckbox(a, false); await settle(); expect(f.app.selection.getCurrent().ref.routeIndex).toBe(0);
+    await gpx.setRouteVisibility(entry.id, { routeIndex: 0, visible: true }, { expectedRevision: gpx.get(entry.id).revision });
+    await gpx.setCategoryVisibility(entry.id, { category: "routes", visible: false }, { expectedRevision: gpx.get(entry.id).revision }); await settle();
+    changeCheckbox(a, false); await settle(); expect(f.app.selection.getCurrent().ref.routeIndex).toBe(0);
+  });
+});

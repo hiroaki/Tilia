@@ -129,7 +129,16 @@ export function mountGpxRow(input) {
         track.segments.forEach((segment, segmentIndex) => select(node(segments, "li", "tilia-gpx-segment"), `Segment #${segmentIndex + 1} (${segment.points.length} points)`, { kind: "segment", trackIndex, segmentIndex }));
       });
       else if (category === "routes") data.routes.forEach((route, routeIndex) => {
-        const branch = node(children, "li", "tilia-gpx-route"); select(branch, `Route #${routeIndex + 1}`, { kind: "route", routeIndex });
+        const branch = node(children, "li", "tilia-gpx-route"), check = node(branch, "input", "tilia-gpx-route-visible"); check.type = "checkbox"; model.controls.add(check); child.defer(() => model.controls.delete(check));
+        projections.push((v) => {
+          check.setAttribute("aria-label", `${v.snapshot.data.name} show route ${routeIndex + 1}`);
+          check.checked = v.snapshot.preferences.routeVisibility[routeIndex] !== false;
+        });
+        listen(child, check, "change", () => { const visible = check.checked; return model.command(async (v) => {
+          await gpx.setRouteVisibility(entry.id, { routeIndex, visible }, { expectedRevision: v.revision });
+          await clearSelectionHiddenByGpxCheckbox(input, v, { routeIndex, visible });
+        }, render); }, report);
+        select(branch, `Route #${routeIndex + 1}`, { kind: "route", routeIndex });
         if (!route.points.length) return;
         const points = node(branch, "ul", "tilia-gpx-route-points"); route.points.forEach((point, pointIndex) => select(node(points, "li", ""), `Point #${pointIndex + 1}`, { kind: "route-point", routeIndex, pointIndex }));
       });

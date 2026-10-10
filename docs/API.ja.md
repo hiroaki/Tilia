@@ -200,7 +200,7 @@ await app.domains.gpx.recomputeDerived(entry.id, undefined, {
 
 座標は`lon`を使います（Leafletでは多くの場合`lng`です）。緯度・経度は地理的な範囲内の有限数です。標高は有限数または`null`、時刻はUnixミリ秒の有限数または`null`です。標高・時刻の省略値は`null`になります。メタデータは`name`、`description`、`timestamp`に対応します。トラック・ルート・ウェイポイントは標準で空配列です。指定するトラックには`segments`配列、セグメント・ルートには`points`配列が必要です。
 
-設定の標準値は`tracksVisible`、`routesVisible`、`waypointsVisible`がすべてtrue、`trackVisibility: {}`、`stylePresetId: "default"`です。トラック別の表示指定は0始まりのインデックスをオブジェクトのキーにします。スナップショットは`{ data, preferences, derived }`で、GPXの`derived`は現在空です。
+設定の標準値は`tracksVisible`、`routesVisible`、`waypointsVisible`がすべてtrue、`trackVisibility: {}`、`routeVisibility: {}`、`stylePresetId: "default"`です。トラック別・ルート別の表示指定は0始まりのインデックスをオブジェクトのキーにし、未指定の項目は表示します。スナップショットは`{ data, preferences, derived }`で、GPXの`derived`は現在空です。
 
 ```js
 const entry = await app.domains.gpx.create({
@@ -222,14 +222,17 @@ console.log(updated.revision);
 
 | GPX更新メソッド | 値の引数 |
 | --- | --- |
-| `replaceData` | 新しい文書。設定を保ち、範囲外のトラック表示指定を除く |
+| `replaceData` | 新しい文書。設定を保ち、範囲外のトラック・ルート表示指定を除く |
 | `updatePoint` | `{ target, patch }`。patchは`lat`, `lon`, `elevation`, `timestamp`に対応 |
 | `setCategoryVisibility` | `{ category: "tracks" \| "routes" \| "waypoints", visible }` |
 | `setTrackVisibility` | `{ trackIndex, visible }` |
+| `setRouteVisibility` | `{ routeIndex, visible }` |
 | `setStylePreset` | 空でないプリセットID。表示上の解釈はレンダラーの責務 |
 | `recomputeDerived` | `undefined`。GPXでは現在何も変更しない |
 
-点のpatchで標高・時刻を消すには`null`を使います。指定する値を`undefined`にはできません。エントリー全体の表示と、種類・トラックごとの設定は別の操作です。
+点のpatchで標高・時刻を消すには`null`を使います。指定する値を`undefined`にはできません。エントリー全体の表示と、種類・トラック・ルートごとの設定は別の操作です。
+
+ルートの表示条件は`entry.visible && preferences.routesVisible && preferences.routeVisibility[routeIndex] !== false`で、線と全番号マーカーに適用します。個別設定は`app.domains.gpx.get(id).snapshot.preferences.routeVisibility`で読み取り、種類・エントリー全体の切り替えでは保持します。`replaceData`はインデックスごとに設定を保持し、範囲外の指定を除き、新しいインデックスは表示を標準とします。`setRouteVisibility(id, { routeIndex, visible }, { expectedRevision })`は`setTrackVisibility`と同じ規約で、インデックスは範囲内の整数、`visible`は真偽値が必要です。現在または更新後のドメインビューを返し、保存された設定が同じなら変更通知を発行しません。エントリー・ドメイン・リビジョンのエラーも既存規約に従います。未指定のインデックスに`true`を保存する操作は、トラックと同じく設定変更です。公開APIは意味的な選択を維持し、Layersのチェックボックスはその操作で不可視になる選択だけを条件付きで解除します。
 
 <a id="gpx-targets-and-queries"></a>
 

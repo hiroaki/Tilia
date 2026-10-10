@@ -176,7 +176,7 @@ await app.domains.gpx.recomputeDerived(entry.id, undefined, {
 
 Coordinates use `lon` (Leaflet often uses `lng`). Latitude/longitude are finite numbers in geographic ranges. Elevation is finite or `null`; timestamps are finite Unix milliseconds or `null`. Omitted elevation/timestamp become `null`. Metadata supports `name`, `description`, and `timestamp`. Tracks/routes/waypoints default to empty arrays; supplied tracks require `segments` arrays and supplied segments/routes require `points` arrays.
 
-Preferences default to `tracksVisible`, `routesVisible`, and `waypointsVisible` all true, `trackVisibility: {}`, and `stylePresetId: "default"`. Per-track visibility uses zero-based indexes as object keys. Snapshots are `{ data, preferences, derived }`; GPX `derived` is currently empty.
+Preferences default to `tracksVisible`, `routesVisible`, and `waypointsVisible` all true, `trackVisibility: {}`, `routeVisibility: {}`, and `stylePresetId: "default"`. Per-track and per-route visibility use zero-based indexes as object keys; a missing index is visible. Snapshots are `{ data, preferences, derived }`; GPX `derived` is currently empty.
 
 ```js
 const entry = await app.domains.gpx.create({
@@ -198,14 +198,17 @@ console.log(updated.revision);
 
 | GPX mutation | Value argument |
 | --- | --- |
-| `replaceData` | New document; keeps preferences and drops out-of-range track visibility indexes |
+| `replaceData` | New document; keeps preferences and drops out-of-range track/route visibility indexes |
 | `updatePoint` | `{ target, patch }`; patch supports `lat`, `lon`, `elevation`, `timestamp` |
 | `setCategoryVisibility` | `{ category: "tracks" \| "routes" \| "waypoints", visible }` |
 | `setTrackVisibility` | `{ trackIndex, visible }` |
+| `setRouteVisibility` | `{ routeIndex, visible }` |
 | `setStylePreset` | Nonempty preset ID; visual interpretation belongs to the renderer |
 | `recomputeDerived` | `undefined`; currently a GPX no-op |
 
-Point patches use `null` to clear elevation/timestamp; supplied patch values cannot be `undefined`. Whole-entry visibility and category/track preferences are separate controls.
+Point patches use `null` to clear elevation/timestamp; supplied patch values cannot be `undefined`. Whole-entry visibility and category/track/route preferences are separate controls.
+
+Route visibility is `entry.visible && preferences.routesVisible && preferences.routeVisibility[routeIndex] !== false` and applies to its line and every numbered point marker. Read individual preferences through `app.domains.gpx.get(id).snapshot.preferences.routeVisibility`; category/entry toggles leave them intact. `replaceData` retains preferences by index, discards removed indexes, and defaults new indexes to visible. `setRouteVisibility(id, { routeIndex, visible }, { expectedRevision })` follows `setTrackVisibility`: indexes must be in-range integers and `visible` must be boolean; it returns the current/new domain view, emits no mutation for unchanged stored preferences, and uses the existing entry/domain/revision errors. Explicitly storing `true` at an absent index is a preference change, as for tracks. Public visibility mutations retain semantic selection; Layers checkbox hides conditionally clear only selections made invisible by that operation.
 
 ### GPX targets and queries
 
