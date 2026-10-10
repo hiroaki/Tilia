@@ -23,7 +23,7 @@ export default Object.freeze({
           if (!scope.alive) return;
           const entries = context.entries.list();
           for (const row of [...rows.values()]) if (!entries.some((e) => e.id === row.id)) withdraw(row);
-          for (const entry of entries) {
+          for (const [index, entry] of entries.entries()) {
             let row = rows.get(entry.id);
             if (!row) {
               const child = scope.child({ label: `entry:${entry.id}` }), item = node(list, "li", "tilia-layer-item tilia-layer-card");
@@ -60,9 +60,12 @@ export default Object.freeze({
                 catch (error) { report(error); assigned.remove(); void child.dispose().catch(report); node(row.content, "div", "tilia-layer-name", `${entry.domain.id} ${entry.id}`); }
               } else node(row.content, "div", "tilia-layer-name", `${entry.domain.id} ${entry.id}`);
             }
-            list.appendChild(row.item);
+            const position = list.children[index];
+            if (position !== row.item) list.insertBefore(row.item, position ?? null);
           }
-          empty?.remove(); empty = entries.length ? null : node(list, "li", "tilia-layer-empty", "No layers"); selection();
+          if (entries.length) { empty?.remove(); empty = null; }
+          else if (!empty) empty = node(list, "li", "tilia-layer-empty", "No layers");
+          selection();
         };
         listen(scope, clear, "click", async () => { if (clear.disabled) return; clear.disabled = true; mutations.disabled = true; try { await context.entries.clear(); if (scope.alive) context.services.optional(statusServiceKey)?.set("Cleared all layers and sources"); } finally { if (scope.alive) { clear.disabled = false; mutations.disabled = false; reconcile(); } } }, report);
         const subscriptions = [context.entries.subscribe(reconcile, { emitCurrent: false }), context.contributions.layers.subscribe(reconcile, { emitCurrent: false }), context.selection.subscribe(selection)];

@@ -27,6 +27,7 @@ import { gpxQueryServiceKey } from "../src/plugins/contracts/gpx-query.js";
 import { cloneAndFreezePlainData } from "../src/domains/immutable.js";
 import { gpxDomainKey } from "../src/domains/keys.js";
 import { lookupTimestamp } from "../src/gpx/queries.js";
+import layersPlugin from "../src/plugins/ui/layers-control.js";
 import { clearSelectionHiddenByGpxCheckbox } from "../src/gpx/visibility.js";
 const fixtures = [];
 afterEach(async () => {
@@ -295,7 +296,7 @@ describe("Phase 4H production rendering and independent presentation", () => {
     const entry = await f.app.domains.gpx.create({ tracks: [{ segments: [{ points: [p(0), p(1)] }, { points: [p(2)] }] }, { segments: [{ points: [p(20), p(21)] }] }], routes: [{ points: [p(30), p(31)] }], waypoints: [p(40)] }); await settle();
     const lines = [...f.map.layers].filter((l) => l instanceof Polyline);
     expect(lines.map((l) => l.point)).toEqual([[{ lat: 0, lng: 0 }, { lat: 1, lng: 0 }, { lat: 2, lng: 0 }], [{ lat: 20, lng: 0 }, { lat: 21, lng: 0 }], [{ lat: 30, lng: 0 }, { lat: 31, lng: 0 }]]);
-    expect(lines[2].options).toMatchObject({ dashArray: "8 6", weight: 4, color: "#0099cc" });
+    expect(lines[2].options).toMatchObject({ dashArray: "8 6", weight: 4, color: "#c855bc" });
     const markers = [...f.map.layers].filter((l) => l instanceof Marker);
     expect(markers).toHaveLength(3); expect(markers.slice(0, 2).map((m) => m.options.icon.options.html)).toEqual(["1", "2"]);
     lines[0].fire("click", { latlng: { lat: 1.9, lng: 0 } }); await settle();
@@ -608,5 +609,142 @@ describe("Phase A GPX selection and popup UX", () => {
     expect(f.map.listeners.get("click").size).toBe(0); expect(f.map.layers.has(popup)).toBe(false); expect(f.map.layers.has(crosshair)).toBe(false);
     await selectIn(f, entry); await settle(); expect(popupIn(f)).toBeUndefined(); expect(crosshairsIn(f)).toHaveLength(0);
     await f.app.entries.remove(entry.id); await settle(); expect(f.app.selection.getCurrent()).toBeNull();
+  });
+});
+
+describe("Phase B Layers hierarchy and deterministic renderer styling", () => {
+  it.each([
+    ["empty", {}, [], 0, 0, 0],
+    ["waypoints only", { waypoints: [p(1)] }, ["waypoints"], 0, 0, 0],
+    ["tracks only", { tracks: [{ name: "Empty track", segments: [] }] }, ["tracks"], 1, 0, 0],
+    ["routes only", { routes: [{ name: "Empty route", points: [] }] }, ["routes"], 0, 0, 1],
+    ["mixed empty children", { tracks: [{ segments: [{ points: [] }] }, { segments: [] }], routes: [{ points: [] }] }, ["tracks", "routes"], 2, 1, 1],
+  ])("omits empty collections while preserving logical objects: %s", async (_, data, categories, tracks, segments, routes) => {
+    const f = await fixture(["tilia-gpx-ui", "tilia-layers"]);
+    await f.app.domains.gpx.create({ name: "collections.gpx", ...data });
+    byClass(f.map.container, "tilia-control-button").find((n) => n.attributes["aria-label"] === "Layers").click(); await settle();
+    const toggles = byClass(f.map.container, "tilia-gpx-category-visible");
+    expect(toggles.map((n) => n.attributes["aria-label"].split(" ").at(-1))).toEqual(categories);
+    for (const toggle of toggles) {
+      expect(toggle.parentNode.children[0]).toBe(toggle);
+      expect(toggle.parentNode.children[1].tagName).toBe("SPAN");
+    }
+    expect(byClass(f.map.container, "tilia-gpx-tree")).toHaveLength(categories.length ? 1 : 0);
+    expect(byClass(f.map.container, "tilia-gpx-track")).toHaveLength(tracks);
+    expect(byClass(f.map.container, "tilia-gpx-segment")).toHaveLength(segments);
+    expect(byClass(f.map.container, "tilia-gpx-route")).toHaveLength(routes);
+    for (const className of ["tilia-gpx-children", "tilia-gpx-segments", "tilia-gpx-route-points"]) {
+      for (const list of byClass(f.map.container, className)) expect(list.children.length).toBeGreaterThan(0);
+    }
+  });
+  it("updates categories on replacement and releases old tree listeners without replacing the entry row", async () => {
+    const f = await fixture(["tilia-gpx-ui", "tilia-layers"]), gpx = f.app.domains.gpx;
+    const entry = await gpx.create({ name: "replace.gpx", tracks: [{ segments: [] }] });
+    byClass(f.map.container, "tilia-control-button").find((n) => n.attributes["aria-label"] === "Layers").click(); await settle();
+    const row = byClass(f.map.container, "tilia-layer-item")[0], old = byClass(row, "tilia-gpx-category-visible")[0];
+    await gpx.replaceData(entry.id, { name: "replace.gpx", routes: [{ points: [] }], waypoints: [p(1)] }, { expectedRevision: 1 }); await settle();
+    expect(byClass(f.map.container, "tilia-layer-item")[0]).toBe(row);
+    expect(byClass(row, "tilia-gpx-category-visible").map((n) => n.attributes["aria-label"])).toEqual(["replace.gpx routes", "replace.gpx waypoints"]);
+    changeCheckbox(old, false); await settle(); expect(gpx.get(entry.id).revision).toBe(2);
+    await gpx.replaceData(entry.id, {}, { expectedRevision: 2 }); await settle(); expect(byClass(row, "tilia-gpx-tree")).toHaveLength(0);
+    await f.app.unuse("tilia-layers"); await settle();
+    expect(byClass(f.map.container, "tilia-layer-item")).toHaveLength(0);
+    changeCheckbox(old, true); await settle(); expect(gpx.get(entry.id).revision).toBe(3);
+  });
+  it("keeps default colors across hidden/empty logical objects, selection and generations; explicit presets remain uniform", async () => {
+    const f = await fixture(["tilia-gpx-renderer"]), gpx = f.app.domains.gpx;
+    const entry = await gpx.create({ tracks: [
+      { segments: [{ points: [p(1), p(2)] }, { points: [p(3)] }] },
+      { segments: [] }, { segments: [{ points: [p(4), p(5)] }] },
+    ], routes: [{ points: [] }, { points: [p(6), p(7)] }] }); await settle();
+    const lines = () => [...f.map.layers].filter((layer) => layer instanceof Polyline);
+    expect(lines().map((layer) => layer.options.color)).toEqual(["#0099cc", "#c855bc", "#bc6c25"]);
+    expect([...f.map.layers].filter((layer) => layer instanceof Marker).map((layer) => layer.options.icon.options.routeColor)).toEqual(["#bc6c25", "#bc6c25"]);
+    await gpx.setTrackVisibility(entry.id, { trackIndex: 0, visible: false }, { expectedRevision: 1 }); await settle();
+    expect(lines().map((layer) => layer.options.color)).toEqual(["#c855bc", "#bc6c25"]);
+    await f.app.selection.request(gpx.selection.createCandidate(entry.id, { kind: "route", routeIndex: 1 })); await settle();
+    expect(lines().map((layer) => layer.options.color)).toEqual(["#c855bc", "#bc6c25"]);
+    await f.app.entries.setVisible(entry.id, false); await f.app.entries.setVisible(entry.id, true); await settle();
+    expect(lines().map((layer) => layer.options.color)).toEqual(["#c855bc", "#bc6c25"]);
+    await gpx.setTrackVisibility(entry.id, { trackIndex: 0, visible: true }, { expectedRevision: 2 }); await settle();
+    expect(lines().map((layer) => layer.options.color)).toEqual(["#0099cc", "#c855bc", "#bc6c25"]);
+    for (const [preset, color] of [["forest", "#2a9d8f"], ["unknown", "#0099cc"]]) {
+      await gpx.setStylePreset(entry.id, preset, { expectedRevision: gpx.get(entry.id).revision }); await settle();
+      expect(lines().map((layer) => layer.options.color)).toEqual([color, color, color]);
+      expect([...f.map.layers].filter((layer) => layer instanceof Marker).map((layer) => layer.options.icon.options.routeColor)).toEqual([color, color]);
+    }
+  });
+});
+
+
+describe("Phase B Layers host ordering", () => {
+  it("moves only rows whose order changes and preserves ordinary updates, additions, removals and cleanup", async () => {
+    const f = await fixture(["tilia-gpx-ui", "tilia-panel", "tilia-toolbar"]);
+    let reversed = false;
+    await f.app.use({ id: "x-phase-b-layers", setup(context) {
+      layersPlugin.setup({ ...context, entries: { ...context.entries, list() {
+        const entries = context.entries.list(); return reversed ? [...entries].reverse() : entries;
+      } } });
+    } });
+    const a = await f.app.domains.gpx.create({ name: "A", tracks: [{ segments: [] }] });
+    const b = await f.app.domains.gpx.create({ name: "B", waypoints: [p(1)] });
+    byClass(f.map.container, "tilia-control-button").find((n) => n.attributes["aria-label"] === "Layers").click(); await settle();
+    const list = byClass(f.map.container, "tilia-layer-list")[0], [rowA, rowB] = list.children;
+    const treeA = byClass(rowA, "tilia-gpx-tree")[0];
+    const append = vi.spyOn(list, "appendChild"), insert = vi.spyOn(list, "insertBefore");
+    await f.app.entries.setVisible(a.id, false); await settle();
+    await f.app.selection.request(f.app.domains.gpx.selection.createCandidate(b.id, { kind: "waypoint", waypointIndex: 0 })); await settle();
+    expect(append).not.toHaveBeenCalled(); expect(insert).not.toHaveBeenCalled();
+    expect(list.children).toEqual([rowA, rowB]); expect(byClass(rowA, "tilia-gpx-tree")[0]).toBe(treeA);
+    reversed = true; await f.app.entries.setVisible(a.id, true); await settle();
+    expect(list.children).toEqual([rowB, rowA]); expect(insert).toHaveBeenCalledTimes(1);
+    const c = await f.app.domains.gpx.create({ name: "C" }); await settle();
+    const rowC = list.children[0]; expect(list.children).toEqual([rowC, rowB, rowA]);
+    await f.app.entries.remove(b.id); await settle(); expect(list.children).toEqual([rowC, rowA]);
+    const stale = byClass(rowB, "tilia-layer-visible")[0]; changeCheckbox(stale, false); await settle();
+    expect(f.app.entries.get(b.id)).toBeNull();
+    await f.app.entries.remove(c.id); await f.app.entries.remove(a.id); await settle();
+    const empty = list.children[0]; expect(empty.classList.contains("tilia-layer-empty")).toBe(true);
+    await f.app.entries.clear(); await settle(); expect(list.children[0]).toBe(empty);
+    await f.app.unuse("x-phase-b-layers"); await settle(); expect(byClass(f.map.container, "tilia-layer-list")).toHaveLength(0);
+    changeCheckbox(byClass(rowA, "tilia-layer-visible")[0], false); await settle(); expect(f.app.entries.list()).toEqual([]);
+  });
+});
+
+describe("Phase B update edge cases", () => {
+  it("projects replacement names and coordinates without rebuilding unchanged collections", async () => {
+    const f = await fixture(["tilia-gpx-ui", "tilia-layers"]), gpx = f.app.domains.gpx;
+    const entry = await gpx.create({ name: "Before", tracks: [{ name: "Old track", segments: [{ points: [] }] }], routes: [{ name: "Old route", points: [{ ...p(1), name: "Old point" }] }], waypoints: [{ ...p(2), name: "Old waypoint" }] });
+    byClass(f.map.container, "tilia-control-button").find((n) => n.attributes["aria-label"] === "Layers").click(); await settle();
+    const tree = byClass(f.map.container, "tilia-gpx-tree")[0], names = byClass(tree, "tilia-gpx-node"), toggle = byClass(tree, "tilia-gpx-category-visible")[0];
+    await gpx.replaceData(entry.id, { name: "After", tracks: [{ segments: [{ points: [p(3)] }] }], routes: [{ points: [p(4)] }], waypoints: [p(5)] }, { expectedRevision: 1 }); await settle();
+    expect(byClass(f.map.container, "tilia-gpx-tree")[0]).toBe(tree);
+    expect(byClass(tree, "tilia-gpx-node")).toEqual(names);
+    expect(names.map((n) => n.textContent)).toEqual(["Track #1", "Segment #1 (1 points)", "Route #1", "Point #1", "Waypoint #1"]);
+    expect(toggle.attributes["aria-label"]).toBe("After tracks");
+    names.at(-1).click(); await settle(); expect(f.app.selection.getCurrent().ref).toMatchObject({ kind: "waypoint", revision: 2 });
+    changeCheckbox(toggle, false); await settle(); expect(gpx.get(entry.id).snapshot.preferences.tracksVisible).toBe(false);
+  });
+  it("retains active checkbox focusability while pending, rejects duplicate commands and releases controls on disposal", async () => {
+    let release, admissions = 0;
+    const gate = new Promise((resolve) => { release = resolve; });
+    const f = await fixture(["tilia-gpx-ui", "tilia-layers"], {}, null, null, () => { admissions++; return gate; });
+    const entry = await f.app.domains.gpx.create(phaseAData());
+    byClass(f.map.container, "tilia-control-button").find((n) => n.attributes["aria-label"] === "Layers").click(); await settle();
+    const [active, other] = byClass(f.map.container, "tilia-gpx-track-visible"); active.focus();
+    changeCheckbox(active, false); await settle();
+    expect(active.disabled).not.toBe(true); expect(other.disabled).toBe(true); expect(f.doc.activeElement).toBe(active);
+    changeCheckbox(active, true); await settle(); expect(admissions).toBe(1); expect(active.checked).toBe(true);
+    release(); await settle(); expect(active.checked).toBe(false); expect(other.disabled).toBe(false);
+    expect(f.app.domains.gpx.get(entry.id).revision).toBe(2);
+    await f.app.unuse("tilia-gpx-ui"); await settle(); changeCheckbox(active, true); await settle();
+    expect(admissions).toBe(1); expect(f.app.domains.gpx.get(entry.id).revision).toBe(2);
+  });
+  it("cycles the existing eight colors in canonical order", async () => {
+    const f = await fixture(["tilia-gpx-renderer"]);
+    await f.app.domains.gpx.create({ tracks: Array.from({ length: 9 }, (_, i) => ({ segments: [{ points: [p(i), p(i + 0.1)] }] })) }); await settle();
+    expect([...f.map.layers].filter((layer) => layer instanceof Polyline).map((layer) => layer.options.color)).toEqual([
+      "#0099cc", "#5c6bc0", "#c855bc", "#d1495b", "#bc6c25", "#f4a261", "#6a994e", "#2a9d8f", "#0099cc",
+    ]);
   });
 });

@@ -194,4 +194,4 @@
   color: #57534e;
   line-height: 1.5;
 }
-.tilia-layer-selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.tilia-layer-selected { border-color: var(--accent); }

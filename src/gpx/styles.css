@@ -42,3 +42,7 @@
 .tilia-gpx-setting-label { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .tilia-gpx-visibility-settings { display: flex; flex-direction: column; gap: 6px; }
 .tilia-gpx-visibility-settings label { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+
+.tilia-gpx-category-label { display: inline-flex; align-items: center; gap: 6px; }
+.tilia-gpx-category-visible, .tilia-gpx-track-visible { margin: 0 6px 0 0; vertical-align: middle; }
+.tilia-gpx-category-label .tilia-gpx-category-visible { margin: 0; }
