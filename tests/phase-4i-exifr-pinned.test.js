@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
 vi.mock("leaflet",()=>import("./helpers/leaflet-ui.js"));
-vi.mock("exifr",()=>import("./fixtures/exifr-7.1.3-lite.esm.js"));
+vi.mock("https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/lite.esm.js",()=>import("./fixtures/exifr-7.1.3-lite.esm.js"));
 import { uiFixture, settle } from "./helpers/production-ui.js";
 let f;afterEach(async()=>{await f?.close();f=null;vi.unstubAllGlobals();});
 describe("actual pinned exifr 7.1.3 browser Blob reader",()=>{

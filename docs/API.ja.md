@@ -40,7 +40,7 @@ importパスはホストページがリポジトリのルートより一階層�
 
 `plugins`の各項目にはID、`[definitionOrId, options]`、`{ plugin: definitionOrId, options }`を使えます。配列・オブジェクト形式は明示的なオプションを使います。未インストールの必須依存先は空のオプションで自動インストールされます。設定が必要な依存先は利用側より先に指定してください。[プラグインの選択](PLUGINS.ja.md#choosing-plugins)を参照してください。
 
-任意の実装は要求されたときに読み込みます。JPEG入力には、プラグインガイドで説明する固定バージョンの`exifr`のimport map設定も必要です。
+任意の実装は要求されたときに読み込みます。
 
 <a id="base-map-options"></a>
 
