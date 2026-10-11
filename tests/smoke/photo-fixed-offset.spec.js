@@ -89,13 +89,23 @@ test.describe("Photo custom offset UI", () => {
       await app.ready;
       const entry = await app.domains.photo.create({ data: { name: "GPS photo", coordinate: { lat: 35, lon: 135 }, capturedAt: 0 }, preferences: { requestedTimeMode: "+09:00" } });
       window.offsetId = entry.id;
+      window.offsetChanges = [];
+      app.entries.subscribe(event => {
+        if (event.type === "domain-changed" && event.entry.id === entry.id) window.offsetChanges.push(event);
+      }, { emitCurrent: false });
     });
     await page.getByRole("button", { name: "Settings", exact: true }).click();
     const offset = page.locator(".tilia-photo-time-offset");
     await page.locator(".tilia-photo-time-sign").selectOption("-");
     await offset.fill("08:30"); await offset.press("Enter");
     await page.waitForFunction(() => typeof window.offsetRelease === "function");
-    await expect(offset).toBeDisabled();
+    // The active native input stays focusable to avoid blur/focusout reentry;
+    // the other controls reflect the pending command until it settles.
+    await expect(offset).toBeFocused();
+    await expect(offset).toBeEnabled();
+    await expect(page.locator(".tilia-photo-time-mode-select")).toBeDisabled();
+    await expect(page.locator(".tilia-photo-time-sign")).toBeDisabled();
+    expect(await page.evaluate(() => window.lifecycle.app.domains.photo.get(window.offsetId).snapshot.preferences.requestedTimeMode)).toBe("+09:00");
     await page.evaluate(async () => {
       const app = window.lifecycle.app;
       window.offsetRemoval = app.entries.remove(window.offsetId);
@@ -105,6 +115,7 @@ test.describe("Photo custom offset UI", () => {
     });
     await expect(offset).toHaveCount(0);
     expect(await page.evaluate(() => window.lifecycle.app.entries.get(window.offsetId))).toBeNull();
+    expect(await page.evaluate(() => window.offsetChanges)).toEqual([]);
     await page.evaluate(() => window.lifecycle.app.destroy());
     await expect(page.locator("link[data-tilia-stylesheet]")).toHaveCount(0);
   });
