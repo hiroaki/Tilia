@@ -34,7 +34,7 @@ The import path assumes a host page one directory below the repository root; adj
 
 Each `plugins` item may be an ID, `[definitionOrId, options]`, or `{ plugin: definitionOrId, options }`. Tuple/object options are explicit. Hard dependencies install automatically with empty options unless already installed. Configure a dependency before its consumer when it needs options; see [Choosing plugins](PLUGINS.md#choosing-plugins).
 
-Optional implementations load when requested. JPEG input also needs the pinned `exifr` import mapping documented in the plugin guide.
+Optional implementations load when requested.
 
 ### Base-map options
 

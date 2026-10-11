@@ -103,7 +103,7 @@ You can also keep the initial URL loading from the first example and add these i
 
 ### Add photos or viewer controls
 
-Enable the Photo input and renderer to display JPEG files, and add the `exifr` import mapping shown in the [Tilia plugin guide](docs/PLUGINS.md#photos). Add UI plugins for layer controls, popups, elevation, and settings. The guide includes complete plugin combinations and configuration examples.
+Enable the Photo input and renderer to display JPEG files, as shown in the [Tilia plugin guide](docs/PLUGINS.md#photos). Add UI plugins for layer controls, popups, elevation, and settings. The guide includes complete plugin combinations and configuration examples.
 
 See the working [viewer](samples/viewer/index.html) and [embed gallery](samples/embed/index.html). The gallery demonstrates multiple maps populated from `data-*` attributes, which is useful for reusable CMS templates.
 
@@ -137,9 +137,9 @@ The [Tilia plugin guide](docs/PLUGINS.md) lists all plugins, their dependencies,
 
 Serve your page and `src/` from static hosting. Also include `plugins/` if you enable the optional `x-*` plugins in this repository. Preserve their relative directory structure. To host the sample pages, include `samples/` and its assets as well. No bundler or build step is needed.
 
-Load Leaflet's JavaScript through an import map and include its CSS. The examples use Leaflet `2.0.0-alpha.1`; JPEG input additionally uses exifr `7.1.3`. See the [dependency setup](docs/PLUGINS.md#photos). Adjust the import path to `src/index.js` for your page's location.
+Load Leaflet's JavaScript through an import map and include its CSS. The examples use Leaflet `2.0.0-alpha.1`. See the [dependency setup](docs/PLUGINS.md#photos). Adjust the import path to `src/index.js` for your page's location.
 
-The CDN-based examples and remote map tiles need network access. Dependencies may be hosted locally if their import mappings and asset paths are updated.
+The CDN-based examples and remote map tiles need network access. Leaflet may be hosted locally by updating its import mapping and asset paths.
 
 ## Trust model
 

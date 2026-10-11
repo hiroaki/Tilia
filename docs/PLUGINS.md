@@ -120,14 +120,15 @@ The [viewer sample](../samples/viewer/index.html) combines GPX and Photos. The [
 
 ## Photos
 
-In addition to Leaflet CSS and its import mapping, JPEG input needs exifr. Place this import map before the module script:
+The JPEG input plugin imports exifr 7.1.3 directly from `https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/lite.esm.js` when processing a JPEG file. CDN access must be allowed by the network and CSP.
+
+Include Leaflet CSS and place its import map before the module script:
 
 ```html
 <script type="importmap">
 {
   "imports": {
-    "leaflet": "https://unpkg.com/leaflet@2.0.0-alpha.1/dist/leaflet.js",
-    "exifr": "https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/lite.esm.js"
+    "leaflet": "https://unpkg.com/leaflet@2.0.0-alpha.1/dist/leaflet.js"
   }
 }
 </script>

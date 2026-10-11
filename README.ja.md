@@ -115,7 +115,7 @@ await app.ready;
 
 ### 写真やビューアの操作部品を追加する
 
-JPEGを表示するにはPhoto入力とレンダラーを有効にし、[Tiliaプラグインガイド](docs/PLUGINS.ja.md#photos)の`exifr`のimport map設定を追加します。レイヤー操作、ポップアップ、標高、設定には対応するUIプラグインを追加してください。ガイドには組み合わせと設定の例があります。
+JPEGを表示するにはPhoto入力とレンダラーを有効にし、[Tiliaプラグインガイド](docs/PLUGINS.ja.md#photos)を参照してください。レイヤー操作、ポップアップ、標高、設定には対応するUIプラグインを追加してください。ガイドには組み合わせと設定の例があります。
 
 動作例は[ビューア](samples/viewer/index.html)と[埋め込みギャラリー](samples/embed/index.html)で確認できます。ギャラリーは`data-*`属性から複数の地図にデータを設定する例で、CMSの再利用可能なテンプレートにも適しています。
 
@@ -155,9 +155,9 @@ await app.destroy();
 
 ページと`src/`を静的ホスティングで配信します。このリポジトリの任意の`x-*`プラグインを使う場合は`plugins/`も含め、相対的なディレクトリ構造を維持してください。サンプルページも配信する場合は`samples/`とその素材を含めます。バンドラーやビルド処理は不要です。
 
-LeafletのJavaScriptをimport mapで読み込み、CSSも含めます。例ではLeaflet `2.0.0-alpha.1`を使い、JPEG入力には追加でexifr `7.1.3`を使います。[依存関係の設定](docs/PLUGINS.ja.md#photos)を参照してください。ページの場所に合わせて`src/index.js`へのimportパスを調整します。
+LeafletのJavaScriptをimport mapで読み込み、CSSも含めます。例ではLeaflet `2.0.0-alpha.1`を使います。[依存関係の設定](docs/PLUGINS.ja.md#photos)を参照してください。ページの場所に合わせて`src/index.js`へのimportパスを調整します。
 
-CDNを使う例とリモートの地図タイルにはネットワーク接続が必要です。依存ライブラリをローカルで配信する場合は、import mapと素材のパスを変更してください。
+CDNを使う例とリモートの地図タイルにはネットワーク接続が必要です。Leafletをローカルで配信する場合は、そのimport mapと素材のパスを変更してください。
 
 <a id="trust-model"></a>
 

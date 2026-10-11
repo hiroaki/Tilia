@@ -138,14 +138,15 @@ await app.ready;
 
 ## 写真
 
-JPEG入力には、LeafletのCSSとimport mapに加えてexifrが必要です。モジュールスクリプトより前に次を置きます。
+JPEG入力プラグインはJPEGファイルの処理時に、exifr 7.1.3を`https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/lite.esm.js`から直接インポートします。ネットワークとCSPでCDNへの接続を許可する必要があります。
+
+LeafletのCSSを含め、モジュールスクリプトより前に次のimport mapを置きます。
 
 ```html
 <script type="importmap">
 {
   "imports": {
-    "leaflet": "https://unpkg.com/leaflet@2.0.0-alpha.1/dist/leaflet.js",
-    "exifr": "https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/lite.esm.js"
+    "leaflet": "https://unpkg.com/leaflet@2.0.0-alpha.1/dist/leaflet.js"
   }
 }
 </script>
