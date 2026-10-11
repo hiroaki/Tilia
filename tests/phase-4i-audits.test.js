@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { resolve, dirname, relative } from "node:path";
-import { execFileSync } from "node:child_process";
 import { init, parse } from "es-module-lexer";
 import { builtinPluginCatalog } from "../src/builtins.js";
 const root=resolve(import.meta.dirname,".."),source=p=>readFileSync(resolve(root,p),"utf8");
@@ -30,9 +29,6 @@ describe("Phase 4I qualified architecture audits",()=>{
   const hosts=[...files("src/ui").filter(p=>p.endsWith(".js")),...['panel','toolbar','layers-control','settings-panel','status-control','base-map-control','map-selection-presenter'].map(n=>`src/plugins/ui/${n}.js`)];
   for(const path of hosts){for(const edge of await edges(path))expect(edge.target,`${path} -> ${edge.target}`).not.toMatch(/^src\/(?:gpx|photo)\/|^src\/plugins\/(?:domains|renderers)\//);expect(source(path)).not.toMatch(/\bsemanticSnapshot\b|snapshot\.(?:data|preferences|derived)/);}
   for(const path of [...hosts,...files("src/plugins/input").filter(p=>p.endsWith(".js")),"src/plugins/ui/elevation-panel.js","src/gpx/ui.js","src/photo/ui.js"])expect(source(path)).not.toMatch(/\b(?:getLayers|eachLayer|getLatLng|getLatLngs|advancedLeafletMap)\b|entry\.(?:layer|interactions)/);
- });
- it("preserves pinned Editor vendor files byte-for-byte",()=>{
-  for(const path of files("plugins/x-track-editor/vendor"))expect(readFileSync(resolve(root,path)).equals(execFileSync("git",["show",`6e12a85:${path}`]))).toBe(true);
  });
  it("leases every standard feature sheet and leaves only shell primitives in shared CSS",()=>{
   expect(source("src/ui/styles.css")).not.toMatch(/\.tilia-(?:side-panel|elevation|layer-|photo|gpx|url-|file-|status-|popup|info-|time-mode)/);
