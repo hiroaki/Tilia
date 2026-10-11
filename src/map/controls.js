@@ -7,7 +7,7 @@ function resolveControlPriority(priority) {
     : TILIA_CONTROL_PRIORITY.normal;
 }
 
-export function installMapControl({ map, position = "topleft", className = "", priority = "normal", edgePolicy = null, createContent }) {
+export function createMapControl({ position = "topleft", className = "", priority = "normal", edgePolicy = null, createContent }) {
   class TiliaControl extends Control {
     onAdd() {
       const container = DomUtil.create("div", `tilia-map-control ${className}`.trim());
@@ -30,6 +30,11 @@ export function installMapControl({ map, position = "topleft", className = "", p
   }
 
   const control = new TiliaControl({ position });
+  return control;
+}
+
+export function installMapControl({ map, ...options }) {
+  const control = createMapControl(options);
   control.addTo(map);
   return control;
 }

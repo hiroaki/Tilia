@@ -1,137 +1,94 @@
-import { createButton, createPanel, createSelect, installMapControl } from "../../src/map/controls.js";
 import { serializeGpxSource } from "../../src/gpx/serialize.js";
+import { gpxDomainKey } from "../../src/domains/index.js";
+import { panelServiceKey } from "../../src/plugins/contracts/panel.js";
+import { statusServiceKey } from "../../src/plugins/contracts/status.js";
+import { listen, node, reportError } from "../../src/ui/scoped-dom.js";
+import { registerLauncher } from "../../src/ui/toolbar-launcher.js";
 import { makeFileName } from "./helpers.js";
 
-function getTrackEntries(core) {
-  return core.state.entries.filter((entry) => entry.kind === "gpx");
-}
-
-function ensureSelectedEntryId(core, selectedEntryId) {
-  const tracks = getTrackEntries(core);
-  if (tracks.length === 0) {
-    return null;
-  }
-  if (tracks.some((entry) => entry.id === selectedEntryId)) {
-    return selectedEntryId;
-  }
-  return tracks[0].id;
-}
-
-function downloadTextFile(fileName, text) {
-  const blob = new Blob([text], { type: "application/gpx+xml" });
-  const objectUrl = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = objectUrl;
-  anchor.download = fileName;
-  anchor.style.display = "none";
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  setTimeout(() => {
-    URL.revokeObjectURL(objectUrl);
-  }, 0);
-}
-
-export const gpxExportPlugin = {
+export const gpxExportPlugin = Object.freeze({
   id: "x-gpx-export",
-  requires: ["tilia-panel"],
-  stylesheets: [
-    new URL("./styles.css", import.meta.url).href,
-  ],
-  setup(app, options = {}) {
-    const map = app.getMap();
-    const core = app.core;
-    const panel = app.services["tilia-panel"];
-    const position = options.position || "topleft";
-    const priority = options.priority || "normal";
-    const creator = options.creator || "Tilia";
-
+  requires: ["tilia-gpx-domain", "tilia-panel", "tilia-toolbar"],
+  setup(context, options = {}) {
+    const gpx = context.domains.require(gpxDomainKey);
+    const panel = context.services.require(panelServiceKey);
+    const status = context.services.optional(statusServiceKey);
+    const creator = options.creator ?? "Tilia";
+    context.styles.use({ id: "x-gpx-export", href: new URL("./styles.css", import.meta.url).href });
     let selectedEntryId = null;
+    const handles = new Set();
+    const report = error => reportError(context, error);
+    context.scope.defer(async () => {
+      for (const handle of handles) await handle.dispose();
+    }, { label: "export-panels", retry: "safe" });
 
-    function renderPanel() {
-      const root = document.createElement("div");
-      root.className = "tilia-gpx-export-panel";
-
-      const intro = document.createElement("p");
-      intro.className = "tilia-gpx-export-intro";
-      intro.textContent = "Export any GPX layer to a local .gpx file.";
-      root.appendChild(intro);
-
-      selectedEntryId = ensureSelectedEntryId(core, selectedEntryId);
-      const tracks = getTrackEntries(core);
-      const hasTracks = tracks.length > 0;
-
-      const label = document.createElement("label");
-      label.className = "tilia-gpx-export-label";
-      label.textContent = "Layer";
-      root.appendChild(label);
-
-      const select = createSelect(
-        tracks.map((entry) => ({
-          value: String(entry.id),
-          label: entry.source?.name || `Layer ${entry.id}`,
-          selected: entry.id === selectedEntryId,
-        })),
-        "tilia-gpx-export-select",
-      );
-      select.disabled = !hasTracks;
-      select.addEventListener("change", () => {
-        selectedEntryId = Number(select.value);
-      });
-      root.appendChild(select);
-
-      const exportButton = createButton("Export GPX", "tilia-gpx-export-action");
-      exportButton.disabled = !hasTracks || selectedEntryId == null;
-      exportButton.addEventListener("click", () => {
-        const entry = core.state.entries.find((candidate) => candidate.id === selectedEntryId);
-        if (!entry || entry.kind !== "gpx") {
-          app.setStatus("GPX export: no GPX entry selected");
-          return;
-        }
-
-        const text = serializeGpxSource(entry.source, { creator });
-        const fileName = makeFileName(entry.source?.name || `track-${entry.id}`);
-        downloadTextFile(fileName, text);
-        app.setStatus(`GPX export: downloaded ${fileName}`);
-      });
-      root.appendChild(exportButton);
-
-      return root;
+    function download(container, name, text) {
+      const scope = context.scope.child({ label: "gpx-download" });
+      let url, anchor, timer;
+      scope.defer(() => { if (url !== undefined) URL.revokeObjectURL(url); }, { label: "download-url", retry: "safe" });
+      scope.defer(() => anchor?.remove(), { label: "download-anchor", retry: "safe" });
+      scope.defer(() => { if (timer !== undefined) clearTimeout(timer); }, { label: "download-timer", retry: "safe" });
+      try {
+        url = URL.createObjectURL(new Blob([text], { type: "application/gpx+xml" }));
+        scope.assertAlive();
+        anchor = node(container, "a", "tilia-gpx-export-download");
+        anchor.href = url; anchor.download = name; anchor.style.display = "none";
+        anchor.click();
+        if (scope.alive) timer = setTimeout(() => { void scope.dispose().catch(report); }, 0);
+      } catch (error) {
+        void scope.dispose().catch(report);
+        throw error;
+      }
     }
 
-    const control = installMapControl({
-      map,
-      position,
-      priority,
-      className: "tilia-gpx-export-control",
-      createContent() {
-        const wrap = createPanel("tilia-control-panel-compact");
-        const button = createButton("G", "tilia-control-button-icon");
-        button.title = "GPX export";
-        button.setAttribute("aria-label", "GPX export");
-        button.addEventListener("click", () => {
-          panel.togglePanel({
-            panelId: "gpx-export",
-            title: "GPX Export",
-            render: renderPanel,
-          });
+    function mount({ container, scope }) {
+      const root = node(container, "div", "tilia-gpx-export-panel");
+      node(root, "p", "tilia-gpx-export-intro", "Export any GPX layer to a local .gpx file.");
+      const label = node(root, "label", "tilia-gpx-export-label", "Layer");
+      const select = node(label, "select", "tilia-gpx-export-select");
+      const button = node(root, "button", "tilia-gpx-export-action", "Export GPX"); button.type = "button";
+      const message = node(root, "p", "tilia-gpx-export-message"); message.setAttribute("aria-live", "polite");
+      let ids = [];
+      const render = () => {
+        if (!scope.alive || !context.scope.alive) return;
+        const entries = context.entries.list().filter(entry => entry.domain === gpxDomainKey);
+        if (!entries.some(entry => entry.id === selectedEntryId)) selectedEntryId = entries[0]?.id ?? null;
+        ids = entries.map(entry => entry.id);
+        select.replaceChildren();
+        entries.forEach((entry, index) => {
+          const item = node(select, "option", "", gpx.getDocument(entry.id).document.name || `Layer ${entry.id}`);
+          item.value = String(index); item.selected = entry.id === selectedEntryId;
         });
-        wrap.appendChild(button);
-        return wrap;
-      },
-    });
-
-    const removeRefreshHandler = app.addRefreshHandler(() => {
-      panel.rerenderPanel("gpx-export");
-    });
-
-    return {
-      destroy() {
-        removeRefreshHandler();
-        control.remove?.();
-      },
-    };
+        select.value = String(ids.indexOf(selectedEntryId));
+        select.disabled = button.disabled = ids.length === 0;
+      };
+      const subscription = context.entries.subscribe(render, { emitCurrent: false });
+      scope.defer(() => subscription.unsubscribe(), { retry: "safe" });
+      listen(scope, select, "change", () => { if (context.scope.alive) selectedEntryId = ids[Number(select.value)] ?? null; }, report);
+      listen(scope, button, "click", () => {
+        if (!context.scope.alive) return;
+        try {
+          const captured = gpx.getDocument(selectedEntryId);
+          const text = serializeGpxSource(captured.document, { creator });
+          const name = makeFileName(captured.document.name || `track-${captured.entryId}`);
+          download(root, name, text);
+          if (scope.alive && context.scope.alive) {
+            message.textContent = `Downloaded ${name}`;
+            status?.set(`GPX export: downloaded ${name}`);
+          }
+        } catch (error) {
+          if (scope.alive && context.scope.alive) message.textContent = error.message;
+          report(error);
+        }
+      }, report);
+      render();
+    }
+    registerLauncher(context, options, { kind: "action",
+      label: "GPX export", iconText: "G", activate() {
+        const handle = panel.toggle({ id: "gpx-export", title: "GPX Export", mount });
+        if (handle?.dispose) handles.add(handle);
+        return handle;
+      } });
   },
-};
-
+});
 export default gpxExportPlugin;

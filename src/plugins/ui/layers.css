@@ -1,0 +1,174 @@
+.tilia-layer-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.tilia-layer-item {
+  font-size: 12px;
+}
+
+.tilia-layer-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 8px;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.tilia-layer-bulk-toggles {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.tilia-layer-bulk-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.tilia-layer-bulk-toggle input {
+  margin: 0;
+}
+
+.tilia-layer-bulk-toggle:has(input:disabled) {
+  opacity: 0.55;
+}
+
+.tilia-layer-clear-button {
+  padding: 6px 8px;
+  font-size: 11px;
+}
+
+.tilia-layer-clear-button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.tilia-layer-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px;
+  border: 1px solid #e7e5e4;
+  border-radius: 12px;
+  background: #ffffff;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.tilia-layer-card:hover {
+  border-color: #a8a29e;
+}
+
+.tilia-layer-card-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  gap: 6px;
+  min-width: 0;
+}
+
+.tilia-layer-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.tilia-layer-header .tilia-layer-toggle {
+  flex: 1 1 auto;
+}
+
+.tilia-layer-delete-button {
+  flex: 0 0 auto;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.tilia-layer-empty {
+  color: #78716c;
+}
+
+.tilia-layer-toggle {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+
+.tilia-layer-name-wrap {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+
+.tilia-layer-style-chip {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  flex: 0 0 1em;
+  border: 1px solid #00000026;
+  border-radius: 2px;
+  box-sizing: border-box;
+}
+
+.tilia-layer-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1c1917;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.tilia-layer-option {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.tilia-layer-meta {
+  font-size: 11px;
+  line-height: 1.4;
+  color: #57534e;
+}
+
+.tilia-layer-option-label,
+.tilia-time-mode-label,
+.tilia-status-text {
+  font-size: 12px;
+  color: #57534e;
+}
+
+@media (max-width: 640px) {
+.tilia-layer-card {
+    gap: 8px;
+  }
+}
+
+.tilia-layer-mutations { border: 0; margin: 0; padding: 0; min-width: 0; }
+
+.tilia-layers-panel-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+  min-height: 0;
+}
+.tilia-layer-selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }

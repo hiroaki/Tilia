@@ -1,0 +1,124 @@
+import { queryGpx } from "../gpx/queries.js";
+import { isScopeWithin, scopeIsOperational } from "../ownership/scope.js";
+import { gpxDomainKey, photoDomainKey } from "./keys.js";
+import { assertDomainKey } from "./identity.js";
+import { semanticError, semanticErrorCodes } from "./errors.js";
+
+function domainFacade(scope, entries, key, commands) {
+  return Object.freeze({
+    create(value, options) {
+      scope.assertAlive();
+      return entries.create(scope, key, value, options);
+    },
+    get(id) {
+      scope.assertAlive();
+      return entries.getDomainView(id, key);
+    },
+    ...Object.fromEntries(Object.entries(commands).map(([name, makeCommand]) => [name,
+      (id, value, options = {}) => {
+        scope.assertAlive();
+        return entries.update(scope, id, key, makeCommand(value), options);
+      },
+    ])),
+  });
+}
+
+export function createGpxFacade({ scope, entries, selection }) {
+  const facade = domainFacade(scope, entries, gpxDomainKey, {
+    replaceData: (data) => Object.freeze({ type: "replace-data", data }),
+    updatePoint: ({ target, patch }) => Object.freeze({ type: "update-point", target, patch }),
+    setCategoryVisibility: ({ category, visible }) => Object.freeze({ type: "set-category-visibility", category, visible }),
+    setTrackVisibility: ({ trackIndex, visible }) => Object.freeze({ type: "set-track-visibility", trackIndex, visible }),
+    setStylePreset: (stylePresetId) => Object.freeze({ type: "set-style-preset", stylePresetId }),
+    recomputeDerived: () => Object.freeze({ type: "recompute-derived" }),
+  });
+  function query(id, method, options = {}) {
+    const view = facade.get(id);
+    const allowed = method === "nearest" ? ["target", "coordinate"] : ["target"];
+    if (!options || typeof options !== "object" || Array.isArray(options) ||
+        Object.keys(options).some((key) => !allowed.includes(key))) {
+      throw semanticError(semanticErrorCodes.inputInvalid, "Invalid GPX query options");
+    }
+    return queryGpx(view, method, options.target, options.coordinate);
+  }
+  const queries = {
+    getDocument: (id) => queryGpx(facade.get(id), "document"),
+    getExtent: (id, options) => query(id, "extent", options),
+    getDistance: (id, options) => query(id, "distance", options),
+    getElevationProfile: (id, options) => query(id, "elevation", options),
+    getNearestPoint: (id, options) => query(id, "nearest", options),
+  };
+  return Object.freeze({ ...facade, ...queries, ...(selection ? { selection: selection.createDomainFacade(scope, gpxDomainKey) } : {}) });
+}
+
+export function createPhotoFacade({ scope, entries, selection }) {
+  const facade = domainFacade(scope, entries, photoDomainKey, {
+    replaceData: (data) => Object.freeze({ type: "replace-data", data }),
+    setRequestedTimeMode: (requestedTimeMode) => Object.freeze({ type: "set-requested-time-mode", requestedTimeMode }),
+    recomputeDerived: () => Object.freeze({ type: "recompute-derived" }),
+  });
+  const previewFacade = Object.freeze({ ...facade,
+    getPreview(id, { scope: consumer = scope } = {}) {
+      scope.assertAlive();
+      if (!isScopeWithin(consumer, scope)) throw new TypeError("Preview scope must belong to the consumer");
+      consumer.assertAlive();
+      const target = entries.getSemanticTarget(id, photoDomainKey);
+      if (!target.providerRegistration.owner.alive) throw semanticError(semanticErrorCodes.providerUnavailable, "Photo provider is unavailable");
+      return target.providerRegistration.provider.getPreview(target.instance, {
+        scope: consumer,
+        isCurrent() {
+          if (!scopeIsOperational(scope) || !scopeIsOperational(target.providerRegistration.owner)) return false;
+          try {
+            const current = entries.getSemanticTarget(id, photoDomainKey);
+            return current.providerRegistration === target.providerRegistration &&
+              current.instance.preview === target.instance.preview;
+          } catch { return false; }
+        },
+      });
+    },
+  });
+  return selection ? Object.freeze({ ...previewFacade, selection: selection.createDomainFacade(scope, photoDomainKey, { defaultTarget: Object.freeze({ kind: "photo" }) }) }) : previewFacade;
+}
+
+export function createEntryFacade({ scope, entries }) {
+  return Object.freeze({
+    list() { scope.assertAlive(); return entries.list(); },
+    clear() { scope.assertAlive(); return entries.clear(scope); },
+    get(id) { scope.assertAlive(); return entries.get(id); },
+    setVisible(id, visible) { scope.assertAlive(); return entries.setVisible(scope, id, visible); },
+    remove(id) { scope.assertAlive(); return entries.remove(scope, id); },
+    subscribe(listener, options) { scope.assertAlive(); return entries.subscribe(scope, listener, options); },
+    bindPresentationLifetime(id, options) { scope.assertAlive(); return entries.bindPresentationLifetime(scope, id, options); },
+  });
+}
+
+export function createDomainFacade({ scope, entries, selection, registryFacade }) {
+  const gpx = createGpxFacade({ scope, entries, selection });
+  const photo = createPhotoFacade({ scope, entries, selection });
+  const facadeFor = (key) => {
+    assertDomainKey(key);
+    if (key === gpxDomainKey) return gpx;
+    if (key === photoDomainKey) return photo;
+    return null;
+  };
+  return Object.freeze({
+    provide: registryFacade.provide,
+    has: registryFacade.has,
+    subscribe: registryFacade.subscribe,
+    require(key) {
+      scope.assertAlive();
+      const facade = facadeFor(key);
+      if (!facade || !registryFacade.has(key)) {
+        throw semanticError(semanticErrorCodes.providerUnavailable, `Provider for domain "${key.id}" is unavailable`, { domainId: key.id });
+      }
+      return facade;
+    },
+    optional(key) {
+      scope.assertAlive();
+      const facade = facadeFor(key);
+      return facade && registryFacade.has(key) ? facade : null;
+    },
+    gpx,
+    photo,
+  });
+}

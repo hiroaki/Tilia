@@ -1,6 +1,9 @@
-import { DivIcon, DomEvent, FeatureGroup, Marker } from "leaflet";
-import { createButton, createPanel, installMapControl } from "../../src/map/controls.js";
-import { TILIA_CONTROL_PRIORITY, TILIA_UI_LAYER } from "../../src/ui/protocol.js";
+import { DivIcon, Marker } from "leaflet";
+import { createButton, createPanel } from "../../src/map/controls.js";
+import { gpxDomainKey } from "../../src/domains/index.js";
+import { statusServiceKey } from "../../src/plugins/contracts/status.js";
+import { listen, reportError } from "../../src/ui/scoped-dom.js";
+import { registerLauncher } from "../../src/ui/toolbar-launcher.js";
 import { requestPhloemRoutes } from "./client.js";
 import { isValidLatitude, isValidLongitude, parseCoordinateValue } from "./coordinates.js";
 import { createImportedRouteSource } from "./helpers.js";
@@ -170,24 +173,14 @@ function validateRoutePoints(state) {
   return null;
 }
 
-function stopPanelPropagation(element) {
-  for (const eventName of ["click", "dblclick", "mousedown", "mouseup", "pointerdown", "pointerup", "contextmenu"]) {
-    DomEvent.on(element, eventName, DomEvent.stopPropagation);
-  }
-  DomEvent.on(element, "dblclick", DomEvent.preventDefault);
-  DomEvent.disableScrollPropagation(element);
-}
-
 export const routeSearchPlugin = {
   id: "x-route-search",
-  stylesheets: [
-    new URL("./styles.css", import.meta.url).href,
-  ],
-  setup(app, options = {}) {
-    const map = app.getMap();
-    const core = app.core;
-    const position = options.position || "topleft";
-    const priority = options.priority || "normal";
+  requires: ["tilia-gpx-domain", "tilia-toolbar"],
+  setup(context, options = {}) {
+    const gpx = context.domains.require(gpxDomainKey);
+    const status = context.services.optional(statusServiceKey);
+    const report = error => reportError(context, error);
+    context.styles.use({ id: "x-route-search", href: new URL("./styles.css", import.meta.url).href });
     const endpoint = options.endpoint || "http://127.0.0.1:3000/route";
     const apiKey = options.apiKey || "";
     const timeoutMs = Number(options.timeoutMs) > 0 ? Number(options.timeoutMs) : 5000;
@@ -213,57 +206,66 @@ export const routeSearchPlugin = {
       },
     };
 
-    const panel = createPanel("tilia-route-search-panel tilia-route-search-panel-hidden");
-    const contextMenu = createPanel("tilia-route-search-menu tilia-route-search-menu-hidden");
-    const markerLayer = new FeatureGroup();
-    markerLayer.addTo(map);
-    stopPanelPropagation(panel);
-    stopPanelPropagation(contextMenu);
-
-    const mountedPanel = app.ui.mountSurface({
-      id: "tilia-route-search-panel",
-      surface: TILIA_UI_LAYER.floating,
-      element: panel,
-      priority: TILIA_CONTROL_PRIORITY.high,
-    });
-    const mountedMenu = app.ui.mountSurface({
-      id: "tilia-route-search-menu",
-      surface: TILIA_UI_LAYER.floating,
-      element: contextMenu,
-      priority: TILIA_CONTROL_PRIORITY.high,
-    });
+    let panel, contextMenu, panelScope, menuScope, panelRows, menuRows, markers, request;
+    context.ui.mountSurface({ id: "route-form", surface: "floating", ariaLabel: "Route Search",
+      mount({ container, scope }) {
+        Object.assign(container.style, { position: "absolute", inset: "0", pointerEvents: "none" });
+        panelScope = scope;
+        panel = createPanel("tilia-route-search-panel tilia-route-search-panel-hidden");
+        container.appendChild(panel); bindPropagation(scope, panel); renderPanel();
+      } });
+    context.ui.mountSurface({ id: "route-menu", surface: "floating", ariaLabel: "Route point menu",
+      mount({ container, scope }) {
+        Object.assign(container.style, { position: "absolute", inset: "0", pointerEvents: "none" });
+        menuScope = scope;
+        contextMenu = createPanel("tilia-route-search-menu tilia-route-search-menu-hidden");
+        container.appendChild(contextMenu); bindPropagation(scope, contextMenu);
+        listen(scope, container, "contextmenu", event => event.preventDefault(), report);
+      } });
+    function bindPropagation(scope, element) {
+      for (const type of ["click", "dblclick", "mousedown", "mouseup", "pointerdown", "pointerup", "contextmenu", "wheel"])
+        listen(scope, element, type, event => event.stopPropagation(), report);
+      listen(scope, element, "dblclick", event => event.preventDefault(), report);
+    }
+    function bindMarker(scope, marker, type, callback) {
+      const guarded = scope.guard(callback);
+      scope.defer(() => marker.off(type, guarded), { retry: "safe" });
+      marker.on(type, guarded);
+    }
 
     function setStatus(message) {
-      app.setStatus?.(message);
+      if (context.scope.alive) { try { status?.set(message); } catch (error) { report(error); } }
     }
 
     function hideContextMenu() {
       state.menu.visible = false;
-      contextMenu.classList.add("tilia-route-search-menu-hidden");
+      contextMenu?.classList.add("tilia-route-search-menu-hidden");
     }
 
     function syncPointMarkers() {
-      markerLayer.clearLayers();
+      if (!context.scope.alive) return;
+      const old = markers; markers = context.scope.child({ label: "route-markers" });
+      void old?.dispose().catch(report);
+      const markerScope = markers;
 
       for (const descriptor of listMarkerPoints(state)) {
         const marker = new Marker([Number(descriptor.point.lat), Number(descriptor.point.lon)], {
           draggable: true,
           keyboard: false,
-          zIndexOffset: 1400,
           icon: createPointMarkerIcon(descriptor.kind, createPointMarkerText(descriptor.kind, descriptor.index)),
         });
 
-        marker.on("click", (event) => {
+        bindMarker(markerScope, marker, "click", (event) => {
           event.originalEvent?.preventDefault?.();
           event.originalEvent?.stopPropagation?.();
           hideContextMenu();
         });
 
-        marker.on("dragstart", () => {
+        bindMarker(markerScope, marker, "dragstart", () => {
           hideContextMenu();
         });
 
-        marker.on("dragend", () => {
+        bindMarker(markerScope, marker, "dragend", () => {
           const moved = marker.getLatLng();
           const nextPoint = {
             lat: createMarkerCoordinate(moved.lat),
@@ -283,7 +285,9 @@ export const routeSearchPlugin = {
           syncPointMarkers();
         });
 
-        marker.addTo(markerLayer);
+        let lease;
+        markerScope.defer(() => lease?.dispose(), { retry: "safe" });
+        lease = context.map.attachLayer(marker, { band: "modal" });
       }
     }
 
@@ -301,16 +305,19 @@ export const routeSearchPlugin = {
     }
 
     function renderContextMenu() {
+      if (!context.scope.alive || !menuScope?.alive) return;
+      const old = menuRows; menuRows = menuScope.child({ label: "route-menu-actions" });
+      void old?.dispose().catch(report);
       if (!state.menu.visible || !state.menu.point) {
-        contextMenu.classList.add("tilia-route-search-menu-hidden");
-        contextMenu.innerHTML = "";
+        contextMenu?.classList.add("tilia-route-search-menu-hidden");
+        contextMenu.replaceChildren();
         return;
       }
 
       contextMenu.classList.remove("tilia-route-search-menu-hidden");
       contextMenu.style.left = `${state.menu.x}px`;
       contextMenu.style.top = `${state.menu.y}px`;
-      contextMenu.innerHTML = "";
+      contextMenu.replaceChildren();
 
       const title = document.createElement("div");
       title.className = "tilia-route-search-menu-title";
@@ -333,7 +340,7 @@ export const routeSearchPlugin = {
         const text = document.createElement("span");
         text.textContent = `${action.label} ${createMenuActionLabel(action.kind)}`;
         button.appendChild(text);
-        button.addEventListener("click", () => {
+        listen(menuRows, button, "click", () => {
           setPoint(action.kind, state.menu.point);
         });
         contextMenu.appendChild(button);
@@ -357,7 +364,7 @@ export const routeSearchPlugin = {
       input.className = "tilia-control-select tilia-route-search-point-input";
       input.value = formatPointInputValue(point);
       input.setAttribute("aria-label", `${label} coordinates`);
-      input.addEventListener("input", () => {
+      listen(panelRows, input, "input", () => {
         onChange(parsePointInputValue(input.value));
       });
       row.appendChild(input);
@@ -368,7 +375,7 @@ export const routeSearchPlugin = {
       removeButton.textContent = kind === "via" ? "-" : "×";
       removeButton.title = kind === "via" ? `Remove ${label}` : `Clear ${label}`;
       removeButton.setAttribute("aria-label", removeButton.title);
-      removeButton.addEventListener("click", onRemove);
+      listen(panelRows, removeButton, "click", onRemove, report);
       row.appendChild(removeButton);
 
       return row;
@@ -384,78 +391,61 @@ export const routeSearchPlugin = {
       addButton.textContent = "+";
       addButton.title = "Add via point";
       addButton.setAttribute("aria-label", "Add via point");
-      addButton.addEventListener("click", onAdd);
+      listen(panelRows, addButton, "click", onAdd, report);
       row.appendChild(addButton);
 
       return row;
     }
 
     async function runSearch() {
+      if (!context.scope.alive) return;
       const validationError = validateRoutePoints(state);
       if (validationError) {
-        state.errorMessage = validationError;
-        setStatus(`Route search: ${validationError}`);
-        renderPanel();
-        return;
+        state.errorMessage = validationError; setStatus(`Route search: ${validationError}`); renderPanel(); return;
       }
-
-      state.loading = true;
-      state.errorMessage = "";
-      renderPanel();
-
+      const previous = request;
+      const operation = context.scope.child({ label: "route-request" }); request = operation;
+      void previous?.dispose().catch(report);
+      const current = () => context.scope.alive && operation.alive && request === operation;
+      const profile = state.profile, points = getOrderedPoints(state).map(copyPoint);
+      state.loading = true; state.errorMessage = ""; state.results = []; renderPanel();
+      // Plain response/parse work is observed, never an uninstall settlement barrier.
+      let settle; operation.track(new Promise(resolve => { settle = resolve; }), { await: false, label: "route-response" });
+      const nextResults = [];
       try {
-        const { routes } = await requestPhloemRoutes({
-          endpoint,
-          apiKey,
-          profile: state.profile,
-          points: getOrderedPoints(state),
-          timeoutMs,
-        });
-
-        const nextResults = [];
+        const { routes } = await requestPhloemRoutes({ endpoint, apiKey, profile, points, timeoutMs,
+          signal: operation.signal, scope: operation });
+        if (!current()) return;
         const limitedRoutes = routes.slice(0, importLimit);
-        for (let index = 0; index < limitedRoutes.length; index += 1) {
+        for (let index = 0; index < limitedRoutes.length; index++) {
+          if (!current()) return;
           const route = limitedRoutes[index];
-          const source = createImportedRouteSource({
-            geometry: {
-              type: "LineString",
-              coordinates: route.geometry.coordinates,
-            },
-            distance_meters: route.distanceMeters,
-            duration_seconds: route.durationSeconds,
-            provider: route.provider,
-            warnings: route.warnings,
-          }, {
-            profile: state.profile,
-            routeIndex: index,
-            routeCount: limitedRoutes.length,
-            waypoints: getOrderedPoints(state),
-          });
-          const entry = core.addGpxSource(source, {
-            fitToView: index === 0,
-            visible: true,
-          });
-
-          nextResults.push({
-            entryId: entry.id,
-            name: entry.source?.name || source.name,
-            provider: route.provider,
-            distanceMeters: route.distanceMeters,
-            durationSeconds: route.durationSeconds,
-            warnings: route.warnings,
-          });
+          const source = createImportedRouteSource({ geometry: route.geometry, distance_meters: route.distanceMeters,
+            duration_seconds: route.durationSeconds, provider: route.provider, warnings: route.warnings },
+            { profile, routeIndex: index, routeCount: limitedRoutes.length, waypoints: points });
+          if (!source) throw new Error("Invalid route geometry");
+          const entry = await gpx.create({ name: source.name, tracks: source.tracks, waypoints: source.waypoints },
+            { visible: true, signal: operation.signal });
+          nextResults.push({ entryId: entry.id, name: source.name, provider: route.provider,
+            distanceMeters: route.distanceMeters, durationSeconds: route.durationSeconds, warnings: route.warnings });
+          if (!current()) return;
+          state.results = [...nextResults];
+          if (index === 0 && context.entries.get(entry.id)) {
+            const bounds = gpx.getExtent(entry.id).bounds;
+            if (bounds && current()) context.map.fitBounds([[bounds.southWest.lat, bounds.southWest.lon], [bounds.northEast.lat, bounds.northEast.lon]]);
+          }
         }
-
-        state.results = nextResults;
-        app.refreshView();
-        setStatus(`Route search: imported ${nextResults.length} route${nextResults.length === 1 ? "" : "s"}`);
+        if (current()) setStatus(`Route search: imported ${nextResults.length} route${nextResults.length === 1 ? "" : "s"}`);
       } catch (error) {
-        state.errorMessage = error.message;
-        setStatus(`Route search failed: ${error.message}`);
-        app.setError?.(error);
+        if (current()) {
+          state.results = [...nextResults];
+          state.errorMessage = `${error.message}${nextResults.length ? ` (${nextResults.length} route(s) already imported)` : ""}`;
+          setStatus(`Route search failed: ${state.errorMessage}`); report(error);
+        }
       } finally {
-        state.loading = false;
-        renderPanel();
+        settle();
+        if (current()) { request = null; state.loading = false; renderPanel(); }
+        void operation.dispose().catch(report);
       }
     }
 
@@ -498,7 +488,10 @@ export const routeSearchPlugin = {
     }
 
     function renderPanel() {
-      panel.innerHTML = "";
+      if (!context.scope.alive || !panelScope?.alive) return;
+      const old = panelRows; panelRows = panelScope.child({ label: "route-form-rows" });
+      void old?.dispose().catch(report);
+      panel.replaceChildren();
 
       const header = document.createElement("div");
       header.className = "tilia-route-search-header";
@@ -511,7 +504,7 @@ export const routeSearchPlugin = {
       closeButton.type = "button";
       closeButton.className = "tilia-side-panel-close tilia-route-search-close";
       closeButton.textContent = "Close";
-      closeButton.addEventListener("click", () => {
+      listen(panelRows, closeButton, "click", () => {
         panel.classList.add("tilia-route-search-panel-hidden");
         hideContextMenu();
       });
@@ -535,7 +528,7 @@ export const routeSearchPlugin = {
         if (profile === state.profile) {
           profileButton.classList.add("tilia-route-search-profile-option-active");
         }
-        profileButton.addEventListener("click", () => {
+        listen(panelRows, profileButton, "click", () => {
           state.profile = profile;
           renderPanel();
         });
@@ -616,14 +609,12 @@ export const routeSearchPlugin = {
       actions.className = "tilia-route-search-actions";
       const searchButton = createButton(state.loading ? "Searching..." : "Search Routes", "tilia-route-search-search");
       searchButton.disabled = state.loading;
-      searchButton.addEventListener("click", () => {
-        runSearch();
-      });
+      listen(panelRows, searchButton, "click", runSearch, report);
       actions.appendChild(searchButton);
 
       const clearButton = createButton("Clear Form", "tilia-route-search-clear");
       clearButton.disabled = state.loading;
-      clearButton.addEventListener("click", () => {
+      listen(panelRows, clearButton, "click", () => {
         state.origin = createEmptyPoint();
         state.destination = createEmptyPoint();
         state.viaPoints = [];
@@ -643,36 +634,18 @@ export const routeSearchPlugin = {
       panel.appendChild(content);
     }
 
-    renderPanel();
-    syncPointMarkers();
-
-    const control = installMapControl({
-      map,
-      position,
-      priority,
-      className: "tilia-route-search-control",
-      createContent() {
-        const wrap = createPanel("tilia-control-panel-compact");
-        const button = createButton("R", "tilia-control-button-icon");
-        button.title = "Route search";
-        button.setAttribute("aria-label", "Route search");
-        button.addEventListener("click", () => {
-          const isHidden = panel.classList.contains("tilia-route-search-panel-hidden");
-          panel.classList.toggle("tilia-route-search-panel-hidden", !isHidden);
-          if (!isHidden) {
-            hideContextMenu();
-          }
-        });
-        wrap.appendChild(button);
-        return wrap;
-      },
-    });
+    registerLauncher(context, options, { kind: "action", label: "Route search", iconText: "R",
+      className: "tilia-route-search-control", activate() {
+        if (!panel) return;
+        const hidden = panel.classList.contains("tilia-route-search-panel-hidden");
+        panel.classList.toggle("tilia-route-search-panel-hidden", !hidden);
+        if (!hidden) hideContextMenu();
+      } });
 
     function onContextMenu(event) {
-      if (panel.classList.contains("tilia-route-search-panel-hidden")) {
+      if (!panel || panel.classList.contains("tilia-route-search-panel-hidden")) {
         return;
       }
-      event.originalEvent?.preventDefault?.();
       state.menu = {
         visible: true,
         point: copyPoint({ lat: event.latlng.lat, lon: event.latlng.lng }),
@@ -682,25 +655,9 @@ export const routeSearchPlugin = {
       renderContextMenu();
     }
 
-    map.on("contextmenu", onContextMenu);
-    map.on("click", hideContextMenu);
-    map.on("movestart", hideContextMenu);
-
-    return {
-      destroy() {
-        map.off("contextmenu", onContextMenu);
-        map.off("click", hideContextMenu);
-        map.off("movestart", hideContextMenu);
-        hideContextMenu();
-        mountedMenu?.unmount?.();
-        mountedPanel?.unmount?.();
-        markerLayer.remove?.();
-        contextMenu.remove?.();
-        panel.remove?.();
-        control.remove?.();
-      },
-    };
+    context.map.listen("contextmenu", onContextMenu);
+    context.map.listen("click", hideContextMenu);
+    context.map.listen("movestart", hideContextMenu);
   },
 };
-
 export default routeSearchPlugin;

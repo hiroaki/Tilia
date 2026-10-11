@@ -1,68 +1,193 @@
-# Tilia 開発メモ
+[English](DEVELOPMENT.md)
 
-この文書は、Tilia を利用するアプリ側ではなく、Tilia 本体を開発するコア開発者向けのメモです。
+<a id="developing-tilia"></a>
 
+# Tiliaの開発
 
-## テスト環境の準備
+このガイドは、Tilia本体、同梱プラグイン、サンプル、文書を変更する開発者向けです。アプリケーションへの組み込みは[README](../README.ja.md)と[Tiliaプラグインガイド](PLUGINS.ja.md)、プラグインの契約と実装例は[Tiliaプラグインの開発](PLUGIN-OPERATION.ja.md)ガイドを参照してください。
 
-リポジトリの確認を実行する前に、Node 依存をインストールします。
+TiliaはブラウザのES Modulesを直接利用します。サンプルの実行にビルドは不要です。Node.jsは開発サーバーとテストツールの実行に使います。
 
-```bash
-npm install
-```
+<a id="set-up-the-repository"></a>
 
+## リポジトリの準備
 
-## Unit Test
+次のコマンドはリポジトリのルートで実行してください。現在の[CIワークフロー](../.github/workflows/test.yml)に合わせて、**Node.js 22とnpm**を使います。リポジトリ独自のNodeバージョン範囲は宣言されていないため、CIのバージョンを開発の基準とします。
 
-Vitest の suite を実行します。
-
-```bash
-npm test
-```
-
-unit test では、コアランタイム、parser、plugin lifecycle、built-in plugin の wiring、主要な input/UI helper を確認します。
-
-
-## Smoke Test
-
-Playwright の smoke suite を実行します。
+ロックファイルに従って依存関係をインストールし、スモークテスト用のブラウザを用意します。
 
 ```bash
-npm run test:smoke
+npm ci
+npx playwright install chromium
 ```
 
-smoke test では同梱の Node ベース静的サーバーを自動起動し、付属 sample をブラウザで実行して主要フローを確認します。
+Linuxでブラウザのシステムライブラリも必要な場合は、代わりにCIと同じコマンドを使います。
 
-現在の smoke coverage は次のとおりです。
+```bash
+npx playwright install --with-deps chromium
+```
 
-- viewer の起動
-- viewer の file import
-- viewer の photo import
-- viewer の photo inference
-- viewer の URL import
-- viewer の settings panel
-- viewer の elevation panel
-- viewer の dropzone
-- embed sample の起動
+`npm ci`は`package-lock.json`を更新せず、その内容に従ってインストールします。依存関係の宣言を意図的に変更する場合は`npm install`を使い、`package.json`と`package-lock.json`の両方を確認してください。現在のCIは`npm install`を使っており、ロックファイルが変更されないことを保証する構成ではありません。
 
+Nodeの依存関係にはテストツールとローカルのLeafletが含まれます。一方、サンプルHTMLには独自のブラウザ用import mapがあり、ビューアと埋め込みページはCDNからLeaflet `2.0.0-alpha.1`とexifr `7.1.3`を読み込みます。npmでインストールしても、この設定は置き換わりません。CDNモジュール、地図タイル、リモートサービスにはネットワーク接続が必要な場合があります。一部のテスト用ページはローカルの素材やリクエストの差し替えを使います。
+
+<a id="find-the-right-component"></a>
+
+## 変更する構成要素を探す
+
+| 場所 | 責務 |
+| --- | --- |
+| `src/index.js`, `src/app.js` | 公開エクスポートとアプリケーションの生成 |
+| `src/application-composition.js` | 起動、アプリケーションの操作権限、終了処理の調整 |
+| `src/ownership/`, `src/extensions/`, `src/plugins/runtime/` | 所有リソースの寿命、拡張契約、プラグインのインストール |
+| `src/entries/`, `src/domains/`, `src/selection/` | エントリーの識別、不変のドメインビュー、コマンド、意味上の選択 |
+| `src/rendering/`, `src/map/`, `src/interactions/`, `src/ui/` | 描画世代、地図基盤、操作、UIホスト |
+| `src/gpx/`, `src/photo/`, `src/plugins/` | 形式ごとの動作と、同梱のドメイン・入力・レンダラー・UIプラグイン |
+| `src/builtins.js` | 遅延読み込み用カタログ、ID、必須依存関係 |
+| `plugins/` | 任意のツールと背景地図プロバイダー |
+| `samples/` | 動作するビューア、埋め込み、エディタの例 |
+| `tests/`, `tests/smoke/`, `tests/fixtures/` | 単体・契約テスト、ブラウザの操作フロー、テストデータとページ |
+| `docs/` | 公開の開発・組み込み文書 |
+
+所有権、選択、描画の動作を変更する前に[アーキテクチャ（英語）](ARCHITECTURE.md)を読んでください。汎用の仕組みは基盤に、形式固有の方針はドメインプラグインとその利用側に置きます。ドメインのスナップショットが正となるデータであり、Leafletレイヤーは置き換え可能な表示です。
+
+同梱プラグインを追加・変更するときは、定義とカタログのメタデータを併せて確認してください。必須依存関係を一致させ、任意の実装は遅延読み込みを維持します。利用者向けオプションや機能の組み合わせが変わる場合は[プラグインガイド](PLUGINS.ja.md)も更新してください。
+
+<a id="local-server"></a>
 
 ## ローカルサーバー
 
-sample ページは `file://` ではなく HTTP が必要です。
-
-手動確認時は、リポジトリ root で次を実行します。
+同梱の静的サーバーを起動します。
 
 ```bash
 npm run serve -- 8010
 ```
 
-そのうえで次を開きます。
+次のページを開けます。
 
-```text
-http://localhost:8010/samples/viewer/index.html
+- [サンプル一覧](http://127.0.0.1:8010/samples/)
+- [ビューア](http://127.0.0.1:8010/samples/viewer/index.html)
+- [埋め込みギャラリー](http://127.0.0.1:8010/samples/embed/index.html)
+- [エディタ](http://127.0.0.1:8010/samples/editor/localhost.html)
+
+サーバーは現在の作業ディレクトリをルートとし、標準では`127.0.0.1`で待ち受けます。ビルドやページの自動再読み込みは行いません。編集後はブラウザを更新してください。終了はCtrl+Cです。引数でポートを指定し、省略時は`8010`になります。環境変数`HOST`と`PORT`にも対応し、コマンドラインのポートが`PORT`より優先されます。
+
+モジュールやファイルの読み込みには、`file://`ではなくHTTPを使います。同梱サーバーは静的ファイルを配信するもので、経路計算サービスではありません。ツールがリモートサービスを必要とする場合は、文書化されたプラグインオプションで設定してください。
+
+<a id="unit-tests"></a>
+
+## 単体テスト
+
+Vitestのテスト一式を実行します。
+
+```bash
+npm test
 ```
 
+[Vitest設定](../vitest.config.js)では、ブラウザのスモークテスト、依存ライブラリ、`dist/`を対象から除外しています。単体・契約テストでは、解析とシリアライズ、ドメインのコマンドとクエリ、選択、プラグインの計画・セットアップ・削除、リソースの所有、描画、入力・UIヘルパーを確認します。制御可能なプロバイダーやブラウザの代替実装を使うものも多く、実ブラウザでの検証を置き換えるものではありません。
 
-## 現段階での考え方
+作業中は関連するファイルやテスト名を指定できます。
 
-現状はアルファ段階なので、細かい仕様を固定することよりも、主要なユーザーフローの回帰を広く検知できることを優先します。テスト追加時は、些細な UI 詳細に強く依存するものより、ひとまとまりのフローが壊れていないことを確認するものを優先してください。
+```bash
+npm test -- tests/plugin-runtime.test.js tests/plugin-context.test.js
+npm test -- tests/application-destroy.test.js -t "destroy"
+```
+
+`npm test`は一度実行して終了します。変更を監視して再実行する場合は、明示的に次を使います。
+
+```bash
+npx vitest tests/plugin-runtime.test.js
+```
+
+[ランタイムテスト](../tests/plugin-runtime.test.js)、[Scopeテスト](../tests/ownership-scope.test.js)、[ドメイン基盤テスト](../tests/phase-4d-a-semantic-foundation.test.js)には、対象を絞った契約検証用の構成例があります。そこで使う内部コンストラクターはテスト用の仕組みであり、公開アプリケーションAPIの代替ではありません。
+
+<a id="smoke-tests"></a>
+
+## スモークテスト
+
+ブラウザのテスト一式を実行します。
+
+```bash
+npm run test:smoke
+```
+
+[Playwright設定](../playwright.config.js)は`tests/smoke/`のテストを検出し、`http://127.0.0.1:4173`で同梱サーバーを起動します。標準ではChromiumをヘッドレスで使い、テストを並列実行できます。手動で別のサーバーを起動する必要はありません。ローカルでは同じアドレスの既存サーバーを再利用でき、CIでは自分でサーバーを起動します。古いファイルを使っているように見える場合は、既存サーバーがどのチェックアウトを配信しているか確認してください。
+
+検証対象には次が含まれます。
+
+- ビューア・埋め込みの起動、ファイル・URL・ドロップ入力、写真のGPS・位置推定、背景地図選択、設定、標高。
+- 意味上の選択、描画の置き換え、操作、所有されるUIリソース。
+- エディタのドラッグ、矩形選択、独立した下書き、Save Copy、出力、一時的なトラック表示抑制。
+- 公開アプリケーションの破棄と同一コンテナーでの再作成（SVG／Canvas）、処理中の経路・入力作業、プレビューURL、スタイル、リスナーの後処理。
+
+一部のファイルやページ名には、実装時の`phase-4*`という名前が残っています。現在の契約に対する回帰テストであり、公開APIのバージョン体系ではありません。古いテスト用ページの一部は、基盤を分離して検証するために内部のcompositionやMapを注入します。ホスト側の公開生成方法は引き続き`createDefaultTiliaApp`です。[アプリケーションのライフサイクルテスト](../tests/smoke/application-lifecycle.spec.js)は、この公開境界を検証します。後処理の検証では、Leafletの共有documentリスナーや無関係なページ所有リソースを、アプリケーション所有のリスナーと区別してください。
+
+操作フローを指定したり、検出されるテストを一覧表示したりできます。
+
+```bash
+npm run test:smoke -- tests/smoke/viewer-file-import.spec.js
+npm run test:smoke -- tests/smoke/application-lifecycle.spec.js
+npm run test:smoke -- --list
+```
+
+画面を表示するブラウザや、並列数を減らした実行には次を使います。
+
+```bash
+npm run test:smoke -- tests/smoke/viewer-file-import.spec.js --headed
+npm run test:smoke -- tests/smoke/application-lifecycle.spec.js --workers=1
+```
+
+<a id="inspect-failures"></a>
+
+### 失敗を調べる
+
+タイムアウトを変更する前に、最初に失敗したアサーション、ページのエラー、失敗したモジュールや通信のリクエストを確認してください。ブラウザの実行ファイルがないというエラーは、Playwrightのブラウザインストールを省略した場合や、ツール更新後に再インストールが必要な場合に発生します。
+
+結果の素材は`test-results/`に保存されます。トレース設定は`on-first-retry`ですが、リポジトリでは再試行回数を設定していないため、通常実行でトレースが必ず保存されるわけではありません。調査時は明示的に取得します。
+
+```bash
+npm run test:smoke -- tests/smoke/application-lifecycle.spec.js --trace=retain-on-failure --reporter=html
+npx playwright show-report
+```
+
+HTMLレポートは`playwright-report/`に保存されます。結果とレポートの両ディレクトリはGitの対象外です。ローカルの標準レポーターはコンソールの一覧表示です。CIはHTMLと一覧の両方を使い、テスト失敗時もHTMLレポートのアップロードを試みます。
+
+| 症状 | 確認する内容 |
+| --- | --- |
+| サーバーが起動しない | ポートの空きと作業ディレクトリ。再利用されるサーバーがこのチェックアウトを配信しているか |
+| サンプルが空白／モジュールエラー | ブラウザコンソール、import mapのパス、CDNへの接続、LeafletのCSS |
+| リモートファイルを読み込めない | HTTPステータス、配信元のCORS、対応する入力ハンドラーのインストール |
+| JPEGを読み込めない | ページの固定バージョンexifr設定、Photoと入力プラグイン |
+| テスト用ページでは動くがサンプルでは失敗 | 公開ファクトリーの設定、実際のプラグイン構成、実DOM・Leafletの動作、リソース破棄 |
+
+<a id="practical-scope"></a>
+
+## 検証の範囲と方針
+
+まず変更に関係する確認を行い、実行時の動作に影響するコードを提出する前に単体・ブラウザ両方の一式を実行してください。文書だけの変更では、コマンド、API例、相対リンクと見出し、参照ファイルを確認します。例やAPIの説明が変わる場合は、関連する動作も検証してください。
+
+観察できる動作とリソースの所有を確認するテストを使います。
+
+- 偶発的なUIマークアップより、確定したデータ、リビジョン検証、意味上の選択、操作フロー全体を確認する。
+- 非同期処理では、完了前のキャンセルや破棄を検証し、遅れて返った結果が終了済みの所有者に新しい状態を公開しないことを確認する。
+- ライフサイクルでは、正常な破棄に加え、途中のセットアップ失敗、利用側とプロバイダーの依存順序、後処理失敗を確認する。
+- エディタでは、独立した下書きと元エントリーを区別し、元の削除が下書きの巻き戻しにならないことを確認する。
+- ネイティブのポインターイベント、Leaflet、DOMフォーカス、FileReader、オブジェクトURLの寿命に依存する変更にはブラウザテストを追加する。
+
+リモートの結果を検証するときは、決まったテストデータやリクエストの差し替えを使ってください。レンダラーがないことと、意味上のデータがないことを混同しないでください。内部の純粋なヘルパーも、実際の機能を支えるものは検証を維持します。たとえばオフラインの写真位置推定ヘルパーは正規化されたGPX文書を受け取りますが、公開エクスポートや可変エントリー用の互換ブリッジではありません。独立した`createBaseMap`にも専用テストがありますが、アプリケーションへの外部Map注入を可能にするものではありません。
+
+<a id="prepare-a-contribution"></a>
+
+## 貢献を提出する
+
+[READMEの貢献方針](../README.ja.md#contributing)に従い、変更を絞って`develop`ブランチを対象にしてください。大きな機能や動作の変更は先に相談します。
+
+提出前に次を確認してください。
+
+1. 契約が変わる場合は公開APIのエクスポートとプラグインのメタデータを確認する。
+2. 適切な公開文書を更新する。入門的な使い方はREADME、機能設定はプラグインガイド、シグネチャと戻り値はAPI、拡張契約はプラグイン開発、構成要素の責務はアーキテクチャに記載する。
+3. 相対リンクとサンプルのパスを確認する。公開文書は一時的な実装メモに依存させない。
+4. 必要な確認を実行し、環境の制約や実行しなかったテストも含めて、検証内容を記載する。
+5. 差分を見直し、無関係な変更、生成ファイル、依存関係の変更を確認する。
+
+リポジトリには`build`、`lint`、`typecheck`というスクリプトはありません。実行した確認として挙げないでください。現在の[CIワークフロー](../.github/workflows/test.yml)はUbuntuとNode.js 22を使い、`npm test`、システム依存関係を含むChromiumのインストール、スモークテストを実行します。プルリクエスト、`main`へのpush、手動実行で起動します。対象を絞ったローカル確認に成功しても、CI全体の実行に代わるものではありません。

@@ -1,479 +1,397 @@
-**[English API reference](API.md)**
+[English](API.md)
 
-# Tilia API リファレンス
+<a id="tilia-api-reference"></a>
 
-通常の利用入口は [`createDefaultTiliaApp()`](#createdefaulttiliaappcontainer-options) です。
+# Tilia APIリファレンス
 
+このリファレンスは`src/index.js`から公開するアプリケーションAPIを説明します。ブラウザの依存関係と完全な埋め込み例は[README](../README.ja.md)、機能の選択は[Tiliaプラグインガイド](PLUGINS.ja.md)、独自プラグインの実装は[Tiliaプラグインの開発](PLUGIN-OPERATION.ja.md)を参照してください。
 
-## ファクトリ関数
+Tiliaは初期アルファ版であり、APIは変更される可能性があります。エントリーとドメインデータは不変のスナップショットです。地図レイヤーはそのデータを表示するもので、データ操作の成功は非同期の描画完了を意味しません。
 
-### `createDefaultTiliaApp(container, options?)`
+<a id="construction-and-ownership"></a>
 
-Leaflet ベースマップの作成と Tilia app の初期化をまとめて行う高レベルの factory です。ほとんどの用途でこれを使います。
+## 生成と所有権
 
-**パラメータ**
+<a id="create-an-application"></a>
 
-| 名前 | 型 | 説明 |
-|------|----|------|
-| `container` | `string \| HTMLElement` | マップコンテナ要素またはその `id` |
-| `options` | `object?` | 下記参照 |
+### アプリケーションを生成する
 
-**options の内容**
-
-| 名前 | 型 | 説明 |
-|------|----|------|
-| `plugins` | `Array?` | 起動時に導入するプラグイン一覧（文字列 ID、プラグインオブジェクト、`[plugin, options]` タプルが混在可） |
-| `pluginOptions` | `object?` | プラグイン ID をキーにした、各プラグインへのオプションマップ。built-in UI plugin では `position` や `priority` をここで指定できます。 |
-| `pluginUrls` | `object?` | 特定 ID のローダーパスを上書き: `{ "x-my-plugin": "./path/loader.js" }` |
-| `pluginLoader` | `function?` | 完全カスタムのローダー関数: `async (pluginId) => pluginModule` |
-| `baseMapOptions` | `object?` | `createBaseMap()` に渡すオプション（下記参照） |
-| `defaultPhotoTimeMode` | `"auto" \| "local" \| "utc" \| string` | 新規追加写真に適用するデフォルトのタイムスタンプ解釈モード（デフォルト: `"auto"`）。`"+09:00"` のような固定オフセット文字列も利用できます。 |
-
-**戻り値**: [Tilia app インスタンス](#app-インスタンス-api)
-
-**例**
+`createDefaultTiliaApp(container, options = {})`は直ちにアプリケーションを返します。`container`は既存のDOM要素またはそのIDです。[README](../README.ja.md#basic-usage)に従い、サイズ、LeafletのCSS、import mapを設定してください。
 
 ```js
-import { createDefaultTiliaApp } from "./src/index.js";
+import { createDefaultTiliaApp } from "../src/index.js";
 
 const app = createDefaultTiliaApp("map", {
-  plugins: [
-    "tilia-panel",
-    "tilia-status",
-    "tilia-base-maps-control",
-    "tilia-layers",
-    "x-gsi-base-maps",
-  ],
+  plugins: ["tilia-gpx-input", "tilia-gpx-renderer"],
+  baseMapOptions: { center: [35.68, 139.76], zoom: 12 },
 });
-
-// 起動完了を待つ場合（高度な用途のみ）
-await app.whenReady();
-app.load(myGpxFile);
+await app.ready;
 ```
 
-### `createBaseMap(container, options?)`
+importパスはホストページがリポジトリのルートより一階層下にある場合の例です。配置場所に合わせて調整してください。各アプリケーションは異なるLeaflet Mapを生成し、所有します。`options.map`を渡すと、値が`undefined`でも`TypeError`になります。外部Mapの注入には対応していません。
 
-Leaflet マップと OpenStreetMap タイルレイヤーを初期化します。`createDefaultTiliaApp()` が内部で呼び出しますが、高度なセットアップでは直接使えます。
+| オプション | 意味 |
+| --- | --- |
+| `plugins` | 起動時にインストールするプラグイン。標準は空リスト |
+| `pluginOptions` | `plugins`の文字列指定に適用する、IDごとのオプション |
+| `builtins` | 遅延読み込み用メタデータのカタログ。標準は公開されるリポジトリのカタログ |
+| `baseMapOptions` | 初期Mapと背景レイヤーの設定。下記参照 |
+| `baseLayerOverrides` | IDごとの上書き。`baseMapOptions.baseLayerOverrides`とマージし、最上位の値を優先 |
 
-**options の内容**
+`plugins`の各項目にはID、`[definitionOrId, options]`、`{ plugin: definitionOrId, options }`を使えます。配列・オブジェクト形式は明示的なオプションを使います。未インストールの必須依存先は空のオプションで自動インストールされます。設定が必要な依存先は利用側より先に指定してください。[プラグインの選択](PLUGINS.ja.md#choosing-plugins)を参照してください。
 
-| 名前 | 型 | デフォルト | 説明 |
-|------|----|-----------|------|
-| `center` | `[lat, lng]` | `[35.681236, 139.767125]` | 初期中心座標（東京駅付近） |
-| `zoom` | `number` | `10` | 初期ズームレベル |
-| `tileUrl` | `string` | `https://tile.openstreetmap.org/{z}/{x}/{y}.png` | カスタムタイル URL テンプレート |
-| `tileOptions` | `object` | — | Leaflet `TileLayer` オプション（`attribution`、`maxZoom` など） |
-| `baseLayers` | `Array<object>` | OSM のみ | ベースレイヤー定義一覧。各要素は `id` と `url` が必須で、`label`、`provider`、`category`、`options`、`attributionLabel`、`isDefault`、`visibleInSelector` を指定可能 |
-| `selectedBaseLayerId` | `string` | 既定エントリの先頭 | 起動時に有効化するベースレイヤー ID |
-| `baseLayerOverrides` | `object` | — | 定義読込後に ID ごとに上書きするマップ: `{ [id]: { label, visibleInSelector, options, ... } }` |
-| `mapOptions` | `object` | — | Leaflet `Map` コンストラクタオプション |
+任意の実装は要求されたときに読み込みます。JPEG入力には、プラグインガイドで説明する固定バージョンの`exifr`のimport map設定も必要です。
 
-**戻り値**: `{ map: L.Map, tileLayer: L.TileLayer, baseLayer, baseLayers, baseLayerManager }`
+<a id="base-map-options"></a>
 
-### `createTiliaApp({ map, ...options })`
+### 背景地図のオプション
 
-既存の Leaflet マップに Tilia を接続する低レベル factory です。`createDefaultTiliaApp()` と同じオプション（`baseMapOptions` を除く）に加え:
+| `baseMapOptions`の項目 | 標準値／意味 |
+| --- | --- |
+| `mapOptions` | `{}`。Leaflet Mapコンストラクターのオプション |
+| `center` | `[35.681236, 139.767125]`。初期の緯度・経度 |
+| `zoom` | `10` |
+| `baseLayers` | 背景レイヤーの定義。標準はIDが`osm`のOpenStreetMap |
+| `selectedBaseLayerId` | 生成時の定義から選ぶ初期レイヤー |
+| `tileUrl`, `tileOptions` | 標準の定義を使う場合のタイルレイヤーの変更 |
+| `baseLayerOverrides` | IDごとの定義の上書き。入れ子のタイル`options`もマージ |
 
-| 名前 | 型 | 説明 |
-|------|----|------|
-| `map` | `L.Map` | **必須。** 接続先の Leaflet マップ |
-| `tileLayer` | `L.TileLayer?` | このアプリに関連付けるベースタイルレイヤー |
-| `baseLayer` | `object?` | このアプリに関連付ける現在のベースレイヤー定義 |
-| `baseLayers` | `Array<object>?` | 実行時マネージャに登録するベースレイヤー定義一覧 |
-| `selectedBaseLayerId` | `string?` | 定義登録時に最初に有効化するベースレイヤー ID |
-| `baseLayerOverrides` | `object?` | built-in と plugin 登録の両方に適用する、ID ごとの上書きマップ |
+定義には`id`と`url`が必要です。任意項目は`label`、`provider`、`category`、`options`（帰属表記を含むLeafletのタイル設定）、`attributionLabel`、`isDefault`、`visibleInSelector`です。後からプロバイダープラグインが追加する定義は、初期選択にはなりません。提供元やセレクターの設定は[プラグインガイド](PLUGINS.ja.md)を参照してください。
 
+別途公開される`createBaseMap(container, options = {})`は、これらの背景地図オプションを受け取り、`{ map, tileLayer, baseLayer, baseLayers, baseLayerManager }`を返します。独立したMapを生成し、後処理は呼び出し側の責任です。その結果をTiliaアプリケーションに注入することはできません。
 
-## App インスタンス API
+<a id="application-methods"></a>
 
-以下のプロパティ・メソッドはすべて `createDefaultTiliaApp()` または `createTiliaApp()` の戻り値で使えます。
+## アプリケーションのメソッド
 
-### プラグインのライフサイクル
+| API | 戻り値／動作 |
+| --- | --- |
+| `ready`, `whenReady()` | 同じPromise。指定プラグインのインストール後に`app`で解決 |
+| `use(definitionOrId, options = {})` | 不透明で不変のハンドル`{ id }`で解決するPromise |
+| `unuse(idOrHandle)` | 削除完了のPromise。IDまたは`use`のハンドルを指定 |
+| `hasPlugin(id)` | プラグインが有効かを示す真偽値 |
+| `listPlugins()` | 有効化順に並ぶIDの不変配列 |
+| `load(input)` | 選んだ入力ハンドラーの結果で解決するPromise |
+| `destroy()` | 終端となるアプリケーションの後処理完了を共有するPromise |
+| `map`, `getMap()` | アプリケーション所有のLeaflet Mapを借用 |
+| `getBaseLayer()` | 現在のLeafletタイルレイヤー |
+| `getBaseMap()` | Mapと現在のタイルレイヤーを含む新しい`{ map, tileLayer }` |
+| `entries`, `domains`, `selection`, `rendering` | 下記の操作権限を保護する機能群 |
 
-#### `app.use(pluginOrId, options?) → Promise<pluginApi>`
+通常の処理前に準備完了を待ってください。起動失敗時は自動で後処理を開始します。準備完了は指定プラグインのセットアップまでを対象とし、プラグインが始めたバックグラウンド読み込みや描画完了は待ちません。
 
-プラグインを導入します。第一引数には以下を渡せます:
+<a id="install-and-remove-plugins"></a>
 
-- **文字列 ID** — built-in を解決するか、`plugins/<id>/loader.js` から動的 import
-- **プラグインオブジェクト** `{ id, setup }` （[プラグインの作り方](#プラグインの作り方) を参照）
-
-すでに導入済みのプラグインを指定すると、再インストールせずに既存の API を返します。
-
-#### `app.unuse(pluginOrId) → Promise<pluginApi>`
-
-プラグインを取り外し、`destroy()` が定義されていれば呼びます。プラグインの API オブジェクトを返します。
-
-#### `app.ready → Promise<app>`
-
-`options.plugins` に指定したすべてのプラグインのインストールが完了したときに解決する Promise。
-
-#### `app.whenReady() → Promise<app>`
-
-`app.ready` を返すヘルパーです。起動後に処理を続けたい場合に便利です:
+### プラグインをインストール・削除する
 
 ```js
-const app = createDefaultTiliaApp("map", { plugins: [...] });
-app.whenReady().then(() => app.load(myFile));
+await app.use("tilia-file-import");
+console.log(app.listPlugins());
+await app.unuse("tilia-file-import");
 ```
 
-### マップへのアクセス
+必須依存先から順にインストールします。有効なプラグインに`use`を呼んでも、再設定せずハンドルを返します。依存するプラグインやエントリーのプロバイダーリースが必要とする間は、削除を拒否することがあります。先に利用側とそのエントリーを削除してください。存在しない有効な形式のIDの削除は何もしません。削除失敗で後処理の義務が残る場合、所有者が安全と指定した義務だけを再試行できます。ライフサイクルの規則は[プラグイン開発](PLUGIN-OPERATIONS.ja.md)を参照してください。
 
-| メンバ | 戻り値 | 説明 |
-|--------|--------|------|
-| `app.map` | `L.Map` | Leaflet マップインスタンス |
-| `app.baseMaps` | `object` | ベースレイヤーカタログの公開 facade。列挙・登録・切替を行う |
-| `getMap()` | `L.Map` | `app.map` と同じ |
-| `getBaseLayer()` | `L.TileLayer` | ベースタイルレイヤー |
-| `getBaseMap()` | `{ map, tileLayer }` | 両方 |
+<a id="load-a-file"></a>
 
-#### `app.baseMaps`
+### ファイルを読み込む
 
-ベースマップサービスは `app.baseMaps` として直接利用でき、他プラグイン向けには `app.services["tilia-base-maps"]` にも公開されます。
-
-| メンバ | 戻り値 | 説明 |
-|--------|--------|------|
-| `list()` | `Array<object>` | 登録済みベースレイヤー定義一覧 |
-| `listVisible()` | `Array<object>` | `visibleInSelector !== false` の定義一覧 |
-| `get(id)` | `object \| null` | ID を指定して 1 件取得 |
-| `has(id)` | `boolean` | その ID が登録済みか |
-| `getCurrent()` | `object \| null` | 現在のベースレイヤー定義 |
-| `getCurrentLayer()` | `L.TileLayer \| null` | 現在有効な Leaflet タイルレイヤー |
-| `register(definition)` | `object` | ベースレイヤー定義を 1 件登録 |
-| `registerMany(definitions)` | `Array<object>` | ベースレイヤー定義を複数登録 |
-| `select(id)` | `{ definition, layer }` | 現在のベースレイヤーを切り替える |
-
-### データ読み込み
-
-#### `app.load(input) → Promise`
-
-GPX ファイルまたは JPEG 画像を 1 件処理します。`input` には `File`・URL 文字列・登録済み入力ハンドラが受け付けるオブジェクトを渡せます。
-
-**GPX ファイル**（`.gpx`）:
-- `<trk>` / `<trkseg>` / `<trkpt>` の構造を読み込み済みsourceに保持する
-- トラックをポリラインとして地図に描画する
-- 各 `<rte>` を独立したGPX routeとして、順序を保った `<rtept>` とともに保持する
-- 2点以上のGPX routeを破線のポリラインで描画し、すべてのroute pointに専用マーカーを配置する
-- ウェイポイント（`<wpt>` 要素）をマーカーとして配置する
-- トラックポイントごとの標高（`<ele>`）とタイムスタンプ（`<time>`）を解析する
-- LayersパネルでTracks・Routes・Waypointsを独立して表示・非表示にできる
-- 読み込み後、地図をレイヤーの範囲に自動フィットする
-- 現在のTilia XML importerでは、暫定的なリソース上限として、1ファイルにつき最大20個の `<rte>`、1つの `<rte>` につき最大100個の `<rtept>` を受け付ける。これはTilia独自の上限であり、GPX仕様の上限ではない
-
-正規化後のGPX sourceには、`tracks`、`routes`、`waypoints`の3つの配列が常に存在します。
+`load`は準備完了を待ち、該当する登録済みハンドラーに振り分けます。URL文字列をfetchする機能や、キャンセル用の公開第2引数はありません。
 
 ```js
-{
-  type: "gpx",
-  name: "example.gpx",
-  tracks: [/* <trk> */],
-  routes: [{
-    name: "Planned path",
-    points: [{ lat: 35.0, lon: 135.0, name: "Start" }],
+const response = await fetch("../samples/embed/biwakososui.gpx");
+if (!response.ok) throw new Error(`GPX request failed: ${response.status}`);
+const file = new File([await response.text()], "biwakososui.gpx", {
+  type: "application/gpx+xml",
+});
+const { entry } = await app.load(file);
+console.log(entry.id);
+```
+
+GPXハンドラーは`{ entry, name }`、JPEGハンドラーは`{ entry, name, locationSource }`を返します。`entry`はスナップショットで、Leafletレイヤーではありません。ハンドラーがない場合や競合する場合は失敗します。ファイル・URL入力の操作部品はユーザーの入力を受け付けます。起動時の既定ファイルが不要なら、READMEの例のようにfetchを省き、それらを使えます。
+
+<a id="destroy-an-application"></a>
+
+### アプリケーションを破棄する
+
+`destroy()`はアプリケーションを直ちに終端状態にし、所有作業をabortして、エントリー、プラグイン、リソースの後処理を行い、最後にMapを取り除きます。コンテナーを再利用する前に完了を待ちます。
+
+```js
+await app.destroy();
+```
+
+コンテナーは残ります。借用したMapを独自に取り除いたり、破棄後に古いMapや保持済みの操作機能を使ったりしないでください。Mapに付随するリソースはMapとともに終了し、無関係なホストのタイマーやページのリスナーはホストの責任です。Leafletの共有document基盤は個別のMapから独立しています。
+
+通常の繰り返し呼び出しは同じ結果を共有し、失敗した後処理を再試行しません。成功すれば同じコンテナーに異なるMapを持つ新しいアプリケーションを作れますが、失敗時は即座の再利用を保証しません。必要なリソース引き継ぎを待つ場合があり、完了はキャンセルに協力しない全タスクの終了を保証するものではありません。
+
+終了開始後も`ready`／`whenReady()`、`destroy()`、`hasPlugin()`、`listPlugins()`は利用できます。検出結果は`false`／空配列になります。その他の操作と保持済みの操作機能は利用が禁止されます。起動中の外部破棄が先に確定すると、未完了の準備Promiseは`APP_DESTROYED`で失敗します。起動失敗が先に確定すると元のエラーを保持します。確定済みの準備結果は変わりません。準備と後処理は別のPromiseです。
+
+<a id="semantic-and-display-apis"></a>
+
+## 意味上のデータと表示のAPI
+
+<a id="entries-and-domain-views"></a>
+
+### エントリーとドメインビュー
+
+エントリーのスナップショットは`{ id, domain, visible }`です。IDはアプリケーション内での識別子です。`domain`は`"gpx"`という文字列ではなく、`gpxDomainKey`などの型付きキーです。ドメインの`get(id)`は`{ entry, revision, snapshot }`を返し、不在や別ドメインの場合は例外になります。後の更新で既存スナップショットは変わらないため、必要に応じて最新ビューを取得してください。
+
+`app.domains`は`gpx`と`photo`を公開します。作成には対応する`tilia-gpx-domain`または`tilia-photo-domain`を直接、または依存先としてインストールする必要があります。入力ハンドラーはファイルを解析し、レンダラーはデータを表示します。正規化されたデータをプログラムから作成するだけなら、どちらも不要です。
+
+| `app.entries`メソッド | 戻り値／動作 |
+| --- | --- |
+| `list()` | 挿入順の不変エントリー配列 |
+| `get(id)` | エントリーのスナップショットまたは`null` |
+| `setVisible(id, visible)` | エントリーのスナップショットで解決するPromise。表示指定は真偽値 |
+| `remove(id)` | 削除したスナップショット、不在時は`null`で解決するPromise |
+| `clear()` | 削除対象エントリーの不変配列で解決するPromise |
+| `subscribe(listener, { emitCurrent = true } = {})` | ハンドル`{ unsubscribe() }` |
+
+エントリー全体の表示切り替えは、ドメインのリビジョンや選択を変更しません。`clear`は挿入の逆順に削除し、後処理失敗後も残りを試み、最後に一つのまとめたイベントを通知します。後処理が失敗しても削除自体は確定することがあります。[エラー](#errors-and-extension-boundary)を参照してください。
+
+`emitCurrent`がtrueなら、購読時に最初に`entries.list()`を受け取ります。以降の通知はイベントです。
+
+| `type` | その他の項目 |
+| --- | --- |
+| `created` | `current`（エントリーのスナップショット） |
+| `domain-changed` | `entry`, `previousRevision`, `revision`, `change` |
+| `visibility-changed` | `previous`, `current`（エントリーのスナップショット） |
+| `removed` | `previous`（エントリーのスナップショット） |
+| `cleared` | `removed`（エントリー配列） |
+
+変更だけを受け取る場合は、初期一覧を別途取得します。
+
+```js
+const initialEntries = app.entries.list();
+const subscription = app.entries.subscribe((event) => {
+  console.log(event.type);
+}, { emitCurrent: false });
+// When the host no longer needs updates:
+subscription.unsubscribe();
+```
+
+<a id="revision-checked-commands"></a>
+
+### リビジョンを検証するコマンド
+
+両ドメインは`create(value, { visible = true, signal } = {})`を公開し、新しい**エントリーのスナップショット**で解決するPromiseを返します。`signal`を渡す場合はAbortSignalです。公開前のキャンセルは作成を阻止しますが、コミット後のキャンセルは取り消しません。
+
+更新のシグネチャは`(id, value, { expectedRevision })`で、**ドメインビュー**で解決するPromiseを返します。`expectedRevision`は必須で、現在の整数リビジョンと一致する必要があります。意味上のデータ・設定の変更ではリビジョンが進み、変更なしの場合は進みません。Photoのプレビューリソースだけの変更でも、意味上のリビジョンが変わらない場合があります。
+
+コマンド前に最新リビジョンを取得し、他の利用側も編集する場合は古いリビジョンのエラーに対応します。スナップショットを直接変更しないでください。値が不要なコマンドも第3引数にオプションを指定します。
+
+```js
+const view = app.domains.gpx.get(entry.id);
+await app.domains.gpx.recomputeDerived(entry.id, undefined, {
+  expectedRevision: view.revision,
+});
+```
+
+<a id="gpx-data-and-commands"></a>
+
+### GPXデータとコマンド
+
+`app.domains.gpx.create(document)`は正規化されたデータ、または`{ data: document, preferences }`を受け取ります。対応するGPXの部分集合であり、任意のXML拡張を無損失で保持するものではありません。
+
+- 文書：`{ name, metadata, tracks, routes, waypoints }`。
+- トラック：`{ name, description, segments: [{ points }] }`。
+- ルート：`{ name, description, points }`。ウェイポイントは個別の点。
+- 点：`{ lat, lon, elevation, timestamp, name, description, symbol }`。
+
+座標は`lon`を使います（Leafletでは多くの場合`lng`です）。緯度・経度は地理的な範囲内の有限数です。標高は有限数または`null`、時刻はUnixミリ秒の有限数または`null`です。標高・時刻の省略値は`null`になります。メタデータは`name`、`description`、`timestamp`に対応します。トラック・ルート・ウェイポイントは標準で空配列です。指定するトラックには`segments`配列、セグメント・ルートには`points`配列が必要です。
+
+設定の標準値は`tracksVisible`、`routesVisible`、`waypointsVisible`がすべてtrue、`trackVisibility: {}`、`stylePresetId: "default"`です。トラック別の表示指定は0始まりのインデックスをオブジェクトのキーにします。スナップショットは`{ data, preferences, derived }`で、GPXの`derived`は現在空です。
+
+```js
+const entry = await app.domains.gpx.create({
+  name: "Example track",
+  tracks: [{
+    segments: [{ points: [
+      { lat: 35.68, lon: 139.76, elevation: 10 },
+      { lat: 35.69, lon: 139.77, elevation: 20 },
+    ] }],
   }],
-  waypoints: [/* <wpt> */],
-}
-```
-
-プログラムから渡すGPX sourceでは、`tracks`、`routes`、`waypoints`の各配列を省略できます。正規化処理は、省略された各フィールドを空配列で補います。
-
-現在対応しているGPX routeのフィールドは、`<rte>`の`name`と、`<rtept>`の緯度・経度・`name`です。
-
-**JPEG ファイル**（`.jpg`、`.jpeg`）:
-- 位置は次の順序で決定される:
-  1. **EXIF GPS** — あればその座標を直接使用
-  2. **GPX タイムスタンプ補間** — EXIF GPS がない場合、EXIF のキャプチャ時刻と読み込み済み GPX トラックのタイムラインを照合して線形補間
-  3. **エラー** — EXIF に GPS も使えるタイムスタンプもない場合はエラーを投げる
-- タイムスタンプは現在の photo time mode（`"auto"`、`"local"`、`"utc"`、または `"+09:00"` のような固定オフセット）に従って解釈される
-
-### プラグインユーティリティ
-
-#### `app.subscribeInteractions(handlers) → unsubscribeFn`
-
-GPX レイヤーや写真マーカーが地図に追加されたときのイベントを購読します。購読開始時に既存のエントリすべてに対して即座に呼ばれ、以後は新しいエントリが追加されるたびに呼ばれます。購読解除関数を返します。
-
-```js
-const unsub = app.subscribeInteractions({
-  // GPX のトラックレイヤーごとに呼ばれる
-  onTrackLayer({ entry, layer }) { /* layer は Leaflet Polyline */ },
-
-  // GPX のウェイポイントマーカーごとに呼ばれる
-  onWaypointLayer({ entry, layer, waypoint }) { /* layer は Leaflet Marker */ },
-
-  // 写真マーカーごとに呼ばれる
-  onPhotoMarker({ entry, layer }) { /* layer は Leaflet Marker */ },
 });
-
-// 解除する場合:
-unsub();
+const view = app.domains.gpx.get(entry.id);
+const updated = await app.domains.gpx.updatePoint(entry.id, {
+  target: { kind: "track-point", trackIndex: 0, segmentIndex: 0, pointIndex: 1 },
+  patch: { elevation: 25 },
+}, { expectedRevision: view.revision });
+console.log(updated.revision);
 ```
 
-GPX route polylineとroute-point markerは、現在`subscribeInteractions()`では公開されません。このAPIは引き続きtrack・waypoint・photo専用です。
+| GPX更新メソッド | 値の引数 |
+| --- | --- |
+| `replaceData` | 新しい文書。設定を保ち、範囲外のトラック表示指定を除く |
+| `updatePoint` | `{ target, patch }`。patchは`lat`, `lon`, `elevation`, `timestamp`に対応 |
+| `setCategoryVisibility` | `{ category: "tracks" \| "routes" \| "waypoints", visible }` |
+| `setTrackVisibility` | `{ trackIndex, visible }` |
+| `setStylePreset` | 空でないプリセットID。表示上の解釈はレンダラーの責務 |
+| `recomputeDerived` | `undefined`。GPXでは現在何も変更しない |
 
-#### `app.provide(name, service)`
+点のpatchで標高・時刻を消すには`null`を使います。指定する値を`undefined`にはできません。エントリー全体の表示と、種類・トラックごとの設定は別の操作です。
 
-名前付き共有サービスを登録します。他のプラグインから `app.services[name]` で参照できます。
+<a id="gpx-targets-and-queries"></a>
 
-#### `app.addRefreshHandler(fn) → unsubscribeFn`
+### GPXの対象指定とクエリ
 
-`app.refreshView()` が呼ばれるたびに実行されるコールバックを登録します。購読解除関数を返します。
+対象のインデックスは0始まりです。
 
-#### `app.refreshView()`
+| `kind` | 必須のインデックス項目 |
+| --- | --- |
+| `document` | なし |
+| `track` | `trackIndex` |
+| `segment` | `trackIndex`, `segmentIndex` |
+| `route` | `routeIndex` |
+| `track-point` | `trackIndex`, `segmentIndex`, `pointIndex` |
+| `route-point` | `routeIndex`, `pointIndex` |
+| `waypoint` | `waypointIndex` |
 
-登録済みのリフレッシュハンドラをすべて呼び出します。レイヤーの追加・削除後などに呼ぶことが想定されています。
+クエリは同期処理で、`entryId`と`revision`および下記の項目を持つ不変の結果を返します。対象に`revision`を含めると、古いインデックスの使用を拒否できます。不在の対象は失敗しますが、存在する空の経路は空の結果を返せます。
 
-#### `app.setStatus(text)`
+| メソッド | 結果の項目／対応する対象 |
+| --- | --- |
+| `getDocument(id)` | `document` |
+| `getExtent(id, { target } = {})` | `bounds: { southWest: { lat, lon }, northEast: { lat, lon } }`または`null`。全種類 |
+| `getDistance(id, { target } = {})` | `recordedMeters`, `inferredGapMeters`, `totalMeters`。文書、トラック、セグメント、ルート |
+| `getElevationProfile(id, { target } = {})` | `profiles: [{ target, samples }]`。文書、トラック、セグメント、ルート |
+| `getNearestPoint(id, { target, coordinate })` | `match: { target, point, distanceSquared }`または`null`。トラック、セグメント、ルートの明示指定が必須 |
 
-`tilia-status` を介して任意のステータス通知を行います。ステータスプロバイダーが未導入なら安全に何も表示せず、後から導入した場合は、それ以降の通知が表示されます。
+範囲・距離・標高は、指定がなければ文書全体を対象にします。標高のサンプルは`{ locator, distanceMeters, elevation, edgeKind }`を含み、`edgeKind`は`start`、`recorded`、`inferred-gap`です。標高の欠落は`null`のままです。文書全体の標高結果に独立したウェイポイントは含めません。トラックのセグメント間の隙間は、記録距離とは別の推定距離に加算します。
 
-#### `app.setError(error)`
-
-エラーをアプリの状態（`app.state.lastError`）に記録します。
-
-### 状態とサービス
-
-| プロパティ | 型 | 説明 |
-|------------|----|----|
-| `app.state` | `object` | 実行時状態: `entries`（読み込み済みレイヤー）、`sources`、`layers`、`lastError` |
-| `app.services` | `object` | プラグインが公開した共有サービス（プラグイン ID をキーに持つ） |
-| `app.plugins` | `Map` | 導入済みプラグインのレジストリ（プラグイン ID をキーに持つ） |
-
-
-## Built-In プラグイン
-
-`app.use()` に文字列 ID を渡すか、`options.plugins` に列挙することで導入できます。
-
-| ID | 依存 | 説明 |
-|----|------|------|
-| `tilia-panel` | — | レイヤー・高度・設定パネルのコンテナとなるサイドパネル（マップ内に描画される） |
-| `tilia-status` | — | 地図左下に表示されるステータスバー。読み込み結果やエラーを表示する |
-| `tilia-base-maps-control` | — | ベースマップ選択コントロール。`app.baseMaps` の可視エントリを、必要に応じて provider ごとにグループ分けして表示する |
-| `tilia-layers` | `tilia-panel` | レイヤー一覧。Tracks / Routes / Waypointsの全体表示切替、エントリ単位の表示切替・削除・フィット・写真タイムスタンプモード変更が可能 |
-| `tilia-elevation` | `tilia-panel` | サイドパネル内のインタラクティブな高度プロファイルチャート。チャートでホバーすると対応するトラックポイントが地図上に表示される |
-| `tilia-file-import` | — | 地図上のコントロール（左上）にファイル選択ボタンを追加。`.gpx`・`.jpg`・`.jpeg` に対応、複数ファイルを同時に選択可能 |
-| `tilia-url-import` | — | URL 入力フォームを開くコントロール。HTTP/HTTPS のみ対応（CORS が必要）。ファイル名は `Content-Disposition` または URL パスから推定。`timeoutMs` で遅い fetch を中断し、`maxBytes` で大きすぎるリモートファイルを拒否できる |
-| `tilia-query-import` | — | `tilia-url-import` のクエリパラメータ版。フォームやコントロールを持たず、代わりにクエリーパラメータ `gpx` にセットされている URL を入力とする |
-| `tilia-settings` | `tilia-panel` | 設定パネル。新規追加写真に適用するデフォルトのタイムスタンプ解釈モードを設定できる |
-| `tilia-dropzone` | — | マップコンテナ全体をドロップ対象にする。ドラッグ中はビジュアルハイライトを表示する |
-
-### リポジトリ同梱の optional プラグイン
-
-これらは `plugins/` 配下にある third-party 形式のプラグインです。built-in ではないため、利用時は明示的に導入する必要があります。
-
-| ID | 依存 | 説明 |
-|----|------|------|
-| `x-track-editor` | `tilia-panel` | GPX の working copy から編集セッションを開始し、トラックポイントを編集して保存時に新規レイヤーとして残す |
-| `x-gpx-export` | `tilia-panel` | 選択した GPX レイヤーを `.gpx` としてダウンロード出力する |
-| `x-route-search` | — | 左側フォームを表示して Phloem `POST /route` を呼び出し、各検索結果を Start/Via/Goal のウェイポイントを伴う GPX トラックとして取り込む |
-
-#### `x-route-search` のオプション
-
-`x-route-search` は `app.use("x-route-search", options)` または `pluginOptions["x-route-search"]` で次のオプションを受け取ります。
-
-| オプション | 型 | 既定値 | 説明 |
-|------------|----|--------|------|
-| `endpoint` | `string` | `"http://127.0.0.1:3000/route"` | Phloem の route エンドポイント URL |
-| `apiKey` | `string` | `""` | 任意の API キー。`Authorization: Bearer <key>` で送信 |
-| `defaultProfile` | `string` | `"car"` | フォーム初期表示のルートプロファイル |
-| `profileOptions` | `string[]` | `[defaultProfile, "car", "bike", "foot"]` | プロファイル選択肢（`car` / `bike` / `foot` のみ。未知の値は無視されます） |
-| `timeoutMs` | `number` | `5000` | Phloem 呼び出しのタイムアウト (ms) |
-| `importLimit` | `number` | `3` | 1 回の検索で取り込むルート数上限（最大 3） |
-| `position` | `string` | `"topleft"` | マップ上のコントロールボタン配置 |
-| `priority` | `string` | `"normal"` | マップ上のコントロールボタン優先度 |
-
-### 写真タイムスタンプ解釈モード
-
-| モード | 動作 |
-|--------|------|
-| `auto` | `local` と `utc` を試し、読み込み済み GPX タイムラインにもっとも適合する解釈を採用する。非 GPS 写真のデフォルト。 |
-| `local` | EXIF のタイムスタンプをデバイスのローカル壁時計として扱う（タイムゾーン変換なし）。 |
-| `utc` | EXIF のタイムスタンプを UTC として扱う。 |
-| `+09:00` 形式の固定オフセット | EXIF のタイムスタンプを指定した数値オフセットの壁時計時刻として扱う。`+0900` と `+09:00` の両方を受け付けます。 |
-
-> **公開 embed での注意。** `auto` は閲覧者の実行環境に依存します。公開ページで GPX トラックから写真位置を推定し、タイムゾーンが違う閲覧者にも同じ結果を見せたい場合は、`auto` に任せず photo time mode を明示指定してください。`utc` または `+09:00` のような固定オフセットを推奨します。
-
-
-## プラグインの作り方
-
-`requires`、起動順序、built-in / third-party plugin ID、dynamic loading の現在の運用契約は [PLUGIN-OPERATIONS.ja.md](PLUGIN-OPERATIONS.ja.md) を参照してください。
-
-プラグインは `id` と `setup` を持つプレーンオブジェクトです:
+最近点クエリは既存の点を緯度・経度差の二乗で比較します。`distanceSquared`の単位は度の二乗で、メートルではありません。セグメント上を補間した点を返すものでもありません。有限数の`{ lat, lon }`と経路対象を明示してください。
 
 ```js
-const myPlugin = {
-  id: "x-my-plugin",           // lower-kebab-case、ベンダー prefix 付き
-  // 主要機能に必須のプラグインだけを宣言する。app.setStatus() による通知は任意であり、
-  // ここで tilia-status を要求する必要はない。
-  stylesheets: [
-    new URL("./my-plugin.css", import.meta.url).href,
-  ],
-
-  setup(app, options) {
-    const control = app.ui.installMapControl({
-      map: app.map,
-      position: "topright",
-      priority: "high",
-      className: "my-plugin-control",
-      createContent() {
-        const panel = app.ui.createPanel();
-        const button = app.ui.createButton("M");
-        button.addEventListener("click", () => {
-          app.setStatus("クリックされました");
-        });
-        panel.appendChild(button);
-        return panel;
-      },
-    });
-
-    // plugin 固有の操作を持つ API オブジェクトを返す。返す API が資源を
-    // 所有する場合は destroy() を公開し、そこで所有する資源をすべて解放する。
-    return {
-      doSomething() { /* ... */ },
-      destroy() {
-        control.remove?.();
-      },
-    };
-
-    // 公開 API が不要なら、クリーンアップ関数を直接返すことも可能:
-    // return () => { control.remove?.(); };
-  },
-};
-
-await app.use(myPlugin);
-```
-
-`setup()` は API オブジェクト、クリーンアップ関数、または、公開 API がなく解放すべき資源も所有しない場合は `undefined` を返せます。`app.unuse()` は plugin とその service 登録を削除する前に、明示的に返されたクリーンアップ関数または API オブジェクトの `destroy()` を呼び出します。
-
-各 plugin は、該当する場合、所有するすべての資源を解放する責任があります。対象には Leaflet control、DOM・map event listener、application subscription、refresh handler、timer、observer、marker、その他保持している UI state が含まれます。`remove()` などのメソッドが lifecycle cleanup として自動解釈されることはありません。`destroy()` または戻り値のクリーンアップ関数としてcleanupを明示してください。
-
-`stylesheets` は省略可能です。指定した場合、Tilia は `setup()` 実行前に各 stylesheet を登録します。相対パスの asset は `new URL(..., import.meta.url).href` で plugin module 側から解決してください。
-
-### プラグイン ID の規則
-
-- `lower-kebab-case` のみ使用可（小文字英数字とハイフンのみ）
-- `tilia-` prefix は built-in 専用の**予約語**
-- サードパーティ ID はハイフンを必ず含む（ベンダー prefix または実験用の `x-` prefix を使う）
-- 例: `x-milestone`、`acme-heatmap`、`myco-tracker`
-
-### 動的ローディングの規約
-
-文字列 ID を指定すると、デフォルトで `plugins/<plugin-id>/loader.js` から読み込まれます:
-
-```
-plugins/
-  x-milestone/
-    loader.js   ← デフォルトエクスポート、またはプラグイン ID と一致する名前付きエクスポートが必要
-```
-
-**特定 ID のパスだけ上書きする場合:**
-
-```js
-createDefaultTiliaApp("map", {
-  pluginUrls: {
-    "x-milestone": "./custom-plugins/x-milestone/loader.js",
-  },
+const distance = app.domains.gpx.getDistance(entry.id);
+const nearest = app.domains.gpx.getNearestPoint(entry.id, {
+  target: { kind: "track", trackIndex: 0 },
+  coordinate: { lat: 35.685, lon: 139.765 },
 });
+console.log(distance.totalMeters, nearest.match?.target);
 ```
 
-**完全カスタムローダーを使う場合:**
+<a id="photo-data-commands-and-previews"></a>
+
+### Photoデータ、コマンド、プレビュー
+
+`app.domains.photo.create(value)`はデータそのもの、または`{ data, preferences, blob }`を受け取ります。任意の`blob`は所有されるプレビューリソースを提供します。
+
+| データ項目 | 意味／標準値 |
+| --- | --- |
+| `name` | `"photo"` |
+| `coordinate` | 地理的な範囲内の`{ lat, lon }`または`null` |
+| `capturedAt` | 有限のUnixミリ秒または`null` |
+| `make`, `model` | カメラの文字列。標準は`""` |
+| `source` | `{ mediaType, size }`。標準は`"application/octet-stream"`と`0`バイト |
+
+正規化後のデータには`hasGps`が加わります。設定は`requestedTimeMode: "auto" | "local" | "utc"`で、標準は`auto`です。スナップショットは`{ data, preferences, derived }`で、派生項目は`resolvedTimeMode`、`inferredTimestamp`、`inferredLocation`、`locationSource`です。
+
+| Photo更新メソッド | 値の引数 |
+| --- | --- |
+| `replaceData` | 新しいデータ。置換データで`blob`を明示しない限り、設定とBlobを保持 |
+| `setRequestedTimeMode` | `"auto"`、`"local"`、`"utc"` |
+| `recomputeDerived` | `undefined`。位置・時刻の推定を明示的に再計算 |
+
+第3引数には`{ expectedRevision }`が必要です。記録済みGPS座標を優先し、GPSがない場合は利用可能な時刻付きGPXを使って推定します。後のGPX変更は確定済みPhotoの自動再計算を行いません。適切な対応がない場合、明示的な再計算も失敗することがあります。
+
+`getPreview(id)`はリソースがなければ`null`、あればハンドルを返します。
+
+| 項目 | 意味 |
+| --- | --- |
+| `signal` | プレビュー・利用側が無効になった場合、またはハンドル解放時にabort |
+| `isCurrent()` | 引き続き使えるか |
+| `readUrl()` | 現在のオブジェクトURL。無効な場合は例外 |
+| `release()` | この利用側の使用を終了。プロバイダー所有のURLは失効させない |
+
+公開の`handle.url`はありません。signalのabort時には表示画像の参照元を消し、ビューを閉じる際はハンドルを解放してください。URLを自分で失効させないでください。プラグインは`{ scope }`で所有する子孫Scopeに使用を結び付けられます。ホストからの呼び出しは標準でアプリケーションの利用側の寿命に従います。
+
+<a id="semantic-selection"></a>
+
+### 意味上の選択
+
+| `app.selection`メソッド | 戻り値／動作 |
+| --- | --- |
+| `getCurrent()` | 不変の`{ entryId, domain, ref }`または`null` |
+| `request(candidate)` | 選択されたスナップショットで解決するPromise |
+| `clear()` | `undefined`で解決するPromise |
+| `subscribe(listener)` | 変更だけを通知する`{ unsubscribe() }` |
+
+対応するドメインのファサードから候補を作ります。
 
 ```js
-createTiliaApp({
-  map,
-  pluginLoader: async (pluginId) => {
-    return import(`/plugins/${pluginId}/index.js`);
-  },
+const candidate = app.domains.gpx.selection.createCandidate(entry.id, {
+  kind: "track", trackIndex: 0,
 });
+await app.selection.request(candidate);
+const current = app.selection.getCurrent();
+const selectedTrack = app.domains.gpx.selection.resolve(current.entryId, current.ref);
 ```
 
-### UI スタイルと surface の契約
+GPX候補には上記の種類とインデックスを使い、呼び出し側のリビジョンは指定しません。Photoは標準対象を使う`app.domains.photo.selection.createCandidate(id)`です。候補は一つのアプリケーションの一つの利用側に発行される不透明な値です。自作、シリアライズ、アプリケーション／プラグインcontext間の受け渡しをしないでください。ドメインの`selection.resolve(id, ref)`は不変のドメインデータ、解決不能な参照なら`null`を返します。不正な参照、不在・別ドメインのエントリーは例外になる場合があります。
 
-- built-in UI stylesheet は runtime が自動で読み込みます。
-- third-party plugin は plugin object に `stylesheets` を宣言できます。各 stylesheet は `setup()` 実行前に、document ごとに 1 回だけ注入されます。
-- built-in UI plugin の `position`、`priority`、`edgePolicy` は `pluginOptions` 経由で指定できます。
-- Leaflet control ではない floating UI や panel UI は、map container へ直接 `appendChild()` せず `app.ui.mountSurface()` を使って `panel` または `floating` surface に載せてください。
-- panel との競合時には、`edgePolicy: "keep"` を指定した control を優先し、control をどかす代わりに panel 側が退避します。`edgePolicy` を省略した場合は、`priority: "high"` が `keep`、それ以外は `yield` として扱います。
+選択イベントは`{ previous, current, reason }`です。初期状態は別途`getCurrent()`で取得してください。ドメイン更新では参照を調整または無効化し、エントリー削除でその選択を消します。非表示化、レンダラー削除、ポップアップを閉じる操作では意味上の選択を消しません。Track Editorの下書き選択は独立しています。
 
-```js
-createDefaultTiliaApp("map", {
-  plugins: ["tilia-status", "tilia-file-import"],
-  pluginOptions: {
-    "tilia-file-import": {
-      position: "topright",
-      priority: "high",
-      edgePolicy: "keep",
-    },
-  },
-});
-```
+<a id="rendering-status"></a>
 
-Leaflet control 以外の UI を管理 surface に載せる例:
+### 描画状態
 
-```js
-const panel = document.createElement("aside");
-panel.className = "my-plugin-panel";
+| `app.rendering`メソッド | 戻り値／動作 |
+| --- | --- |
+| `getStatus(id)` | 不変の状態。描画コントローラーがなければ`null` |
+| `list()` | 不変の状態配列 |
+| `subscribe(listener, { emitCurrent = true } = {})` | ハンドル。最初は状態配列、以降は個別の状態を通知 |
+| `retry(id)` | 新しい試行を開始して同期的に状態を返す。表示完了は待たない |
 
-const mounted = app.ui.mountSurface({
-  id: "x-my-plugin-panel",
-  surface: "panel", // または "floating"
-  element: panel,
-  priority: "high",
-});
+状態には`entryId`、`domain`、`state`、`visible`、`semanticRevision`があります。`state`は`unavailable`、`building`、`active`、`failed`です。世代の項目は`currentToken`／`currentRevision`、`pendingToken`／`pendingRevision`、`fallbackToken`／`fallbackRevision`、`fallbackDisplayed`です。トークンは不透明な値として扱ってください。`lastFailure`はエラー要約または`null`、`cleanupResidualCount`は未完了の後処理記録数です。
 
-mounted.unmount();
-```
+描画が利用不可なのは、レンダラー未導入の場合もあります。失敗しても確定済みデータは巻き戻しません。置き換え中は代替表示が残ることがあり、そのリビジョンと意味上のリビジョンを状態で区別できます。世代モデルは[アーキテクチャ（英語）](ARCHITECTURE.md)を参照してください。
 
-> **セキュリティに関する注意:** 動的に読み込まれたプラグインは、ページ上の通常の JavaScript と同じ権限で実行されます。Tilia はプラグインコードをサンドボックス化しません。
+<a id="capabilities-for-owned-plugin-views"></a>
 
-### 信頼モデルとネットワークに関する前提
+### プラグインが所有するビュー向けの操作
 
-- 文字列 ID、`pluginUrls`、`pluginLoader` を通じて読み込まれるリモートプラグインモジュールは、ブラウザから見れば完全に信頼されたコードとして扱われます。
-- `tilia-url-import` プラグインは HTTP/HTTPS のみを受け付けますが、リモートサーバーの CORS 設定や可用性にも依存します。
-- importmap で参照される CDN 依存関係は、アプリケーション実行時の信頼境界の一部です。
+PluginContextも利用側ごとの寿命を持つエントリー・ドメイン・選択・描画ファサードを公開します。一部の操作には、ホストコードが通常作らないScopeが必要です。
 
-### `setup(app, options)` 内で使える API
+- `entries.bindPresentationLifetime(id, { scope })`は利用側より下にある所有された子Scopeを必須とします。エントリー削除で子を終了し、返される`{ dispose() }`で先に終了させることもできます。
+- `rendering.suppress({ entryId, domain: gpxDomainKey, target: { kind: "track", trackIndex }, expectedRevision, scope })`は、一時的なGPXトラック抑制の`{ dispose() }`を返します。Scopeは利用側に属する必要があります。永続的な表示設定、リビジョン、選択は変更しません。複数リースが重なる場合は全所有者が解放するまで抑制します。
+- `rendering.getSuppressionSnapshot()`は不変の`{ entryId, domain, ref }`配列を返します。`subscribeSuppression(listener, { scope, emitCurrent = true } = {})`は`{ unsubscribe() }`を返し、スナップショット配列を通知します。Scopeの標準は利用側で、指定する場合も利用側に属する必要があります。
 
-```js
-// Leaflet のネイティブマップコントロールとしてコンテンツを追加
-app.ui.installMapControl({ map, position, priority, edgePolicy, className, createContent })
+結び付け・抑制の`dispose()`はPromiseを返します。これらはレンダラーのレイヤーや任意ドメインの抑制を公開するものではありません。所有Scope、サービス、登録、非同期処理は[開発ガイド](PLUGIN-OPERATIONS.ja.md)を参照してください。
 
-// UI 要素の生成
-app.ui.createPanel()                         // core stylesheet で見た目が定義される class ベースの panel 要素
-app.ui.createButton(label)                   // <button>
-app.ui.createSelect(optionValues, onChange)  // <select>
+<a id="errors-and-extension-boundary"></a>
 
-// 現在の document に stylesheet を追加登録
-app.ui.registerStylesheet({ href, id? })
+## エラーと拡張の境界
 
-// map 上の managed surface に UI を mount
-app.ui.mountSurface({ id, surface, element, priority? })
+非同期の失敗を捕捉し、定義された条件には`code`を使います。検証エラーやブラウザのネイティブエラーもあり、すべてが公開のエラークラスとは限りません。
 
-// low-level な surface manager 本体
-app.ui.surfaceManager
+| 契約 | 項目／解釈 |
+| --- | --- |
+| アプリケーションエラー | `applicationErrorCodes.destroyed`: `APP_DESTROYED`、`cleanupFailed`: `APP_CLEANUP_FAILED` |
+| `SemanticError` | `code`, `committed`, `details`, 任意の`cause`。確定済み変更は後の後処理失敗でも残る |
+| `ExtensionError` | `code`, `committed`, `details`, 任意の`cause`。コミット後のコールバック失敗は公開を取り消さない |
+| `RenderingError` | `code`, 任意の`cause`。一般的な`committed`項目はない |
+| 入力振り分けの失敗 | `InputDispatchError`の`code`／`details`に完了・キャンセル・後処理を記録。load失敗でもエントリーが存在する場合がある |
+| プラグインの失敗 | `PluginError`の`code`, `details`, 任意の`cause`。依存・ライフサイクル条件は開発ガイド参照 |
 
-// トラック・ウェイポイント・写真のイベントを購読（購読解除関数を返す）
-app.subscribeInteractions({ onTrackLayer, onWaypointLayer, onPhotoMarker })
+アプリケーションの後処理失敗は集約エラーで、`errors`に元の原因、`details.failures`に不変の文脈付き要約を保持します。アプリケーションは終端状態のままです。保持済みの操作や進行中の失敗を、すべてアプリケーションエラーに置き換えるわけではありません。未対応入力やハンドラー競合は`ExtensionError`のコードを保つことがあります。
 
-// データ変更後に呼ぶリフレッシュコールバックを登録（購読解除関数を返す）
-app.addRefreshHandler(fn)
+`PluginError`と`InputDispatchError`はルートからエクスポートしません。存在しないexportをimportせず、項目を確認してください。公開モジュールは`SemanticError`、`ExtensionError`、`RenderingError`、それぞれの`semanticErrorCodes`、`extensionErrorCodes`、`renderingErrorCodes`、および`applicationErrorCodes`をエクスポートします。
 
-// すべてのリフレッシュコールバックを呼び出す
-app.refreshView()
+プラグインのsetup・後処理からの同期的なアプリケーションライフサイクル呼び出しは`PLUGIN_LIFECYCLE_REENTRANT`で拒否します。それらのコールバックでアプリケーション自身のライフサイクルをawaitしないでください。非同期の自己待機は一般に検出できません。
 
-// 他プラグインへ共有サービスを公開する
-app.provide(name, service)
+<a id="other-public-exports"></a>
 
-// 他プラグインが公開した共有サービスを参照する
-app.services["tilia-panel"]   // { openPanel, closePanel, togglePanel, rerenderPanel, isOpen }
-app.services["tilia-status"]  // { setStatus }
-app.services["tilia-base-maps"]  // app.baseMaps と同じオブジェクト
-app.services["tilia-ui-surfaces"] // app.ui.surfaceManager と同じオブジェクト
-```
+### その他の公開エクスポート
 
+| エクスポート | 用途 |
+| --- | --- |
+| `builtins` | リポジトリの遅延カタログ。独自カタログの規則は開発ガイド参照 |
+| `gpxDomainKey`, `photoDomainKey` | 共有の型付き識別子。オブジェクトの同一性で比較 |
+| `defineDomainKey({ id })` | 識別子を定義。アプリケーションのドメインファサードを作るものではない |
+| `defineServiceKey({ id, validate = null, createFacade })` | サービス契約を定義。`createFacade`は必須 |
+| `statusServiceKey`, `panelServiceKey`, `gpxQueryServiceKey` | プラグイン向け共有サービス契約 |
+| `cloneAndFreezePlainData(value, path = "snapshot")` | 有限の基本値・配列・プレーンオブジェクトを複製し不変化。Date、Blob、Mapなどは拒否 |
 
-## サンプル
+型付きIDは小文字の英数字をハイフンで区切ります。同じIDで別々に作ったキーは別の識別子です。提供側と利用側で契約キーを共有してください。プレーンデータのスナップショットには循環参照を含められません。
 
-| サンプル | パス |
-|----------|------|
-| フル viewer | [`samples/viewer/index.html`](../samples/viewer/index.html) |
-| 埋め込みギャラリー | [`samples/embed/index.html`](../samples/embed/index.html) |
-| サードパーティプラグイン例 | [`plugins/x-milestone/loader.js`](../plugins/x-milestone/loader.js) |
+プラグイン専用のサービス、入力、背景地図、UI提供、表示の登録は[プラグイン開発](PLUGIN-OPERATIONS.ja.md)、オプションは[プラグインガイド](PLUGINS.ja.md)に記載しています。`app.services`や`app.inputs`のようなホストメソッドではありません。内部ストア、レジストリー、Scopeコントローラー、基盤生成関数は公開アプリケーションAPIのエクスポートではありません。深いパスからのimportをJavaScriptのセキュリティ境界にはできません。

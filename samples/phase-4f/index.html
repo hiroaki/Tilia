@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Tilia Phase 4F foundation</title>
+    <link rel="stylesheet" href="/node_modules/leaflet/dist/leaflet.css" />
+    <style>
+      html,
+      body,
+      #map {
+        height: 100%;
+        width: 100%;
+        margin: 0;
+      }
+    </style>
+    <script type="importmap">
+      { "imports": { "leaflet": "/node_modules/leaflet/dist/leaflet.js" } }
+    </script>
+  </head>
+  <body>
+    <div id="map"></div>
+    <script type="module">
+      import { Map, CircleMarker } from "leaflet";
+      import { createApplicationComposition } from "../../src/application-composition.js";
+      import { gpxDomainKey } from "../../src/domains/keys.js";
+      const map = new Map("map").setView([35, 135], 12);
+      const composition = createApplicationComposition({
+        map,
+        plugins: ["tilia-gpx-domain", "tilia-photo-domain"],
+      });
+      const app = composition.app;
+      await app.ready;
+      const layers = [],
+        inputs = [],
+        waits = [];
+      let deferNext = false,
+        context;
+      const target = {
+        kind: "track-point",
+        trackIndex: 0,
+        segmentIndex: 0,
+        pointIndex: 0,
+      };
+      const renderer = {
+        id: "phase4f-test-renderer",
+        setup(ctx) {
+          context = ctx;
+          ctx.renderers.register(gpxDomainKey, {
+            build(input) {
+              inputs.push(input);
+              const marker = new CircleMarker([35, 135], { radius: 10 });
+              layers.push(marker);
+              input.resources.own(marker, () => {});
+              input.map.attachLayer(marker, { band: "markers" });
+              const surface = input.interactions.createSurface({
+                id: "point",
+                target: marker,
+              });
+              input.interactions.bind({
+                id: "select",
+                surface,
+                event: "click",
+                resolve: () => target,
+              });
+              const descriptor = {
+                presentation: { anchor: () => ({ lat: 35, lng: 135 }) },
+              };
+              if (deferNext) {
+                deferNext = false;
+                return new Promise((resolve, reject) =>
+                  waits.push({ resolve: () => resolve(descriptor), reject }),
+                );
+              }
+              return descriptor;
+            },
+          });
+        },
+      };
+      window.phase4f = {
+        app,
+        composition,
+        map,
+        layers,
+        inputs,
+        waits,
+        renderer,
+        target,
+        defer() {
+          deferNext = true;
+        },
+        presentation: (id) => context.presentation.resolve(id, target),
+      };
+      document.body.dataset.phase4fReady = "true";
+    </script>
+  </body>
+</html>

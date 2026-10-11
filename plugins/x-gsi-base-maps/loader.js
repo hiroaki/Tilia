@@ -1,3 +1,5 @@
+import { TileLayer } from "leaflet";
+
 const gsiAttribution = '<a href="https://maps.gsi.go.jp/development/ichiran.html">国土地理院</a>';
 
 const gsiBaseLayerDefinitions = Object.freeze([
@@ -29,15 +31,14 @@ const gsiBaseLayerDefinitions = Object.freeze([
 
 const gsiPlugin = {
 	id: "x-gsi-base-maps",
-	setup(app) {
-		if (!app.baseMaps?.registerMany) {
-			throw new Error('Plugin "x-gsi-base-maps" requires app.baseMaps.registerMany(definitions)');
+	setup(context) {
+		for (const [index, definition] of gsiBaseLayerDefinitions.entries()) {
+			context.baseMaps.register({
+				...definition,
+				rank: 100 + index,
+				createLayer: () => new TileLayer(definition.url, { maxZoom: 19, ...definition.options }),
+			});
 		}
-
-		const registeredDefinitions = app.baseMaps.registerMany(gsiBaseLayerDefinitions);
-		return {
-			definitionIds: registeredDefinitions.map((definition) => definition.id),
-		};
 	},
 };
 

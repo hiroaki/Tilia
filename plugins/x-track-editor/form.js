@@ -1,3 +1,4 @@
+import { listen } from "../../src/ui/scoped-dom.js";
 function pad(value) {
   return String(value).padStart(2, "0");
 }
@@ -60,7 +61,12 @@ export function isFormTarget(target) {
     && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.isContentEditable);
 }
 
-export function createPointInspector(selectedPoints, inspector, callbacks) {
+export function createPointInspector(selectedPoints, inspector, callbacks, { scope, report = () => {} } = {}) {
+  const bind = (element, type, callback) => {
+    if (scope) listen(scope, element, type, callback, report);
+    else element.addEventListener(type, callback);
+  };
+  const later = callback => queueMicrotask(scope ? scope.guard(callback) : callback);
   const root = document.createElement("div");
   root.className = "tilia-track-editor-inspector";
   if (selectedPoints.length === 0) {
@@ -81,14 +87,14 @@ export function createPointInspector(selectedPoints, inspector, callbacks) {
   const rows = document.createElement("div");
   rows.className = "tilia-track-editor-inspector-rows";
   rows.scrollTop = inspector.scrollTop || 0;
-  rows.addEventListener("scroll", () => callbacks.onScroll(rows.scrollTop));
+  bind(rows, "scroll", () => callbacks.onScroll(rows.scrollTop));
 
   for (const selectedPoint of selectedPoints) {
     const row = document.createElement("div");
     row.className = "tilia-track-editor-inspector-grid tilia-track-editor-inspector-row";
     row.dataset.pointId = selectedPoint.pointId;
     row.classList.toggle("tilia-track-editor-inspector-row-focused", inspector.focusedPointId === selectedPoint.pointId);
-    row.addEventListener("focusin", () => callbacks.onFocus(selectedPoint.pointId));
+    bind(row, "focusin", () => callbacks.onFocus(selectedPoint.pointId));
 
     for (const field of FIELD_DEFINITIONS) {
       const isEditing = inspector.editingCell?.pointId === selectedPoint.pointId
@@ -105,8 +111,8 @@ export function createPointInspector(selectedPoints, inspector, callbacks) {
           input.setAttribute("aria-invalid", "true");
           input.title = inspector.editingCell.error;
         }
-        input.addEventListener("input", () => callbacks.onDraftChange(input.value));
-        input.addEventListener("keydown", (event) => {
+        bind(input, "input", () => callbacks.onDraftChange(input.value));
+        bind(input, "keydown", (event) => {
           if (event.key === "Enter") {
             event.preventDefault();
             callbacks.onCommit();
@@ -116,9 +122,9 @@ export function createPointInspector(selectedPoints, inspector, callbacks) {
             callbacks.onCancel();
           }
         });
-        input.addEventListener("blur", () => callbacks.onCommit());
+        bind(input, "blur", () => callbacks.onCommit());
         row.appendChild(input);
-        queueMicrotask(() => {
+        later(() => {
           rows.scrollTop = inspector.scrollTop || 0;
           input.focus();
           input.select();
@@ -130,7 +136,7 @@ export function createPointInspector(selectedPoints, inspector, callbacks) {
         cell.textContent = formatPointProperty(selectedPoint.point, field.property);
         cell.title = `Edit ${field.label}`;
         cell.setAttribute("aria-label", `Edit ${field.label}: ${cell.textContent}`);
-        cell.addEventListener("click", () => callbacks.onBeginEdit({
+        bind(cell, "click", () => callbacks.onBeginEdit({
           pointId: selectedPoint.pointId,
           property: field.property,
           draftValue: formatPointPropertyForEdit(selectedPoint.point, field.property),
@@ -141,6 +147,6 @@ export function createPointInspector(selectedPoints, inspector, callbacks) {
     rows.appendChild(row);
   }
   root.appendChild(rows);
-  queueMicrotask(() => { rows.scrollTop = inspector.scrollTop || 0; });
+  later(() => { rows.scrollTop = inspector.scrollTop || 0; });
   return root;
 }

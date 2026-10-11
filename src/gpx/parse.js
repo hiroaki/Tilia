@@ -1,4 +1,5 @@
-import { normalizeGpxSource } from "./source.js";
+import { forwardAbort, signalAborted, signalReason } from "../ownership/abort.js";
+import { normalizeGpxDocument } from "./document.js";
 
 export const MAX_ROUTES_PER_GPX = 20;
 export const MAX_ROUTE_POINTS_PER_ROUTE = 100;
@@ -20,12 +21,47 @@ const PARSER_ERROR_NAMESPACES = [
 //   entities, and entity handling must not depend on the DOM parser in use.
 // This is intentionally narrower than complete GPX 1.1 schema validation.
 
-function readText(file) {
+function readText(file, { signal, scope } = {}) {
+  if (signal !== undefined && signalAborted(signal)) return Promise.reject(signalReason(signal));
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ""));
-    reader.onerror = () => reject(reader.error || new Error("Failed to read file"));
-    reader.readAsText(file);
+    let reader, forwarding, settled = false, abortFailure;
+    const clear = () => {
+      forwarding?.signal.removeEventListener("abort", abort);
+      forwarding?.dispose();
+      if (reader) { reader.onload = null; reader.onerror = null; reader.onabort = null; }
+    };
+    const finish = (error, value) => {
+      if (settled) return;
+      settled = true;
+      try { clear(); } catch (cleanup) { error = error === undefined ? cleanup : new AggregateError([error, cleanup], "GPX read and listener cleanup failed", { cause: cleanup }); }
+      if (error !== undefined) reject(error); else resolve(value);
+    };
+    const abort = () => {
+      const reason = forwarding ? signalReason(forwarding.signal) : new DOMException("Read cancelled", "AbortError");
+      abortFailure = undefined;
+      try { if (reader?.readyState === 1) reader.abort(); } catch (error) { abortFailure = error; }
+      finish(reason);
+      // Scope disposal retries a failed native cancellation and retains its error.
+
+    };
+    const dispose = () => {
+      let failure = abortFailure;
+      try { if (reader?.readyState === 1) { reader.abort(); failure = undefined; abortFailure = undefined; } } catch (error) { failure = error; }
+      finish(new DOMException("Read scope closed", "AbortError")); clear();
+      if (failure) throw failure;
+    };
+    scope?.defer(dispose, { label: "gpx-reader", retry: "safe" });
+    try {
+      reader = new FileReader();
+      forwarding = forwardAbort([...(signal === undefined ? [] : [signal]), ...(scope ? [scope.signal] : [])], { scope });
+      reader.onload = () => finish(undefined, String(reader.result || ""));
+      reader.onerror = () => finish(reader.error || new Error("Failed to read file"));
+      reader.onabort = () => finish(forwarding.signal.aborted
+        ? signalReason(forwarding.signal) : new DOMException("Read cancelled", "AbortError"));
+      forwarding.signal.addEventListener("abort", abort, { once: true });
+      if (forwarding.signal.aborted) { abort(); return; }
+      scope?.assertAlive(); reader.readAsText(file);
+    } catch (error) { finish(error); }
   });
 }
 
@@ -220,49 +256,54 @@ function parseGpxDateTime(value) {
   return Number.isFinite(timestamp) ? timestamp : undefined;
 }
 
+function parseOptionalElevation(node, namespace) {
+  const text = getDirectChildText(node, "ele", namespace);
+  if (text == null || text === "") return null;
+  const value = Number(text);
+  return Number.isFinite(value) ? value : null;
+}
+function supportedText(node, namespace) {
+  const fields = {};
+  for (const [xml, key] of [["name", "name"], ["desc", "description"], ["sym", "symbol"]]) {
+    const value = getDirectChildText(node, xml, namespace);
+    if (value !== undefined) fields[key] = value;
+  }
+  return fields;
+}
+function parsePoint(node, namespace, context, fileName) {
+  return { ...parsePointCoordinates(node, context, fileName), ...supportedText(node, namespace),
+    elevation: parseOptionalElevation(node, namespace),
+    timestamp: parseGpxDateTime(getDirectChildText(node, "time", namespace)) ?? null };
+}
 function parseTracks(root, namespace, fileName) {
-  return getDirectChildren(root, "trk", namespace).map((trackNode, trackIndex) => ({
-    name: getDirectChildText(trackNode, "name", namespace),
-    segments: getDirectChildren(trackNode, "trkseg", namespace).map((segmentNode, segmentIndex) => ({
-      points: getDirectChildren(segmentNode, "trkpt", namespace).map((pointNode, pointIndex) => ({
-        ...parsePointCoordinates(pointNode, `trkpt #${pointIndex + 1} in segment #${segmentIndex + 1} of track #${trackIndex + 1}`, fileName),
-        elevation: getDirectChildText(pointNode, "ele", namespace),
-        timestamp: parseGpxDateTime(getDirectChildText(pointNode, "time", namespace)),
-      })),
+  return getDirectChildren(root, "trk", namespace).map((node, ti) => ({
+    ...supportedText(node, namespace),
+    segments: getDirectChildren(node, "trkseg", namespace).map((segment, si) => ({
+      points: getDirectChildren(segment, "trkpt", namespace).map((point, pi) =>
+        parsePoint(point, namespace, `trkpt #${pi + 1} in segment #${si + 1} of track #${ti + 1}`, fileName)),
     })),
   }));
 }
-
-function parseRoutes(root, namespace, fileName) {
-  const routeNodes = getDirectChildren(root, "rte", namespace);
-  if (routeNodes.length > MAX_ROUTES_PER_GPX) {
-    throw new Error(`Too many GPX routes in ${fileName}: ${routeNodes.length} > ${MAX_ROUTES_PER_GPX}`);
+function parseRoutes(root, namespace, fileName, enforceImportLimits) {
+  const nodes = getDirectChildren(root, "rte", namespace);
+  if (enforceImportLimits && nodes.length > MAX_ROUTES_PER_GPX) {
+    throw new Error(`Too many GPX routes in ${fileName}: ${nodes.length} > ${MAX_ROUTES_PER_GPX}`);
   }
-
-  return routeNodes.map((routeNode, routeIndex) => {
-    const pointNodes = getDirectChildren(routeNode, "rtept", namespace);
-    if (pointNodes.length > MAX_ROUTE_POINTS_PER_ROUTE) {
-      throw new Error(`Too many route points in GPX route #${routeIndex + 1} of ${fileName}: ${pointNodes.length} > ${MAX_ROUTE_POINTS_PER_ROUTE}`);
+  return nodes.map((node, ri) => {
+    const points = getDirectChildren(node, "rtept", namespace);
+    if (enforceImportLimits && points.length > MAX_ROUTE_POINTS_PER_ROUTE) {
+      throw new Error(`Too many route points in GPX route #${ri + 1} of ${fileName}: ${points.length} > ${MAX_ROUTE_POINTS_PER_ROUTE}`);
     }
-    return {
-      name: getDirectChildText(routeNode, "name", namespace),
-      points: pointNodes.map((pointNode, pointIndex) => ({
-        ...parsePointCoordinates(pointNode, `rtept #${pointIndex + 1} in route #${routeIndex + 1}`, fileName),
-        name: getDirectChildText(pointNode, "name", namespace) || "",
-      })),
-    };
+    return { ...supportedText(node, namespace), points: points.map((point, pi) =>
+      parsePoint(point, namespace, `rtept #${pi + 1} in route #${ri + 1}`, fileName)) };
   });
 }
-
 function parseWaypoints(root, namespace, fileName) {
-  return getDirectChildren(root, "wpt", namespace).map((node, pointIndex) => ({
-    ...parsePointCoordinates(node, `wpt #${pointIndex + 1}`, fileName),
-    name: getDirectChildText(node, "name", namespace) || "",
-  }));
+  return getDirectChildren(root, "wpt", namespace).map((node, i) => parsePoint(node, namespace, `wpt #${i + 1}`, fileName));
 }
 
 export function parseGpxText(xmlText, options = {}) {
-  const { fileName = "track.gpx", createDomParser = () => new DOMParser() } = options;
+  const { fileName = "track.gpx", createDomParser = () => new DOMParser(), enforceImportLimits = true } = options;
   const preparseInspection = inspectXmlBeforeParsing(xmlText);
   if (preparseInspection === "doctype") {
     throw new Error(`DOCTYPE is not allowed in GPX: ${fileName}`);
@@ -283,15 +324,22 @@ export function parseGpxText(xmlText, options = {}) {
   }
 
   const { root, namespace } = validateRoot(doc, fileName);
-  return normalizeGpxSource({
+  const metadata = getDirectChildren(root, "metadata", namespace)[0];
+  return normalizeGpxDocument({
     name: fileName,
+    metadata: metadata ? { ...supportedText(metadata, namespace), timestamp: parseGpxDateTime(getDirectChildText(metadata, "time", namespace)) ?? null } : {},
     tracks: parseTracks(root, namespace, fileName),
-    routes: parseRoutes(root, namespace, fileName),
+    routes: parseRoutes(root, namespace, fileName, enforceImportLimits),
     waypoints: parseWaypoints(root, namespace, fileName),
   });
 }
 
-export async function parseGpxFile(file) {
-  const xmlText = await readText(file);
-  return parseGpxText(xmlText, { fileName: file.name });
+export async function parseGpxFile(file, { signal, scope } = {}) {
+  const check = () => { if (signal !== undefined && signalAborted(signal)) throw signalReason(signal); };
+  check();
+  const xmlText = await readText(file, { signal, scope });
+  check();
+  const parsed = parseGpxText(xmlText, { fileName: file.name });
+  check();
+  return parsed;
 }

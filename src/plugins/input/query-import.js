@@ -1,35 +1,18 @@
-import { importRemoteUrl } from "../../core/remote-url-import.js";
-import {
-  DEFAULT_URL_IMPORT_MAX_BYTES,
-  DEFAULT_URL_IMPORT_TIMEOUT_MS,
-} from "../../core/input-utils.js";
-
-export async function installQueryImportPlugin({
-  registry,
-  context,
-  onStatus,
-  onError,
-  onItemLoaded,
-  parameterName = "gpx",
-  timeoutMs = DEFAULT_URL_IMPORT_TIMEOUT_MS,
-  maxBytes = DEFAULT_URL_IMPORT_MAX_BYTES,
-}) {
-  const params = new URLSearchParams(window.location.search);
-
-  const url = params.get(parameterName);
-
-  if (!url) {
-    return;
-  }
-
-  await importRemoteUrl({
-    url,
-    registry,
-    context,
-    onStatus,
-    onError,
-    onItemLoaded,
-    timeoutMs,
-    maxBytes,
-  });
-}
+import { importRemote, remoteOptions, status } from "./transport.js";
+import { reportError } from "../../ui/scoped-dom.js";
+export default Object.freeze({ id: "tilia-query-import", setup(context, options = {}) {
+  const limits = remoteOptions(options), parameterName = options.parameterName ?? "gpx";
+  if (typeof parameterName !== "string" || !parameterName) throw new TypeError("Invalid query parameter name");
+  const url = new URLSearchParams(globalThis.window?.location?.search ?? "").get(parameterName);
+  let activated = false, started = false, subscription;
+  const start = () => {
+    if (!activated || started || !url || !context.scope.alive || !context.inputs.getSnapshot().length) return;
+    started = true; subscription?.unsubscribe();
+    const scope = context.scope.child({ label: "query-import" });
+    const work = importRemote(context, { url, scope, ...limits, source: "query" }).catch((error) => {
+      if (!scope.alive) return; reportError(context, error); status(context, scope, `URL import failed: ${error.message}`);
+    }).finally(() => scope.dispose());
+    context.scope.track(work, { label: "query-import-observer", await: false });
+  };
+  context.lifecycle.afterCommit(() => { activated = true; subscription = context.inputs.subscribe(start, { emitCurrent: false }); start(); });
+} });
