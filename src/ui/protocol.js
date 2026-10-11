@@ -23,12 +23,12 @@ export const TILIA_UI_LAYER_Z_INDEX = Object.freeze({
 
 export const TILIA_BUILTIN_UI_DEFAULTS = Object.freeze({
   "tilia-base-maps-control": Object.freeze({ position: "topright", priority: TILIA_CONTROL_PRIORITY.normal }),
-  "tilia-elevation": Object.freeze({ position: "topleft", priority: TILIA_CONTROL_PRIORITY.normal }),
-  "tilia-file-import": Object.freeze({ position: "topleft", priority: TILIA_CONTROL_PRIORITY.high }),
-  "tilia-layers": Object.freeze({ position: "topleft", priority: TILIA_CONTROL_PRIORITY.normal }),
-  "tilia-settings": Object.freeze({ position: "topleft", priority: TILIA_CONTROL_PRIORITY.normal }),
+  "tilia-elevation": Object.freeze({ position: "topleft", priority: TILIA_CONTROL_PRIORITY.normal, rank: 20 }),
+  "tilia-file-import": Object.freeze({ position: "topleft", priority: TILIA_CONTROL_PRIORITY.high, rank: 30 }),
+  "tilia-layers": Object.freeze({ position: "topleft", priority: TILIA_CONTROL_PRIORITY.normal, rank: 10 }),
+  "tilia-settings": Object.freeze({ position: "topleft", priority: TILIA_CONTROL_PRIORITY.normal, rank: 50 }),
   "tilia-status": Object.freeze({ position: "bottomleft", priority: TILIA_CONTROL_PRIORITY.low }),
-  "tilia-url-import": Object.freeze({ position: "topleft", priority: TILIA_CONTROL_PRIORITY.normal }),
+  "tilia-url-import": Object.freeze({ position: "topleft", priority: TILIA_CONTROL_PRIORITY.normal, rank: 40 }),
 });
 
 export function resolveBuiltinUiOptions(pluginId, options = {}) {

@@ -6,12 +6,21 @@ const position = (p) => ({ lat: p.lat, lng: p.lon });
 class RoutePointIcon extends DivIcon {
   createIcon(old) { const element = super.createIcon(old); element.style.setProperty("--route-color", this.options.routeColor); return element; }
 }
+// Canonical indices include hidden and empty objects, so ordinary rendering
+// replacements never renumber colors. Explicit and unknown presets retain their
+// existing entry-wide styling and fallback semantics.
+export function resolveGpxObjectStyle(preferences, data, target) {
+  if (preferences.stylePresetId === "default") {
+    const index = target.kind === "track" ? target.trackIndex : data.tracks.length + target.routeIndex;
+    return TRACK_STYLE_PRESETS[index % TRACK_STYLE_PRESETS.length];
+  }
+  return TRACK_STYLE_PRESETS.find((preset) => preset.id === preferences.stylePresetId) ?? TRACK_STYLE_PRESETS[0];
+}
 export function createGpxRenderer() {
   return Object.freeze({
     planChange: () => "replace",
     build(input) {
       const { data, preferences } = input.semanticSnapshot;
-      const style = TRACK_STYLE_PRESETS.find((p) => p.id === preferences.stylePresetId) ?? TRACK_STYLE_PRESETS[0];
       const view = { entry: { id: input.entryId }, revision: input.semanticRevision, snapshot: input.semanticSnapshot };
       const own = (layer, id, target, band = "geometry", nearest = false, group = null) => {
         input.resources.own(layer, (value) => value.remove(), { label: id, retry: "safe" });
@@ -26,6 +35,7 @@ export function createGpxRenderer() {
       data.tracks.forEach((track, trackIndex) => {
         if (!preferences.tracksVisible || preferences.trackVisibility[trackIndex] === false) return;
         const target = { kind: "track", trackIndex };
+        const style = resolveGpxObjectStyle(preferences, data, target);
         const group = input.visibility.createGroup(target);
         const points = gpxTargetPaths(data, target)[0].points.map(({ point }) => position(point));
         if (points.length > 1) own(new Polyline(points, style), `track:${trackIndex}`, target, "geometry", true, group);
@@ -34,6 +44,7 @@ export function createGpxRenderer() {
       data.routes.forEach((route, routeIndex) => {
         if (!preferences.routesVisible) return;
         const target = { kind: "route", routeIndex };
+        const style = resolveGpxObjectStyle(preferences, data, target);
         if (route.points.length > 1) own(new Polyline(route.points.map(position), { ...style, weight: Math.max(1, style.weight - 2), dashArray: "8 6" }), `route:${routeIndex}`, target, "geometry", true);
         route.points.forEach((point, pointIndex) => {
           const label = String(pointIndex + 1), width = Math.max(18, 10 + label.length * 6);
@@ -62,6 +73,9 @@ export function createGpxRenderer() {
         },
         highlightDescriptor(ref) {
           const paths = geometry(ref); if (!paths?.length) return null;
+          if (["waypoint", "track-point", "route-point"].includes(ref?.kind)) {
+            return cloneAndFreezePlainData({ kind: "point", symbol: "crosshair", point: position(paths[0].points[0].point) });
+          }
           return cloneAndFreezePlainData({ kind: "geometry", lines: paths.filter((path) => path.points.length > 1).map((path) => path.points.map(({ point }) => position(point))),
             points: paths.filter((path) => path.points.length === 1).map((path) => position(path.points[0].point)) });
         },

@@ -64,15 +64,6 @@
   color: #1c1917;
 }
 
-.tilia-side-panel-close {
-  border: 1px solid #d6d3d1;
-  border-radius: 999px;
-  background: #fff;
-  padding: 6px 10px;
-  font-size: 12px;
-  cursor: pointer;
-}
-
 .tilia-side-panel-body {
   flex: 1;
   min-height: 0;

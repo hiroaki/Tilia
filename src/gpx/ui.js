@@ -3,7 +3,17 @@ import { listen, node } from "../ui/scoped-dom.js";
 import { resolveGpxTarget } from "./document.js";
 import { formatGpxSummary, getTrackDisplayName } from "./interpretation.js";
 import { TRACK_STYLE_PRESETS } from "../map/track-style-presets.js";
+import { clearSelectionHiddenByGpxCheckbox } from "./visibility.js";
 import { createWaypointPopupContent, createRoutePointPopupContent, createTrackPointPopupContent } from "./popup.js";
+
+// Only the collections represented by this UI determine its DOM structure.
+// Coordinates, names and preferences are projected into the existing nodes.
+function sameTreeStructure(previous, next) {
+  return previous && previous.tracks.length === next.tracks.length
+    && previous.routes.length === next.routes.length && previous.waypoints.length === next.waypoints.length
+    && previous.tracks.every((track, i) => track.segments.length === next.tracks[i].segments.length)
+    && previous.routes.every((route, i) => route.points.length === next.routes[i].points.length);
+}
 
 export function mountGpxRow(input) {
   const { container, scope, entry, gpx, selection, report, entries, map } = input;
@@ -12,7 +22,10 @@ export function mountGpxRow(input) {
   const render = (view) => {
     viewRevision = view.revision;
     const { data } = view.snapshot;
-    if (!structure) rebuild(data);
+    if (structure !== data) {
+      if (!sameTreeStructure(structure, data)) rebuild(data);
+      structure = data;
+    }
     for (const project of projections) project(view);
     const selected = selection.getCurrent();
     for (const { button, target } of buttons) {
@@ -28,14 +41,22 @@ export function mountGpxRow(input) {
       const button = node(parent, "button", className, label); button.type = "button"; buttons.push({ button, target });
       projections.push((view) => {
         const value = resolveGpxTarget(view.snapshot.data, target);
-        button.textContent = target.kind === "document" ? value.name : target.kind === "track" ? getTrackDisplayName(value, target.trackIndex) : target.kind === "segment" ? `Segment #${target.segmentIndex + 1} (${value.points.length} points)` : value.name || label;
+        const text = target.kind === "document" ? value.name : target.kind === "track" ? getTrackDisplayName(value, target.trackIndex) : target.kind === "segment" ? `Segment #${target.segmentIndex + 1} (${value.points.length} points)` : value.name || label;
+        if (button.textContent !== text) button.textContent = text;
       });
       const current = () => {
         if (!child.alive) return null;
         const view = model.current();
         return view?.revision === viewRevision ? view : null;
       };
-      listen(child, button, "click", () => { if (current()) return selection.request(gpx.selection.createCandidate(entry.id, target)); }, report);
+      listen(child, button, "click", () => {
+        const view = current(); if (!view) return;
+        const selected = selection.getCurrent();
+        const matches = selected?.entryId === entry.id && selected.domain === entry.domain
+          && (target.kind === "document" || selected.ref.revision === view.revision)
+          && selected.ref.kind === target.kind && Object.entries(target).every(([key, value]) => selected.ref[key] === value);
+        return matches ? selection.clear({ ifCurrent: selected }) : selection.request(gpx.selection.createCandidate(entry.id, target));
+      }, report);
       const isPoint = ["waypoint", "route-point", "track-point"].includes(target.kind);
       const coordinate = (view) => {
         const point = resolveGpxTarget(view.snapshot.data, target);
@@ -61,7 +82,7 @@ export function mountGpxRow(input) {
           );
         }
       };
-      const action = node(parent, "button", isPoint ? "tilia-gpx-reveal" : "tilia-gpx-fit", isPoint ? "Reveal" : "Fit");
+      const action = node(parent, "button", isPoint ? "tilia-control-button tilia-gpx-reveal" : "tilia-control-button tilia-gpx-fit", isPoint ? "Reveal" : "Fit");
       action.type = "button";
       projections.push((view) => {
         action.disabled = isPoint ? !coordinate(view) : !extent(view);
@@ -72,34 +93,51 @@ export function mountGpxRow(input) {
       listen(child, button, "dblclick", (event) => { event.preventDefault(); return navigate(); }, report);
     };
     select(container, data.name, { kind: "document" }, "tilia-layer-name");
-    const summary = node(container, "div", "tilia-layer-meta"); projections.push((v) => { summary.textContent = formatGpxSummary(v.snapshot.data); });
+    const summary = node(container, "div", "tilia-layer-meta"); projections.push((v) => {
+      const text = formatGpxSummary(v.snapshot.data);
+      if (summary.textContent !== text) summary.textContent = text;
+    });
+    const categories = ["tracks", "routes", "waypoints"].filter((category) => data[category].length);
+    if (!categories.length) return;
     const tree = node(container, "ul", "tilia-gpx-tree");
-    for (const category of ["tracks", "routes", "waypoints"]) {
-      const item = node(tree, "li", "tilia-gpx-category"), label = node(item, "label", "", category);
+    for (const category of categories) {
+      const item = node(tree, "li", "tilia-gpx-category"), label = node(item, "label", "tilia-gpx-category-label");
       const toggle = node(label, "input", "tilia-gpx-category-visible"); toggle.type = "checkbox"; model.controls.add(toggle); child.defer(() => model.controls.delete(toggle));
-      toggle.setAttribute("aria-label", `${data.name} ${category}`);
-      projections.push((v) => { toggle.checked = v.snapshot.preferences[`${category}Visible`]; });
-      listen(child, toggle, "change", () => { const visible = toggle.checked; return model.command((v) => gpx.setCategoryVisibility(entry.id, { category, visible }, { expectedRevision: v.revision }), render); }, report);
+      node(label, "span", "", category);
+      projections.push((v) => {
+        toggle.setAttribute("aria-label", `${v.snapshot.data.name} ${category}`);
+        toggle.checked = v.snapshot.preferences[`${category}Visible`];
+      });
+      listen(child, toggle, "change", () => { const visible = toggle.checked; return model.command(async (v) => {
+        await gpx.setCategoryVisibility(entry.id, { category, visible }, { expectedRevision: v.revision });
+        await clearSelectionHiddenByGpxCheckbox(input, v, { category, visible });
+      }, render); }, report);
       const children = node(item, "ul", "tilia-gpx-children");
       if (category === "tracks") data.tracks.forEach((track, trackIndex) => {
         const branch = node(children, "li", "tilia-gpx-track"), check = node(branch, "input", "tilia-gpx-track-visible"); check.type = "checkbox"; model.controls.add(check); child.defer(() => model.controls.delete(check));
-        check.setAttribute("aria-label", `${data.name} show track ${trackIndex + 1}`);
-        projections.push((v) => { check.checked = v.snapshot.preferences.trackVisibility[trackIndex] !== false; });
-        listen(child, check, "change", () => { const visible = check.checked; return model.command((v) => gpx.setTrackVisibility(entry.id, { trackIndex, visible }, { expectedRevision: v.revision }), render); }, report);
+        projections.push((v) => {
+          check.setAttribute("aria-label", `${v.snapshot.data.name} show track ${trackIndex + 1}`);
+          check.checked = v.snapshot.preferences.trackVisibility[trackIndex] !== false;
+        });
+        listen(child, check, "change", () => { const visible = check.checked; return model.command(async (v) => {
+          await gpx.setTrackVisibility(entry.id, { trackIndex, visible }, { expectedRevision: v.revision });
+          await clearSelectionHiddenByGpxCheckbox(input, v, { trackIndex, visible });
+        }, render); }, report);
         select(branch, getTrackDisplayName(track, trackIndex), { kind: "track", trackIndex });
+        if (!track.segments.length) return;
         const segments = node(branch, "ul", "tilia-gpx-segments");
         track.segments.forEach((segment, segmentIndex) => select(node(segments, "li", "tilia-gpx-segment"), `Segment #${segmentIndex + 1} (${segment.points.length} points)`, { kind: "segment", trackIndex, segmentIndex }));
       });
       else if (category === "routes") data.routes.forEach((route, routeIndex) => {
-        const branch = node(children, "li", "tilia-gpx-route"); select(branch, route.name || `Route #${routeIndex + 1}`, { kind: "route", routeIndex });
-        const points = node(branch, "ul", "tilia-gpx-route-points"); route.points.forEach((point, pointIndex) => select(node(points, "li", ""), point.name || `Point #${pointIndex + 1}`, { kind: "route-point", routeIndex, pointIndex }));
+        const branch = node(children, "li", "tilia-gpx-route"); select(branch, `Route #${routeIndex + 1}`, { kind: "route", routeIndex });
+        if (!route.points.length) return;
+        const points = node(branch, "ul", "tilia-gpx-route-points"); route.points.forEach((point, pointIndex) => select(node(points, "li", ""), `Point #${pointIndex + 1}`, { kind: "route-point", routeIndex, pointIndex }));
       });
-      else data.waypoints.forEach((point, waypointIndex) => select(node(children, "li", ""), point.name || `Waypoint #${waypointIndex + 1}`, { kind: "waypoint", waypointIndex }));
+      else data.waypoints.forEach((point, waypointIndex) => select(node(children, "li", ""), `Waypoint #${waypointIndex + 1}`, { kind: "waypoint", waypointIndex }));
     }
   };
   if (entries) {
     const subscription = entries.subscribe((event) => {
-      if (event.entry?.id === entry.id && event.change?.type === "replace-data") { structure = null; }
       if (event.entry?.id === entry.id || event.current?.id === entry.id || event.previous?.id === entry.id || event.type === "cleared") model.update(render);
     }, { emitCurrent: false }); scope.defer(() => subscription.unsubscribe(), { retry: "safe" });
   }
@@ -108,7 +146,10 @@ export function mountGpxRow(input) {
 }
 export function mountGpxSettings(input) {
   const { container, scope, entry, gpx, report } = input, model = domainMount({ ...input, domain: gpx });
-  const title = node(container, "h3", "tilia-gpx-settings-name"), style = node(container, "select", "tilia-gpx-style-select");
+  container.classList.add("tilia-gpx-settings");
+  const title = node(container, "h3", "tilia-gpx-settings-name");
+  const label = node(container, "label", "tilia-gpx-setting-label", "GPX style");
+  const style = node(label, "select", "tilia-control-select tilia-gpx-style-select");
   model.controls.add(style); style.setAttribute("aria-label", "GPX style");
   for (const id of [...new Set(["default", ...TRACK_STYLE_PRESETS.map((p) => p.id)])]) { const option = node(style, "option", "", id); option.value = id; }
   let data, controlsScope, project = [];
@@ -120,14 +161,17 @@ export function mountGpxSettings(input) {
     style.value = preset;
     if (!data) {
       data = view.snapshot.data; void controlsScope?.dispose().catch(report); controlsScope = scope.child({ label: "visibility-settings" }); values.replaceChildren(); project = [];
-      const checkbox = (label, checked, admit) => {
+      const checkbox = (label, checked, admit, gate) => {
         const wrap = node(values, "label", "", label), toggle = node(wrap, "input", ""); toggle.type = "checkbox"; toggle.setAttribute("aria-label", label);
         model.controls.add(toggle); controlsScope.defer(() => model.controls.delete(toggle));
         project.push((v) => { toggle.checked = checked(v); });
-        listen(controlsScope, toggle, "change", () => { const visible = toggle.checked; return model.command((v) => admit(visible, v.revision), render); }, report);
+        listen(controlsScope, toggle, "change", () => { const visible = toggle.checked; return model.command(async (v) => {
+          await admit(visible, v.revision);
+          await clearSelectionHiddenByGpxCheckbox(input, v, { ...gate, visible });
+        }, render); }, report);
       };
-      for (const category of ["tracks", "routes", "waypoints"]) checkbox(category, (v) => v.snapshot.preferences[`${category}Visible`], (visible, revision) => gpx.setCategoryVisibility(entry.id, { category, visible }, { expectedRevision: revision }));
-      data.tracks.forEach((track, trackIndex) => checkbox(getTrackDisplayName(track, trackIndex), (v) => v.snapshot.preferences.trackVisibility[trackIndex] !== false, (visible, revision) => gpx.setTrackVisibility(entry.id, { trackIndex, visible }, { expectedRevision: revision })));
+      for (const category of ["tracks", "routes", "waypoints"]) checkbox(category, (v) => v.snapshot.preferences[`${category}Visible`], (visible, revision) => gpx.setCategoryVisibility(entry.id, { category, visible }, { expectedRevision: revision }), { category });
+      data.tracks.forEach((track, trackIndex) => checkbox(getTrackDisplayName(track, trackIndex), (v) => v.snapshot.preferences.trackVisibility[trackIndex] !== false, (visible, revision) => gpx.setTrackVisibility(entry.id, { trackIndex, visible }, { expectedRevision: revision }), { trackIndex }));
     }
     project.forEach((update) => update(view));
   };
@@ -145,6 +189,7 @@ export function mountGpxPopup({ container, selection, gpx }) {
     const sample = samples.find((s) => s.locator.segmentIndex === ref.segmentIndex && s.locator.pointIndex === ref.pointIndex);
     container.appendChild(createTrackPointPopupContent({ ...document, name: document.tracks[ref.trackIndex].name || document.name }, { ...value, distanceMeters: sample?.distanceMeters }));
   } else {
+    container.classList.add("tilia-popup");
     node(container, "h3", "tilia-popup-title", value.name || document.name);
     node(container, "div", "tilia-popup-row", `Type: ${ref.kind}`);
     const metadata = ref.kind === "document" ? document.metadata : value;

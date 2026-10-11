@@ -45,8 +45,8 @@ export const gpxExportPlugin = Object.freeze({
       const root = node(container, "div", "tilia-gpx-export-panel");
       node(root, "p", "tilia-gpx-export-intro", "Export any GPX layer to a local .gpx file.");
       const label = node(root, "label", "tilia-gpx-export-label", "Layer");
-      const select = node(label, "select", "tilia-gpx-export-select");
-      const button = node(root, "button", "tilia-gpx-export-action", "Export GPX"); button.type = "button";
+      const select = node(label, "select", "tilia-control-select tilia-gpx-export-select");
+      const button = node(root, "button", "tilia-control-button tilia-gpx-export-action", "Export GPX"); button.type = "button";
       const message = node(root, "p", "tilia-gpx-export-message"); message.setAttribute("aria-live", "polite");
       let ids = [];
       const render = () => {
@@ -84,7 +84,7 @@ export const gpxExportPlugin = Object.freeze({
       render();
     }
     registerLauncher(context, options, { kind: "action",
-      label: "GPX export", iconText: "G", activate() {
+      label: "GPX export", iconText: "G", className: "tilia-gpx-export-control", activate() {
         const handle = panel.toggle({ id: "gpx-export", title: "GPX Export", mount });
         if (handle?.dispose) handles.add(handle);
         return handle;

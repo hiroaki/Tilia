@@ -502,7 +502,7 @@ export const routeSearchPlugin = {
 
       const closeButton = document.createElement("button");
       closeButton.type = "button";
-      closeButton.className = "tilia-side-panel-close tilia-route-search-close";
+      closeButton.className = "tilia-control-close tilia-side-panel-close tilia-route-search-close";
       closeButton.textContent = "Close";
       listen(panelRows, closeButton, "click", () => {
         panel.classList.add("tilia-route-search-panel-hidden");

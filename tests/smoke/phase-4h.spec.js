@@ -16,7 +16,7 @@ test("Phase 4H real GPX file, numbered route click, tree selection, style/visibi
   expect(await page.evaluate(() => window.phase4h.app.selection.getCurrent().ref)).toMatchObject({ kind: "route-point", routeIndex: 0, pointIndex: 0 });
   await page.locator(".leaflet-popup-close-button").click();
   await expect(page.locator(".leaflet-popup")).toHaveCount(0);
-  expect(await page.evaluate(() => { const f = window.phase4h; let rings = 0; f.map.eachLayer((l) => { if (l.options.radius === 18) rings++; }); return { selected: !!f.app.selection.getCurrent(), rings }; })).toEqual({ selected: true, rings: 1 });
+  expect(await page.evaluate(() => { const f = window.phase4h; let crosshairs = 0; f.map.eachLayer((l) => { if (l.options.icon?.options.className === "tilia-selection-crosshair") crosshairs++; }); return { selected: !!f.app.selection.getCurrent(), crosshairs }; })).toEqual({ selected: true, crosshairs: 1 });
   await page.getByRole("button", { name: "Layers", exact: true }).click();
   await page.getByRole("button", { name: "Scenic route", exact: true }).click();
   await expect(page.locator(".leaflet-popup")).toContainText("Type: route");
@@ -64,7 +64,7 @@ test("Phase 4H real EXIF inference is one-shot and independent of GPX renderer, 
   });
   expect(retained).toEqual({ unchanged: true, retryFailed: true, resourceSnapshotSame: true, revision: 1, oldPreviewAborted: true, urls: [2, 1] });
   await page.getByRole("button", { name: "Settings", exact: true }).click();
-  const select = page.locator(".tilia-photo-time-mode-select"); await expect(select.locator("option")).toHaveCount(3);
+  const select = page.locator(".tilia-photo-time-mode-select"); await expect(select.locator("option")).toHaveCount(4);
   await select.selectOption("utc"); await expect(select).toHaveValue("auto");
   expect(await page.evaluate(() => window.phase4h.app.domains.photo.get(window.phase4h.app.entries.list()[0].id).revision)).toBe(1);
   expect(errors).toEqual([]);

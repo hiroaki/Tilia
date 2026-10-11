@@ -17,10 +17,25 @@ const point = app.domains.gpx.selection.resolve(entryId, selected.ref);
 
 Candidates belong to their issuing consumer scope/application. Selection itself
 remains application-owned when that consumer ends. Equal requests and repeated
-clears do not notify. Subscriptions are change-only; events contain immutable
+clears do not emit state-change notifications. `subscribe()` is change-only; events contain immutable
 `{ previous, current, reason }`. Reentrant commands wait until the current
 semantic notification batch finishes. A command's Promise settles at its commit,
 before callbacks, and retains that result even if callbacks terminate selection.
+
+`subscribeRequests(listener)` receives the immutable selection snapshot for each
+successful explicit `request()`, including equal requests. State-change delivery
+precedes request delivery; reentrant commands wait until both batches finish.
+Rejected requests and semantic reconciliation do not emit request notifications.
+Both subscription types are scope-bound and stop on selection termination.
+An issuer disposed during state-change delivery cannot activate presentation.
+
+`clear({ ifCurrent: selected })` clears only if the current entry, domain and
+canonical ref still equal `selected`, using the domain adapter's equality.
+An outdated ref cannot clear a newer revision or different selection. Unconditional
+`clear()` retains its existing behavior. Visibility APIs still preserve selection;
+Layers/Settings checkbox consumers conditionally clear only targets they hide.
+The presenter keeps popup visibility intent independently of rendering generations
+and opens popups on explicit requests rather than semantic state notifications.
 
 ## Semantic transactions
 

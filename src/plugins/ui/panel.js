@@ -43,7 +43,7 @@ export default Object.freeze({
         container.tabIndex = -1;
         const header = node(root, "div", "tilia-side-panel-header");
         title = node(header, "h2", "tilia-side-panel-title", "Panel");
-        const button = node(header, "button", "tilia-side-panel-close", "Close");
+        const button = node(header, "button", "tilia-control-close tilia-side-panel-close", "Close");
         button.type = "button";
         body = node(root, "div", "tilia-side-panel-body");
         listen(scope, button, "click", () => close(), report);

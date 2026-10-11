@@ -1,7 +1,3 @@
-.tilia-popup-title { margin: 0 0 .5rem; font-size: 1rem; }
-.tilia-popup-row { margin: .2rem 0; }
-
-
 .tilia-info-popup-window .leaflet-popup-content-wrapper {
   border-radius: 14px;
   padding: 0;
@@ -27,6 +23,7 @@
 }
 
 .tilia-popup-title {
+  margin: 0;
   font-size: 13px;
   font-weight: 700;
   color: #1c1917;
@@ -76,4 +73,24 @@
   min-width: 0;
   overflow-wrap: anywhere;
   word-break: break-word;
+}
+.tilia-selection-crosshair {
+  pointer-events: none;
+}
+
+.tilia-selection-crosshair::before,
+.tilia-selection-crosshair::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 36px;
+  height: 3px;
+  background: #0f766e;
+  transform: translateY(-50%) rotate(45deg);
+  transform-origin: center;
+}
+
+.tilia-selection-crosshair::after {
+  transform: translateY(-50%) rotate(-45deg);
 }

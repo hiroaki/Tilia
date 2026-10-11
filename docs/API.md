@@ -256,12 +256,14 @@ console.log(distance.totalMeters, nearest.match?.target);
 | `make`, `model` | Camera strings, default `""` |
 | `source` | `{ mediaType, size }`; defaults to `"application/octet-stream"` and `0` bytes |
 
-Normalized data adds `hasGps`. Preferences contain `requestedTimeMode: "auto" | "local" | "utc"`, defaulting to `auto`. Snapshots are `{ data, preferences, derived }`; derived fields are `resolvedTimeMode`, `inferredTimestamp`, `inferredLocation`, and `locationSource`.
+Normalized data adds `hasGps`. Preferences contain `requestedTimeMode`, defaulting to `auto`: `auto`, `local`, `utc`, or a fixed offset such as `+09:00`, `-05:00`, or `+05:30`. Compact offsets (`+0900`) and `Z` normalize to `+09:00` and `+00:00`; hours must be 00–23 and minutes 00–59. Snapshots are `{ data, preferences, derived }`; derived fields are `resolvedTimeMode`, `inferredTimestamp`, `inferredLocation`, and `locationSource`.
+
+Fixed offsets interpret the EXIF wall-clock calendar fields in the specified offset; they do not rewrite `capturedAt`. JPEG input stores the parsed EXIF Date as Unix milliseconds, and inference reads its local calendar fields in that same browser environment. Programmatically supplied `capturedAt` must represent the intended wall-clock fields when read as a local Date; `local` retains its existing instant-based interpretation.
 
 | Photo mutation | Value argument |
 | --- | --- |
 | `replaceData` | New data; preserves preferences/Blob unless replacement data explicitly supplies `blob` |
-| `setRequestedTimeMode` | `"auto"`, `"local"`, or `"utc"` |
+| `setRequestedTimeMode` | A preset or fixed offset, as above |
 | `recomputeDerived` | `undefined`; explicitly recomputes location/time inference |
 
 Commands require `{ expectedRevision }` as their third argument. Recorded GPS coordinates take precedence. Without GPS, inference uses available timestamped GPX data. Later GPX changes do not automatically recompute committed Photos. Explicit recomputation can reject when no suitable match exists.

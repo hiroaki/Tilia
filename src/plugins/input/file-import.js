@@ -10,7 +10,7 @@ export default Object.freeze({
       const report = (error) => reportError(context, error);
       const label = node(container, "label", "tilia-file-label tilia-control-button-icon", "+"); label.setAttribute("aria-label", "Open files");
       const picker = node(label, "input", ""); picker.type = "file"; picker.multiple = true; picker.setAttribute("aria-label", "Open files");
-      const cancel = node(container, "button", "tilia-file-cancel", "Cancel"); cancel.type = "button"; cancel.setAttribute("aria-label", "Cancel import"); cancel.hidden = true;
+      const cancel = node(container, "button", "tilia-control-button tilia-file-cancel", "Cancel"); cancel.type = "button"; cancel.setAttribute("aria-label", "Cancel import"); cancel.hidden = true;
       const progress = node(container, "span", "tilia-file-progress"); progress.setAttribute("role", "status");
       let pending;
       const discovery = () => { if (scope.alive) picker.accept = [...new Set(context.inputs.getSnapshot().flatMap(({ discovery: d }) => [...d.extensions, ...d.mimeTypes]))].join(","); };

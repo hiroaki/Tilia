@@ -83,7 +83,7 @@ test("Phase 4G timestamp-only Photo tree selection, three settings modes and UI 
   await expect(page.locator(".leaflet-popup")).toHaveCount(0);
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   const select = page.locator(".tilia-photo-time-mode-select");
-  await expect(select.locator("option")).toHaveCount(3);
+  await expect(select.locator("option")).toHaveCount(4);
   for (const mode of ["local", "utc", "auto"]) {
     await select.selectOption(mode);
     await expect(select).toHaveValue(mode);

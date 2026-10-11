@@ -12,6 +12,12 @@ export class Element extends EventTarget {
   }
   get isConnected() { return !!this.parentNode || this === this.ownerDocument.body || this === this.ownerDocument.head; }
   appendChild(child) { child.remove(); this.children.push(child); child.parentNode = this; return child; }
+  insertBefore(child, reference) {
+    if (child === reference) return child;
+    if (reference == null) return this.appendChild(child);
+    if (!this.children.includes(reference)) throw new Error("Reference is not a child");
+    child.remove(); this.children.splice(this.children.indexOf(reference), 0, child); child.parentNode = this; return child;
+  }
   append(...children) { children.forEach(child => this.appendChild(child)); }
   replaceChildren(...children) { for (const child of [...this.children]) child.remove(); children.forEach((child) => this.appendChild(child)); }
   remove() { if (this.parentNode) this.parentNode.children = this.parentNode.children.filter((x) => x !== this); this.parentNode = null; }

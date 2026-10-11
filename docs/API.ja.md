@@ -284,12 +284,14 @@ console.log(distance.totalMeters, nearest.match?.target);
 | `make`, `model` | カメラの文字列。標準は`""` |
 | `source` | `{ mediaType, size }`。標準は`"application/octet-stream"`と`0`バイト |
 
-正規化後のデータには`hasGps`が加わります。設定は`requestedTimeMode: "auto" | "local" | "utc"`で、標準は`auto`です。スナップショットは`{ data, preferences, derived }`で、派生項目は`resolvedTimeMode`、`inferredTimestamp`、`inferredLocation`、`locationSource`です。
+正規化後のデータには`hasGps`が加わります。`requestedTimeMode`は`auto`、`local`、`utc`、または`+09:00`・`-05:00`・`+05:30`などの固定オフセットで、標準は`auto`です。`+0900`は`+09:00`、`Z`は`+00:00`に正規化します。時は00–23、分は00–59です。スナップショットは`{ data, preferences, derived }`で、派生項目は`resolvedTimeMode`、`inferredTimestamp`、`inferredLocation`、`locationSource`です。
+
+固定オフセットはEXIFの壁時計の年月日時分秒を指定された時差で解釈し、`capturedAt`自体は書き換えません。JPEG入力はEXIFのDateをUnixミリ秒として保存し、推定時に同じブラウザ環境のローカル暦フィールドを読みます。プログラムから`capturedAt`を指定する場合も、ローカルDateとして読んだ暦フィールドが意図する壁時計になる値を渡してください。`local`は従来どおり、その値を時点として解釈します。
 
 | Photo更新メソッド | 値の引数 |
 | --- | --- |
 | `replaceData` | 新しいデータ。置換データで`blob`を明示しない限り、設定とBlobを保持 |
-| `setRequestedTimeMode` | `"auto"`、`"local"`、`"utc"` |
+| `setRequestedTimeMode` | 上記のプリセットまたは固定オフセット |
 | `recomputeDerived` | `undefined`。位置・時刻の推定を明示的に再計算 |
 
 第3引数には`{ expectedRevision }`が必要です。記録済みGPS座標を優先し、GPSがない場合は利用可能な時刻付きGPXを使って推定します。後のGPX変更は確定済みPhotoの自動再計算を行いません。適切な対応がない場合、明示的な再計算も失敗することがあります。

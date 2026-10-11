@@ -21,9 +21,14 @@ export function domainMount({ scope, entry, entries, domain, report, withdraw })
     scope.defer(() => subscription.unsubscribe(), { retry: "safe" });
   };
   const command = async (admit, render) => {
-    if (pending || !scope.alive) return;
+    if (!scope.alive) return;
+    if (pending) { update(render); return; }
     const view = current(); if (!view) return;
-    pending = true; for (const control of controls) control.disabled = true;
+    // Disabling the active native control blurs it. Keep it focusable while
+    // the pending guard rejects repeated commands and restores its projection.
+    pending = true; for (const control of controls) {
+      if (control.ownerDocument.activeElement !== control) control.disabled = true;
+    }
     try { await admit(view); } finally { pending = false; if (scope.alive) { for (const control of controls) control.disabled = false; update(render); } }
   };
   return { current, update, subscribe, command, controls };

@@ -129,6 +129,10 @@
 }
 
 .tilia-layer-name {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  text-align: left;
   font-size: 12px;
   font-weight: 600;
   color: #1c1917;
@@ -150,8 +154,7 @@
 }
 
 .tilia-layer-option-label,
-.tilia-time-mode-label,
-.tilia-status-text {
+.tilia-time-mode-label {
   font-size: 12px;
   color: #57534e;
 }
@@ -162,7 +165,21 @@
   }
 }
 
-.tilia-layer-mutations { border: 0; margin: 0; padding: 0; min-width: 0; }
+.tilia-layer-mutations {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+}
+
+.tilia-layer-clear-button { align-self: flex-end; }
+.tilia-layer-visible { margin: 2px 0 0; flex-shrink: 0; }
+.tilia-layer-adapter { min-width: 0; }
 
 .tilia-layers-panel-content {
   display: flex;
@@ -171,4 +188,10 @@
   height: 100%;
   min-height: 0;
 }
-.tilia-layer-selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.tilia-layers-panel-text {
+  margin: 0;
+  font-size: 12px;
+  color: #57534e;
+  line-height: 1.5;
+}
+.tilia-layer-selected { border-color: var(--accent); }

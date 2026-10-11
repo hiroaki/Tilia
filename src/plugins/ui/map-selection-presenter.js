@@ -1,4 +1,4 @@
-import { CircleMarker, Polyline, Popup } from "leaflet";
+import { CircleMarker, DivIcon, Marker, Polyline, Popup } from "leaflet";
 import { reportError } from "../../ui/scoped-dom.js";
 export default Object.freeze({
   id: "tilia-map-selection-presenter",
@@ -6,6 +6,8 @@ export default Object.freeze({
     context.styles.use({ id: "tilia-selection-presentation", href: new URL("./selection-presentation.css", import.meta.url).href });
     const report = (error) => reportError(context, error);
     let state = null;
+    // Visibility intent survives rendering records/handles, but is not selection authority.
+    let popupOpen = false;
     const attempt = (cleanup) => { try { cleanup(); } catch (error) { report(error); } };
     const closePopup = (record) => {
       const popup = record.popup;
@@ -26,18 +28,18 @@ export default Object.freeze({
       for (const attachment of record.highlights) attempt(() => attachment.dispose());
       void record.scope.dispose().catch(report);
     };
-    const mountPopup = (record) => {
+    const mountPopup = (record, autoPan = false) => {
       const adapter = context.contributions.popup.get(record.selection.domain);
       if (record.adapter === adapter && record.popup) return;
       closePopup(record);
       record.adapter = adapter;
-      if (!adapter || record.dismissed || !record.handle.anchor) return;
+      if (!adapter || !popupOpen || !record.handle.anchor) return;
       const scope = record.scope.child({ label: "popup" });
       const container = document.createElement("div");
-      const layer = new Popup().setLatLng(record.handle.anchor).setContent(container);
+      const layer = new Popup({ className: "tilia-info-popup-window", autoPan }).setLatLng(record.handle.anchor).setContent(container);
       const popup = { scope, layer, attachment: null, dismiss() {
         if (state === record && record.popup === popup) {
-          record.dismissed = true; closePopup(record);
+          popupOpen = false; closePopup(record);
         }
       } };
       record.popup = popup;
@@ -52,16 +54,16 @@ export default Object.freeze({
         if (state !== record || !record.handle.isCurrent() || !scope.alive) closePopup(record);
       } catch (error) { closePopup(record); report(error); }
     };
-    const reconcile = () => {
+    const reconcile = (autoPan = false) => {
       if (!context.scope.alive) return;
       const selection = context.selection.getCurrent();
-      if (state && state.selection === selection && state.handle.isCurrent()) { mountPopup(state); return; }
+      if (state && state.selection === selection && state.handle.isCurrent()) { mountPopup(state, autoPan); return; }
       close();
-      if (!selection) return;
+      if (!selection) { popupOpen = false; return; }
       const handle = context.presentation.resolve(selection.entryId, selection.ref);
       if (!handle?.anchor || !handle.isCurrent()) return;
       const scope = context.scope.child({ label: "selection-presentation" });
-      const record = { scope, handle, selection, dismissed: false, adapter: null, popup: null, highlights: [],
+      const record = { scope, handle, selection, adapter: null, popup: null, highlights: [],
         abort: () => close(record) };
       state = record;
       handle.signal.addEventListener("abort", record.abort, { once: true });
@@ -73,7 +75,10 @@ export default Object.freeze({
         const ring = (p) => new CircleMarker(p, { radius: 18, color: "#0f766e", weight: 3, fill: false, interactive: false });
         if (descriptor?.kind === "point") {
           if (!point(descriptor.point)) throw new TypeError("Invalid point highlight descriptor");
-          layers = [ring(descriptor.point)];
+          layers = [descriptor.symbol === "crosshair" ? new Marker(descriptor.point, {
+            icon: new DivIcon({ className: "tilia-selection-crosshair", html: "", iconSize: [36, 36], iconAnchor: [18, 18] }),
+            interactive: false, keyboard: false,
+          }) : ring(descriptor.point)];
         } else if (descriptor?.kind === "geometry") {
           if (!Array.isArray(descriptor.lines) || !Array.isArray(descriptor.points)
               || descriptor.lines.some((line) => !Array.isArray(line) || line.length < 2 || line.some((p) => !point(p)))
@@ -87,14 +92,26 @@ export default Object.freeze({
           scope.defer(() => attachment.dispose(), { retry: "safe" });
         }
         if (state !== record || !handle.isCurrent()) { close(record); return; }
-        mountPopup(record);
+        mountPopup(record, autoPan);
       } catch (error) { close(record); report(error); }
     };
-    context.selection.subscribe(reconcile);
-    context.rendering.subscribe(reconcile, { emitCurrent: false });
-    context.contributions.popup.subscribe(reconcile, { emitCurrent: false });
-    context.scope.signal.addEventListener("abort", () => close(), { once: true });
-    context.scope.defer(() => close(), { retry: "safe" });
+    context.selection.subscribe((event) => {
+      if (event.reason === "requested" || !event.current) popupOpen = false;
+      reconcile();
+    });
+    context.selection.subscribeRequests((requested) => {
+      if (context.selection.getCurrent() !== requested) return;
+      popupOpen = true;
+      reconcile(true);
+    });
+    context.interactions.bind({ id: "selection-clear-background", surface: context.interactions.mapSurface(), event: "click", tier: "background",
+      handle: () => ({ consume: true, run: () => context.selection.clear() }),
+    });
+    context.rendering.subscribe(() => reconcile(), { emitCurrent: false });
+    context.contributions.popup.subscribe(() => reconcile(), { emitCurrent: false });
+    const shutdown = () => { popupOpen = false; close(); };
+    context.scope.signal.addEventListener("abort", shutdown, { once: true });
+    context.scope.defer(() => { context.scope.signal.removeEventListener("abort", shutdown); shutdown(); }, { retry: "safe" });
     reconcile();
   },
 });
