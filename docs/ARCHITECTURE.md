@@ -181,6 +181,8 @@ Plugin overlays read domain snapshots and own independent layers. Milestone labe
 
 Map resources use ordered bands for base maps, geometry, markers, overlays, selection, and modal/editor presentation, below popup and shell UI. Owned private panes support local placement without arbitrary cross-plugin z-index competition. The current editor's vendor-created point/midpoint markers and drag helpers retain default placement where its public options do not provide the needed band; this does not establish a general exception for plugin resources.
 
+The vendored `PartiallyEditablePolyline` JavaScript and CSS files in `plugins/x-track-editor/vendor/` must not be modified directly within Tilia. Implement Tilia-specific behavior in the editor integration through the library's public API.
+
 ### Examples of independent lifetimes
 
 | Feature | Persistent state | Temporary state |
