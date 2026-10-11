@@ -29,6 +29,7 @@ export function createGpxFacade({ scope, entries, selection }) {
     updatePoint: ({ target, patch }) => Object.freeze({ type: "update-point", target, patch }),
     setCategoryVisibility: ({ category, visible }) => Object.freeze({ type: "set-category-visibility", category, visible }),
     setTrackVisibility: ({ trackIndex, visible }) => Object.freeze({ type: "set-track-visibility", trackIndex, visible }),
+    setRouteVisibility: ({ routeIndex, visible }) => Object.freeze({ type: "set-route-visibility", routeIndex, visible }),
     setStylePreset: (stylePresetId) => Object.freeze({ type: "set-style-preset", stylePresetId }),
     recomputeDerived: () => Object.freeze({ type: "recompute-derived" }),
   });
