@@ -6,7 +6,7 @@
 
 Tiliaは、アプリケーションランタイムと任意のプラグインを備えた、組み込み可能な地図ライブラリです。このドキュメントでは現在の設計として、どのコンポーネントがデータを所有するか、任意の機能がどのように統合されるか、ビュー、プラグイン、アプリケーションが終了するときに何が起こるかを説明します。Tiliaを組み込む開発者や、プラグインで拡張する開発者を対象としています。
 
-動作する例は[README](README.ja.md)と[Tiliaプラグインガイド](PLUGINS.ja.md)から始めてください。プラグインの実装パターンと正確なアプリケーション呼び出しは、[Tiliaプラグインの開発](PLUGIN-OPERATION.ja.md)と[Tilia APIリファレンス](API.ja.md)を参照してください。以下に出てくる内部コンポーネント名は責務を説明するもので、追加の公開APIではありません。
+動作する例は[README](../README.ja.md)と[Tiliaプラグインガイド](PLUGINS.ja.md)から始めてください。プラグインの実装パターンと正確なアプリケーション呼び出しは、[Tiliaプラグインの開発](PLUGIN-OPERATIONS.ja.md)と[Tilia APIリファレンス](API.ja.md)を参照してください。以下に出てくる内部コンポーネント名は責務を説明するもので、追加の公開APIではありません。
 
 <a id="design-rationale"></a>
 
@@ -183,6 +183,8 @@ flowchart LR
 物理的なインタラクションは、地図やUIのイベントを意味上の意図に変換します。バインディングには、明示的な寿命と優先順位（モーダル、次にオブジェクト、次に背景）があります。古いイベントが、古い世代やScopeを通じて権限を得ることはありません。
 
 Interaction Hostは、各handlerの呼出し前とactionの開始前に、bindingの有効性、Scopeの操作権限、入力元surfaceと世代の有効性を再確認します。bindingの明示的なdisposeは、listenerのcleanupが失敗した場合や完了していない場合でも、即座に権限を失効させます。無効な候補はスキップしますが、消費済みの判定はactionを開始できなくなっても維持します。開始済みのactionを遡ってキャンセルすることはありません。非同期actionは所有者のsignalを使用し、非同期の中断から再開するたびに権限を再確認する責任があります。
+
+現在の[公開インタラクション契約](INTERACTIONS.ja.md)は、プラグイン開発者向けにsurface所有権、dispatch段階、判定、Leafletとの境界を定義します。背景は未消費入力の最終dispatch段階であり、辞退した有効なobject eventも含みます。地図の空白部分のhit testではありません。通常プラグインのbindingは即座に取り付け、renderer bindingは世代単位でstagingします。occurrenceの重複抑止とpublication中の抑止はHost内部であり、公開gesture／interaction mode機構ではありません。
 
 標準の背景クリックbindingは、application compositionが専用のapplication child scopeで所有します。Interaction Hostを通して、上位の処理が消費しなかった背景クリックでSelection Storeの選択を解除します。未選択時は何も変更しません。このbindingはPresenterを削除しても維持され、application破棄時には選択の終了前に失効します。Selection Storeは状態と通知を、Map Selection Presenterはindicator、popupとその表示の寿命だけを所有します。
 

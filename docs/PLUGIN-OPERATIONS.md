@@ -6,6 +6,8 @@ Tilia plugins add data formats, map displays, input handlers, UI, and tools to a
 
 This guide explains how to write and integrate a plugin with the current system. For the available plugins and their application settings, see the [Tilia plugin guide](PLUGINS.md).
 
+For owned input surfaces, arbitration, consume/decline decisions, renderer interactions, and the distinction from Leaflet subscriptions, see [Public interaction contracts](INTERACTIONS.md).
+
 ## 1. Write a small plugin
 
 The following example displays the coordinates of a map click through the built-in status service. Save it as `plugins/x-click-status/loader.js` in your own checkout:
@@ -29,6 +31,8 @@ export default {
 ```
 
 The module above is an example to create, not a shipped plugin. Its `requires` declaration ensures `tilia-status` is installed before setup. `context.map.listen` owns the listener and guards its callback; the listener is removed automatically when this plugin is removed. Setup needs no additional cleanup return value here.
+
+This subscribes only to clicks delivered to the Map; consumed object clicks may not arrive. It neither consumes Host interactions nor prevents standard background selection clearing. Subscription is immediately effective during setup; use `lifecycle.afterCommit` when it must start only after successful installation. Callback errors and async work need plugin-side handling; see the [interaction reference](INTERACTIONS.md#host-versus-leaflet).
 
 Plugin IDs use lower kebab case. The `tilia-` namespace is reserved for catalogued built-ins; custom plugins need a vendor or experimental prefix, such as `acme-overlay` or `x-click-status`.
 

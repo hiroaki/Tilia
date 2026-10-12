@@ -4,7 +4,7 @@
 
 # Tilia APIリファレンス
 
-このリファレンスは`src/index.js`から公開するアプリケーションAPIを説明します。ブラウザの依存関係と完全な埋め込み例は[README](../README.ja.md)、機能の選択は[Tiliaプラグインガイド](PLUGINS.ja.md)、独自プラグインの実装は[Tiliaプラグインの開発](PLUGIN-OPERATION.ja.md)を参照してください。
+このリファレンスは`src/index.js`から公開するアプリケーションAPIを説明します。ブラウザの依存関係と完全な埋め込み例は[README](../README.ja.md)、機能の選択は[Tiliaプラグインガイド](PLUGINS.ja.md)、独自プラグインの実装は[Tiliaプラグインの開発](PLUGIN-OPERATIONS.ja.md)を参照してください。
 
 Tiliaは初期アルファ版であり、APIは変更される可能性があります。エントリーとドメインデータは不変のスナップショットです。地図レイヤーはそのデータを表示するもので、データ操作の成功は非同期の描画完了を意味しません。
 
@@ -354,6 +354,8 @@ GPX候補には上記の種類とインデックスを使い、呼び出し側�
 <a id="capabilities-for-owned-plugin-views"></a>
 
 ### プラグインが所有するビュー向けの操作
+
+プラグイン所有の物理入力API（`context.interactions`と地図購読）の寿命・仲裁の保証は、[公開インタラクション契約](INTERACTIONS.ja.md)を参照してください。意味上の選択とは別であり、`app.interactions` APIではありません。
 
 PluginContextも利用側ごとの寿命を持つエントリー・ドメイン・選択・描画ファサードを公開します。一部の操作には、ホストコードが通常作らないScopeが必要です。
 

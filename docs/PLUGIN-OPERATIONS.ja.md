@@ -8,6 +8,8 @@ Tiliaプラグインは、データ形式、地図表示、入力ハンドラー
 
 このガイドでは、現在の仕組みに沿ったプラグインの作成と組み込みを説明します。利用できるプラグインとアプリケーション側の設定は[プラグインガイド](PLUGINS.ja.md)を参照してください。
 
+所有する入力surface、仲裁、consume／decline判定、renderer interaction、Leaflet購読との違いは[公開インタラクション契約](INTERACTIONS.ja.md)を参照してください。
+
 <a id="1-write-a-small-plugin"></a>
 
 ## 1. 小さなプラグインを作る
@@ -33,6 +35,8 @@ export default {
 ```
 
 このモジュールは作成するための例で、同梱プラグインではありません。`requires`により、セットアップ前に`tilia-status`がインストールされます。`context.map.listen`はリスナーを所有し、コールバックの操作権限を保護します。プラグイン削除時にはリスナーも自動的に取り除かれるため、この例では追加の後処理を返す必要はありません。
+
+購読するのはMapまで届いたclickだけで、消費済みのobject clickは届かない場合があります。Hostのinteractionを消費せず、標準の背景選択解除も止めません。setup中も即座に有効になるため、正常インストール後にだけ開始する場合は`lifecycle.afterCommit`を使います。callbackエラーと非同期作業はプラグイン側で処理してください。[HostとLeafletの違い](INTERACTIONS.ja.md#host-versus-leaflet)を参照してください。
 
 プラグインIDは小文字のkebab-caseを使います。`tilia-`名前空間はカタログの組み込みプラグイン用です。独自プラグインには`acme-overlay`や`x-click-status`のようなベンダーまたは実験用の接頭辞を付けてください。
 

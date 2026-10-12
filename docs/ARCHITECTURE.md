@@ -4,7 +4,7 @@
 
 Tilia is an embeddable mapping library with an application runtime and optional plugins. This document explains its current design: which component owns data, how optional features integrate, and what happens when a view, plugin, or application ends. It is intended for developers integrating Tilia or extending it with plugins.
 
-For working examples, start with the [README](README.md) and [Tilia plugin guide](PLUGINS.md). For plugin implementation patterns and exact application calls, use the [Developing Tilia plugins](PLUGIN-OPERATIONS.md) and [Tilia API reference](API.md). Internal component names below describe responsibilities; they are not additional public APIs.
+For working examples, start with the [README](../README.md) and [Tilia plugin guide](PLUGINS.md). For plugin implementation patterns and exact application calls, use the [Developing Tilia plugins](PLUGIN-OPERATIONS.md) and [Tilia API reference](API.md). Internal component names below describe responsibilities; they are not additional public APIs.
 
 ## Design rationale
 
@@ -161,6 +161,8 @@ Global selection contains either no selection or one immutable semantic referenc
 Physical interactions translate map/UI events into semantic intent. Bindings have explicit lifetimes and precedence: modal, then object, then background. A stale event cannot gain authority through an old generation or Scope.
 
 Interaction Host rechecks binding activity, Scope operational authority, and origin-surface/generation validity before invoking each handler and before starting its action. Explicit binding disposal revokes authority immediately, even if listener cleanup fails or remains pending. Invalidated candidates are skipped; an already consumed decision remains consumed when its action cannot start. Actions that have already started are not retroactively cancelled: asynchronous actions must use their owner's signal and recheck authority after each suspension.
+
+The current [public interaction contract](INTERACTIONS.md) defines surface ownership, dispatch stages, decisions, and Leaflet boundaries for plugin authors. Background is the final unconsumed dispatch stage, including eligible object events that decline; it is not an empty-map hit test. Ordinary plugin bindings attach immediately, whereas renderer bindings are generation-staged. Occurrence deduplication and publication suppression belong to Host internals, not a public gesture or interaction-mode system.
 
 Application composition owns the standard background-click binding in a dedicated application child scope. Through Interaction Host, an unconsumed background click clears Selection Store; with no selection it is a no-op. This binding survives presenter removal and is revoked at application teardown before selection termination. Selection Store owns state and notifications; Map Selection Presenter owns only indicators, popups, and their presentation lifetimes.
 

@@ -2,7 +2,7 @@
 
 # Tilia API reference
 
-This reference describes the public application API exported from `src/index.js`. Start with the [README](../README.md) for browser dependencies and a complete embedding example. Use the [Tilia plugin guide](PLUGINS.md) to choose features and the [Developing Tilia plugins](PLUGIN-OPERATION.md) to implement plugins.
+This reference describes the public application API exported from `src/index.js`. Start with the [README](../README.md) for browser dependencies and a complete embedding example. Use the [Tilia plugin guide](PLUGINS.md) to choose features and the [Developing Tilia plugins](PLUGIN-OPERATIONS.md) to implement plugins.
 
 Tilia is early-alpha software; these APIs may change. Entries and domain data are immutable snapshots. Map layers present that data, and successful data operations do not imply that asynchronous rendering has finished.
 
@@ -320,6 +320,8 @@ Status contains `entryId`, `domain`, `state`, `visible`, and `semanticRevision`.
 Unavailable rendering can mean no renderer is installed. Failure does not roll back committed data. During replacement, a fallback may remain visible; status distinguishes its revision from the semantic revision. See [Architecture](ARCHITECTURE.md) for the generation model.
 
 ### Capabilities for owned plugin views
+
+Plugin-owned physical input APIs (`context.interactions` and map subscriptions), including their lifecycle and arbitration guarantees, are documented in [Public interaction contracts](INTERACTIONS.md). They are separate from semantic selection and are not an `app.interactions` API.
 
 PluginContext exposes the same entry/domain/selection/rendering facades with consumer-specific lifetimes. Some methods require a Scope that host code does not normally create:
 
