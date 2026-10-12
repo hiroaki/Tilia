@@ -1,4 +1,4 @@
-import { isScopeWithin } from "../ownership/scope.js";
+import { isScopeWithin, scopeIsOperational } from "../ownership/scope.js";
 import { synchronous } from "../rendering/errors.js";
 
 const supported = new Set([
@@ -74,8 +74,17 @@ export function createInteractionHost({ map, scope, onError = () => {} }) {
     return (
       !!surface &&
       !surface.closed &&
-      surface.scope.alive &&
+      scopeIsOperational(surface.scope) &&
       (!surface.parent || live(surface.parent))
+    );
+  }
+  function eligible(record) {
+    return (
+      record.active &&
+      !record.disposed &&
+      scopeIsOperational(record.scope) &&
+      live(record.surface) &&
+      record.isCurrent()
     );
   }
   function read(handle) {
@@ -118,12 +127,7 @@ export function createInteractionHost({ map, scope, onError = () => {} }) {
     for (let current = surface; current; current = current.parent)
       ancestors.push(current);
     const applicable = [...records].filter(
-      (r) =>
-        r.active &&
-        r.scope.alive &&
-        live(r.surface) &&
-        r.event === type &&
-        r.isCurrent(),
+      (r) => r.event === type && eligible(r),
     );
     const ordered = [
       ...ancestors.flatMap((s) =>
@@ -135,8 +139,14 @@ export function createInteractionHost({ map, scope, onError = () => {} }) {
       ),
     ];
     for (const record of ordered) {
-      if (!record.scope.alive || !live(record.surface) || !record.isCurrent())
-        continue;
+      // Earlier handlers may revoke the origin or a snapshotted candidate.
+      if (!live(surface)) break;
+      if (publishing || !surface.isCurrent()) {
+        occurrence.consumed = true;
+        stop(event);
+        break;
+      }
+      if (!eligible(record)) continue;
       let decision;
       try {
         decision = synchronous(record.handle, interactionInput(event, type));
@@ -156,9 +166,9 @@ export function createInteractionHost({ map, scope, onError = () => {} }) {
       stop(event);
       if (
         decision.run &&
-        record.scope.alive &&
-        live(record.surface) &&
-        record.isCurrent()
+        live(surface) &&
+        surface.isCurrent() &&
+        eligible(record)
       ) {
         try {
           Promise.resolve(decision.run()).catch(report);
