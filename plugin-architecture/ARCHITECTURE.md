@@ -116,7 +116,7 @@ interface PluginDefinition {
 
 Built-ins are resolved through an immutable ID-to-loader table using literal dynamic imports. That table MUST contain no eager imports of implementations. A built-in loader returns the documented plugin export shape, and the loaded descriptor ID MUST equal the requested ID.
 
-External plugins are normally supplied as plugin objects. Hosts MAY provide an explicit descriptor catalog for transitive external dependencies. The runtime MUST NOT discover arbitrary packages, paths, URLs, or network modules from an ID.
+The official `src/builtins.js` catalog MUST contain only `tilia-*` IDs. Every other valid ID is third-party; `x-` indicates experimental usage only. Unknown third-party IDs MUST resolve through fixed `plugins/<id>/loader.js`, with a matching default definition. The directory is derived from Tilia’s own module URL; `src/` and `plugins/` MUST remain siblings. No plugin-directory configuration or fallback is provided. Hosts MAY instead supply direct definitions or explicit application catalogs (which replace the default and MAY contain third-party IDs). Arbitrary packages, paths, and URLs MUST NOT be inferred from IDs. Plugin module imports follow standard ES module rules.
 
 ## 7. Plugin Dependencies
 
@@ -131,7 +131,7 @@ The runtime MUST reject before any setup starts when the reachable plan contains
 - a duplicate plugin ID with a conflicting definition;
 - a cycle, reported with its actionable path such as `A -> B -> C -> A`.
 
-Automatic installation applies only to descriptors already known to the built-in registry or explicit catalog. Dependencies successfully installed for a later failing request remain installed. Removing a dependent does not automatically remove dependencies.
+Before any newly required setup, the runtime MUST discover and validate the complete required metadata closure and use the existing planner. Unknown external dependencies use the same fixed convention; unknown `tilia-*` dependencies MUST NOT use discovery. External loader evaluation precedes planning and is distinct from setup; arbitrary evaluation side effects are not rolled back. Unused directories MUST NOT be eagerly imported. Dependencies successfully installed for a later failing request remain installed. Removing a dependent does not automatically remove dependencies.
 
 `unuse(B)` MUST reject while an installed plugin requires B. Initial architecture has no cascade or public force removal and no dependency reference counting.
 

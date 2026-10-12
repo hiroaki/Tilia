@@ -18,10 +18,10 @@ const entry = (id, requires, setup) => ({
 });
 
 describe("PluginRuntime", () => {
-  it("distinguishes invalid and unknown requested IDs", async () => {
+  it("distinguishes invalid IDs and missing external loaders", async () => {
     const runtime = createPluginRuntime();
     expect(() => runtime.use("Bad")).toThrowError(expect.objectContaining({ code: "PLUGIN_ID_INVALID" }));
-    await expect(runtime.use("x-unknown")).rejects.toMatchObject({ code: "PLUGIN_UNKNOWN" });
+    await expect(runtime.use("x-unknown")).rejects.toMatchObject({ code: "PLUGIN_RESOLUTION_FAILED" });
   });
 
   it("installs dependencies once in deterministic order and returns opaque handles", async () => {

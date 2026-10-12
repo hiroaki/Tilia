@@ -70,7 +70,7 @@ Base maps have a separate boundary. Their registered definitions, selected tile 
 
 ## Dependencies and typed extensions
 
-`requires` declares plugin IDs that must be installed before a plugin can operate and remain available during its lifetime. The runtime validates the reachable dependency graph and rejects missing definitions or cycles. Known dependencies install first; an active dependency is reused. There is no automatic package/path discovery from an ID.
+`requires` declares plugin IDs that must be installed before a plugin can operate and remain available during its lifetime. The runtime validates the reachable dependency graph and rejects missing definitions or cycles. Known dependencies install first; an active dependency is reused. The official catalog contains only `tilia-*` IDs. Unknown third-party IDs and dependencies use the fixed `plugins/<id>/loader.js` convention relative to Tilia’s module location. `x-` means experimental; all non-`tilia-*` IDs are third-party. The sibling `src/` and `plugins/` layout is fixed and the directory is not configurable. Use direct definitions or explicit application catalogs for nonstandard locations; arbitrary packages or URLs are not discovered.
 
 A dependency declaration is distinct from a callable service, a semantic domain, or a UI contribution:
 
@@ -92,7 +92,8 @@ Removing a dependency is blocked while an active dependent requires it. Removing
 
 Each plugin installation has its own publication boundary:
 
-1. Resolve the implementation after planning dependencies.
+1. Evaluate unknown external loaders to obtain and validate the full metadata closure, then plan dependencies. Known catalog implementations resolve after planning.
+   Import is separate from setup; arbitrary module-evaluation side effects cannot be rolled back.
 2. Create its Scope and PluginContext.
 3. Run setup, stage registrations, and own any immediate physical effects.
 4. Validate the cleanup return value and preflight the registration batch.

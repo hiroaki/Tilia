@@ -44,6 +44,41 @@ export default {
 
 ## 2. プラグインをインストールする
 
+### 固定ディレクトリ規約でIDから導入する
+
+第三者プラグインを`plugins/<id>/loader.js`へ配置し、ディレクトリ名と一致する`id`を持つ定義をdefault exportします。`src/builtins.js`への登録は不要であり、第三者プラグインをそこへ追加してはいけません。
+
+アプリケーション起動時に導入する場合：
+
+```js
+import { createDefaultTiliaApp } from "./src/index.js";
+
+const app = createDefaultTiliaApp("map", {
+  plugins: [["x-click-status", { prefix: "Position" }]],
+});
+await app.ready;
+```
+
+別の方法として、起動後に導入する場合は次のようにします。
+
+```js
+import { createDefaultTiliaApp } from "./src/index.js";
+
+const app = createDefaultTiliaApp("map", {
+  plugins: [],
+});
+await app.ready;
+await app.use("x-click-status", { prefix: "Position" });
+```
+
+`tilia-*`以外のIDは第三者IDです。`x-`は実験用の意味で、`company-`等のベンダー接頭辞も同じ扱いです。既存のlower-kebab-caseと接頭辞の検証は維持します。
+
+配布構造は`src/`と`plugins/`が同じ親にある固定配置です。探索はTilia自身のモジュールURLを基準とし、ページ、そのbase URL、呼び出し側モジュールには依存しません。Tilia全体をURLのサブパスへ配置しても設定不要です。プラグインディレクトリは変更できず、代替ディレクトリへの探索もありません。別の配置には直接importした定義か明示的なアプリカタログを使います。プラグイン内のimportは通常のES module規則で解決され、Tiliaは書き換えません。
+
+要求された外部loaderと未知の外部依存先をimportしてメタデータを取得します。importはJavaScriptを評価しますがsetupは呼びません。必要な全依存メタデータを検証し、循環を確認してから、新たに必要なsetupを開始します。その後のScope所有、commit、rollback、削除は既存ランタイムに従います。モジュール評価の任意の副作用はrollbackできません。未使用ディレクトリは起動時に走査・importしません。
+
+不正IDと未知の`tilia-*`はディレクトリimport前に拒否します。loader失敗はURLとcause付きの`PLUGIN_RESOLUTION_FAILED`、default export不正やID不一致は`PLUGIN_IMPLEMENTATION_INVALID`です。依存探索の失敗には依存経路を含めます。失敗後の再要求は可能ですが、native module cacheにより再取得できるとは限りません。破棄は保留中importを待たず、遅延完了後の登録・setupを防ぎます。
+
 <a id="import-a-definition-directly"></a>
 
 ### 定義を直接importする
@@ -68,7 +103,7 @@ LeafletのCSS、import map、高さを持つコンテナーは[README](../README
 
 ### 遅延読み込み用のカタログに登録する
 
-IDで使えるようにするには、エクスポートされたカタログを拡張します。
+非標準の配置や明示的な遅延メタデータが必要な場合は、アプリ専用カタログを指定できます。公式カタログへの登録ではなく、任意の統合方法です。
 
 ```js
 import { createDefaultTiliaApp, builtins } from "./src/index.js";
@@ -87,9 +122,9 @@ const app = createDefaultTiliaApp("map", {
 await app.ready;
 ```
 
-`builtins`オプションはカタログ全体を指定するため、リポジトリの項目を残すには`...builtins`を含めます。`load()`は実装またはdefault実装を持つモジュールを返します。実装の`id`はメタデータと一致し、`setup`関数を持つ必要があります。モジュールは要求されたときにだけ読み込まれます。`plugins/<id>/loader.js`というファイルを置くだけでは、未登録のIDは発見されません。
+`builtins`オプションはカタログ全体を指定するため、リポジトリの項目を残すには`...builtins`を含めます。`load()`は実装またはdefault実装を持つモジュールを返します。実装の`id`はメタデータと一致し、`setup`関数を持つ必要があります。公式`src/builtins.js`はTiliaの`tilia-*`だけを収録します。アプリカタログは第三者IDを含めてよく、ディレクトリ探索に優先します。
 
-遅延インストールではカタログの`requires`が依存関係の基準です。直接渡した定義は自分の依存メタデータを持ちます。両方の形式で公開する場合は宣言を一致させてください。命名規則によるURL解決、`pluginUrls`／`pluginLoader`オプション、移行用の許可リストはありません。
+遅延インストールではカタログの`requires`が依存関係の基準です。直接渡した定義は自分の依存メタデータを持ちます。両方の形式で公開する場合は宣言を一致させてください。ディレクトリ探索した定義も自分の`requires`を使います。固定規約は旧`pluginUrls`／`pluginLoader`や移行用許可リストを復活させるものではありません。
 
 <a id="dependencies-options-and-removal"></a>
 

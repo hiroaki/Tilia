@@ -43,7 +43,7 @@ Nodeの依存関係にはテストツールとローカルのLeafletが含まれ
 | `src/entries/`, `src/domains/`, `src/selection/` | エントリーの識別、不変のドメインビュー、コマンド、意味上の選択 |
 | `src/rendering/`, `src/map/`, `src/interactions/`, `src/ui/` | 描画世代、地図基盤、操作、UIホスト |
 | `src/gpx/`, `src/photo/`, `src/plugins/` | 形式ごとの動作と、同梱のドメイン・入力・レンダラー・UIプラグイン |
-| `src/builtins.js` | 遅延読み込み用カタログ、ID、必須依存関係 |
+| `src/builtins.js` | 公式`tilia-*`の遅延カタログ、ID、必須依存関係 |
 | `plugins/` | 任意のツールと背景地図プロバイダー |
 | `samples/` | 動作するビューア、埋め込み、エディタの例 |
 | `tests/`, `tests/smoke/`, `tests/fixtures/` | 単体・契約テスト、ブラウザの操作フロー、テストデータとページ |
@@ -191,3 +191,5 @@ HTMLレポートは`playwright-report/`に保存されます。結果とレポ�
 5. 差分を見直し、無関係な変更、生成ファイル、依存関係の変更を確認する。
 
 リポジトリには`build`、`lint`、`typecheck`というスクリプトはありません。実行した確認として挙げないでください。現在の[CIワークフロー](../.github/workflows/test.yml)はUbuntuとNode.js 22を使い、`npm test`、システム依存関係を含むChromiumのインストール、スモークテストを実行します。プルリクエスト、`main`へのpush、手動実行で起動します。対象を絞ったローカル確認に成功しても、CI全体の実行に代わるものではありません。
+
+第三者プラグインは固定`plugins/<id>/loader.js`規約を使い、公式カタログには追加しません。`src/plugins/runtime/discovery.js`がURL生成・import・定義検証を担当し、runtimeがsetup前に依存メタデータを収集します。監査は公開入口と各外部loaderの独立グラフを検査します。配置・統合方法は[開発ガイド](PLUGIN-OPERATIONS.ja.md)を参照してください。

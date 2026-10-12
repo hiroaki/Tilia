@@ -37,7 +37,7 @@ The Node dependencies supply test tools and a local Leaflet installation. Sample
 | `src/entries/`, `src/domains/`, `src/selection/` | Entry identity, immutable domain views, commands, and semantic selection |
 | `src/rendering/`, `src/map/`, `src/interactions/`, `src/ui/` | Rendering generations, Map infrastructure, interaction, and UI hosts |
 | `src/gpx/`, `src/photo/`, `src/plugins/` | Format-specific behavior and bundled domain/input/renderer/UI plugins |
-| `src/builtins.js` | Lazy plugin catalog, IDs, and hard dependencies |
+| `src/builtins.js` | Official `tilia-*` lazy catalog, IDs, and hard dependencies |
 | `plugins/` | Optional tools and base-map providers |
 | `samples/` | Working viewer, embed, and editor examples |
 | `tests/`, `tests/smoke/`, `tests/fixtures/` | Unit/contract tests, browser flows, and test data/pages |
@@ -173,3 +173,5 @@ Before submitting:
 5. Review the diff for unrelated changes, generated files, and dependency changes.
 
 There are no repository scripts named `build`, `lint`, or `typecheck`; do not list those as checks that were run. The current [CI workflow](../.github/workflows/test.yml) uses Ubuntu and Node.js 22, runs `npm test`, installs Chromium with its system dependencies, and runs the smoke suite. It is triggered for pull requests, pushes to `main`, and manual dispatch. Passing focused local checks does not replace that complete CI run.
+
+Third-party plugins use fixed `plugins/<id>/loader.js` discovery and must not be added to the official catalog. `src/plugins/runtime/discovery.js` owns URL construction, import and definition validation; the runtime collects dependency metadata before setup. Audits traverse the public entry and independent external loader graphs. See [Developing plugins](PLUGIN-OPERATIONS.md) for layout and integration.

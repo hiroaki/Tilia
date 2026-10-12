@@ -7,6 +7,7 @@ describe("Phase 4B built-in catalog", () => {
     expect(Object.isFrozen(builtinPluginCatalog)).toBe(true);
     expect(new Set(builtinPluginCatalog.map(({ id }) => id)).size).toBe(builtinPluginCatalog.length);
     for (const entry of builtinPluginCatalog) {
+      expect(entry.id.startsWith("tilia-")).toBe(true);
       expect(Object.isFrozen(entry)).toBe(true);
       expect(Object.isFrozen(entry.requires)).toBe(true);
       expect(entry.load).toEqual(expect.any(Function));

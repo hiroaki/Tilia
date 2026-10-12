@@ -135,7 +135,7 @@ The [Tilia plugin guide](docs/PLUGINS.md) lists all plugins, their dependencies,
 
 ## Deployment
 
-Serve your page and `src/` from static hosting. Also include `plugins/` if you enable the optional `x-*` plugins in this repository. Preserve their relative directory structure. To host the sample pages, include `samples/` and its assets as well. No bundler or build step is needed.
+Serve your page and `src/` from static hosting. Place third-party plugins at `plugins/<id>/loader.js` and enable them by ID. `x-` means experimental; vendor prefixes work identically. `src/` and `plugins/` must be siblings; the plugin directory is not configurable. Third-party plugins do not belong in the official `src/builtins.js` catalog. Use direct definitions or explicit application catalogs for nonstandard locations. To host the sample pages, include `samples/` and its assets as well. No bundler or build step is needed.
 
 Load Leaflet's JavaScript through an import map and include its CSS. The examples use Leaflet `2.0.0-alpha.1`. See the [dependency setup](docs/PLUGINS.md#photos). Adjust the import path to `src/index.js` for your page's location.
 
