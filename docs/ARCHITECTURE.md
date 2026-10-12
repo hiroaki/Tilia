@@ -160,6 +160,8 @@ Global selection contains either no selection or one immutable semantic referenc
 
 Physical interactions translate map/UI events into semantic intent. Bindings have explicit lifetimes and precedence: modal, then object, then background. A stale event cannot gain authority through an old generation or Scope.
 
+Application composition owns the standard background-click binding in a dedicated application child scope. Through Interaction Host, an unconsumed background click clears Selection Store; with no selection it is a no-op. This binding survives presenter removal and is revoked at application teardown before selection termination. Selection Store owns state and notifications; Map Selection Presenter owns only indicators, popups, and their presentation lifetimes.
+
 Selection and map presentation have different lifetimes:
 
 - Hiding an entry or removing its renderer suppresses its presentation without inherently clearing semantic selection.

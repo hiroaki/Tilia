@@ -182,6 +182,8 @@ flowchart LR
 
 物理的なインタラクションは、地図やUIのイベントを意味上の意図に変換します。バインディングには、明示的な寿命と優先順位（モーダル、次にオブジェクト、次に背景）があります。古いイベントが、古い世代やScopeを通じて権限を得ることはありません。
 
+標準の背景クリックbindingは、application compositionが専用のapplication child scopeで所有します。Interaction Hostを通して、上位の処理が消費しなかった背景クリックでSelection Storeの選択を解除します。未選択時は何も変更しません。このbindingはPresenterを削除しても維持され、application破棄時には選択の終了前に失効します。Selection Storeは状態と通知を、Map Selection Presenterはindicator、popupとその表示の寿命だけを所有します。
+
 選択と地図上の表示は、寿命が異なります。
 
 - エントリーを非表示にする、またはそのレンダラーを削除すると、表示は抑制されますが、本質的に意味上の選択が解除されるわけではありません。

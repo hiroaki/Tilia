@@ -595,7 +595,7 @@ describe("Phase A GPX selection and popup UX", () => {
     changeCheckbox(byClass(f.map.container, "tilia-gpx-category-visible")[2], false); await settle(); expect(f.app.selection.getCurrent()).toBeNull();
   });
 
-  it("respects object/modal/background priority and disposes background/presentation resources", async () => {
+  it("respects object/modal/background priority and disposes presentation independently of background handling", async () => {
     const f = await fixture(phaseAPlugins), entry = await f.app.domains.gpx.create(phaseAData()); await settle();
     const line = [...f.map.layers].find((layer) => layer instanceof Polyline && layer.options.interactive !== false);
     const event = { originalEvent: { stopPropagation: vi.fn() }, latlng: { lat: 1, lng: 0 } };
@@ -606,8 +606,10 @@ describe("Phase A GPX selection and popup UX", () => {
     await modal.dispose(); f.map.fire("click"); await settle(); expect(f.app.selection.getCurrent()).toBeNull(); expect(popupIn(f)).toBeUndefined();
     await selectIn(f, entry); await settle(); const popup = popupIn(f), crosshair = crosshairsIn(f)[0];
     await f.app.unuse("tilia-map-selection-presenter"); await settle();
-    expect(f.map.listeners.get("click").size).toBe(0); expect(f.map.layers.has(popup)).toBe(false); expect(f.map.layers.has(crosshair)).toBe(false);
+    expect(f.map.listeners.get("click").size).toBe(1); expect(f.map.layers.has(popup)).toBe(false); expect(f.map.layers.has(crosshair)).toBe(false);
     await selectIn(f, entry); await settle(); expect(popupIn(f)).toBeUndefined(); expect(crosshairsIn(f)).toHaveLength(0);
+    f.map.fire("click"); await settle(); expect(f.app.selection.getCurrent()).toBeNull();
+    await selectIn(f, entry);
     await f.app.entries.remove(entry.id); await settle(); expect(f.app.selection.getCurrent()).toBeNull();
   });
 });

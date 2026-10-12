@@ -6,7 +6,7 @@ import { gpxDomainKey, photoDomainKey, semanticErrorCodes } from "../src/domains
 describe("Phase 4D-C production semantic authority cutover", () => {
   it("activates production providers without exposing the legacy semantic model", async () => {
     const app = createMachineryApp({
-      map: {},
+      map: { on() {}, off() {} },
       plugins: ["tilia-gpx-domain", "tilia-photo-domain"],
       pluginOptions: {
         "tilia-photo-domain": {

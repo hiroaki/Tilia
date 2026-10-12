@@ -104,9 +104,6 @@ export default Object.freeze({
       popupOpen = true;
       reconcile(true);
     });
-    context.interactions.bind({ id: "selection-clear-background", surface: context.interactions.mapSurface(), event: "click", tier: "background",
-      handle: () => ({ consume: true, run: () => context.selection.clear() }),
-    });
     context.rendering.subscribe(() => reconcile(), { emitCurrent: false });
     context.contributions.popup.subscribe(() => reconcile(), { emitCurrent: false });
     const shutdown = () => { popupOpen = false; close(); };

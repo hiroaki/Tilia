@@ -161,6 +161,7 @@ export function createApplicationComposition({
       diagnostics: Object.freeze({ report: onDiagnostic }),
     };
     const inputController = appController.createChildController({ label: "application-inputs" });
+    const backgroundSelectionController = appController.createChildController({ label: "background-selection" });
     const appInputs = inputRegistry.createFacade({ ...appCapabilityInput, scope: inputController.scope });
     const appBaseMaps = baseMapCatalog.createFacade(appCapabilityInput);
     if ((map.getContainer?.()?.ownerDocument ?? globalThis.document)?.head) {
@@ -267,6 +268,13 @@ export function createApplicationComposition({
     const bootstrap = (async () => {
       await semanticFoundationReady;
       assertOperational();
+      const backgroundScope = backgroundSelectionController.scope;
+      const interactions = rendering.createCapabilities({ scope: backgroundScope }).interactions;
+      const selection = semanticFoundation.selection.createFacade(backgroundScope);
+      interactions.bind({
+        id: "selection-clear-background", surface: interactions.mapSurface(), event: "click", tier: "background",
+        handle: () => ({ consume: true, run: () => selection.clear() }),
+      });
       const definitions =
         Array.isArray(options.baseLayers) && options.baseLayers.length
           ? options.baseLayers
@@ -336,12 +344,16 @@ export function createApplicationComposition({
       semanticFoundation?.entries.beginShutdown();
       const inputClose = inputController.close();
       inputClose.catch(onDiagnostic);
+      // Revoke interaction authority before asynchronous teardown reaches selection.
+      const backgroundSelectionClose = backgroundSelectionController.close();
+      backgroundSelectionClose.catch(() => {});
       (async () => {
         const failures = [];
         const attempt = async (resource, operation) => {
           try { return await operation(); } catch (cause) { failures.push({ resource, cause }); }
         };
         const foundation = await attempt("semantic acquisition", () => semanticFoundationReady);
+        await attempt("background selection", () => backgroundSelectionClose);
         const retained = pluginRuntime.retainedClosure(foundation?.domains.leasedOwners() ?? []);
         for (const cause of await attempt("ordinary plugin drain", () => pluginRuntime.drainShutdown(retained)) ?? []) failures.push({ resource: "plugin", cause });
         if (foundation) await attempt("selection", () => foundation.selection.terminate());

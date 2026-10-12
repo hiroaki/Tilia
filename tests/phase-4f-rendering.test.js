@@ -728,7 +728,7 @@ describe("Phase 4F generation contracts", () => {
   });
   it("exposes capabilities through the normal app runtime and awaits generation cleanup before plugin cleanup", async () => {
     const { app } = createApplicationComposition({
-      map: {},
+      map: { on() {}, off() {} },
       plugins: ["tilia-gpx-domain"],
     });
     await app.ready;
@@ -992,7 +992,7 @@ it("reentrant status retry cannot let an older attempt invalidate its replacemen
 });
 it("runtime quarantines known generation cleanup failure and blocks same-ID reinstall", async () => {
   const { app } = createApplicationComposition({
-    map: {},
+    map: { on() {}, off() {} },
     plugins: ["tilia-gpx-domain"],
   });
   await app.ready;
