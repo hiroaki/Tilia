@@ -160,6 +160,8 @@ Global selection contains either no selection or one immutable semantic referenc
 
 Physical interactions translate map/UI events into semantic intent. Bindings have explicit lifetimes and precedence: modal, then object, then background. A stale event cannot gain authority through an old generation or Scope.
 
+Interaction Host rechecks binding activity, Scope operational authority, and origin-surface/generation validity before invoking each handler and before starting its action. Explicit binding disposal revokes authority immediately, even if listener cleanup fails or remains pending. Invalidated candidates are skipped; an already consumed decision remains consumed when its action cannot start. Actions that have already started are not retroactively cancelled: asynchronous actions must use their owner's signal and recheck authority after each suspension.
+
 Application composition owns the standard background-click binding in a dedicated application child scope. Through Interaction Host, an unconsumed background click clears Selection Store; with no selection it is a no-op. This binding survives presenter removal and is revoked at application teardown before selection termination. Selection Store owns state and notifications; Map Selection Presenter owns only indicators, popups, and their presentation lifetimes.
 
 Selection and map presentation have different lifetimes:

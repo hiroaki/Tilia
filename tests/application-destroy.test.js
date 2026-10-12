@@ -109,6 +109,32 @@ describe("public application lifetime", () => {
     expect(f.map.listeners.get("click").size).toBe(0);
   });
 
+  it("fences plugin interaction dispatch immediately and while listener cleanup is pending", async () => {
+    const f = construct(); await app.ready;
+    const gate = deferred(), started = deferred(), handle = vi.fn(() => ({ consume: true }));
+    let context;
+    await app.use({ id: "x-held-interaction", setup(value) {
+      context = value;
+      value.interactions.bind({ id: "modal", surface: value.interactions.mapSurface(), event: "click", tier: "modal", handle });
+      value.scope.defer(() => { started.resolve(); return gate.promise; });
+    } });
+    const closing = app.destroy();
+    try {
+      expect(context.scope.alive).toBe(true);
+      f.map.fire("click", {});
+      expect(handle).not.toHaveBeenCalled();
+      await started.promise;
+      expect(context.scope.alive).toBe(false);
+      expect(f.map.listeners.get("click").size).toBe(1);
+      f.map.fire("click", {});
+      expect(handle).not.toHaveBeenCalled();
+    } finally {
+      gate.resolve();
+      await closing;
+    }
+    expect(f.map.listeners.get("click").size).toBe(0);
+  });
+
   it("exports the sole factory without privileged infrastructure constructors", () => {
     for (const name of ["createTiliaApp", "createEntryStore", "createDomainRegistry", "createSemanticFoundation", "createSemanticCapabilityFactories", "createApplicationSemanticApi"])
       expect(publicApi).not.toHaveProperty(name);
