@@ -10,6 +10,7 @@ import {
 import { createPluginContext } from "./context.js";
 import { PluginError, pluginError, pluginErrorCodes } from "./errors.js";
 import { planDependencies } from "./planner.js";
+import { loadDirectoryDefinition } from "./discovery.js";
 
 function deferred() {
   let resolve;
@@ -78,13 +79,51 @@ export function createPluginRuntime({ catalog = [], capabilityFactories = {}, on
   }
 
   function registerDirect(definition) {
-    const normalized = normalizeDirectDefinition(definition, builtinIds);
+    return registerNormalizedDefinition(normalizeDirectDefinition(definition, builtinIds));
+  }
+
+  function registerNormalizedDefinition(normalized) {
     const existing = metadata.get(normalized.id);
     if (existing && !sameMetadata(existing, normalized)) {
       throw pluginError(pluginErrorCodes.descriptorConflict, `Conflicting plugin definition "${normalized.id}"`, { pluginId: normalized.id });
     }
     if (!existing) metadata.set(normalized.id, normalized);
     return normalized.id;
+  }
+
+  async function discoverDependencyMetadata(rootId) {
+    const seen = new Set();
+    async function visit(id, path) {
+      if (seen.has(id) || records.get(id)?.state === "active") return;
+      seen.add(id);
+      if (!metadata.has(id)) {
+        if (id.startsWith("tilia-")) {
+          throw pluginError(pluginErrorCodes.dependencyMissing, `Missing plugin dependency "${id}"`, {
+            pluginId: rootId, dependencyId: id, path: [...path, id],
+          });
+        }
+        let entry;
+        try {
+          entry = await Promise.race([
+            loadDirectoryDefinition(id),
+            destruction.promise.then(() => {
+              throw pluginError(pluginErrorCodes.destroying, "Plugin discovery interrupted by shutdown", { pluginId: id });
+            }),
+          ]);
+        } catch (cause) {
+          if (id === rootId || state !== "active") throw cause;
+          throw pluginError(pluginErrorCodes.dependencyFailed, `Dependency "${id}" failed for plugin "${rootId}"`, {
+            pluginId: rootId, dependencyId: id, path: [...path, id], cause,
+          });
+        }
+        assertRequestAllowed();
+        // A direct definition may have been registered while the import was pending.
+        registerNormalizedDefinition(entry);
+      }
+      for (const dependencyId of metadata.get(id).requires) await visit(dependencyId, [...path, id]);
+    }
+    await visit(rootId, []);
+    assertRequestAllowed();
   }
 
   async function resolveImplementation(id) {
@@ -96,15 +135,15 @@ export function createPluginRuntime({ catalog = [], capabilityFactories = {}, on
       (value) => {
         const implementation = validateImplementation(value, entry);
         resolved.set(id, implementation);
-        resolving.delete(id);
         return implementation;
       },
       (cause) => {
-        resolving.delete(id);
         if (cause instanceof PluginError) throw cause;
         throw pluginError(pluginErrorCodes.resolutionFailed, `Failed to resolve plugin "${id}"`, { pluginId: id, cause });
       },
-    );
+    ).finally(() => {
+      if (resolving.get(id) === operation) resolving.delete(id);
+    });
     resolving.set(id, operation);
     return operation;
   }
@@ -232,9 +271,7 @@ export function createPluginRuntime({ catalog = [], capabilityFactories = {}, on
   }
 
   async function installRoot(id, options) {
-    if (!metadata.has(id)) {
-      throw pluginError(pluginErrorCodes.unknown, `Unknown plugin "${id}"`, { pluginId: id });
-    }
+    await discoverDependencyMetadata(id);
     const plan = planDependencies(id, metadata, new Set([...records].filter(([, record]) => record.state === "active").map(([pluginId]) => pluginId)));
     for (const pluginId of plan.order) {
       try {

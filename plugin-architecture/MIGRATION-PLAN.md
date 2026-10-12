@@ -1,3 +1,5 @@
+> Historical migration document: its external-object/catalog-only resolution policy is superseded by the current [architecture contract](ARCHITECTURE.md). Valid unknown third-party IDs now use fixed sibling `plugins/<id>/loader.js` discovery, including dependencies, before setup. The official catalog contains only `tilia-*`; explicit application catalogs and direct definitions remain supported. No configurable plugin directory or arbitrary package/URL discovery is introduced.
+
 # Tilia Plugin Architecture Migration Plan
 
 ## 1. Purpose and Authority

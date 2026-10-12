@@ -38,6 +38,41 @@ Plugin IDs use lower kebab case. The `tilia-` namespace is reserved for catalogu
 
 ## 2. Install the plugin
 
+### Install by ID using the fixed directory convention
+
+Place a third-party plugin at `plugins/<id>/loader.js`, with a default definition whose `id` matches the directory name. No entry in `src/builtins.js` is required or allowed for third-party plugins:
+
+Install during application startup:
+
+```js
+import { createDefaultTiliaApp } from "./src/index.js";
+
+const app = createDefaultTiliaApp("map", {
+  plugins: [["x-click-status", { prefix: "Position" }]],
+});
+await app.ready;
+```
+
+Alternatively, install after startup on a separate application:
+
+```js
+import { createDefaultTiliaApp } from "./src/index.js";
+
+const app = createDefaultTiliaApp("map", {
+  plugins: [],
+});
+await app.ready;
+await app.use("x-click-status", { prefix: "Position" });
+```
+
+All non-`tilia-*` IDs are third-party IDs. `x-` means experimental; vendor prefixes such as `company-` work identically. Existing lower-kebab-case and prefix validation still applies.
+
+The distribution layout is fixed: `src/` and `plugins/` are siblings. Discovery uses Tilia's own module URL, not the page, its base URL, or the caller's module. Moving the whole Tilia directory under a URL prefix works without configuration. The plugin directory is not configurable, and there are no fallback directories. For other locations, use a directly imported definition or an explicit application catalog. Plugin imports follow normal ES module URL rules; Tilia does not rewrite them.
+
+Requested external loaders and unknown external dependencies are imported to obtain metadata. Import evaluates JavaScript but does not invoke setup. The complete required metadata closure is validated and cycles are checked before any newly required setup begins. Setup, Scope ownership, commit, rollback and cleanup then follow the normal runtime. Arbitrary module-evaluation side effects cannot be rolled back. Unused plugin directories are not scanned or imported at startup.
+
+Malformed IDs and unknown `tilia-*` IDs are rejected before directory import. Loader failures report `PLUGIN_RESOLUTION_FAILED` with the URL and cause; invalid default exports or mismatched IDs report `PLUGIN_IMPLEMENTATION_INVALID`. Dependency discovery failures include the dependency path. Failed discovery can be requested again, but native module caching does not guarantee a fresh fetch. Shutdown does not wait for a pending import and prevents late metadata registration or setup.
+
 ### Import a definition directly
 
 From a page in the repository root, after creating the example module:
@@ -58,7 +93,7 @@ You can also install a definition after startup with `await app.use(clickStatus,
 
 ### Register a lazy catalog entry
 
-To make your plugin available by ID, extend the exported catalog:
+For nonstandard module locations or explicit lazy metadata, supply an application catalog. This is optional integration, not registration in the official catalog:
 
 ```js
 import { createDefaultTiliaApp, builtins } from "./src/index.js";
@@ -77,9 +112,9 @@ const app = createDefaultTiliaApp("map", {
 await app.ready;
 ```
 
-The `builtins` option supplies the complete catalog, so include `...builtins` to retain the repository entries. `load()` returns an implementation or a module with a default implementation; its `id` must match the metadata and it must have a `setup` function. Modules are resolved only when requested. Having a file named `plugins/<id>/loader.js` does not make an unknown ID discoverable.
+The `builtins` option supplies the complete catalog, so include `...builtins` to retain the repository entries. `load()` returns an implementation or a module with a default implementation; its `id` must match the metadata and it must have a `setup` function. The official `src/builtins.js` catalog contains only Tilia `tilia-*` plugins. Application catalogs may also contain third-party IDs and take precedence over directory discovery.
 
-Catalog `requires` is authoritative for lazy installation. Direct definitions carry their own dependency metadata. Keep both declarations consistent when publishing a plugin in both forms. There is no convention-based URL resolver, `pluginUrls`/`pluginLoader` option, or migration allowlist.
+Catalog `requires` is authoritative for lazy installation. Direct definitions carry their own dependency metadata. Keep both declarations consistent when publishing a plugin in both forms. Directory-discovered definitions carry their own `requires`, like direct definitions. The fixed convention does not restore the old `pluginUrls`/`pluginLoader` options or migration allowlist.
 
 ### Dependencies, options, and removal
 

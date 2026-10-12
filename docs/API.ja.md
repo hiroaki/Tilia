@@ -34,7 +34,7 @@ importパスはホストページがリポジトリのルートより一階層�
 | --- | --- |
 | `plugins` | 起動時にインストールするプラグイン。標準は空リスト |
 | `pluginOptions` | `plugins`の文字列指定に適用する、IDごとのオプション |
-| `builtins` | 遅延読み込み用メタデータのカタログ。標準は公開されるリポジトリのカタログ |
+| `builtins` | アプリの遅延メタデータカタログ。標準は公式`tilia-*`のみ。指定時は全体置換で、第三者IDも指定可能 |
 | `baseMapOptions` | 初期Mapと背景レイヤーの設定。下記参照 |
 | `baseLayerOverrides` | IDごとの上書き。`baseMapOptions.baseLayerOverrides`とマージし、最上位の値を優先 |
 
@@ -392,7 +392,7 @@ PluginContextも利用側ごとの寿命を持つエントリー・ドメイン�
 
 | エクスポート | 用途 |
 | --- | --- |
-| `builtins` | リポジトリの遅延カタログ。独自カタログの規則は開発ガイド参照 |
+| `builtins` | 公式`tilia-*`の遅延カタログ。アプリカタログの規則は開発ガイド参照 |
 | `gpxDomainKey`, `photoDomainKey` | 共有の型付き識別子。オブジェクトの同一性で比較 |
 | `defineDomainKey({ id })` | 識別子を定義。アプリケーションのドメインファサードを作るものではない |
 | `defineServiceKey({ id, validate = null, createFacade })` | サービス契約を定義。`createFacade`は必須 |
@@ -402,3 +402,5 @@ PluginContextも利用側ごとの寿命を持つエントリー・ドメイン�
 型付きIDは小文字の英数字をハイフンで区切ります。同じIDで別々に作ったキーは別の識別子です。提供側と利用側で契約キーを共有してください。プレーンデータのスナップショットには循環参照を含められません。
 
 プラグイン専用のサービス、入力、背景地図、UI提供、表示の登録は[プラグイン開発](PLUGIN-OPERATIONS.ja.md)、オプションは[プラグインガイド](PLUGINS.ja.md)に記載しています。`app.services`や`app.inputs`のようなホストメソッドではありません。内部ストア、レジストリー、Scopeコントローラー、基盤生成関数は公開アプリケーションAPIのエクスポートではありません。深いパスからのimportをJavaScriptのセキュリティ境界にはできません。
+
+第三者IDは固定`plugins/<id>/loader.js`から探索します。`src/`と`plugins/`は同じ親に配置し、探索先は設定できません。ページURL・base URLには依存せず、非標準配置には直接定義か明示カタログを使います。[開発ガイド](PLUGIN-OPERATIONS.ja.md)を参照してください。

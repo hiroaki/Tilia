@@ -1,3 +1,5 @@
+> Current contract amendment: Phase 4B intentionally removed convention discovery. That historical deletion policy below is superseded by the current [architecture contract](../ARCHITECTURE.md) and [plugin guide](../../docs/PLUGIN-OPERATIONS.md). Unknown third-party IDs now use fixed sibling `plugins/<id>/loader.js` discovery before dependency planning. The official catalog contains only `tilia-*`; direct definitions and explicit application catalogs remain supported. No configurable directories or old loader options are restored.
+
 # Phase 4B — Plugin Runtime and Guarded Context Implementation Plan
 
 > Subsequent amendment (approved 2026-10-08): The narrow lifecycle.afterCommit capability supplements PluginContext after successful own activation, without exposing internal queues or adding uninstall work-settlement guarantees. See [4I approved amendments](PHASE-4I-CONTRACT-AMENDMENTS.md). Original completed-phase text below remains the historical acceptance record.

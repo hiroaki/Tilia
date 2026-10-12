@@ -41,6 +41,16 @@ describe("plugin catalog and lazy resolution", () => {
     expect(load).toHaveBeenCalledTimes(2);
   });
 
+  it("clears pending resolution after implementation validation failure", async () => {
+    const load = vi.fn().mockResolvedValueOnce({ default: { id: "vendor-other", setup() {} } })
+      .mockResolvedValueOnce({ default: { id: "vendor-retry", setup() {} } });
+    const runtime = createPluginRuntime({ catalog: [{ id: "vendor-retry", load }] });
+    await expect(runtime.use("vendor-retry")).rejects.toMatchObject({ code: "PLUGIN_IMPLEMENTATION_INVALID" });
+    await expect(runtime.use("vendor-retry")).resolves.toEqual({ id: "vendor-retry" });
+    expect(load).toHaveBeenCalledTimes(2);
+    await runtime.destroy();
+  });
+
   it("validates the resolved implementation ID and shape", async () => {
     const runtime = createPluginRuntime({
       catalog: [{ id: "x-expected", load: () => ({ default: { id: "x-other", setup() {} } }) }],

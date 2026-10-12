@@ -1,9 +1,5 @@
 // Lazy metadata lets dependency planning run without evaluating optional implementations.
 export const builtinPluginCatalog = Object.freeze([
-  Object.freeze({ id: "x-milestone", requires: Object.freeze(["tilia-gpx-domain"]), load: () => import("../plugins/x-milestone/loader.js") }),
-  Object.freeze({ id: "x-track-editor", requires: Object.freeze(["tilia-gpx-domain", "tilia-panel", "tilia-toolbar"]), load: () => import("../plugins/x-track-editor/loader.js") }),
-  Object.freeze({ id: "x-route-search", requires: Object.freeze(["tilia-gpx-domain", "tilia-toolbar"]), load: () => import("../plugins/x-route-search/loader.js") }),
-  Object.freeze({ id: "x-gpx-export", requires: Object.freeze(["tilia-gpx-domain", "tilia-panel", "tilia-toolbar"]), load: () => import("../plugins/x-gpx-export/loader.js") }),
   Object.freeze({ id: "tilia-toolbar", requires: Object.freeze([]), load: () => import("./plugins/ui/toolbar.js") }),
   Object.freeze({ id: "tilia-gpx-renderer", requires: Object.freeze(["tilia-gpx-domain"]), load: () => import("./plugins/renderers/gpx.js") }),
   Object.freeze({ id: "tilia-gpx-input", requires: Object.freeze(["tilia-gpx-domain"]), load: () => import("./plugins/input/gpx.js") }),
@@ -25,8 +21,6 @@ export const builtinPluginCatalog = Object.freeze([
   Object.freeze({ id: "tilia-dropzone", requires: Object.freeze([]), load: () => import("./plugins/input/dropzone.js") }),
   Object.freeze({ id: "tilia-gpx-domain", requires: Object.freeze([]), load: () => import("./plugins/domains/gpx.js") }),
   Object.freeze({ id: "tilia-photo-domain", requires: Object.freeze([]), load: () => import("./plugins/domains/photo.js") }),
-  Object.freeze({ id: "x-gsi-base-maps", requires: Object.freeze([]), load: () => import("../plugins/x-gsi-base-maps/loader.js") }),
-  Object.freeze({ id: "x-opentopomap-base-maps", requires: Object.freeze([]), load: () => import("../plugins/x-opentopomap-base-maps/loader.js") }),
 ]);
 
 export const builtins = builtinPluginCatalog;

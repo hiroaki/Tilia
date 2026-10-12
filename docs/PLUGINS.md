@@ -2,7 +2,7 @@
 
 # Tilia plugin guide
 
-This guide covers the repository's 26 catalogued plugins and the application-level options used to combine them. The authoritative IDs and hard dependencies are in [the plugin catalog](../src/builtins.js). The runtime installs required dependencies before their dependents; listing a plugin does not automatically install every plugin in its feature group.
+This guide covers the repository's 20 built-in and six third-party plugins and the application-level options used to combine them. Built-in IDs and dependencies are in [the official catalog](../src/builtins.js); third-party definitions are in their own `plugins/<id>/loader.js`. The runtime installs required dependencies before their dependents; listing a plugin does not automatically install every plugin in its feature group.
 
 ## Choosing plugins
 
@@ -84,7 +84,7 @@ await app.unuse("x-milestone");
 
 ### Optional tools and base maps
 
-These repository plugins use the `x-` namespace and reside under `plugins/`. They are included in the default lazy catalog, so they can be enabled by ID.
+These repository plugins use the `x-` namespace and reside under `plugins/`. They are discovered through the fixed directory convention and can be enabled by ID without official registration.
 
 | ID | Requires | Behavior |
 | --- | --- | --- |
@@ -280,14 +280,14 @@ For a custom definition, supply integer zoom bounds with `maxZoom > minZoom`, a 
 
 Built-in IDs reserve the `tilia-` namespace. Custom IDs use lower kebab case with a vendor or experimental prefix, such as `acme-overlay` or `x-overlay`.
 
-For a plugin available outside the repository catalog, import a definition and install it directly:
+For the standard layout, install by ID with `await app.use("x-my-plugin")`. Direct-definition installation remains available:
 
 ```js
 const { default: plugin } = await import("./plugins/x-my-plugin/loader.js");
 await app.use(plugin);
 ```
 
-The path above illustrates your own plugin file; it is not shipped by Tilia. File naming does not make an ID discoverable. To enable a custom plugin by ID, add explicit `{id, requires, load}` metadata to the factory's `builtins` catalog, extending the exported `builtins` array. Catalog metadata is authoritative for lazy dependencies; directly installed definitions carry their own `requires`.
+The path above illustrates your own plugin file. In the standard layout, `plugins/<id>/loader.js` is discoverable by ID: use `await app.use("x-my-plugin")` or a startup ID entry. Do not add third-party plugins to `src/builtins.js`. The sibling `src/` and `plugins/` layout is fixed and the directory is not configurable. Use direct definitions or explicit application catalogs for nonstandard locations. The application `builtins` option replaces the complete catalog and may include third-party IDs.
 
 Setup receives a guarded PluginContext rather than the app. Register services, domains, renderers, UI contributions, and base maps through its typed capabilities. Own listeners, layers, controls, previews, styles, and asynchronous effects through the context's Scope and resource handles. Setup returns only `undefined`, a cleanup function, or `{dispose}`; it does not return a service API. Do not call application installation/removal/destruction from setup or cleanup.
 

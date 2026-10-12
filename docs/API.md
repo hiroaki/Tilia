@@ -28,7 +28,7 @@ The import path assumes a host page one directory below the repository root; adj
 | --- | --- |
 | `plugins` | Plugins to install at startup; defaults to an empty list |
 | `pluginOptions` | Options by plugin ID for string entries in `plugins` |
-| `builtins` | Lazy metadata catalog; defaults to the exported repository catalog |
+| `builtins` | Application lazy catalog; defaults to official `tilia-*` entries. Replaces the entire catalog and may contain third-party IDs |
 | `baseMapOptions` | Initial Map and base-layer configuration, described below |
 | `baseLayerOverrides` | Per-ID overrides, merged with `baseMapOptions.baseLayerOverrides`; top-level values take precedence |
 
@@ -354,7 +354,7 @@ Synchronous app lifecycle calls from plugin setup/cleanup reject with `PLUGIN_LI
 
 | Export | Purpose |
 | --- | --- |
-| `builtins` | Lazy repository plugin catalog; custom catalog rules are in the developer guide |
+| `builtins` | Official `tilia-*` lazy catalog; application catalog rules are in the developer guide |
 | `gpxDomainKey`, `photoDomainKey` | Shared typed identities; compare by identity |
 | `defineDomainKey({ id })` | Define an identity; does not create an application domain facade |
 | `defineServiceKey({ id, validate = null, createFacade })` | Define a service contract; `createFacade` is required |
@@ -364,3 +364,5 @@ Synchronous app lifecycle calls from plugin setup/cleanup reject with `PLUGIN_LI
 Typed IDs use lowercase alphanumeric words separated by hyphens. Independently created keys with the same ID are distinct; share contract keys between providers and consumers. Plain-data snapshots cannot contain cyclic references.
 
 Plugin-only service, input, base-map, contribution, and presentation registrations are documented in [Developing plugins](PLUGIN-OPERATIONS.md), with options in [Plugin guide](PLUGINS.md). They are not host methods such as `app.services` or `app.inputs`. Internal stores, registries, Scope controllers, and foundations are not exports of the public application API. Deep imports are not a JavaScript security boundary.
+
+Third-party IDs use fixed `plugins/<id>/loader.js` discovery. `src/` and `plugins/` must be siblings; the plugin directory is not configurable and does not depend on the page or base URL. Use direct definitions or explicit catalogs for nonstandard locations. See [Developing plugins](PLUGIN-OPERATIONS.md).
