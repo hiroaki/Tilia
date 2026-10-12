@@ -4,7 +4,7 @@ const createMachineryApp = options => createApplicationComposition(options).app;
 
 describe("Phase 4E production composition", () => {
   it("selects GPX and Photo through the normal headless factory without rendering or legacy hubs", async () => {
-    const app = createMachineryApp({ map: {}, plugins: ["tilia-gpx-domain", "tilia-photo-domain"] });
+    const app = createMachineryApp({ map: { on() {}, off() {} }, plugins: ["tilia-gpx-domain", "tilia-photo-domain"] });
     await app.whenReady();
     expect(app.listPlugins()).toEqual(["tilia-gpx-domain", "tilia-photo-domain"]);
     for (const removed of ["core", "state", "refreshView", "addRefreshHandler", "subscribeInteractions"]) {

@@ -170,5 +170,43 @@ test('real modal interaction consumes object and empty map clicks before backgro
   await page.locator('.tilia-route-point-marker').first().click(); await expect(popup(page)).toBeVisible();
   await page.evaluate(() => window.phase4h.app.unuse('tilia-map-selection-presenter'));
   await expect(popup(page)).toHaveCount(0); await expect(crosshair(page)).toHaveCount(0);
-  await clickEmpty(page); expect((await selected(page)).ref.kind).toBe('route-point');
+  await clickEmpty(page); await expect.poll(() => selected(page)).toBeNull();
+});
+
+test('application background clearing survives presenter reinstall, handles Photo, and detaches from a retained Leaflet map', async ({ page }) => {
+  const errors = []; page.on('pageerror', error => errors.push(error.message));
+  await ready(page);
+  await page.evaluate(async () => {
+    const { app, context } = window.phase4h;
+    window.phase4h.changes = [];
+    context.selection.subscribe(event => window.phase4h.changes.push(event.reason));
+    await app.domains.photo.create({ data: { name: 'Background photo', coordinate: { lat: 35.024, lon: 134.985 } } });
+  });
+  await clickEmpty(page); await clickEmpty(page);
+  expect(await selected(page)).toBeNull();
+  expect(await page.evaluate(() => window.phase4h.changes)).toEqual([]);
+  const photo = page.locator('img.leaflet-marker-icon[title="Background photo"]');
+  await expect(photo).toBeVisible();
+  await page.locator('.tilia-route-point-marker').first().click();
+  expect((await selected(page)).ref.kind).toBe('route-point');
+  await photo.click(); expect((await selected(page)).ref.kind).toBe('photo');
+  await expect(popup(page)).toBeVisible();
+  await page.locator('.leaflet-popup-close-button').click();
+  expect((await selected(page)).ref.kind).toBe('photo');
+  await photo.click(); await expect(popup(page)).toBeVisible();
+  await clickEmpty(page); await expect.poll(() => selected(page)).toBeNull();
+  await expect(popup(page)).toHaveCount(0);
+  for (let i = 0; i < 2; i++) {
+    await photo.click(); expect((await selected(page)).ref.kind).toBe('photo');
+    await page.evaluate(() => window.phase4h.app.unuse('tilia-map-selection-presenter'));
+    await expect(popup(page)).toHaveCount(0);
+    await clickEmpty(page); await expect.poll(() => selected(page)).toBeNull();
+    await page.evaluate(() => window.phase4h.app.use('tilia-map-selection-presenter'));
+  }
+  await photo.click(); await expect(popup(page)).toBeVisible();
+  await page.evaluate(() => window.phase4h.app.destroy());
+  await expect(popup(page)).toHaveCount(0);
+  expect(await page.evaluate(() => window.phase4h.map.listens('click'))).toBe(false);
+  await clickEmpty(page);
+  expect(errors).toEqual([]);
 });

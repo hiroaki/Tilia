@@ -16,7 +16,7 @@ describe("createMachineryApp Phase 4B plugin boundary", () => {
       expect(context).not.toHaveProperty("state");
       expect(options).toEqual({ mode: "test" });
     });
-    const app = createMachineryApp({ map: {}, builtins: [] });
+    const app = createMachineryApp({ map: { on() {}, off() {} }, builtins: [] });
     await expect(app.use({ id: "vendor-plugin", setup }, { mode: "test" })).resolves.toEqual({ id: "vendor-plugin" });
     expect(app.hasPlugin("vendor-plugin")).toBe(true);
     expect(app.listPlugins()).toEqual(["vendor-plugin"]);
@@ -27,7 +27,7 @@ describe("createMachineryApp Phase 4B plugin boundary", () => {
     let release;
     const setup = vi.fn(() => new Promise((resolve) => { release = resolve; }));
     const plugin = { id: "vendor-pending", setup };
-    const app = createMachineryApp({ map: {}, builtins: [] });
+    const app = createMachineryApp({ map: { on() {}, off() {} }, builtins: [] });
     const first = app.use(plugin);
     const second = app.use(plugin);
     while (!release) await Promise.resolve();
@@ -39,7 +39,7 @@ describe("createMachineryApp Phase 4B plugin boundary", () => {
 
   it("uses cleanup-only setup results and removes through the runtime", async () => {
     const cleanup = vi.fn();
-    const app = createMachineryApp({ map: {}, builtins: [] });
+    const app = createMachineryApp({ map: { on() {}, off() {} }, builtins: [] });
     await app.use({ id: "vendor-cleanup", setup: () => cleanup });
     await app.unuse("vendor-cleanup");
     expect(cleanup).toHaveBeenCalledOnce();
@@ -49,7 +49,7 @@ describe("createMachineryApp Phase 4B plugin boundary", () => {
   it("bootstraps configured external definitions through the same runtime path", async () => {
     const events = [];
     const plugin = { id: "vendor-startup", setup: (_context, options) => { events.push(options.mode); } };
-    const app = createMachineryApp({ map: {}, builtins: [], plugins: [[plugin, { mode: "ready" }]] });
+    const app = createMachineryApp({ map: { on() {}, off() {} }, builtins: [], plugins: [[plugin, { mode: "ready" }]] });
     await expect(app.whenReady()).resolves.toBe(app);
     expect(events).toEqual(["ready"]);
   });
@@ -57,7 +57,7 @@ describe("createMachineryApp Phase 4B plugin boundary", () => {
   it("loads the final migrated repository plugin through the normal runtime", async () => {
     const setup = vi.fn();
     const load = vi.fn(async () => ({ default: { id: "x-milestone", requires: [], setup } }));
-    const app = createMachineryApp({ map: {}, builtins: [{ id: "x-milestone", requires: [], load }], plugins: ["x-milestone"] });
+    const app = createMachineryApp({ map: { on() {}, off() {} }, builtins: [{ id: "x-milestone", requires: [], load }], plugins: ["x-milestone"] });
     await expect(app.ready).resolves.toBe(app);
     expect(load).toHaveBeenCalledOnce();
     expect(setup).toHaveBeenCalledOnce();
@@ -67,7 +67,7 @@ describe("createMachineryApp Phase 4B plugin boundary", () => {
   it("rejects a missing dependency before setting up its consumer", async () => {
     const consumerSetup = vi.fn();
     const app = createMachineryApp({
-      map: {},
+      map: { on() {}, off() {} },
       builtins: [],
     });
 
@@ -80,7 +80,7 @@ describe("createMachineryApp Phase 4B plugin boundary", () => {
     const middleLoad = vi.fn();
     const rootSetup = vi.fn();
     const app = createMachineryApp({
-      map: {},
+      map: { on() {}, off() {} },
       builtins: [
         { id: "vendor-middle", requires: ["x-milestone"], load: middleLoad },
       ],
@@ -93,7 +93,7 @@ describe("createMachineryApp Phase 4B plugin boundary", () => {
   });
 
   it("exposes only target semantic authority after the Phase 4D cutover", async () => {
-    const app = createMachineryApp({ map: {}, builtins: [] });
+    const app = createMachineryApp({ map: { on() {}, off() {} }, builtins: [] });
     await app.ready;
     expect(app).not.toHaveProperty("core");
     expect(app).not.toHaveProperty("state");

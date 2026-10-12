@@ -20,6 +20,7 @@ vi.mock("leaflet", async () => {
     constructor(container, options) {
       this.container = container; this.options = options; faults.maps.push(this);
       this.layers = new Set(); this.panes = new globalThis.Map(); this.events = [];
+      this.listeners = new globalThis.Map();
       this.remove = vi.fn(() => {
         this.events.push("map");
         if (this.removeFailure) throw this.removeFailure;
@@ -28,7 +29,9 @@ vi.mock("leaflet", async () => {
     }
     getContainer() { return this.container; }
     setView() { if (faults.setView) throw faults.setView; return this; }
-    on() {} off() {}
+    on(type, listener) { if (!this.listeners.has(type)) this.listeners.set(type, new Set()); this.listeners.get(type).add(listener); }
+    off(type, listener) { this.listeners.get(type)?.delete(listener); }
+    fire(type, event = {}) { for (const listener of [...(this.listeners.get(type) ?? [])]) listener(event); }
     getPane(name) { return this.panes.get(name); }
     createPane(name) { const pane = document.createElement("div"); this.container.appendChild(pane); this.panes.set(name, pane); return pane; }
   } };
@@ -37,6 +40,9 @@ import * as publicApi from "../src/index.js";
 import { createDefaultTiliaApp } from "../src/app.js";
 import { gpxDomainKey } from "../src/domains/keys.js";
 import { defineServiceKey } from "../src/extensions/services.js";
+import gpxPlugin from "../src/plugins/domains/gpx.js";
+import selectionPresenter from "../src/plugins/ui/map-selection-presenter.js";
+const selectionBuiltins = [gpxPlugin, selectionPresenter].map(plugin => ({ id: plugin.id, requires: [], load: () => plugin }));
 
 const deferred = () => {
   let resolve, reject;
@@ -56,6 +62,53 @@ function construct(options = {}) {
 }
 
 describe("public application lifetime", () => {
+  it("owns exactly one background clearing listener independently of presenter setup and teardown", async () => {
+    const f = construct({ builtins: selectionBuiltins }); await app.ready;
+    await app.use(gpxPlugin.id);
+    const entry = await app.domains.gpx.create({ tracks: [], routes: [], waypoints: [] });
+    const selection = app.selection, changes = vi.fn();
+    selection.subscribe(changes);
+    const click = () => f.map.fire("click", { originalEvent: { stopPropagation() {} } });
+    expect(f.map.listeners.get("click").size).toBe(1);
+    click(); await settle(); expect(selection.getCurrent()).toBeNull(); expect(changes).not.toHaveBeenCalled();
+    for (let i = 0; i < 2; i++) {
+      await app.use(selectionPresenter.id);
+      await selection.request(app.domains.gpx.selection.createCandidate(entry.id, { kind: "document" }));
+      await app.unuse(selectionPresenter.id);
+      expect(selection.getCurrent()?.entryId).toBe(entry.id);
+      expect(f.map.listeners.get("click").size).toBe(1);
+      click(); await settle(); expect(selection.getCurrent()).toBeNull();
+    }
+    await app.destroy();
+    expect(f.map.listeners.get("click").size).toBe(0);
+    await app.destroy(); expect(f.map.listeners.get("click").size).toBe(0);
+  });
+
+  it("respects modal consumption and revokes background clicks before pending plugin cleanup completes", async () => {
+    const f = construct({ builtins: selectionBuiltins }); await app.ready; await app.use(gpxPlugin.id);
+    const entry = await app.domains.gpx.create({ tracks: [], routes: [], waypoints: [] });
+    const selection = app.selection;
+    await selection.request(app.domains.gpx.selection.createCandidate(entry.id, { kind: "document" }));
+    await app.use({ id: "x-modal", setup(context) {
+      context.interactions.bind({ id: "consume-click", surface: context.interactions.mapSurface(), event: "click", tier: "modal", handle: () => ({ consume: true }) });
+    } });
+    f.map.fire("click", { originalEvent: { stopPropagation() {} } });
+    await settle(); expect(selection.getCurrent()?.entryId).toBe(entry.id);
+    await app.unuse("x-modal");
+    const gate = deferred(), started = deferred();
+    await app.use({ id: "x-held-cleanup", setup(context) {
+      context.scope.defer(() => { started.resolve(); return gate.promise; });
+    } });
+    const closing = app.destroy();
+    const stopPropagation = vi.fn();
+    f.map.fire("click", { originalEvent: { stopPropagation } });
+    expect(stopPropagation).not.toHaveBeenCalled();
+    await started.promise;
+    expect(f.map.listeners.get("click").size).toBe(0);
+    gate.resolve(); await closing;
+    expect(f.map.listeners.get("click").size).toBe(0);
+  });
+
   it("exports the sole factory without privileged infrastructure constructors", () => {
     for (const name of ["createTiliaApp", "createEntryStore", "createDomainRegistry", "createSemanticFoundation", "createSemanticCapabilityFactories", "createApplicationSemanticApi"])
       expect(publicApi).not.toHaveProperty(name);
