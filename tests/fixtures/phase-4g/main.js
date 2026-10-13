@@ -1,5 +1,5 @@
-import { createApplicationComposition } from "../../src/application-composition.js";
-import { createBaseMap } from "../../src/map/base.js";
+import { createApplicationComposition } from "../../../src/application-composition.js";
+import { createBaseMap } from "../../../src/map/base.js";
 const { map } = createBaseMap("map");
 const created = [], revoked = [];
 const optional = new URL(location.href).searchParams.has("optional");

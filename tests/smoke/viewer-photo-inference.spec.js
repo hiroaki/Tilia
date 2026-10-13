@@ -1,9 +1,12 @@
 import { resolve } from "node:path";
+import { readFileSync } from "node:fs";
 
 import { expect, test } from "@playwright/test";
+import { mockPhotoExif, timestampPhoto } from "../helpers/photo-exif.js";
+
+test.beforeEach(async ({ page }) => mockPhotoExif(page));
 
 const sampleTrackPath = resolve(import.meta.dirname, "../fixtures/img-2892-auto-helper.gpx");
-const sampleInferredPhotoPath = resolve(import.meta.dirname, "../../samples/embed/IMG_2892.JPG");
 
 test("viewer sample infers a photo location from an imported GPX track", async ({ page }) => {
   const pageErrors = [];
@@ -11,11 +14,11 @@ test("viewer sample infers a photo location from an imported GPX track", async (
     pageErrors.push(error.message);
   });
 
-  await page.goto("/samples/viewer/");
+  await page.goto("/tests/fixtures/viewer/");
 
   await page.locator('.tilia-file-import-control input[type="file"]').setInputFiles([
-    sampleTrackPath,
-    sampleInferredPhotoPath,
+    { name: "img-2892-auto-helper.gpx", mimeType: "application/gpx+xml", buffer: readFileSync(sampleTrackPath) },
+    timestampPhoto,
   ]);
 
   await expect(page.locator(".tilia-status-text")).toContainText("IMG_2892.JPG");

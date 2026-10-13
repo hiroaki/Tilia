@@ -6,7 +6,7 @@ test("viewer sample loads a GPX file through the URL import control", async ({ p
     pageErrors.push(error.message);
   });
 
-  await page.goto("/samples/viewer/");
+  await page.goto("/tests/fixtures/viewer/");
 
   await page.getByRole("button", { name: "Load URL" }).click();
   await page.locator(".tilia-url-input").fill(new URL("/tests/fixtures/sample-track.gpx", page.url()).href);

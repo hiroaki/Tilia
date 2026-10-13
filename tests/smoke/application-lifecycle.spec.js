@@ -233,7 +233,7 @@ test("public destroy does not join pinned EXIF readers and their late settlement
     URL.createObjectURL = blob => { window.exifAudit.urls++; return create(blob); };
   });
   await fixture(page);
-  const bytes = await readFile(new URL("../../samples/embed/IMG_2892.JPG", import.meta.url));
+  const bytes = await readFile(new URL("../fixtures/photo-exif.jpg", import.meta.url));
   await page.evaluate(async encoded => {
     const app = window.lifecycle.create({ plugins: ["tilia-jpeg-input"] }); await app.ready;
     const file = new File([Uint8Array.from(atob(encoded), c => c.charCodeAt(0))], "held.jpg", { type: "image/jpeg" });

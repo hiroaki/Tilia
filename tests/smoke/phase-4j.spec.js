@@ -28,7 +28,7 @@ async function instrumentDocumentPointers(page) {
 
 test("4J-A exports rich immutable GPX and reimports its supported values", async ({ page }) => {
   const errors = []; page.on("pageerror", error => errors.push(error.message));
-  await page.goto("/samples/phase-4j/");
+  await page.goto("/tests/fixtures/phase-4j/");
   await expect(page.locator("body")).toHaveAttribute("data-phase4j-ready", "true");
   await page.evaluate(async () => {
     const data = { name: "Rich.GPX", metadata: { name: "Rich", description: "<&>", timestamp: 0 },
@@ -62,7 +62,7 @@ test("4J-B form, draggable markers and context menu automatically create persist
       geometry: { type: "LineString", coordinates: [[139.76,35.68],[139.77,35.69]] }, distance_meters: 1000, duration_seconds: 100, provider: "controlled"
     } }) });
   });
-  await page.goto("/samples/phase-4j/"); await expect(page.locator("body")).toHaveAttribute("data-phase4j-ready", "true");
+  await page.goto("/tests/fixtures/phase-4j/"); await expect(page.locator("body")).toHaveAttribute("data-phase4j-ready", "true");
   await page.getByRole("button", { name: "Route search", exact: true }).click();
   await page.getByRole("textbox", { name: "Start coordinates" }).fill("35.68,139.76");
   await page.getByRole("textbox", { name: "Goal coordinates" }).fill("35.69,139.77");
@@ -89,7 +89,7 @@ test("4J-B form, draggable markers and context menu automatically create persist
   expect(result.entries).toBe(1); await expect(page.locator(".tilia-route-search-marker-icon")).toHaveCount(0); expect(errors).toEqual([]);
 });
 async function editorSession(page, { overlap = false } = {}) {
-  await page.goto("/samples/phase-4j/"); await expect(page.locator("body")).toHaveAttribute("data-phase4j-ready","true");
+  await page.goto("/tests/fixtures/phase-4j/"); await expect(page.locator("body")).toHaveAttribute("data-phase4j-ready","true");
   const id = await page.evaluate(async overlap => {
     const track = { segments: [{ points: [{lat:35.68,lon:139.76,elevation:0},{lat:35.682,lon:139.765},{lat:35.684,lon:139.77}] }] };
     const entry = await window.phase4j.app.domains.gpx.create({name:"initial.gpx",tracks:overlap?[track,track]:[track],routes:[{points:[{lat:35.67,lon:139.75}]}],waypoints:[{lat:35.67,lon:139.75}]});
@@ -193,7 +193,7 @@ test("4J-C overlapping draft geometry preserves popup and shell-control interact
 });
 
 async function milestoneSource(page) {
-  await page.goto("/samples/phase-4j/");
+  await page.goto("/tests/fixtures/phase-4j/");
   await page.waitForFunction(()=>document.body.dataset.phase4jReady==="true");
   return page.evaluate(async()=>{
     const {app,map}=window.phase4j;map.setMaxZoom(20);map.setView([35.68,139.761],20);

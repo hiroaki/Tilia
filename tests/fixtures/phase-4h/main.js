@@ -1,7 +1,7 @@
 import { Polyline } from "leaflet";
-import { createApplicationComposition } from "../../src/application-composition.js";
-import { createBaseMap } from "../../src/map/base.js";
-import { gpxQueryServiceKey } from "../../src/plugins/contracts/gpx-query.js";
+import { createApplicationComposition } from "../../../src/application-composition.js";
+import { createBaseMap } from "../../../src/map/base.js";
+import { gpxQueryServiceKey } from "../../../src/plugins/contracts/gpx-query.js";
 const { map } = createBaseMap("map");
 const created = [], revoked = [];
 const fixture = createApplicationComposition({ map, plugins: [

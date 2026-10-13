@@ -11,7 +11,7 @@ test("viewer elevation panel renders a profile for an imported GPX track", async
     pageErrors.push(error.message);
   });
 
-  await page.goto("/samples/viewer/");
+  await page.goto("/tests/fixtures/viewer/");
 
   await page.locator('.tilia-file-import-control input[type="file"]').setInputFiles(sampleTrackPath);
   await expect(page.locator(".tilia-status-text")).toContainText("sample-track.gpx");
@@ -38,7 +38,7 @@ test("viewer elevation panel renders a profile for an imported GPX track", async
 });
 
 test("opening elevation preserves the previous waypoint selection and popup", async ({ page }) => {
-  await page.goto("/samples/viewer/");
+  await page.goto("/tests/fixtures/viewer/");
   await page.locator('.tilia-file-import-control input[type="file"]').setInputFiles(sampleTrackPath);
 
   await page.locator(".leaflet-marker-icon").click();
@@ -52,7 +52,7 @@ test("opening elevation preserves the previous waypoint selection and popup", as
 });
 
 test("viewer elevation panel separates logical tracks and keeps hover and click interactions", async ({ page }) => {
-  await page.goto("/samples/viewer/");
+  await page.goto("/tests/fixtures/viewer/");
   await page.locator('.tilia-file-import-control input[type="file"]').setInputFiles(multiTrackPath);
   await page.getByRole("button", { name: "Elevation" }).click();
 
@@ -83,7 +83,7 @@ test("viewer elevation panel separates logical tracks and keeps hover and click 
 test("map clicks select canonical points from each logical track", async ({ page }) => {
   const pageErrors = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
-  await page.goto("/samples/viewer/");
+  await page.goto("/tests/fixtures/viewer/");
   await page.locator('.tilia-file-import-control input[type="file"]').setInputFiles(multiTrackPath);
 
   const trackPaths = page.locator('[data-tilia-map-band="geometry"] path.leaflet-interactive');
@@ -93,7 +93,7 @@ test("map clicks select canonical points from each logical track", async ({ page
   await expect(page.locator(".leaflet-popup")).toBeVisible();
   await expect(page.locator(".leaflet-popup")).toContainText("Track point");
 
-  await page.goto("/samples/viewer/");
+  await page.goto("/tests/fixtures/viewer/");
   await page.locator('.tilia-file-import-control input[type="file"]').setInputFiles(multiTrackPath);
   const reloadedTrackPaths = page.locator('[data-tilia-map-band="geometry"] path.leaflet-interactive');
   await expect(reloadedTrackPaths).toHaveCount(2);

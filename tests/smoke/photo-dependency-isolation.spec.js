@@ -101,7 +101,7 @@ test("JPEG succeeds without an exifr mapping and installation does not request E
   });
   expect(requested.filter(url => /photo\/exif|exifr/.test(url))).toEqual([]);
   const result = await page.evaluate(async () => {
-    const blob = await (await fetch("/samples/embed/IMG_2889.JPG")).blob();
+    const blob = await (await fetch("/tests/fixtures/photo-exif.jpg")).blob();
     const app = window.lifecycle.app;
     await app.load(new File([blob], "IMG_2889.JPG", { type: "image/jpeg" }));
     const entry = app.entries.list()[0];

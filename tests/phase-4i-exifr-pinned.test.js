@@ -11,7 +11,7 @@ describe("actual pinned exifr 7.1.3 browser Blob reader",()=>{
   const readers=[];let release;const gate=new Promise(r=>release=r);let held=true;
   vi.stubGlobal("FileReader",class{constructor(){this.readyState=0;readers.push(this);}readAsArrayBuffer(blob){this.readyState=1;void(async()=>{if(held)await gate;this.result=await blob.arrayBuffer();this.readyState=2;this.onloadend?.();})();}});
   const createObjectURL=vi.fn(()=>"blob:unexpected");f=await uiFixture(["tilia-jpeg-input"],{pluginOptions:{"tilia-photo-domain":{createObjectURL,revokeObjectURL:vi.fn()}}});
-  const file=new File([readFileSync(new URL("../samples/embed/IMG_2892.JPG",import.meta.url))],"photo.jpg",{type:"image/jpeg"});
+  const file=new File([readFileSync(new URL("./fixtures/photo-exif.jpg",import.meta.url))],"photo.jpg",{type:"image/jpeg"});
   const work=f.app.load(file);const observed=work.catch(e=>e);await vi.waitFor(()=>expect(readers.length).toBeGreaterThan(0));expect(readers[0].readyState).toBe(1);
   await f.app.unuse("tilia-jpeg-input");expect(readers[0].readyState).toBe(1);held=false;release();const error=await observed;expect(error.code).toBe("INPUT_DISPATCH_CANCELLED");expect(f.app.entries.list()).toHaveLength(0);expect(createObjectURL).not.toHaveBeenCalled();expect(readers.every(r=>r.readyState===2)).toBe(true);
  });

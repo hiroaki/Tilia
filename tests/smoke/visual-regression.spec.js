@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { mockPhotoExif } from "../helpers/photo-exif.js";
 
 const data = {
   name: "Visual regression",
@@ -158,14 +159,16 @@ test("missing elevation runs retain visible isolated samples and canonical selec
 });
 
 test("Photo thumbnail dimensions, long Layers scrolling and shared GPX leases survive renderer disposal", async ({ page }, testInfo) => {
+  await mockPhotoExif(page);
   await fixture(page, { plugins: ["tilia-gpx-domain", "tilia-gpx-renderer", "tilia-gpx-ui", "tilia-photo-ui", "tilia-jpeg-input", "tilia-layers"] });
   await page.evaluate(async data => {
     const app = window.lifecycle.app;
-    const image = await fetch("/samples/embed/IMG_2892.JPG").then(r => r.blob());
+    const image = await fetch("/tests/fixtures/photo-exif.jpg").then(r => r.blob());
     await app.load(new File([image], "photo.jpg", { type: "image/jpeg" }));
     for (let i = 0; i < 15; i++) await app.domains.gpx.create({ ...data, name: `Track ${i}` });
   }, data);
   await page.getByRole("button", { name: "Layers", exact: true }).click();
+  await expect.poll(() => page.locator(".tilia-layer-thumbnail").evaluate(image => image.naturalWidth)).toBe(2);
   for (const width of [1280, 390]) {
     await page.setViewportSize({ width, height: 844 });
     const thumbnail = page.locator(".tilia-layer-thumbnail");

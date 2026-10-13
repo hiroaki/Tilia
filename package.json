@@ -12,7 +12,9 @@
     "test:smoke:phase4e": "playwright test tests/smoke/phase-4e.spec.js",
     "test:smoke:phase4f": "playwright test tests/smoke/phase-4f.spec.js",
     "test:smoke:phase4g": "playwright test tests/smoke/phase-4g.spec.js",
-    "test:smoke:phase4h": "playwright test tests/smoke/phase-4h.spec.js"
+    "test:smoke:phase4h": "playwright test tests/smoke/phase-4h.spec.js",
+    "test:regression": "playwright test --project=regression",
+    "test:samples": "vitest run --project=samples && playwright test --project=samples"
   },
   "devDependencies": {
     "@playwright/test": "^1.54.1",

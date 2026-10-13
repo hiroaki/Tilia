@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Tilia offset test" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk><name>Offset inference</name><trkseg>
+    <trkpt lat="34.995320" lon="135.815864"><time>2013-11-24T06:22:22Z</time></trkpt>
+    <trkpt lat="34.995349" lon="135.815874"><time>2013-11-24T06:22:49Z</time></trkpt>
+    <trkpt lat="35.000204" lon="135.798589"><time>2013-11-24T06:52:38Z</time></trkpt>
+    <trkpt lat="35.000229" lon="135.798629"><time>2013-11-24T06:52:41Z</time></trkpt>
+  </trkseg></trk>
+</gpx>
