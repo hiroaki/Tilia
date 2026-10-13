@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 test("explicit Fit/Reveal uses semantic targets on real Leaflet without renderers", async ({ page }) => {
   const errors = []; page.on("pageerror", error => errors.push(error.message));
-  await page.goto("/samples/phase-4h/");
+  await page.goto("/tests/fixtures/phase-4h/");
   await expect(page.locator("body")).toHaveAttribute("data-phase4h-ready", "true");
   const ids = await page.evaluate(async () => {
     const { app, map } = window.phase4h;

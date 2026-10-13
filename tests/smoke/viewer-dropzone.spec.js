@@ -6,7 +6,7 @@ test("viewer sample accepts a GPX file via the dropzone plugin", async ({ page }
     pageErrors.push(error.message);
   });
 
-  await page.goto("/samples/viewer/");
+  await page.goto("/tests/fixtures/viewer/");
   // The input control is installed after Drop in this composition, and its
   // discovery snapshot proves that the GPX handler has committed as well.
   await expect(page.locator('input[type="file"]')).toHaveAttribute("accept", /\.gpx/);

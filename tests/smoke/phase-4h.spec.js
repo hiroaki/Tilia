@@ -1,9 +1,12 @@
-import { expect, test } from "@playwright/test";
 import { resolve } from "node:path";
+import { readFileSync } from "node:fs";
+import { expect, test } from "@playwright/test";
+import { mockPhotoExif, timestampPhoto } from "../helpers/photo-exif.js";
+
+test.beforeEach(async ({ page }) => mockPhotoExif(page));
 const helper = resolve(import.meta.dirname, "../fixtures/img-2892-auto-helper.gpx");
-const jpeg = resolve(import.meta.dirname, "../../samples/embed/IMG_2892.JPG");
 const route = resolve(import.meta.dirname, "../fixtures/sample-route.gpx");
-async function ready(page) { await page.goto("/samples/phase-4h/"); await expect(page.locator("body")).toHaveAttribute("data-phase4h-ready", "true"); }
+async function ready(page) { await page.goto("/tests/fixtures/phase-4h/"); await expect(page.locator("body")).toHaveAttribute("data-phase4h-ready", "true"); }
 
 test("Phase 4H real GPX file, numbered route click, tree selection, style/visibility, independent popup/highlight and removal", async ({ page }) => {
   const errors = []; page.on("pageerror", (error) => errors.push(error.message));
@@ -41,7 +44,7 @@ test("Phase 4H real GPX file, numbered route click, tree selection, style/visibi
 test("Phase 4H real EXIF inference is one-shot and independent of GPX renderer, deletion, service availability and preview replacement", async ({ page }) => {
   const errors = []; page.on("pageerror", (error) => errors.push(error.message)); await ready(page);
   await page.evaluate(() => window.phase4h.app.unuse("tilia-gpx-renderer"));
-  await page.locator('input[type="file"]').setInputFiles([helper, jpeg]);
+  await page.locator('input[type="file"]').setInputFiles([{ name: "img-2892-auto-helper.gpx", mimeType: "application/gpx+xml", buffer: readFileSync(helper) }, timestampPhoto]);
   await expect(page.locator(".tilia-status-text")).toContainText("gpx-time-inference");
   const saved = await page.evaluate(() => {
     const f = window.phase4h, entry = f.app.entries.list().find((e) => e.domain.id === "photo");

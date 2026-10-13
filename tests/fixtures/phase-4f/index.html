@@ -22,8 +22,8 @@
     <div id="map"></div>
     <script type="module">
       import { Map, CircleMarker } from "leaflet";
-      import { createApplicationComposition } from "../../src/application-composition.js";
-      import { gpxDomainKey } from "../../src/domains/keys.js";
+      import { createApplicationComposition } from "../../../src/application-composition.js";
+      import { gpxDomainKey } from "../../../src/domains/keys.js";
       const map = new Map("map").setView([35, 135], 12);
       const composition = createApplicationComposition({
         map,

@@ -1,14 +1,14 @@
 import { expect, test } from "@playwright/test";
-import { resolve } from "node:path";
-const gps = resolve(import.meta.dirname, "../../samples/embed/IMG_2889.JPG");
-const timestampOnly = resolve(import.meta.dirname, "../../samples/embed/IMG_2892.JPG");
+import { mockPhotoExif, gpsPhoto, timestampPhoto } from "../helpers/photo-exif.js";
+
+test.beforeEach(async ({ page }) => mockPhotoExif(page));
 
 test("Phase 4G GPS Photo production lifecycle, popup/highlight independence and rendering termination", async ({ page }) => {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.goto("/samples/phase-4g/");
+  await page.goto("/tests/fixtures/phase-4g/");
   await expect(page.locator("body")).toHaveAttribute("data-phase4g-ready", "true");
-  await page.locator('input[type="file"]').setInputFiles(gps);
+  await page.locator('input[type="file"]').setInputFiles(gpsPhoto);
   await expect(page.locator(".tilia-status-text")).toContainText("IMG_2889.JPG (exif-gps)");
   await expect(page.locator(".leaflet-marker-icon")).toHaveCount(1);
   await page.evaluate(() => {
@@ -52,7 +52,7 @@ test("Phase 4G GPS Photo production lifecycle, popup/highlight independence and 
   expect(lifecycle).toMatchObject({ hidden: { invalid: true, selected: true }, sameToken: true,
     adapterRemoved: { popup: 0, rings: 1, selected: true }, changedToken: true,
     removed: { url: 0, selected: true, state: "unavailable" }, active: "active", urls: [1, 1], selection: null });
-  await page.locator('input[type="file"]').setInputFiles(gps);
+  await page.locator('input[type="file"]').setInputFiles(gpsPhoto);
   await page.locator(".leaflet-marker-icon").click();
   await expect(page.locator(".leaflet-popup")).toHaveCount(1);
   const terminated = await page.evaluate(async () => {
@@ -72,9 +72,9 @@ test("Phase 4G GPS Photo production lifecycle, popup/highlight independence and 
 test("Phase 4G timestamp-only Photo tree selection, three settings modes and UI lifetimes", async ({ page }) => {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.goto("/samples/phase-4g/");
+  await page.goto("/tests/fixtures/phase-4g/");
   await expect(page.locator("body")).toHaveAttribute("data-phase4g-ready", "true");
-  await page.locator('input[type="file"]').setInputFiles(timestampOnly);
+  await page.locator('input[type="file"]').setInputFiles(timestampPhoto);
   await expect(page.locator(".tilia-status-text")).toContainText("IMG_2892.JPG");
   await expect(page.locator(".leaflet-marker-icon")).toHaveCount(0);
   await page.getByRole("button", { name: "Layers", exact: true }).click();
@@ -108,7 +108,7 @@ test("Phase 4G timestamp-only Photo tree selection, three settings modes and UI 
 test("Phase 4G optional Photo/JPEG roles load EXIF only for first handled JPEG and accept native cross-realm signals", async ({ page }) => {
   const requested = [];
   page.on("request", (request) => requested.push(request.url()));
-  await page.goto("/samples/phase-4g/?optional");
+  await page.goto("/tests/fixtures/phase-4g/?optional");
   await expect(page.locator("body")).toHaveAttribute("data-phase4g-ready", "true");
   const install = await page.evaluate(async () => {
     const app = window.phase4g.app;
@@ -126,7 +126,7 @@ test("Phase 4G optional Photo/JPEG roles load EXIF only for first handled JPEG a
   expect(install).toBe("ENTRY_CREATION_ABORTED");
   expect(requested.filter((url) => /photo\/exif|exifr/.test(url))).toEqual([]);
   await page.evaluate(async () => {
-    const blob = await (await fetch("/samples/embed/IMG_2889.JPG")).blob();
+    const blob = await (await fetch("/tests/fixtures/photo-exif.jpg")).blob();
     await window.optional4g.load(new File([blob], "IMG_2889.JPG", { type: "image/jpeg" }));
   });
   expect(requested.some((url) => /photo\/exif\.js/.test(url))).toBe(true);

@@ -1,4 +1,7 @@
 import { expect, test } from "@playwright/test";
+import { mockPhotoExif } from "../helpers/photo-exif.js";
+
+test.beforeEach(async ({ page }) => mockPhotoExif(page));
 
 for (const render of [true, false]) {
   test(`JPEG import restores GPS/inferred viewport and leaves unlocated photos alone (renderer ${render})`, async ({ page }, testInfo) => {
@@ -13,14 +16,14 @@ for (const render of [true, false]) {
       await app.use({ id: "jpeg-viewport-observer", setup(context) {
         window.jpegViewport = () => context.map.getViewport();
         window.jpegReset = () => context.map.setView([35.68, 139.76], 13, { animate: false });
-        window.jpegLoad = async url => {
+        window.jpegLoad = async (url, name = url.split("/").at(-1)) => {
           const blob = await (await fetch(url)).blob();
-          return context.inputs.dispatch(new File([blob], url.split("/").at(-1), { type: blob.type }));
+          return context.inputs.dispatch(new File([blob], name, { type: blob.type }));
         };
       } });
     }, render);
     await page.evaluate(() => window.jpegLoad("/tests/fixtures/sample-track.gpx"));
-    await page.evaluate(() => window.jpegLoad("/samples/embed/IMG_2889.JPG"));
+    await page.evaluate(() => window.jpegLoad("/tests/fixtures/photo-exif.jpg", "IMG_2889.JPG"));
     await expect.poll(() => page.evaluate(() => window.jpegViewport().center)).toMatchObject({ lat: expect.closeTo(34.996781, 5), lng: expect.closeTo(135.819519, 5) });
     await expect.poll(() => page.evaluate(() => window.jpegViewport().zoom)).toBe(19);
     if (render) await expect.poll(() => page.evaluate(() => {
@@ -31,14 +34,14 @@ for (const render of [true, false]) {
 
     await page.evaluate(() => window.jpegReset());
     const before = await page.evaluate(() => window.jpegViewport());
-    await page.evaluate(() => window.jpegLoad("/samples/embed/IMG_2892.JPG"));
+    await page.evaluate(() => window.jpegLoad("/tests/fixtures/photo-exif.jpg", "IMG_2892.JPG"));
     expect(await page.evaluate(() => window.jpegViewport())).toEqual(before);
     expect(await page.evaluate(() => window.lifecycle.app.domains.photo.get(window.lifecycle.app.entries.list().at(-1).id).snapshot.derived.inferredLocation)).toBeNull();
 
     await page.evaluate(() => window.jpegLoad("/tests/fixtures/img-2892-auto-helper.gpx"));
     await page.evaluate(() => window.jpegReset());
     const expected = await page.evaluate(async () => {
-      const result = await window.jpegLoad("/samples/embed/IMG_2892.JPG");
+      const result = await window.jpegLoad("/tests/fixtures/photo-exif.jpg", "IMG_2892.JPG");
       return window.lifecycle.app.domains.photo.get(result.entry.id).snapshot.derived;
     });
     expect(expected.locationSource).toBe("gpx-time-inference");

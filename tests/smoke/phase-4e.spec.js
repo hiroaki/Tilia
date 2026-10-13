@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 test("Phase 4E production selection works without domain rendering or presentation", async ({ page }) => {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.goto("/samples/phase-4e/");
+  await page.goto("/tests/fixtures/phase-4e/");
   await expect(page.locator("body")).toHaveAttribute("data-phase4e-ready", "true");
   const result = await page.evaluate(async () => {
     const app = window.phase4eApp;

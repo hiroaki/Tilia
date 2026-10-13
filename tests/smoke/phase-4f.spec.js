@@ -4,7 +4,7 @@ test("Phase 4F normal composition contains stale display, failure, retry and lif
 }) => {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.goto("/samples/phase-4f/");
+  await page.goto("/tests/fixtures/phase-4f/");
   await expect(page.locator("body")).toHaveAttribute(
     "data-phase4f-ready",
     "true",
@@ -150,7 +150,7 @@ test("Phase 4F reentrant highlight retry and private pane reacquisition work on 
 }) => {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.goto("/samples/phase-4f/");
+  await page.goto("/tests/fixtures/phase-4f/");
   await expect(page.locator("body")).toHaveAttribute(
     "data-phase4f-ready",
     "true",

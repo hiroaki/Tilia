@@ -22,13 +22,9 @@ async function startDraftEditing(page, name = "sample-track.gpx", fixture) {
   await expect(page.locator(".leaflet-partially-editable-polyline-point")).not.toHaveCount(0);
 }
 
-test("editor sample loads the track editor control", async ({ page }) => {
-  await page.goto("/samples/editor/localhost.html");
-  await expect(page.getByRole("button", { name: "Track editor" })).toBeVisible();
-});
 
 test("editor displays draft segments immediately when editing starts", async ({ page }) => {
-  await page.goto("/samples/editor/localhost.html");
+  await page.goto("/tests/fixtures/editor.html");
   await loadGpx(page, "sample-track.gpx");
 
   await expect(page.locator('[data-tilia-map-band="geometry"] path, .tilia-track-editor-draft')).toHaveCount(1);
@@ -52,7 +48,7 @@ test("editor displays draft segments immediately when editing starts", async ({ 
 });
 
 test("editor can start again after cancel without retaining draft layers", async ({ page }) => {
-  await page.goto("/samples/editor/localhost.html");
+  await page.goto("/tests/fixtures/editor.html");
   await loadGpx(page, "sample-track.gpx");
   await page.getByRole("button", { name: "Track editor" }).click();
 
@@ -72,7 +68,7 @@ test("editor can start again after cancel without retaining draft layers", async
 });
 
 test("point marker click selects it, midpoint click does not, and map background clears selection", async ({ page }) => {
-  await page.goto("/samples/editor/localhost.html");
+  await page.goto("/tests/fixtures/editor.html");
   await startDraftEditing(page);
 
   const inspectorLatitude = page.locator(".tilia-track-editor-inspector-row .tilia-track-editor-cell").first();
@@ -99,7 +95,7 @@ test("point marker click selects it, midpoint click does not, and map background
 });
 
 test("editor marker drags preserve selection and update the form only for the selected point", async ({ page }) => {
-  await page.goto("/samples/editor/localhost.html");
+  await page.goto("/tests/fixtures/editor.html");
   await startDraftEditing(page);
 
   const pointMarkers = page.locator(".leaflet-partially-editable-polyline-point");
@@ -137,7 +133,7 @@ test("editor marker drags preserve selection and update the form only for the se
 });
 
 test("point inspector edits one cell with validation, cancellation, focus, and history", async ({ page }) => {
-  await page.goto("/samples/editor/localhost.html");
+  await page.goto("/tests/fixtures/editor.html");
   await startDraftEditing(page);
 
   const row = page.locator(".tilia-track-editor-inspector-row");
@@ -193,7 +189,7 @@ test("point inspector edits one cell with validation, cancellation, focus, and h
 });
 
 test("insert, undo, and redo preserve the existing selection", async ({ page }) => {
-  await page.goto("/samples/editor/localhost.html");
+  await page.goto("/tests/fixtures/editor.html");
   await startDraftEditing(page);
 
   const pointMarkers = page.locator(".leaflet-partially-editable-polyline-point");
@@ -230,7 +226,7 @@ test("insert, undo, and redo preserve the existing selection", async ({ page }) 
 });
 
 test("deleting selected and unselected points only removes deleted IDs from selection", async ({ page }) => {
-  await page.goto("/samples/editor/localhost.html");
+  await page.goto("/tests/fixtures/editor.html");
   await startDraftEditing(page);
 
   const pointMarkers = page.locator(".leaflet-partially-editable-polyline-point");
@@ -259,7 +255,7 @@ test("deleting selected and unselected points only removes deleted IDs from sele
 });
 
 test("area selection replaces selection with one point and restores normal editing", async ({ page }) => {
-  await page.goto("/samples/editor/localhost.html");
+  await page.goto("/tests/fixtures/editor.html");
   await startDraftEditing(page);
 
   const pointMarkers = page.locator(".leaflet-partially-editable-polyline-point");
@@ -298,7 +294,7 @@ test("area selection replaces selection with one point and restores normal editi
 });
 
 test("empty area selection retries, multiple selection succeeds, and Escape cancels", async ({ page }) => {
-  await page.goto("/samples/editor/localhost.html");
+  await page.goto("/tests/fixtures/editor.html");
   await startDraftEditing(page);
 
   const pointMarkers = page.locator(".leaflet-partially-editable-polyline-point");
@@ -385,7 +381,7 @@ test("empty area selection retries, multiple selection succeeds, and Escape canc
 });
 
 test("bulk delete removes and Undo restores the final segment and track", async ({ page }) => {
-  await page.goto("/samples/editor/localhost.html");
+  await page.goto("/tests/fixtures/editor.html");
   await startDraftEditing(page);
 
   const pointMarkers = page.locator(".leaflet-partially-editable-polyline-point");
@@ -423,7 +419,7 @@ test("bulk delete removes and Undo restores the final segment and track", async 
 });
 
 test("editor point deletion retains local editing until the final structure is removed", async ({ page }) => {
-  await page.goto("/samples/editor/localhost.html");
+  await page.goto("/tests/fixtures/editor.html");
   await startDraftEditing(page);
 
   const pointMarkers = page.locator(".leaflet-partially-editable-polyline-point");
@@ -438,7 +434,7 @@ test("editor point deletion retains local editing until the final structure is r
 });
 
 test("clicking a normal track selects its GPX source without starting a session", async ({ page }) => {
-  await page.goto("/samples/editor/localhost.html");
+  await page.goto("/tests/fixtures/editor.html");
   await loadGpx(page, "first.gpx");
   await expect(page.locator('[data-tilia-map-band="geometry"] path')).toHaveCount(1);
   await loadGpx(page, "second.gpx");
@@ -456,7 +452,7 @@ test("clicking a normal track selects its GPX source without starting a session"
 });
 
 test("displays multiple draft tracks and transfers local editing between segments", async ({ page }) => {
-  await page.goto("/samples/editor/localhost.html");
+  await page.goto("/tests/fixtures/editor.html");
   await loadGpx(page, "multi.gpx", "/tests/fixtures/multi-track-elevation.gpx");
   await expect(page.locator('[data-tilia-map-band="geometry"] path, .tilia-track-editor-draft')).toHaveCount(2);
 

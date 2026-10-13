@@ -21,7 +21,7 @@
     <div id="map"></div>
     <output id="phase-4b-status">booting</output>
     <script type="module">
-      import { createDefaultTiliaApp } from "../../src/index.js";
+      import { createDefaultTiliaApp } from "../../../src/index.js";
       const app = createDefaultTiliaApp("map", { plugins: [] });
       await app.whenReady();
       document.querySelector("#phase-4b-status").textContent = `${app.listPlugins().length} plugins active`;

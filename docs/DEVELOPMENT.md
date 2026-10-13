@@ -40,7 +40,7 @@ The Node dependencies supply test tools and a local Leaflet installation. Sample
 | `src/builtins.js` | Official `tilia-*` lazy catalog, IDs, and hard dependencies |
 | `plugins/` | Optional tools and base-map providers |
 | `samples/` | Working viewer, embed, and editor examples |
-| `tests/`, `tests/smoke/`, `tests/fixtures/` | Unit/contract tests, browser flows, and test data/pages |
+| `tests/`, `tests/smoke/`, `tests/fixtures/`, `tests/samples/` | Unit/contract tests, browser flows, and test data/pages |
 | `docs/` | Public developer and integration documentation |
 
 Read [Architecture](ARCHITECTURE.md) before changing ownership, selection, or rendering behavior. Generic mechanisms belong in infrastructure; format-specific policy belongs in domain plugins and their consumers. Domain snapshots are authoritative; Leaflet layers are replaceable presentations.
@@ -74,7 +74,7 @@ Run the Vitest suite:
 npm test
 ```
 
-The [Vitest configuration](../vitest.config.js) excludes browser smoke tests, dependencies, and `dist/`. Unit and contract tests cover parsing/serialization, domain commands and queries, selection, plugin planning/setup/removal, resource ownership, rendering, and input/UI helpers. Many use controlled providers or browser substitutes; they do not replace real browser verification.
+The [Vitest configuration](../vitest.config.js) separates root-level unit/contract tests (`unit` project) from static sample validation in `tests/samples/` (`samples` project). Both run with `npm test`; browser `.spec.js` files are not collected. Unit and contract tests cover parsing/serialization, domain commands and queries, selection, plugin planning/setup/removal, resource ownership, rendering, and input/UI helpers. Many use controlled providers or browser substitutes; they do not replace real browser verification.
 
 While working, select the relevant files or a test name:
 
@@ -99,7 +99,7 @@ Run the browser suite:
 npm run test:smoke
 ```
 
-The [Playwright configuration](../playwright.config.js) discovers tests in `tests/smoke/` and starts the bundled server on `http://127.0.0.1:4173`. It runs in Chromium by default, headless, with tests eligible to run in parallel. No separate manual server is needed. Locally, it can reuse an existing server on that address; in CI it starts its own server. If results appear to use old files, check which checkout the existing server serves.
+The [Playwright configuration](../playwright.config.js) separates browser tests into the `regression` project in `tests/smoke/` and the `samples` project in `tests/samples/`; the default command runs both projects and starts the bundled server on `http://127.0.0.1:4173`. It runs in Chromium by default, headless, with tests eligible to run in parallel. No separate manual server is needed. Locally, it can reuse an existing server on that address; in CI it starts its own server. If results appear to use old files, check which checkout the existing server serves.
 
 Coverage includes:
 
@@ -124,6 +124,24 @@ For a visible browser or less concurrency:
 npm run test:smoke -- tests/smoke/viewer-file-import.spec.js --headed
 npm run test:smoke -- tests/smoke/application-lifecycle.spec.js --workers=1
 ```
+
+### Test pages and dependency rules
+
+- `tests/*.test.js`: ordinary unit and contract tests; `tests/smoke/*.spec.js`: browser integration/regression tests. Neither may read, import, fetch, or navigate to `samples/`, including indirectly through fixtures or helpers.
+- `tests/fixtures/`: test-only HTML, bootstrap modules, and assets. Phase 4B–4H and 4J harnesses live here. Viewer and editor harnesses own their test composition and load real modules from `src/` and `plugins/`; do not copy production implementations into tests.
+- `tests/samples/`: tests whose subject is an actual public sample, including Viewer/Embed/Editor startup, Embed fixed-offset matching across timezones, and sample architecture audits. These intentionally use `samples/` and do not replace regression coverage.
+
+Fixtures should be minimal, deterministic, and purpose-built. Include only the data, DOM elements and initialization needed to exercise the relevant production behavior. Avoid copying entire sample pages or introducing large binary assets unless their characteristics are essential to the test. Prefer smaller synthetic inputs where sufficient, preserve meaningful edge cases and regression coverage, and document non-obvious fixture requirements. HTML harnesses must load actual production modules and plugins rather than reimplement their behavior; larger or real-world GPX fixtures need a testing purpose that depends on their complexity.
+
+Tests should verify Tilia's responsibilities and integration contracts rather than duplicate tests of external library internals. Prefer controlled or mocked dependency results when testing Tilia-specific transformation, validation and presentation. Use real dependencies and minimal binary inputs when their interaction with Tilia or browser APIs is itself the contract under test. JPEG/EXIF parsing belongs to exifr; Tilia tests focus on handling the returned metadata, with real-image cases reserved for the integration boundary and FileReader lifecycle.
+
+Sample validation must target the actual sample page, not a copied version, and focus on startup, initialization and representative user-facing functionality. Changes to public samples may affect sample validation, but ordinary regression tests must remain independent of those changes.
+
+The static server serves the repository root, so `/tests/fixtures/`, `/src/`, `/plugins/`, and actual samples remain accessible over HTTP without aliases or production-code copies. Playwright checks `/tests/fixtures/application-lifecycle.html` for server readiness. The public sample sync workflow copies only `samples/`, `src/`, and `plugins/`; never add `tests/` to that deployment.
+
+Ordinary Photo regression tests mock only external exifr results through `tests/helpers/photo-exif.js`; Tilia transformation, validation, inference and presentation remain real. `tests/fixtures/photo-exif.jpg` is a synthetic 2×1 image used for the real exifr handoff and FileReader cancellation/destruction contracts. The offset GPX has four points; the Editor harness directly starts production plugins. See the [fixture purposes and consumers](../tests/fixtures/README.md). Public sample photos, GPX and Editor files remain independent and unchanged.
+
+`npm run test:regression` selects ordinary browser tests. `npm run test:samples` runs static and browser sample validation. `npm test -- --project=unit` selects ordinary unit tests. Existing `test:smoke:phase4*` commands remain available. CI runs `npm test` and `npm run test:smoke`, covering both categories in each runner.
 
 ### Inspect failures
 

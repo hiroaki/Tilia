@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 async function ready(page, many = false) {
-  await page.goto('/samples/phase-4h/');
+  await page.goto('/tests/fixtures/phase-4h/');
   await expect(page.locator('body')).toHaveAttribute('data-phase4h-ready', 'true');
   await page.evaluate(async (many) => {
     const { app, map } = window.phase4h;

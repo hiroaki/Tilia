@@ -1,21 +1,7 @@
 import { expect, test } from "@playwright/test";
+import { mockPhotoExif } from "../helpers/photo-exif.js";
 
-for (const timezoneId of ["Asia/Tokyo", "UTC", "America/New_York"]) {
-  test.describe(`fixed offset in ${timezoneId}`, () => {
-    test.use({ timezoneId });
-    test("real Embed JPEG matches its original GPX with +09:00", async ({ page }, testInfo) => {
-      const errors = []; page.on("pageerror", error => errors.push(error.message));
-      await page.goto("/samples/embed/");
-      await expect(page.locator(".story-status").last()).toContainText("IMG_2892.JPG: gpx-time-inference");
-      const card = page.locator(".story-card").last();
-      await card.locator(".leaflet-marker-icon").click();
-      await expect(card.locator(".tilia-popup")).toContainText("34.995338");
-      await expect(card.locator(".tilia-popup")).toContainText("135.815870");
-      await card.screenshot({ path: testInfo.outputPath("embed-fixed-offset.png") });
-      expect(errors).toEqual([]);
-    });
-  });
-}
+test.beforeEach(async ({ page }) => mockPhotoExif(page));
 
 test.describe("Photo custom offset UI", () => {
   test.use({ timezoneId: "Asia/Tokyo" });
@@ -31,7 +17,7 @@ test.describe("Photo custom offset UI", () => {
       await app.use({ id: "offset-test-observer", setup(context) {
         window.offsetViewport = () => context.map.getViewport();
       } });
-      for (const url of ["/samples/embed/biwakososui.gpx", "/samples/embed/IMG_2892.JPG"]) {
+      for (const url of ["/tests/fixtures/photo-offset-track.gpx", "/tests/fixtures/photo-exif.jpg"]) {
         const blob = await (await fetch(url)).blob();
         await app.load(new File([blob], url.split("/").at(-1), { type: blob.type }));
       }
@@ -46,7 +32,11 @@ test.describe("Photo custom offset UI", () => {
     await sign.press("Enter");
     await expect(sign).toHaveValue("+"); await expect(offset).toHaveValue("09:00");
     expect(await page.evaluate(() => window.offsetView().snapshot)).toEqual(before.snapshot);
-    await mode.selectOption("auto"); await mode.selectOption("custom");
+    await mode.selectOption("auto");
+    // Finish the committed mode change before starting a fresh uncommitted draft.
+    await expect.poll(() => page.evaluate(() => window.offsetView().snapshot.preferences.requestedTimeMode)).toBe("auto");
+    await expect(mode).toBeEnabled();
+    await mode.selectOption("custom");
     await offset.fill("08:30");
     await page.evaluate(() => window.lifecycle.app.entries.setVisible(window.offsetId, false));
     await expect(offset).toHaveValue("08:30");

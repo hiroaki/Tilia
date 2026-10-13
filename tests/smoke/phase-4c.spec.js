@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 test("Phase 4C shell, status, and base-map milestone", async ({ page }) => {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.goto("/samples/phase-4c/");
+  await page.goto("/tests/fixtures/phase-4c/");
   await expect(page.locator("body")).toHaveAttribute("data-phase4c-ready", "true");
   await expect(page.locator("#map.leaflet-container")).toBeVisible();
   await expect(page.locator(".tilia-status-text")).toHaveText("Ready");
@@ -17,7 +17,7 @@ test("Phase 4C shell, status, and base-map milestone", async ({ page }) => {
 });
 
 test("Phase 4C provider and control uninstall/reinstall leaves no duplicates", async ({ page }) => {
-  await page.goto("/samples/phase-4c/");
+  await page.goto("/tests/fixtures/phase-4c/");
   await expect(page.locator("body")).toHaveAttribute("data-phase4c-ready", "true");
   await page.evaluate(() => window.phase4cApp.unuse("x-opentopomap-base-maps"));
   await expect(page.locator('.tilia-base-map-select option[value="opentopomap"]')).toHaveCount(0);

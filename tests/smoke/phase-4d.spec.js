@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 test("Phase 4D production composition owns headless GPX and Photo semantics", async ({ page }) => {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.goto("/samples/phase-4d/");
+  await page.goto("/tests/fixtures/phase-4d/");
   await expect(page.locator("body")).toHaveAttribute("data-phase4d-ready", "true");
 
   const result = await page.evaluate(async () => {
