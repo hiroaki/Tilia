@@ -74,8 +74,8 @@ importパスはホストページがリポジトリのルートより一階層�
 | `load(input)` | 選んだ入力ハンドラーの結果で解決するPromise |
 | `destroy()` | 終端となるアプリケーションの後処理完了を共有するPromise |
 | `map`, `getMap()` | アプリケーション所有のLeaflet Mapを借用 |
-| `getBaseLayer()` | 現在のLeafletタイルレイヤー |
-| `getBaseMap()` | Mapと現在のタイルレイヤーを含む新しい`{ map, tileLayer }` |
+| `getBaseLayer()` | 現在のLeafletタイルレイヤーを借用。未選択なら`null` |
+| `getBaseMap()` | 既存のアプリ所有Mapと現在のタイルレイヤー（未選択なら`null`）を参照する新しいラッパー`{ map, tileLayer }`。Mapやレイヤーは生成しない |
 | `entries`, `domains`, `selection`, `rendering` | 下記の操作権限を保護する機能群 |
 
 通常の処理前に準備完了を待ってください。起動失敗時は自動で後処理を開始します。準備完了は指定プラグインのセットアップまでを対象とし、プラグインが始めたバックグラウンド読み込みや描画完了は待ちません。
@@ -122,9 +122,9 @@ await app.destroy();
 
 コンテナーは残ります。借用したMapを独自に取り除いたり、破棄後に古いMapや保持済みの操作機能を使ったりしないでください。Mapに付随するリソースはMapとともに終了し、無関係なホストのタイマーやページのリスナーはホストの責任です。Leafletの共有document基盤は個別のMapから独立しています。
 
-通常の繰り返し呼び出しは同じ結果を共有し、失敗した後処理を再試行しません。成功すれば同じコンテナーに異なるMapを持つ新しいアプリケーションを作れますが、失敗時は即座の再利用を保証しません。必要なリソース引き継ぎを待つ場合があり、完了はキャンセルに協力しない全タスクの終了を保証するものではありません。
+ホストからの反復`destroy()`呼び出しは、拒否を含む同じ完了Promiseを共有し、失敗した後処理を自動再試行しません。成功すれば同じコンテナーに異なるMapを持つ新しいアプリケーションを作れますが、失敗時は即座の再利用を保証しません。必要なリソース引き継ぎを待つ場合があり、完了はキャンセルに協力しない全タスクの終了を保証するものではありません。
 
-終了開始後も`ready`／`whenReady()`、`destroy()`、`hasPlugin()`、`listPlugins()`は利用できます。検出結果は`false`／空配列になります。その他の操作と保持済みの操作機能は利用が禁止されます。起動中の外部破棄が先に確定すると、未完了の準備Promiseは`APP_DESTROYED`で失敗します。起動失敗が先に確定すると元のエラーを保持します。確定済みの準備結果は変わりません。準備と後処理は別のPromiseです。
+終了開始後も`ready`／`whenReady()`、`destroy()`、`hasPlugin()`、`listPlugins()`は利用できます。検出結果は`false`／空配列になります。その他の操作と保持済みの操作機能は利用が禁止されます。準備Promiseが未確定の間にホストの`destroy()`が実行されると、直ちに`APP_DESTROYED`で拒否し、その後の起動失敗でも変わりません。起動処理の失敗ハンドラーが既に準備Promiseを起動エラーで拒否していれば、自動後処理や後のホスト破棄でもそのエラーを保持します。優先順位は準備Promiseの確定順で決まり、内部タスクが最初に例外を投げた時刻では決まりません。確定済みの準備結果は変わりません。準備と後処理は別のPromiseで、互いの完了を待ちません。
 
 <a id="semantic-and-display-apis"></a>
 
@@ -230,9 +230,9 @@ console.log(updated.revision);
 | `setStylePreset` | 空でないプリセットID。表示上の解釈はレンダラーの責務 |
 | `recomputeDerived` | `undefined`。GPXでは現在何も変更しない |
 
-点のpatchで標高・時刻を消すには`null`を使います。指定する値を`undefined`にはできません。エントリー全体の表示と、種類・トラック・ルートごとの設定は別の操作です。
+点のpatchで標高・時刻を消すには`null`を使います。指定する値を`undefined`にはできません。トラック・ルートの表示インデックスは範囲内の整数、`visible`は真偽値が必要です。未指定のインデックスに`true`を保存すると、既に実効的に表示されていても保存された設定が変わり、リビジョンが進みます。エントリー全体の表示と、種類・トラック・ルートごとの設定は別の操作です。
 
-ルートの表示条件は`entry.visible && preferences.routesVisible && preferences.routeVisibility[routeIndex] !== false`で、線と全番号マーカーに適用します。個別設定は`app.domains.gpx.get(id).snapshot.preferences.routeVisibility`で読み取り、種類・エントリー全体の切り替えでは保持します。`replaceData`はインデックスごとに設定を保持し、範囲外の指定を除き、新しいインデックスは表示を標準とします。`setRouteVisibility(id, { routeIndex, visible }, { expectedRevision })`は`setTrackVisibility`と同じ規約で、インデックスは範囲内の整数、`visible`は真偽値が必要です。現在または更新後のドメインビューを返し、保存された設定が同じなら変更通知を発行しません。エントリー・ドメイン・リビジョンのエラーも既存規約に従います。未指定のインデックスに`true`を保存する操作は、トラックと同じく設定変更です。公開APIは意味的な選択を維持し、Layersのチェックボックスはその操作で不可視になる選択だけを条件付きで解除します。
+ルートの表示条件は`entry.visible && preferences.routesVisible && preferences.routeVisibility[routeIndex] !== false`で、線と全番号マーカーに適用します。個別設定は`app.domains.gpx.get(id).snapshot.preferences.routeVisibility`で読み取り、種類・エントリー全体の切り替えでは保持します。`replaceData`はインデックスごとに設定を保持し、範囲外の指定を除き、新しいインデックスは表示を標準とします。`setRouteVisibility`は`setTrackVisibility`と同じく、上記のリビジョン検証付き更新の共通契約に従います。公開APIは意味的な選択を維持し、Layersのチェックボックスはその操作で不可視になる選択だけを条件付きで解除します。
 
 <a id="gpx-targets-and-queries"></a>
 
@@ -293,9 +293,11 @@ console.log(distance.totalMeters, nearest.match?.target);
 
 | Photo更新メソッド | 値の引数 |
 | --- | --- |
-| `replaceData` | 新しいデータ。置換データで`blob`を明示しない限り、設定とBlobを保持 |
+| `replaceData` | データオブジェクトを直接指定。任意で自身の`blob`プロパティを含める。設定は保持（下記参照） |
 | `setRequestedTimeMode` | 上記のプリセットまたは固定オフセット |
 | `recomputeDerived` | `undefined`。位置・時刻の推定を明示的に再計算 |
+
+`replaceData(id, data, { expectedRevision })`はデータオブジェクト自体を正規化します。作成時のラッパー`{ data, preferences, blob }`は置換形式ではありません。部分更新ではなく全データの置換で、省略したデータ項目は標準値になります。他の項目を保つには`{ ...view.snapshot.data, name: "renamed.jpg" }`などを渡してください。設定は変更しません。自身の`blob`プロパティを省略すると現在のプレビューリソースを保持し、`Blob`を指定すると置換、`null`または明示的な`undefined`を指定すると解除します。同じBlobを渡した場合はリソースを保持します。プレビューだけの置換・解除では意味上のリビジョンは変わらず、`domain-changed`イベントも発行しません。リソースの置換・解除は古いプレビューハンドルを無効にし、そのURLを破棄します。公開スナップショットにBlobリソースは含みません。
 
 第3引数には`{ expectedRevision }`が必要です。記録済みGPS座標を優先し、GPSがない場合は利用可能な時刻付きGPXを使って推定します。後のGPX変更は確定済みPhotoの自動再計算を行いません。適切な対応がない場合、明示的な再計算も失敗することがあります。
 
@@ -318,8 +320,9 @@ console.log(distance.totalMeters, nearest.match?.target);
 | --- | --- |
 | `getCurrent()` | 不変の`{ entryId, domain, ref }`または`null` |
 | `request(candidate)` | 選択されたスナップショットで解決するPromise |
-| `clear()` | `undefined`で解決するPromise |
+| `clear({ ifCurrent } = {})` | `undefined`で解決するPromise。選択スナップショットを指定すると、エントリー・ドメイン・参照が一致する場合だけ解除 |
 | `subscribe(listener)` | 変更だけを通知する`{ unsubscribe() }` |
+| `subscribeRequests(listener)` | `{ unsubscribe() }`。成功した要求の選択スナップショットを通知。同じ選択への反復要求も含む |
 
 対応するドメインのファサードから候補を作ります。
 
@@ -334,7 +337,7 @@ const selectedTrack = app.domains.gpx.selection.resolve(current.entryId, current
 
 GPX候補には上記の種類とインデックスを使い、呼び出し側のリビジョンは指定しません。Photoは標準対象を使う`app.domains.photo.selection.createCandidate(id)`です。候補は一つのアプリケーションの一つの利用側に発行される不透明な値です。自作、シリアライズ、アプリケーション／プラグインcontext間の受け渡しをしないでください。ドメインの`selection.resolve(id, ref)`は不変のドメインデータ、解決不能な参照なら`null`を返します。不正な参照、不在・別ドメインのエントリーは例外になる場合があります。
 
-選択イベントは`{ previous, current, reason }`です。初期状態は別途`getCurrent()`で取得してください。ドメイン更新では参照を調整または無効化し、エントリー削除でその選択を消します。非表示化、レンダラー削除、ポップアップを閉じる操作では意味上の選択を消しません。Track Editorの下書き選択は独立しています。
+選択イベントは`{ previous, current, reason }`です。reasonは`requested`、`cleared`、`refreshed`、`remapped`、`domain-invalidated`、`entry-removed`、`resolution-failed`です。`subscribeRequests`は初期通知をせず、解除やドメイン更新に伴う調整も通知しません。要求通知は状態変更通知の後に行いますが、終了や利用側の無効化で通知されない場合があります。初期状態は別途`getCurrent()`で取得してください。ドメイン更新では参照を調整または無効化し、エントリー削除でその選択を消します。非表示化、レンダラー削除、ポップアップを閉じる操作では意味上の選択を消しません。同梱のサードパーティプラグイン x-track-editor は、セマンティック選択とは独立して、編集用ドラフトの選択状態を管理します。
 
 <a id="rendering-status"></a>
 
@@ -345,9 +348,11 @@ GPX候補には上記の種類とインデックスを使い、呼び出し側�
 | `getStatus(id)` | 不変の状態。描画コントローラーがなければ`null` |
 | `list()` | 不変の状態配列 |
 | `subscribe(listener, { emitCurrent = true } = {})` | ハンドル。最初は状態配列、以降は個別の状態を通知 |
-| `retry(id)` | 新しい試行を開始して同期的に状態を返す。表示完了は待たない |
+| `retry(id)` | 現在の意味上のデータの新規ビルドを要求し、同期的に状態を返す。表示完了は待たない |
 
 状態には`entryId`、`domain`、`state`、`visible`、`semanticRevision`があります。`state`は`unavailable`、`building`、`active`、`failed`です。世代の項目は`currentToken`／`currentRevision`、`pendingToken`／`pendingRevision`、`fallbackToken`／`fallbackRevision`、`fallbackDisplayed`です。トークンは不透明な値として扱ってください。`lastFailure`はエラー要約または`null`、`cleanupResidualCount`は未完了の後処理記録数です。
+
+`retry(id)`は`active`・`building`を含む全4状態のコントローラーで利用でき、進行中の試行を置き換えます。レンダラー導入済みなら現在の意味上のリビジョンで非同期ビルドを新たに予約し、未導入ならビルドせず`unavailable`のままです。コントローラーがなければ通常の`Error("Entry not found")`を投げます。破棄後の`app.rendering`取得は`APP_DESTROYED`、保持済み描画ファサードは`RENDERING_TERMINATED`を投げる場合があります。後のビルド失敗は戻り値のPromiseではなく状態で報告します。意味上のデータ・リビジョンは変えず、表示成功を保証せず、残存する後処理の明示的な再試行でもありません。
 
 描画が利用不可なのは、レンダラー未導入の場合もあります。失敗しても確定済みデータは巻き戻しません。置き換え中は代替表示が残ることがあり、そのリビジョンと意味上のリビジョンを状態で区別できます。世代モデルは[アーキテクチャ（英語）](ARCHITECTURE.md)を参照してください。
 
@@ -365,11 +370,13 @@ PluginContextも利用側ごとの寿命を持つエントリー・ドメイン�
 
 結び付け・抑制の`dispose()`はPromiseを返します。これらはレンダラーのレイヤーや任意ドメインの抑制を公開するものではありません。所有Scope、サービス、登録、非同期処理は[開発ガイド](PLUGIN-OPERATIONS.ja.md)を参照してください。
 
+抑制はレンダラーの世代ではなく、ドメインの対象に結び付きます。レンダラーを削除して再インストールしても、有効な抑制リースは維持されます。GPXの構造を置き換えない変更では、リビジョン付き参照を調整します。`replaceData`は、置き換え後の構造が同じでも以前のトラック抑制を無効にし、エントリー削除でも無効になります。無効なリースの解放が新しい対象の抑制・表示を変えることはありません。最後の有効なリースを解放すると、取得時ではなく現在の表示設定に従います。
+
 <a id="errors-and-extension-boundary"></a>
 
 ## エラーと拡張の境界
 
-非同期の失敗を捕捉し、定義された条件には`code`を使います。検証エラーやブラウザのネイティブエラーもあり、すべてが公開のエラークラスとは限りません。
+同期例外とPromiseの拒否を両方捕捉し、定義された条件には`code`を使います。通常Promiseを返すメソッドも、操作権限の検証や引数の分割代入で同期例外を投げる場合があります。検証エラーやブラウザのネイティブエラーもあり、すべてが公開のエラークラスとは限りません。
 
 | 契約 | 項目／解釈 |
 | --- | --- |
@@ -397,7 +404,7 @@ PluginContextも利用側ごとの寿命を持つエントリー・ドメイン�
 | `defineDomainKey({ id })` | 識別子を定義。アプリケーションのドメインファサードを作るものではない |
 | `defineServiceKey({ id, validate = null, createFacade })` | サービス契約を定義。`createFacade`は必須 |
 | `statusServiceKey`, `panelServiceKey`, `gpxQueryServiceKey` | プラグイン向け共有サービス契約 |
-| `cloneAndFreezePlainData(value, path = "snapshot")` | 有限の基本値・配列・プレーンオブジェクトを複製し不変化。Date、Blob、Mapなどは拒否 |
+| `cloneAndFreezePlainData(value, path = "snapshot")` | `null`、`undefined`、文字列、真偽値、有限数、配列、プレーンオブジェクトを複製し不変化。Date、Blob、Mapなどは拒否 |
 
 型付きIDは小文字の英数字をハイフンで区切ります。同じIDで別々に作ったキーは別の識別子です。提供側と利用側で契約キーを共有してください。プレーンデータのスナップショットには循環参照を含められません。
 

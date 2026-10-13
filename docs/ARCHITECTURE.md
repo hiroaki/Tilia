@@ -18,9 +18,9 @@ Generic mechanisms manage entry identity, selection, dependency ordering, resour
 
 Several choices follow from that principle:
 
-- **Optional features remain optional.** A GPX-only application does not need the JPEG handler's EXIF parser. The catalog exposes lazy loaders; selecting a feature determines which implementations are loaded.
+- **Optional features remain optional.** A GPX-only application does not need the JPEG handler's EXIF parser. The catalog exposes lazy loaders; configuring plugins determines which implementations are loaded.
 - **Data is authoritative.** Map layers and UI are replaceable views of committed data. Rendering failure or removal does not erase that data.
-- **Ownership is explicit.** Every registration, listener, layer, timer, request, and temporary view has an owner. Initialization includes a plan for cleanup, including partial failure.
+- **Ownership is explicit.** Every Tilia-managed registration, listener, layer, timer, request, and temporary view has an owner. Plugins must also arrange ownership and cleanup for effects acquired outside those mechanisms. Initialization includes a plan for cleanup, including partial failure.
 - **Extension contracts stay specific.** Services, domains, inputs, and UI contributions solve different problems. Plugins integrate through those contracts rather than a universal registry or global event bus.
 - **Abstractions serve concrete mapping needs.** Shared mechanisms are justified by uses such as GPX, Photos, editing sessions, and input controls. A format-specific operation does not become generic merely by giving it a generic name.
 - **Built-in and external plugins share the model.** Built-ins use guarded contexts, staged registrations, and owned resources too. Application composition and lifecycle coordination remain infrastructure responsibilities.
@@ -70,7 +70,7 @@ Base maps have a separate boundary. Their registered definitions, selected tile 
 
 ## Dependencies and typed extensions
 
-`requires` declares plugin IDs that must be installed before a plugin can operate and remain available during its lifetime. The runtime validates the reachable dependency graph and rejects missing definitions or cycles. Known dependencies install first; an active dependency is reused. The official catalog contains only `tilia-*` IDs. Unknown third-party IDs and dependencies use the fixed `plugins/<id>/loader.js` convention relative to Tilia’s module location. `x-` means experimental; all non-`tilia-*` IDs are third-party. The sibling `src/` and `plugins/` layout is fixed and the directory is not configurable. Use direct definitions or explicit application catalogs for nonstandard locations; arbitrary packages or URLs are not discovered.
+`requires` declares plugin IDs that must be installed before a plugin can operate and remain available during its lifetime. The runtime validates the reachable dependency graph and rejects missing definitions or cycles. Known dependencies install first; an active dependency is reused. The official catalog contains only `tilia-*` IDs. Third-party plugin IDs absent from the application catalog, including IDs reached through `requires`, use the fixed `plugins/<id>/loader.js` convention relative to Tilia’s module location. `x-` means experimental; all non-`tilia-*` IDs are third-party. The sibling `src/` and `plugins/` layout is fixed and the directory is not configurable. Use direct definitions or explicit application catalogs for nonstandard locations; arbitrary packages or URLs are not discovered.
 
 A dependency declaration is distinct from a callable service, a semantic domain, or a UI contribution:
 
@@ -86,13 +86,15 @@ A dependency declaration is distinct from a callable service, a semantic domain,
 
 Typed keys identify contracts, independently of plugin IDs. Providers and consumers share the same exported key object. Essential integration uses a hard dependency and required lookup; optional integration uses guarded optional access and targeted availability subscriptions, or a contribution that can wait for its host.
 
-Removing a dependency is blocked while an active dependent requires it. Removing a dependent does not automatically uninstall prerequisites, and a successfully installed prerequisite remains if a later dependent fails. Automatically installed dependencies use default options; configure a prerequisite explicitly first when needed. These installation details are covered in [Developing plugins](PLUGIN-OPERATIONS.md#2-install-the-plugin).
+These contracts can share private staging and ownership machinery without sharing a public registry. Their conflict rules differ: a second service provider is invalid, multiple input claimants are expected, and a contribution belongs to a specific host. A universal registry would move these rules into conventions that consumers must interpret.
+
+Removing a dependency is blocked while an active dependent requires it. This constraint is independent of entry-held domain provider leases: entries can block provider removal even when no active plugin requires it. Removing a dependent does not automatically uninstall prerequisites, and a successfully installed prerequisite remains if a later dependent fails. Automatically installed dependencies use default options; configure a prerequisite explicitly first when needed. These installation details are covered in [Developing plugins](PLUGIN-OPERATIONS.md#2-install-the-plugin).
 
 ## Installation and publication
 
 Each plugin installation has its own publication boundary:
 
-1. Evaluate unknown external loaders to obtain and validate the full metadata closure, then plan dependencies. Known catalog implementations resolve after planning.
+1. Evaluate unknown external loaders to obtain and validate metadata for the plugin and all reachable dependencies, then plan dependencies. Known catalog implementations resolve after planning.
    Import is separate from setup; arbitrary module-evaluation side effects cannot be rolled back.
 2. Create its Scope and PluginContext.
 3. Run setup, stage registrations, and own any immediate physical effects.
@@ -102,7 +104,9 @@ Each plugin installation has its own publication boundary:
 
 Other plugins do not observe half-published registry contributions. Listeners, styles, or DOM can be acquired during setup, so their cleanup must already be owned even before commit. Setup or commit failure rolls back that plugin's effects; it does not create a transaction over the whole dependency graph or arbitrary external effects. An application entry already committed through a domain has its own publication boundary and is not automatically removed by a later setup failure.
 
-Post-commit notification failures are isolated and do not reverse committed registrations. `lifecycle.afterCommit` starts work only after the plugin becomes active; its callback returns void and any asynchronous work it starts needs separate ownership and observation.
+Registration publication is synchronous and callback-free; notifications follow the committed state. This prevents reentrant observers from seeing a partially published batch. It is logical publication atomicity, not a promise that arbitrary browser or Leaflet effects are visually atomic.
+
+Post-commit notification failures are isolated and do not reverse committed registrations. `lifecycle.afterCommit` starts work only after the plugin becomes active; its callback must return `void`, not a Promise. Any asynchronous work it starts needs separate ownership and observation.
 
 Concurrent requests for one plugin share installation, and lifecycle changes are serialized. Host code directs installation and removal. Plugins must not call app/runtime installation, removal, or destruction from their setup or cleanup.
 
@@ -112,11 +116,13 @@ The internal entry store manages application-owned entries through guarded facad
 
 An entry ID is opaque, local to one app, and never reused once reserved. The domain association does not change. Updating data in the same domain preserves entry identity; creating an edited copy or importing a route creates a new entry.
 
-Domain APIs expose immutable snapshots and explicit commands. Revision checks prevent applying a command to data that has changed since it was read. Domain-owned changes, including GPX child visibility/style and Photo time interpretation, can advance the semantic revision. Generic whole-entry visibility is separate and does not advance that revision.
+Domain APIs expose immutable snapshots and explicit commands. Revision checks prevent applying a command to data that has changed since it was read. Changes to public domain data or preferences, including GPX child visibility/style and Photo time interpretation, advance the semantic revision; no-ops do not. Photo preview-only resource changes can leave it unchanged. Generic whole-entry visibility is separate and does not advance that revision.
 
 Every in-progress creation and committed entry holds a lease on its exact domain provider. The entry store, not an ordinary service consumer, manages that lease. Explicit provider removal is blocked while leases remain. This prevents persistent entries from losing the implementation needed to interpret or dispose of them.
 
 The creator is not the lifetime owner of a committed entry. An input operation or editing session may end while its successful result remains in the application.
+
+Application ownership and the provider lease solve different problems: imported or saved data must survive removal of its creating tool, while the implementation needed to interpret and release that data must remain available. Provider removal therefore rejects rather than silently deleting user data or leaving entries without their semantic implementation.
 
 ### Creation and input
 
@@ -139,7 +145,7 @@ Rendering starts after semantic commit and is not a condition of it. A rendering
 
 A domain command prepares and validates a new snapshot, commits its semantic state/revision, and reconciles selection before rendering catches up. A failure before semantic commit leaves the prior state intact; a rendering or cleanup failure after commit does not reverse the committed change.
 
-Removal first makes an entry logically unavailable and invalidates its selection and presentation authority. It then attempts to close rendering, entry-bound overlays, and domain resources, and publishes the final removal notification after those attempts. The provider lease is released only when required cleanup succeeds. Cleanup uses captured handles because public lookup can no longer find the entry.
+Removal first makes an entry logically unavailable and invalidates its selection and presentation authority. It then attempts to close rendering, entry-bound overlays, and domain resources, and publishes the final removal notification after those attempts. The provider lease is released only after the entry Scope closes successfully and no retained update cleanup obligations remain. Scope cleanup includes rendering, bound presentation lifetimes, and provider-instance disposal; a failure in any of these can retain the lease, even if the failed resource is purely visual. Cleanup uses captured handles because public lookup can no longer find the entry.
 
 Cleanup failure does not restore the entry. Remaining obligations and their provider lease are tracked for permitted cleanup attempts. `entries.clear()` removes entries in reverse insertion order, continues after failures, and batches notifications; it is not an all-or-nothing rollback transaction.
 
@@ -149,11 +155,17 @@ An optional primary renderer interprets a domain snapshot and creates a disposab
 
 Internally, an application-owned rendering coordinator maintains an entry controller and generations built by the active renderer. A generation owns its layers, bindings, pane leases, and other resources in a dedicated destination-owned lifetime. Its currency depends on the source semantic revision, renderer registration, generation token, and entry/Scope authority.
 
-For replacement, the renderer prepares a candidate, validates it against current state, and activates it while deactivating the previous generation. Consumers never receive a half-built generation as current. Failure before activation discards the candidate; failure cleaning up the old generation after activation does not roll back the new one.
+For replacement, the renderer prepares a candidate, validates it against current state, and activates it while deactivating the previous generation. Consumers never receive a half-built generation as current. This is logical publication atomicity: Leaflet attachment and removal can invoke callbacks and need not form a visually atomic swap. Failure before activation discards the candidate; failure cleaning up the old generation after activation does not roll back the new one.
+
+In-place domain updates are limited to synchronous changes of properties on existing generation-owned resources, with unchanged resource registrations and semantic target mapping. Preparation and preflight must not alter visible resources; commit must be nonthrowing after preflight or reliably rollbackable. Adding or removing resources, changing attachment membership or bindings, or acquiring new effects requires replacement. Whole-entry visibility remains the separate coordinator-managed attachment operation. The current GPX renderer chooses replacement for domain changes.
 
 If data has already advanced, an old generation may only remain as a non-interactive visual fallback or be hidden. It cannot provide current semantic interaction or presentation handles. Rendering status distinguishes `unavailable`, `building`, `active`, and `failed`; availability is separate from the entry's visibility.
 
+That stale fallback is permitted while replacement is being prepared. A definitive failure of the current replacement attempt retires it; toggling visibility must not restore it. A healthy current generation for the same semantic revision and active renderer registration remains `active` after a failed rebuild, with the failure recorded. This is distinct from a stale fallback; matching revision alone does not establish currentness. A superseded attempt only cleans up its own resources and cannot overwrite the newer attempt's state.
+
 Presenters resolve anchors, bounds, and highlights through controlled presentation handles. A handle's `isCurrent()` and `signal` describe its authority. Once invalidated, that handle never revives; renewed presentation requires a fresh resolution. This lets a popup or elevation marker stop using an old projection without accessing the renderer's raw layers.
+
+When a domain can compute geographic bounds from semantic data, fitting the map should use those bounds without requiring a renderer or visible layers. Presentation resolution serves rendered anchors, extents, and highlights; it must not become the authority for semantic geometry. Neither renderer installation nor replacement inherently authorizes a viewport change; that is a caller or feature policy.
 
 ## Selection, interaction, and visibility
 
@@ -163,7 +175,7 @@ Physical interactions translate map/UI events into semantic intent. Bindings hav
 
 Interaction Host rechecks binding activity, Scope operational authority, and origin-surface/generation validity before invoking each handler and before starting its action. Explicit binding disposal revokes authority immediately, even if listener cleanup fails or remains pending. Invalidated candidates are skipped; an already consumed decision remains consumed when its action cannot start. Actions that have already started are not retroactively cancelled: asynchronous actions must use their owner's signal and recheck authority after each suspension.
 
-The current [public interaction contract](INTERACTIONS.md) defines surface ownership, dispatch stages, decisions, and Leaflet boundaries for plugin authors. Background is the final unconsumed dispatch stage, including eligible object events that decline; it is not an empty-map hit test. Ordinary plugin bindings attach immediately, whereas renderer bindings are generation-staged. Occurrence deduplication and publication suppression belong to Host internals, not a public gesture or interaction-mode system.
+The current [public interaction contract](INTERACTIONS.md) defines surface ownership, dispatch stages, decisions, and Leaflet boundaries for plugin authors. Background is the final unconsumed dispatch stage, including eligible object events that decline; it is not an empty-map hit test. Ordinary plugin bindings attach immediately, whereas renderer bindings are generation-staged. The Host prevents duplicate dispatch of the same event occurrence and suppresses dispatch during controlled publication. These are internal safeguards, not a public gesture or interaction-mode system.
 
 Application composition owns the standard background-click binding in a dedicated application child scope. Through Interaction Host, an unconsumed background click clears Selection Store; with no selection it is a no-op. This binding survives presenter removal and is revoked at application teardown before selection termination. Selection Store owns state and notifications; Map Selection Presenter owns only indicators, popups, and their presentation lifetimes.
 
@@ -208,7 +220,7 @@ Track Editor's draft remains independent after initialization. Source changes/de
 
 A Scope owns an effect's lifetime. Plugin roots belong to the runtime; child scopes support shorter requests, panels, sessions, and presentations. An entry or renderer generation has its own destination-owned lifetime. Resources do not detach from an owner or transfer between generations. Shared resources such as stylesheets use a manager with separately owned leases.
 
-Closing first revokes operational authority and aborts signals, then performs cancellation, waits for explicitly awaitable work, closes children, and disposes cleanup records. Children and local records close in reverse acquisition order; setup-return cleanup runs after children and before local records. Independent cleanup continues after errors, successful records do not repeat, and only declared retry-safe failed records can be attempted again.
+Closing first revokes operational authority and aborts signals, then performs cancellation, waits for explicitly awaitable work, closes children, and disposes cleanup records. Children close in reverse creation order and local records in reverse registration order; setup-return cleanup runs after children and before local records. Independent cleanup continues after errors, successful records do not repeat, and only declared retry-safe failed records can be attempted again.
 
 Cancellation is cooperative. An AbortSignal requests cancellation; guarded operations and post-await checks prevent stale publication even if the underlying work ignores it. Observing a Promise does not make it cancellable. Resource-specific preparation and disposer handoffs may need to finish before release; arbitrary parsing or detached work does not create a universal shutdown wait barrier.
 
@@ -231,9 +243,11 @@ A quarantined plugin cannot be replaced through another `use` request. Existing 
 
 Destruction makes the app unusable immediately. Pending publication is fenced, and exact domain providers plus required dependencies are retained while entry or creation cleanup still needs them. Entries and presentations are removed, independent plugin/infrastructure cleanup proceeds, and the app-owned Map's public removal is attempted last. The caller's container and unrelated page resources survive.
 
-Ordinary repeated destruction shares the same outcome, including failure. The old app cannot be reinitialized; after successful cleanup, a fresh app creates a distinct Map on the surviving container. Cleanup failure does not promise immediate reuse. Destroy does not wait for ready, and ready does not wait for cleanup; an externally initiated destroy rejects pending ready, while an initiating startup failure preserves its original cause.
+Repeated destroy() calls from the host share the same completion Promise, including rejection; they do not automatically retry failed cleanup. The old app cannot be reinitialized; after successful cleanup, a fresh app creates a distinct Map on the surviving container. Cleanup failure does not promise immediate reuse. Destroy does not wait for ready, and ready does not wait for cleanup; an externally initiated destroy rejects pending ready, while an initiating startup failure preserves its original cause.
 
 Application shutdown can revoke operations before every retained provider Scope physically closes. Cleanup must use captured resource handles; cached capabilities or an `alive` check alone cannot authorize new work.
+
+Selection termination emits no final selection event, and rendering termination emits no final rendering-status event. Presentation handles and owner lifetimes supply invalidation. Consumers must close owned effects through those lifetimes rather than wait for a final notification from an already terminated subsystem.
 
 Supported entry points are the exports from `src/index.js`, the documented application facades, and PluginContext capabilities. Internal composition factories, stores, registry engines, provider lease mutation, and render-generation machinery are implementation details. Access to a source file does not make it a supported extension point.
 
