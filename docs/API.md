@@ -64,8 +64,8 @@ The separately exported `createBaseMap(container, options = {})` accepts these b
 | `load(input)` | Promise resolving to the chosen input handler's result |
 | `destroy()` | Shared Promise completing terminal application cleanup |
 | `map`, `getMap()` | Borrowed app-owned Leaflet Map |
-| `getBaseLayer()` | Current Leaflet tile layer |
-| `getBaseMap()` | A new bundle `{ map, tileLayer }` with the Map and current tile layer |
+| `getBaseLayer()` | Current borrowed Leaflet tile layer, or `null` when none is selected |
+| `getBaseMap()` | A fresh wrapper `{ map, tileLayer }` referencing the existing app-owned Map and current tile layer (or `null`); creates no Map or layer |
 | `entries`, `domains`, `selection`, `rendering` | Guarded capabilities described below |
 
 Await readiness before ordinary work. Startup failure initiates cleanup automatically. Readiness covers configured plugin setup; it does not wait for background imports started by a plugin or for rendering to complete.
@@ -106,9 +106,9 @@ await app.destroy();
 
 The container survives. Do not independently remove the borrowed Map or use an old Map or cached capability after destruction. Map-attached resources end with the Map; unrelated host timers/page listeners remain the host's responsibility. Leaflet's shared document infrastructure is independent of a single Map.
 
-Ordinary repeated calls share the same outcome and do not retry failed cleanup. Successful cleanup permits a new app with a distinct Map on the same container; cleanup failure does not guarantee immediate container reuse. Cleanup may wait for required resource handoffs, so completion is not a guarantee that every noncooperative task has settled.
+Repeated `destroy()` calls from the host share the same completion Promise, including rejection; they do not automatically retry failed cleanup. Successful cleanup permits a new app with a distinct Map on the same container; cleanup failure does not guarantee immediate container reuse. Cleanup may wait for required resource handoffs, so completion is not a guarantee that every noncooperative task has settled.
 
-`ready`/`whenReady()`, `destroy()`, `hasPlugin()`, and `listPlugins()` remain accessible after shutdown starts; discovery returns `false`/an empty array. Other operations and cached capabilities are fenced. External destruction during startup rejects pending readiness with `APP_DESTROYED` if it wins; startup failure preserves its original error if it wins. Already settled readiness stays settled. Readiness and cleanup are separate Promises.
+`ready`/`whenReady()`, `destroy()`, `hasPlugin()`, and `listPlugins()` remain accessible after shutdown starts; discovery returns `false`/an empty array. Other operations and cached capabilities are fenced. If a host `destroy()` call runs while readiness is pending, it rejects readiness immediately with `APP_DESTROYED`, even if startup later fails. If the bootstrap failure handler has already rejected readiness with the startup error, its automatic cleanup and later host destruction preserve that error. The ordering is the settlement of the readiness Promise, not when an underlying task first throws. Already settled readiness stays settled. Readiness and cleanup are separate Promises; neither waits for the other.
 
 ## Semantic and display APIs
 
@@ -206,9 +206,9 @@ console.log(updated.revision);
 | `setStylePreset` | Nonempty preset ID; visual interpretation belongs to the renderer |
 | `recomputeDerived` | `undefined`; currently a GPX no-op |
 
-Point patches use `null` to clear elevation/timestamp; supplied patch values cannot be `undefined`. Whole-entry visibility and category/track/route preferences are separate controls.
+Point patches use `null` to clear elevation/timestamp; supplied patch values cannot be `undefined`. Track/route visibility indexes must be in-range integers and `visible` must be boolean. Storing `true` at an absent per-track/per-route index changes the stored preferences and advances the revision, even though that target was already effectively visible. Whole-entry visibility and category/track/route preferences are separate controls.
 
-Route visibility is `entry.visible && preferences.routesVisible && preferences.routeVisibility[routeIndex] !== false` and applies to its line and every numbered point marker. Read individual preferences through `app.domains.gpx.get(id).snapshot.preferences.routeVisibility`; category/entry toggles leave them intact. `replaceData` retains preferences by index, discards removed indexes, and defaults new indexes to visible. `setRouteVisibility(id, { routeIndex, visible }, { expectedRevision })` follows `setTrackVisibility`: indexes must be in-range integers and `visible` must be boolean; it returns the current/new domain view, emits no mutation for unchanged stored preferences, and uses the existing entry/domain/revision errors. Explicitly storing `true` at an absent index is a preference change, as for tracks. Public visibility mutations retain semantic selection; Layers checkbox hides conditionally clear only selections made invisible by that operation.
+Route visibility is `entry.visible && preferences.routesVisible && preferences.routeVisibility[routeIndex] !== false` and applies to its line and every numbered point marker. Read individual preferences through `app.domains.gpx.get(id).snapshot.preferences.routeVisibility`; category/entry toggles leave them intact. `replaceData` retains preferences by index, discards removed indexes, and defaults new indexes to visible. `setRouteVisibility` follows the common revision-checked mutation contract above, as does `setTrackVisibility`. Public visibility mutations retain semantic selection; Layers checkbox hides conditionally clear only selections made invisible by that operation.
 
 ### GPX targets and queries
 
@@ -265,9 +265,11 @@ Fixed offsets interpret the EXIF wall-clock calendar fields in the specified off
 
 | Photo mutation | Value argument |
 | --- | --- |
-| `replaceData` | New data; preserves preferences/Blob unless replacement data explicitly supplies `blob` |
+| `replaceData` | Data object directly, optionally with its own `blob` property; keeps preferences (details below) |
 | `setRequestedTimeMode` | A preset or fixed offset, as above |
 | `recomputeDerived` | `undefined`; explicitly recomputes location/time inference |
+
+`replaceData(id, data, { expectedRevision })` normalizes the data object itself; the creation wrapper `{ data, preferences, blob }` is not a replacement format. It replaces the full data rather than applying a patch: omitted data fields take their defaults. To preserve other fields, pass `{ ...view.snapshot.data, name: "renamed.jpg" }`. Preferences remain unchanged. Omit the own `blob` property to retain the current preview resource; supply a `Blob` to replace it, or `null`/explicit `undefined` to clear it. Passing the same Blob retains the resource. A preview-only replacement/clear leaves the semantic revision unchanged and emits no `domain-changed` event; replacing/clearing a resource invalidates its old preview handles and disposes its URL. Blob resources are not part of public snapshots.
 
 Commands require `{ expectedRevision }` as their third argument. Recorded GPS coordinates take precedence. Without GPS, inference uses available timestamped GPX data. Later GPX changes do not automatically recompute committed Photos. Explicit recomputation can reject when no suitable match exists.
 
@@ -288,8 +290,9 @@ There is no public `handle.url`. Clear displayed image sources when the signal a
 | --- | --- |
 | `getCurrent()` | Frozen `{ entryId, domain, ref }` or `null` |
 | `request(candidate)` | Promise resolving to the selected snapshot |
-| `clear()` | Promise resolving to `undefined` |
+| `clear({ ifCurrent } = {})` | Promise resolving to `undefined`; with a selection snapshot, clears only a matching entry/domain/reference |
 | `subscribe(listener)` | Change-only handle `{ unsubscribe() }` |
+| `subscribeRequests(listener)` | Handle `{ unsubscribe() }`; receives the selected snapshot for successful requests, including repeated requests for the same selection |
 
 Create candidates through the matching domain facade:
 
@@ -304,7 +307,7 @@ const selectedTrack = app.domains.gpx.selection.resolve(current.entryId, current
 
 GPX candidate targets use the kinds/indexes above without a caller-supplied revision. Photo uses `app.domains.photo.selection.createCandidate(id)` with its default target. Candidates are opaque, issued to one consumer in one application; do not fabricate, serialize, or pass them between app/plugin contexts. Domain `selection.resolve(id, ref)` returns immutable domain data or `null` for an unresolving reference; malformed references or missing/wrong-domain entries can throw.
 
-Selection events contain `{ previous, current, reason }`. Read `getCurrent()` separately for initial state. Domain updates reconcile or invalidate references; removal clears the entry's selection. Hiding an entry, removing its renderer, or closing a popup does not clear semantic selection. Track Editor's draft selection is independent.
+Selection events contain `{ previous, current, reason }`. Reasons are `requested`, `cleared`, `refreshed`, `remapped`, `domain-invalidated`, `entry-removed`, or `resolution-failed`. `subscribeRequests` has no initial notification and does not report clearing or domain reconciliation; request notifications follow any state-change notification, and shutdown/consumer invalidation can prevent their delivery. Read `getCurrent()` separately for initial state. Domain updates reconcile or invalidate references; removal clears the entry's selection. Hiding an entry, removing its renderer, or closing a popup does not clear semantic selection. The bundled third-party x-track-editor plugin maintains its draft selection independently of semantic selection.
 
 ### Rendering status
 
@@ -313,9 +316,11 @@ Selection events contain `{ previous, current, reason }`. Read `getCurrent()` se
 | `getStatus(id)` | Immutable status, or `null` without a rendering controller |
 | `list()` | Frozen status array |
 | `subscribe(listener, { emitCurrent = true } = {})` | Handle; initial status array, then individual status notifications |
-| `retry(id)` | Starts another attempt and synchronously returns status; does not await display |
+| `retry(id)` | Requests a fresh build of current semantics and synchronously returns status; does not await display |
 
 Status contains `entryId`, `domain`, `state`, `visible`, and `semanticRevision`. States are `unavailable`, `building`, `active`, or `failed`. Generation fields are `currentToken`/`currentRevision`, `pendingToken`/`pendingRevision`, `fallbackToken`/`fallbackRevision`, and `fallbackDisplayed`. Treat tokens as opaque. `lastFailure` is an error summary or `null`; `cleanupResidualCount` counts outstanding cleanup records.
+
+`retry(id)` accepts controllers in all four states, including `active` and `building`; it supersedes a pending attempt. With a renderer installed, it schedules a fresh asynchronous build at the current semantic revision. Without a renderer it remains `unavailable` and starts no build. It throws a plain `Error("Entry not found")` when no controller exists; accessing `app.rendering` after destruction throws `APP_DESTROYED`, while a cached rendering facade can throw `RENDERING_TERMINATED`. Later build failures are reported through status, not a returned Promise. Retry does not change semantic data/revision or guarantee display success, and is not an explicit retry of residual cleanup.
 
 Unavailable rendering can mean no renderer is installed. Failure does not roll back committed data. During replacement, a fallback may remain visible; status distinguishes its revision from the semantic revision. See [Architecture](ARCHITECTURE.md) for the generation model.
 
@@ -331,9 +336,11 @@ PluginContext exposes the same entry/domain/selection/rendering facades with con
 
 Binding/suppression `dispose()` returns a Promise. These APIs do not expose renderer layers or arbitrary domain suppression. The [developer guide](PLUGIN-OPERATIONS.md) explains owned Scopes, services, registration, and asynchronous work.
 
+Suppression follows the domain target, not a renderer generation. Removing and reinstalling a renderer preserves valid suppression leases. GPX nonstructural changes remap their revision-scoped references; `replaceData` invalidates old track suppression even if the replacement has identical structure. Entry deletion also invalidates it. Releasing an obsolete lease cannot suppress or reveal a replacement target; releasing the final valid lease follows the current visibility preferences, not the preferences captured at acquisition.
+
 ## Errors and extension boundary
 
-Catch asynchronous failures and check `code` for defined conditions. Validation/native browser errors can also occur; not every failure is an exported error class.
+Catch both synchronous exceptions and Promise rejections, and check `code` for defined conditions. Even methods normally returning Promises can throw synchronously during capability checks or argument destructuring. Validation/native browser errors can also occur; not every failure is an exported error class.
 
 | Contract | Fields / interpretation |
 | --- | --- |
@@ -359,7 +366,7 @@ Synchronous app lifecycle calls from plugin setup/cleanup reject with `PLUGIN_LI
 | `defineDomainKey({ id })` | Define an identity; does not create an application domain facade |
 | `defineServiceKey({ id, validate = null, createFacade })` | Define a service contract; `createFacade` is required |
 | `statusServiceKey`, `panelServiceKey`, `gpxQueryServiceKey` | Shared service contracts for plugins |
-| `cloneAndFreezePlainData(value, path = "snapshot")` | Clone/freeze finite primitives, arrays, and plain objects; rejects objects such as Date, Blob, and Map |
+| `cloneAndFreezePlainData(value, path = "snapshot")` | Clone/freeze `null`, `undefined`, strings, booleans, finite numbers, arrays, and plain objects; rejects objects such as Date, Blob, and Map |
 
 Typed IDs use lowercase alphanumeric words separated by hyphens. Independently created keys with the same ID are distinct; share contract keys between providers and consumers. Plain-data snapshots cannot contain cyclic references.
 

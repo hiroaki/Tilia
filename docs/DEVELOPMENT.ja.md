@@ -4,7 +4,7 @@
 
 # Tiliaの開発
 
-このガイドは、Tilia本体、同梱プラグイン、サンプル、文書を変更する開発者向けです。アプリケーションへの組み込みは[README](../README.ja.md)と[Tiliaプラグインガイド](PLUGINS.ja.md)、プラグインの契約と実装例は[Tiliaプラグインの開発](PLUGIN-OPERATION.ja.md)ガイドを参照してください。
+このガイドは、Tilia本体、同梱プラグイン、サンプル、文書を変更する開発者向けです。アプリケーションへの組み込みは[README](../README.ja.md)と[Tiliaプラグインガイド](PLUGINS.ja.md)、プラグインの契約と実装例は[Tiliaプラグインの開発](PLUGIN-OPERATIONS.ja.md)ガイドを参照してください。
 
 TiliaはブラウザのES Modulesを直接利用します。サンプルの実行にビルドは不要です。Node.jsは開発サーバーとテストツールの実行に使います。
 

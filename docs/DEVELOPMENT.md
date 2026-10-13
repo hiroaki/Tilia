@@ -2,7 +2,7 @@
 
 # Developing Tilia
 
-This guide is for contributors changing Tilia itself, its bundled plugins, samples, or documentation. For application integration, start with the [README](../README.md) and [Tilia plugin guide](PLUGINS.md). For plugin contracts and implementation examples, use the [Developing Tilia plugins](PLUGIN-OPERATION.md) guide.
+This guide is for contributors changing Tilia itself, its bundled plugins, samples, or documentation. For application integration, start with the [README](../README.md) and [Tilia plugin guide](PLUGINS.md). For plugin contracts and implementation examples, use the [Developing Tilia plugins](PLUGIN-OPERATIONS.md) guide.
 
 Tilia uses browser ES modules directly. There is no build step for running the samples. Node.js supplies the development server and test tools.
 

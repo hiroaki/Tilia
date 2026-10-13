@@ -198,7 +198,7 @@ Hostのconsumeは下位managed handlerを抑止し、native／Leaflet伝播の�
 - dragging、pointer capture、touch gestureには別のnative handlerと寿命管理が必要です。click消費はこれらをキャンセルしません。
 - Mapの`contextmenu`配送自体が、有効なtargetがある場合に`preventDefault`を呼びます。Host判定とは独立です。非消費購読もブラウザのcontext menu挙動を不変にする保証ではありません。
 
-以上は同梱ソースに基づき、端末横断のgesture検証を行ったという意味ではありません。[Leaflet Map](../node_modules/leaflet/src/map/Map.js)、[Evented](../node_modules/leaflet/src/core/Events.js)、[Popup](../node_modules/leaflet/src/layer/Popup.js)、[DoubleClickZoom](../node_modules/leaflet/src/map/handler/Map.DoubleClickZoom.js)を参照してください。
+以上はTiliaが使用するLeaflet版のソースを確認した結果であり、端末横断のgesture検証を行ったという意味ではありません。同じLeaflet版のMap（`src/map/Map.js`）、Evented（`src/core/Events.js`）、Popup（`src/layer/Popup.js`）、DoubleClickZoom（`src/map/handler/Map.DoubleClickZoom.js`）の対応実装を参照してください。これらのパスは、この文書ではなくLeafletパッケージを基準にしています。リポジトリ開発では、`npm ci`が[package.json](../package.json)で指定し[package-lock.json](../package-lock.json)で固定した版を導入します。[セットアップ手順](DEVELOPMENT.ja.md#set-up-the-repository)を参照してください。
 
 ## renderer interactionと意味上の選択
 

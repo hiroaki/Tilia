@@ -170,7 +170,7 @@ Registry contributions are staged during setup. Once setup finishes successfully
 
 This is a per-plugin installation boundary. Dependencies that already installed successfully are not automatically removed when a dependent fails. Unowned network requests or page effects cannot be rolled back by the runtime.
 
-For work that must start after successful installation, register `context.lifecycle.afterCommit(callback)` during setup. Its callback must return `void`, and its returned handle has `cancel()` to cancel a pending callback. Callback errors are reported; they do not undo an already committed installation.
+For work that must start after successful installation, register `context.lifecycle.afterCommit(callback)` during setup. Its callback must return `void`, and its returned handle has `cancel()` to cancel a pending callback. Callback errors are reported; they do not undo an already committed installation. Returning a Promise or thenable reports a contract violation; its rejection is also observed and reported. Start asynchronous work separately and track it through the owning Scope.
 
 ## 4. Register features through typed capabilities
 
@@ -204,6 +204,8 @@ For a genuinely optional integration, use `context.services.optional(key)`, whic
 ### Input and data
 
 Input handlers register with `context.inputs.register({ id, priority, discovery, recognize, handle })`. `discovery` describes extensions/MIME types for input controls; `recognize(input)` decides whether to claim an input. The single highest-priority claimant handles it; an equal-priority tie rejects with `INPUT_HANDLER_CONFLICT`.
+
+Recognition must be synchronous and side-effect-free: claim an input without parsing the whole file, creating entries, or acquiring presentation resources. Parse in the selected handler. Discovery metadata is for input controls, not proof that a particular file is valid. Unsupported input does not trigger plugin installation; application composition chooses the available handlers.
 
 `handle({input, signal, scope})` receives an invocation lifetime. Check cancellation and plugin authority after asynchronous steps before creating entries. Handler results and errors are preserved by dispatch; cancellation does not imply that previously created semantic entries were rolled back. See the actual [GPX handler](../src/plugins/input/gpx.js) and [JPEG handler](../src/plugins/input/jpeg.js).
 
@@ -322,7 +324,7 @@ Guarded extensions and semantic operations have their own errors. A domain remov
 
 Host code calls `await app.destroy()`. The app becomes unusable immediately, pending work is aborted, and entries are removed while their exact providers and required dependencies are retained. Independent cleanup continues after failures; providers blocked by outstanding ownership are not forced free. The owned Leaflet Map is removed last.
 
-Destruction is terminal. Ordinary repeated calls share the same completion, including rejection; they do not automatically retry. `APP_CLEANUP_FAILED` retains original failures. After successful cleanup, a fresh app can be constructed on the surviving container. Cleanup failure does not promise immediate container reuse. See [the application API](API.md#construction-and-ownership).
+Destruction is terminal. Repeated `destroy()` calls from the host share the same completion Promise, including rejection; they do not automatically retry failed cleanup. `APP_CLEANUP_FAILED` retains original failures. After successful cleanup, a fresh app can be constructed on the surviving container. Cleanup failure does not promise immediate container reuse. See [the application API](API.md#construction-and-ownership).
 
 Do not remove the borrowed Map yourself. Map-attached effects end with it, while unrelated page timers/listeners remain their owner's responsibility. Existing Leaflet page-wide infrastructure is distinct from plugin-owned handlers. No new public recovery or privileged cleanup API is provided.
 
@@ -334,6 +336,8 @@ Entry visibility, temporary display suppression, semantic data, and editing sess
 - **Independent editor sessions:** Track Editor creates a draft from its source. Source changes/deletion or renderer removal do not end editing or prevent Save Copy. Cancel discards the draft and releases temporary suppression; it never restores a source. App/editor disposal does end the session.
 - **Temporary suppression:** editor suppression is separate from persistent entry/track visibility preferences. Release it without rewriting the user's visibility settings.
 - **Vendor interaction helpers:** the current editor retains its narrowly approved placement exception. It does not grant other plugins ownership of vendor internals or permission to bypass the ordinary guarded resource model. See the [architecture](ARCHITECTURE.md#ui-overlays-and-session-state).
+
+As an example, the bundled third-party x-track-editor plugin treats its vendored polyline as an owned composite and uses the library's public termination and removal methods. Because partial cleanup failures cannot necessarily be retried safely, the integration treats these operations as non-retryable, continues independent cleanup, and reports residual failures. It does not inspect private vendor internals or modify global Leaflet state to recover.
 
 ## 9. Verify your plugin
 
