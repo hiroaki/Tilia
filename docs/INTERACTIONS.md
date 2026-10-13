@@ -196,7 +196,7 @@ Source-verified distinctions for the installed Leaflet version:
 - Dragging/pointer capture and touch gestures require their own native handler/lifetime management; consuming a click does not cancel them.
 - Map `contextmenu` delivery itself calls `preventDefault` when it has eligible targets, independently of the Host decision. Non-consuming subscription is not a promise of unchanged browser context-menu behavior.
 
-These are based on installed source, not a claim of cross-device gesture testing. See [Leaflet Map](../node_modules/leaflet/src/map/Map.js), [Evented](../node_modules/leaflet/src/core/Events.js), [Popup](../node_modules/leaflet/src/layer/Popup.js), and [DoubleClickZoom](../node_modules/leaflet/src/map/handler/Map.DoubleClickZoom.js).
+These observations are based on source inspection of the Leaflet version used by Tilia, not cross-device gesture testing. Consult the corresponding Map (`src/map/Map.js`), Evented (`src/core/Events.js`), Popup (`src/layer/Popup.js`), and DoubleClickZoom (`src/map/handler/Map.DoubleClickZoom.js`) implementations in that same Leaflet version. These paths are relative to the Leaflet package, not this documentation. For repository development, `npm ci` installs the version declared in [package.json](../package.json) and pinned in [package-lock.json](../package-lock.json); see the [setup instructions](DEVELOPMENT.md#set-up-the-repository).
 
 ## Renderer interactions and semantic selection
 
