@@ -12,6 +12,7 @@ export function createEditorApp(phloemUrlBase) {
       "tilia-layers",
       "x-track-editor",
       "x-gpx-export",
+      "tilia-initial-view",
     ],
     pluginOptions: {
       "tilia-layers": { rank: 10 },

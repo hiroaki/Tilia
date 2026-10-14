@@ -2,7 +2,7 @@
 
 # Tilia plugin guide
 
-This guide covers the repository's 20 built-in and six third-party plugins and the application-level options used to combine them. Built-in IDs and dependencies are in [the official catalog](../src/builtins.js); third-party definitions are in their own `plugins/<id>/loader.js`. The runtime installs required dependencies before their dependents; listing a plugin does not automatically install every plugin in its feature group.
+This guide covers the repository's 21 built-in and six third-party plugins and the application-level options used to combine them. Built-in IDs and dependencies are in [the official catalog](../src/builtins.js); third-party definitions are in their own `plugins/<id>/loader.js`. The runtime installs required dependencies before their dependents; listing a plugin does not automatically install every plugin in its feature group.
 
 ## Choosing plugins
 
@@ -79,6 +79,7 @@ await app.unuse("x-milestone");
 | `tilia-file-import` | `tilia-toolbar` | Multi-file picker using installed handlers |
 | `tilia-url-import` | `tilia-toolbar` | URL input control with timeout and size limits |
 | `tilia-query-import` | — | Imports a URL from a page query parameter without a control |
+| `tilia-initial-view` | — | Experimental initial view and one-shot geolocation from `tilia.c` |
 | `tilia-settings` | `tilia-panel`, `tilia-toolbar` | Hosts per-entry settings contributed by format UI plugins |
 | `tilia-dropzone` | — | File drop target across the map area |
 
@@ -275,6 +276,18 @@ Open **Route search**, choose a profile, set Start/Goal and optional Via points,
 The default definition has `minZoom: 5`, `maxZoom: 20`, `maxNumberOfSigns: 100`, and `minIntervalMeters: 100`. Its zoom-to-meter mapping is: 5→400000, 6→300000, 7→200000, 8–9→100000, 10–11→50000, 12–13→20000, 14–15→10000, 16–17→2000, 18–19→1000. Zoom 20 and above use the minimum interval. The sign-count setting selects coarser spacing where possible; it is not a strict marker-count cap.
 
 For a custom definition, supply integer zoom bounds with `maxZoom > minZoom`, a positive integer sign count, a positive finite minimum interval, and an object of positive finite mapping values. See the [implementation](../plugins/x-milestone/loader.js).
+
+## Initial view
+
+`tilia-initial-view` is experimental independently of Tilia’s overall alpha status.
+
+Enable `"tilia-initial-view"` in `plugins` to read `tilia.c=lat,lng,zoom`, `tilia.c=lat,lng`, `tilia.c=locate`, or `tilia.c=locate,zoom` from the page URL's query string. Omitted zoom preserves the zoom at application time. The first duplicate parameter is used; invalid values are ignored. Validation covers geographical coordinates, the CRS projection latitude limit, `maxBounds`, and current map min/max zoom. Fractional zoom follows Leaflet's `zoomSnap`.
+
+Only `locate` requests browser geolocation, once, with a 15-second timeout. A secure context (normally HTTPS or localhost) and permission are required. Failure preserves the view. Map input or any map movement while pending discards the result; callbacks after destruction are ignored. There is no tracking, marker, button, or URL synchronization.
+
+Enable `"tilia-status"` separately for the existing status display. Its public API only supports `set(text)`, so starting, completing, or canceling location may overwrite another operation's message; this is an accepted experimental limitation. Uninstalling initial-view while pending can leave its message visible because its service access is revoked during disposal.
+
+GPX automatic `fitBounds` is unchanged. A fit that starts while location is pending discards the location result. GPX loaded after explicit coordinates or a successful location can still replace that view. This plugin does not guarantee a final view over later imports. When `tilia.c` (explicit coordinates or `locate`) is used together with `gpx` or other parameters that automatically adjust the map view, the final view may vary depending on the order of asynchronous operations and is not guaranteed. This combination is allowed and does not cause GPX loading to be rejected.
 
 ## Custom plugins and lifecycle
 
