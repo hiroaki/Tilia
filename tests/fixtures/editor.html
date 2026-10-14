@@ -17,14 +17,41 @@
   <script type="module">
     import { createDefaultTiliaApp } from "../../src/index.js";
 
+    const params = new URLSearchParams(location.search);
     // Real Editor and production dependencies own all UI and editing behavior.
-    createDefaultTiliaApp("map", {
+    const app = createDefaultTiliaApp("map", {
+      baseMapOptions: { mapOptions: { preferCanvas: params.get("renderer") === "canvas" } },
       plugins: [
         "tilia-gpx-input", "tilia-gpx-renderer", "tilia-gpx-ui",
         "tilia-map-selection-presenter", "tilia-panel", "tilia-layers",
         "tilia-file-import", "tilia-dropzone", "x-track-editor",
       ],
     });
+    await app.ready;
+    const map = app.getMap();
+    let restoreFailure = () => {};
+    window.editorHarness = {
+      app,
+      map,
+      failNextHandlesPane() {
+        restoreFailure();
+        const original = map.createPane;
+        const owned = Object.hasOwn(map, "createPane");
+        restoreFailure = () => {
+          if (owned) map.createPane = original;
+          else delete map.createPane;
+          restoreFailure = () => {};
+        };
+        map.createPane = function(name, ...args) {
+          if (name.includes("editor-handles")) {
+            restoreFailure(); // One-shot failure; restore before throwing.
+            throw Error("injected handles pane failure");
+          }
+          return original.call(this, name, ...args);
+        };
+      },
+      async destroy() { restoreFailure(); await app.destroy(); },
+    };
   </script>
 </body>
 </html>

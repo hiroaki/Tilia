@@ -225,6 +225,10 @@ Prefer these owned map operations:
 
 Map listener events are frozen projections (`type`, `latlng`, `layerPoint`, `containerPoint`), not raw Leaflet events. Coordinates use `{lat, lng}`. An attachment can specify a rendering band, or a pane lease owned by its Scope; foreign pane leases reject.
 
+Tilia-managed private panes and shared band panes within the same band stack in the order in which they were first created: later panes appear above earlier panes. Acquiring another lease for an existing pane does not change its stacking order. When the last lease is released, a private pane is detached from the DOM, but reacquiring it reconnects it at its original position relative to other managed panes in that band.
+
+If a managed pane is replaced rather than reconnected, the replacement receives a new creation position. For example, acquiring a private pane while it is being removed on final lease release creates a replacement, even when the plugin requests the same name. Band z-index values remain unchanged, and there is no public numeric `order` option. Tilia does not move or take ownership of standard Leaflet panes or externally owned panes; stacking order relative to those panes at the same z-index is not guaranteed.
+
 `context.ui.mountSurface` supplies an assigned container and a child Scope to its mount callback. Own listeners and temporary resources through that supplied Scope; do not modify unrelated DOM. For layer rows, popup content, settings, and toolbar items, use their contribution hosts rather than assuming another plugin's container exists. The [Photo UI contribution](../src/plugins/ui/photo.js) shows how contributor and host lifetimes are paired.
 
 Load your plugin's stylesheet with `context.styles.use({id, href})`, using an absolute URL such as `new URL("./styles.css", import.meta.url).href` when your plugin supplies that asset. The lease exposes `ready` and `release()`. Matching leases share a stylesheet until the last release; conflicting definitions with the same ID reject. Await `ready` only when your work depends on successful CSS loading.

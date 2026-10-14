@@ -14,7 +14,8 @@ export function createPaneManager({ map, scope }) {
     bands = new Map(),
     leases = new Map(),
     managedPanes = new Map(),
-    owners = new WeakMap();
+    owners = new WeakMap(),
+    creationOrder = [];
   let paneSequence = 0;
   const validate = (band) => {
     if (!Object.hasOwn(mapBands, band))
@@ -28,6 +29,7 @@ export function createPaneManager({ map, scope }) {
     // replaces its named index entry. DOM removal alone leaves that entry.
     // Only an exact manager-owned indexed element may be replaced here.
     // Mark creation before calling Leaflet, so a partial throw still has cleanup ownership.
+    if (!record.attempted) creationOrder.push(record);
     record.attempted = true;
     try {
       record.pane = map.createPane?.(record.name);
@@ -108,7 +110,8 @@ export function createPaneManager({ map, scope }) {
         map.getPane(record.name) !== record.pane
       )
         throw new Error("Refusing to manage a caller-owned pane");
-      if (record?.retiring) record = null;
+      const superseded = record?.retiring ? record : null;
+      if (superseded) record = null;
       let acquired = false,
         released = false;
       const dispose = () => {
@@ -140,6 +143,12 @@ export function createPaneManager({ map, scope }) {
           attempted: false,
         };
         leases.set(key, record);
+        // Superseded records are only needed by their captured cleanup obligations.
+        // Zero-lease current records retain their original position for reuse.
+        if (superseded) {
+          const index = creationOrder.indexOf(superseded);
+          if (index !== -1) creationOrder.splice(index, 1);
+        }
         record.count++;
         acquired = true;
         try {
@@ -156,13 +165,26 @@ export function createPaneManager({ map, scope }) {
         const reattach = record.count === 0;
         record.count++;
         acquired = true;
-        if (reattach && record.pane) {
+        if (reattach) {
           record.creating = true;
           try {
+            if (!record.pane) create(record);
+            // A failed createPane can leave a captured element before band styling.
+            record.pane.style.zIndex = String(mapBands[record.band]);
+            if (record.pane.dataset) record.pane.dataset.tiliaMapBand = record.band;
             const container = map.getPane?.("mapPane");
             if (!container?.appendChild)
               throw new Error("Map pane container is unavailable");
-            container.appendChild(record.pane);
+            // Restore this record's original position, including shared band panes.
+            // Only move our captured element; never move or adopt external panes.
+            const index = creationOrder.indexOf(record);
+            const next = creationOrder.slice(index + 1).find(candidate =>
+              candidate.band === record.band &&
+              candidate.pane?.parentNode === container &&
+              managedPanes.get(candidate.name) === candidate.pane &&
+              map.getPane?.(candidate.name) === candidate.pane);
+            if (next) container.insertBefore(record.pane, next.pane);
+            else container.appendChild(record.pane);
             ownerScope.assertAlive();
             scope.assertAlive();
           } catch (error) {

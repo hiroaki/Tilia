@@ -1,3 +1,9 @@
+// DOM insertion moves nodes without invoking their public remove() method.
+function detach(node) {
+  if (node.parentNode) node.parentNode.children = node.parentNode.children.filter(child => child !== node);
+  node.parentNode = null;
+}
+
 export class Element extends EventTarget {
   constructor(tag, ownerDocument) {
     super(); this.tagName = tag.toUpperCase(); this.ownerDocument = ownerDocument;
@@ -11,16 +17,16 @@ export class Element extends EventTarget {
     };
   }
   get isConnected() { return !!this.parentNode || this === this.ownerDocument.body || this === this.ownerDocument.head; }
-  appendChild(child) { child.remove(); this.children.push(child); child.parentNode = this; return child; }
+  appendChild(child) { detach(child); this.children.push(child); child.parentNode = this; return child; }
   insertBefore(child, reference) {
     if (child === reference) return child;
     if (reference == null) return this.appendChild(child);
     if (!this.children.includes(reference)) throw new Error("Reference is not a child");
-    child.remove(); this.children.splice(this.children.indexOf(reference), 0, child); child.parentNode = this; return child;
+    detach(child); this.children.splice(this.children.indexOf(reference), 0, child); child.parentNode = this; return child;
   }
   append(...children) { children.forEach(child => this.appendChild(child)); }
   replaceChildren(...children) { for (const child of [...this.children]) child.remove(); children.forEach((child) => this.appendChild(child)); }
-  remove() { if (this.parentNode) this.parentNode.children = this.parentNode.children.filter((x) => x !== this); this.parentNode = null; }
+  remove() { detach(this); }
   setAttribute(key, value) { this.attributes[key] = String(value); if (key === "class") this.className = String(value); }
   removeAttribute(key) { delete this.attributes[key]; if (key === "src") this.src = ""; }
   focus() { this.ownerDocument.activeElement = this; }

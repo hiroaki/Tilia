@@ -285,6 +285,10 @@ export class PartiallyEditablePolyline extends Polyline {
       options.icon = this._editorOptions.pointIcon;
     }
 
+    if (this._editorOptions.handlePane !== undefined) {
+      options.pane = this._editorOptions.handlePane;
+    }
+
     const marker = new Marker(record.latlng, options);
 
     record.marker = marker;
@@ -314,6 +318,10 @@ export class PartiallyEditablePolyline extends Polyline {
 
     if (this._editorOptions.newPointIcon) {
       options.icon = this._editorOptions.newPointIcon;
+    }
+
+    if (this._editorOptions.handlePane !== undefined) {
+      options.pane = this._editorOptions.handlePane;
     }
 
     const marker = new Marker(this._midpoint(previous.latlng, next.latlng), options);
@@ -358,8 +366,6 @@ export class PartiallyEditablePolyline extends Polyline {
     this._newPointMarkers = [];
   }
 
-  // Leaflet v2 selects a layer as a pointer-event target only when it has a
-  // listener for that event. This intentionally has no editing side effects.
   _handleMarkerClick(event) {
     const index = event.target._editablePointIndex;
     if (index == null || !this._pointRecords[index]) {
