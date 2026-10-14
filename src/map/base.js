@@ -278,8 +278,8 @@ function resolveBaseLayerDefinitions(options) {
 export function createBaseMap(containerId, options = {}) {
   const {
     mapOptions = {},
-    center = [35.681236, 139.767125],
-    zoom = 10,
+    center = [0.0, 139.7413575],
+    zoom = 2,
     selectedBaseLayerId = null,
   } = options;
 
