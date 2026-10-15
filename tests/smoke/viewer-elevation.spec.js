@@ -86,7 +86,7 @@ test("map clicks select canonical points from each logical track", async ({ page
   await page.goto("/tests/fixtures/viewer/");
   await page.locator('.tilia-file-import-control input[type="file"]').setInputFiles(multiTrackPath);
 
-  const trackPaths = page.locator('[data-tilia-map-band="geometry"] path.leaflet-interactive');
+  const trackPaths = page.locator('[data-tilia-map-band="geometry"] path.leaflet-interactive[fill="none"]');
   await expect(trackPaths).toHaveCount(2);
   // Keep fixture tracks nearby and substantial: Leaflet path clicks become flaky when fitBounds reduces a path to a few pixels.
   await trackPaths.nth(0).click();
@@ -95,7 +95,7 @@ test("map clicks select canonical points from each logical track", async ({ page
 
   await page.goto("/tests/fixtures/viewer/");
   await page.locator('.tilia-file-import-control input[type="file"]').setInputFiles(multiTrackPath);
-  const reloadedTrackPaths = page.locator('[data-tilia-map-band="geometry"] path.leaflet-interactive');
+  const reloadedTrackPaths = page.locator('[data-tilia-map-band="geometry"] path.leaflet-interactive[fill="none"]');
   await expect(reloadedTrackPaths).toHaveCount(2);
   await reloadedTrackPaths.nth(1).click();
   await expect(page.locator(".leaflet-popup")).toBeVisible();

@@ -88,6 +88,16 @@ test("4J-B form, draggable markers and context menu automatically create persist
   expect(result.document.waypoints.map(point => point.name)).toEqual(["Start","Via 1","Goal"]);
   expect(result.entries).toBe(1); await expect(page.locator(".tilia-route-search-marker-icon")).toHaveCount(0); expect(errors).toEqual([]);
 });
+async function clickDraft(page) {
+  const p = await page.evaluate(() => {
+    const { map } = window.phase4j;
+    map.setView([35.682, 139.765], 15, { animate: false });
+    const p = map.latLngToContainerPoint([35.68, 139.76]);
+    const r = map.getContainer().getBoundingClientRect();
+    return { x: r.x + p.x, y: r.y + p.y };
+  });
+  await page.mouse.click(p.x, p.y);
+}
 async function editorSession(page, { overlap = false } = {}) {
   await page.goto("/tests/fixtures/phase-4j/"); await expect(page.locator("body")).toHaveAttribute("data-phase4j-ready","true");
   const id = await page.evaluate(async overlap => {
@@ -97,7 +107,7 @@ async function editorSession(page, { overlap = false } = {}) {
   }, overlap);
   await page.getByRole("button",{name:"Track editor",exact:true}).click();
   await page.getByRole("button",{name:"Start Edit",exact:true}).click();
-  await page.evaluate(()=>{const {map}=window.phase4j;map.fire("click",{latlng:{lat:35.68,lng:139.76}});});
+  await clickDraft(page);
   await expect(page.locator(".leaflet-partially-editable-polyline-point")).toHaveCount(3);
   return id;
 }
@@ -151,7 +161,7 @@ test("4J-C editor-owned modal panes stack handles above overlapping draft geomet
   expect(placement).toEqual({
     separateEditorPanes: true, bothHandleTypesSharePane: true,
     bands: ["modal", "modal"], z: ["660", "660"], handlesAfterDraft: true,
-    vertexHit: true, midpointHit: true, pointer: "none",
+    vertexHit: true, midpointHit: true, pointer: "auto",
   });
   await page.locator(".leaflet-partially-editable-polyline-point").first().click();
   await expect(page.locator(".tilia-track-editor-selection-ring")).toHaveCount(1);
@@ -179,7 +189,7 @@ test("4J-C editor-owned modal panes stack handles above overlapping draft geomet
   await expect(page.locator("body")).not.toHaveClass(/leaflet-dragging/);
   expect(await page.evaluate(() => window.documentPointerCount())).toBe(pointerBaseline);
   await page.getByRole("button",{name:"Start Edit",exact:true}).click();
-  await page.evaluate(()=>window.phase4j.map.fire("click",{latlng:{lat:35.68,lng:139.76}}));
+  await clickDraft(page);
   await dragMarker(page,".leaflet-partially-editable-polyline-new-point",10,-10,{release:false});
   await page.evaluate(()=>window.phase4j.app.unuse("x-track-editor")); await page.mouse.up();
   await expect(page.locator(".leaflet-partially-editable-polyline-point")).toHaveCount(0); await expect(page.locator(".tilia-track-editor-draft")).toHaveCount(0);

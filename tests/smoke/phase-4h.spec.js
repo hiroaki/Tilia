@@ -132,7 +132,7 @@ test("Phase 4H actual pointer clicks select canonical points from both logical t
   for (const trackIndex of [0, 1]) {
     await ready(page);
     await page.locator('input[type="file"]').setInputFiles(multi);
-    const paths = page.locator('[data-tilia-map-band="geometry"] path.leaflet-interactive');
+    const paths = page.locator('[data-tilia-map-band="geometry"] path.leaflet-interactive[fill="none"]');
     await expect(paths).toHaveCount(2);
     await paths.nth(trackIndex).click();
     await expect(page.locator(".leaflet-popup")).toBeVisible();

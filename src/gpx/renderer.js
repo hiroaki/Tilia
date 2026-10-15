@@ -39,7 +39,14 @@ export function createGpxRenderer() {
         const group = input.visibility.createGroup(target);
         const points = gpxTargetPaths(data, target)[0].points.map(({ point }) => position(point));
         if (points.length > 1) own(new Polyline(points, style), `track:${trackIndex}`, target, "geometry", true, group);
-        else if (points.length === 1) own(new CircleMarker(points[0], { ...style, radius: 5 }), `track:${trackIndex}`, target, "geometry", true, group);
+        track.segments.forEach((segment, segmentIndex) => {
+          if (segment.points.length !== 1) return;
+          const pointTarget = { kind: "track-point", trackIndex, segmentIndex, pointIndex: 0 };
+          own(new CircleMarker(position(segment.points[0]), {
+            radius: 6, fillColor: style.color, fillOpacity: 1,
+            color: "#fff", weight: 2, opacity: 1, interactive: true,
+          }), `track:${trackIndex}:segment:${segmentIndex}:point:0`, pointTarget, "geometry", false, group);
+        });
       });
       data.routes.forEach((route, routeIndex) => {
         if (!preferences.routesVisible || preferences.routeVisibility[routeIndex] === false) return;

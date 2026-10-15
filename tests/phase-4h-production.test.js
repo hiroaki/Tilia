@@ -315,7 +315,9 @@ describe("Phase 4H production rendering and independent presentation", () => {
     const marker = [...f.map.layers].find((l) => l instanceof Marker);
     await f.app.domains.gpx.setStylePreset(entry.id, "unknown", { expectedRevision: 1 }); await settle();
     expect(old.signal.aborted).toBe(true); expect(old.isCurrent()).toBe(false);
-    expect([...f.map.layers].find((l) => l.options.radius === 5).options.color).toBe("#0099cc");
+    expect([...f.map.layers].find((l) => l.options.radius === 6).options).toMatchObject({
+      fillColor: "#0099cc", color: "#fff", weight: 2, opacity: 1, fillOpacity: 1,
+    });
     marker.fire("click"); await settle(); expect(f.app.selection.getCurrent().ref.kind).toBe("document");
     await f.app.entries.setVisible(entry.id, false); await settle();
     expect(f.app.selection.getCurrent()).not.toBeNull(); expect(f.ownedLayers()).toHaveLength(0);

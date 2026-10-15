@@ -1,4 +1,4 @@
-import { LatLng } from "leaflet";
+import { CircleMarker, LatLng } from "leaflet";
 import { PartiallyEditablePolyline } from "./vendor/leaflet-partially-editable-polyline.js";
 import {
   createInsertedDraftPoint,
@@ -28,9 +28,11 @@ export function createDraftTrackLayers({
   onPointSelect,
   onLocalEditingRequest,
   onLocalEditingEnd,
+  onLayersChanged,
   options = {},
 }) {
   let layerRecords = [];
+  let building = false;
 
   function selectPoint(segmentId, pointId) {
     const point = findDraftPoint(draft, trackId, segmentId, pointId);
@@ -50,6 +52,13 @@ export function createDraftTrackLayers({
 
   function build() {
     if (!scope.alive) return;
+    building = true;
+    try { buildLayers(); }
+    finally { building = false; }
+    restoreMarkerOrder();
+  }
+
+  function buildLayers() {
     clear();
     const track = findDraftTrack(draft, trackId);
     if (!track) {
@@ -61,7 +70,7 @@ export function createDraftTrackLayers({
         continue;
       }
       const child = scope.child({ label: `draft-segment:${segment.id}` });
-      const layer = new PartiallyEditablePolyline(toDraftCoordinates(segment), { ...options, interactive: false,
+      const layer = new PartiallyEditablePolyline(toDraftCoordinates(segment), { ...options, interactive: true,
         className: "tilia-track-editor-draft" });
       let terminationError = null, terminated = false;
       const terminate = () => {
@@ -74,21 +83,58 @@ export function createDraftTrackLayers({
       child.defer(() => { terminate(); if (terminationError) throw terminationError; }, { label: "vendor-edit-termination", retry: "never" });
       child.signal.addEventListener("abort", terminate, { once: true });
       child.defer(() => child.signal.removeEventListener("abort", terminate), { retry: "safe" });
-      const bind = (type, callback) => {
+      const bind = (type, callback, target = layer) => {
         const guarded = child.guard(callback);
-        child.defer(() => layer.off(type, guarded), { retry: "safe" });
-        layer.on(type, guarded);
+        child.defer(() => target.off(type, guarded), { retry: "safe" });
+        target.on(type, guarded);
       };
-      const record = { segmentId: segment.id, layer, scope: child };
+      let singlePointMarker = null;
+      let editing = false;
+      let attached = false;
+      const requestEditing = event => onLocalEditingRequest?.({
+        trackId, segmentId: segment.id, layer, latlng: event.latlng,
+      });
+      function syncSinglePointMarker() {
+        if (!child.alive || terminated) return;
+        const current = findDraftSegment(draft, trackId, segment.id);
+        if (!attached || editing || current?.points.length !== 1) {
+          singlePointMarker?.remove();
+          return;
+        }
+        const point = current.points[0];
+        if (!singlePointMarker) {
+          // Share the draft renderer: an upper Canvas pane would intercept line clicks.
+          singlePointMarker = new CircleMarker([point.lat, point.lon], {
+            pane: options.pane,
+            radius: 6, fillColor: layer.options.color, fillOpacity: 1,
+            color: "#fff", weight: 2, opacity: 1,
+            interactive: true, bubblingPointerEvents: false,
+            className: "tilia-track-editor-single-point",
+          });
+          const marker = singlePointMarker;
+          child.defer(() => marker.remove(), { label: "single-point-marker", retry: "safe" });
+          bind("click", requestEditing, marker);
+        }
+        singlePointMarker.setLatLng([point.lat, point.lon]);
+        singlePointMarker.addTo(map);
+      }
+      const record = { segmentId: segment.id, layer, scope: child,
+        raiseSinglePoint: () => singlePointMarker?.bringToFront() };
       layerRecords.push(record);
 
-      bind("click", (event) => onLocalEditingRequest?.({
-        trackId,
-        segmentId: segment.id,
-        layer,
-        latlng: event.latlng,
-      }));
+      bind("click", requestEditing);
+      bind("add", () => {
+        attached = true;
+        syncSinglePointMarker();
+        if (!building) restoreMarkerOrder();
+      });
+      bind("remove", () => {
+        attached = false;
+        singlePointMarker?.remove();
+      });
       bind("editingstart", ({ index }) => {
+        editing = true;
+        syncSinglePointMarker();
         const point = getPointAt(segment, index);
         if (point) {
           if (notifySelectionOnEditingStart) {
@@ -97,6 +143,8 @@ export function createDraftTrackLayers({
         }
       });
       bind("editingend", () => {
+        editing = false;
+        syncSinglePointMarker();
         onLocalEditingEnd?.({ trackId, segmentId: segment.id, layer });
       });
       bind("pointchange", ({ index, latlng }) => {
@@ -151,6 +199,7 @@ export function createDraftTrackLayers({
           pointId: point.id,
           range,
         });
+        syncSinglePointMarker();
         const remainingSegment = findDraftSegment(draft, trackId, segment.id);
         if (remainingSegment?.points.length) {
           return;
@@ -165,6 +214,15 @@ export function createDraftTrackLayers({
       });
       layer.addTo(map);
     }
+  }
+
+  function restoreMarkerOrder() {
+    if (onLayersChanged) onLayersChanged(bringSinglePointsToFront);
+    else bringSinglePointsToFront();
+  }
+
+  function bringSinglePointsToFront() {
+    for (const record of layerRecords) record.raiseSinglePoint();
   }
 
   function sync() {
@@ -200,24 +258,5 @@ export function createDraftTrackLayers({
   }
 
   build();
-  function nearestEditingRequest(latlng) {
-    if (!scope.alive) return null;
-    const clicked = map.latLngToContainerPoint(latlng);
-    let result = null;
-    for (const record of layerRecords) {
-      if (!record.scope.alive) continue;
-      const segment = findDraftSegment(draft, trackId, record.segmentId);
-      const pixels = segment.points.map(point => map.latLngToContainerPoint([point.lat, point.lon]));
-      for (let index = 0; index < pixels.length; index++) {
-        const a = pixels[index], b = pixels[index + 1] ?? a;
-        const dx = b.x - a.x, dy = b.y - a.y, length = dx * dx + dy * dy;
-        const t = length ? Math.max(0, Math.min(1, ((clicked.x-a.x)*dx+(clicked.y-a.y)*dy)/length)) : 0;
-        const distance = (clicked.x-a.x-t*dx)**2 + (clicked.y-a.y-t*dy)**2;
-        if (distance <= 100 && (!result || distance < result.distance))
-          result = { distance, trackId, segmentId: record.segmentId, layer: record.layer, latlng: new LatLng(latlng.lat, latlng.lng) };
-      }
-    }
-    return result;
-  }
-  return { destroy, endEditing, sync, startEditingPoint, nearestEditingRequest };
+  return { destroy, endEditing, sync, startEditingPoint, bringSinglePointsToFront };
 }
