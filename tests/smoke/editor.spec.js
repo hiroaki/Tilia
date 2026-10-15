@@ -454,7 +454,8 @@ test("clicking a normal track selects its GPX source without starting a session"
 test("displays multiple draft tracks and transfers local editing between segments", async ({ page }) => {
   await page.goto("/tests/fixtures/editor.html");
   await loadGpx(page, "multi.gpx", "/tests/fixtures/multi-track-elevation.gpx");
-  await expect(page.locator('[data-tilia-map-band="geometry"] path, .tilia-track-editor-draft')).toHaveCount(2);
+  // Two track lines plus the normal-view single-point segment marker.
+  await expect(page.locator('[data-tilia-map-band="geometry"] path, .tilia-track-editor-draft')).toHaveCount(3);
 
   await page.getByRole("button", { name: "Track editor" }).click();
   await page.getByRole("button", { name: "Start Edit" }).click();
@@ -471,7 +472,7 @@ test("displays multiple draft tracks and transfers local editing between segment
   await expect(page.locator(".tilia-track-editor-selection-ring")).toHaveCount(1);
   await page.getByRole("button", { name: "Cancel" }).click();
   await expect(page.locator(".tilia-track-editor-selection-ring")).toHaveCount(0);
-  await expect(page.locator('[data-tilia-map-band="geometry"] path, .tilia-track-editor-draft')).toHaveCount(2);
+  await expect(page.locator('[data-tilia-map-band="geometry"] path, .tilia-track-editor-draft')).toHaveCount(3);
 });
 
 // Only the new pane integration tests use this explicit fixture lifecycle.
