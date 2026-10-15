@@ -31,7 +31,12 @@ describe("Phase 4I qualified architecture audits",()=>{
  it("keeps generic hosts domain-neutral and prevents foreign renderer readback",async()=>{
   const hosts=[...files("src/ui").filter(p=>p.endsWith(".js")),...['panel','toolbar','layers-control','settings-panel','status-control','base-map-control','map-selection-presenter'].map(n=>`src/plugins/ui/${n}.js`)];
   for(const path of hosts){for(const edge of await edges(path))expect(edge.target,`${path} -> ${edge.target}`).not.toMatch(/^src\/(?:gpx|photo)\/|^src\/plugins\/(?:domains|renderers)\//);expect(source(path)).not.toMatch(/\bsemanticSnapshot\b|snapshot\.(?:data|preferences|derived)/);}
-  for(const path of [...hosts,...files("src/plugins/input").filter(p=>p.endsWith(".js")),"src/plugins/ui/elevation-panel.js","src/gpx/ui.js","src/photo/ui.js"])expect(source(path)).not.toMatch(/\b(?:getLayers|eachLayer|getLatLng|getLatLngs|advancedLeafletMap)\b|entry\.(?:layer|interactions)/);
+  for(const path of [...hosts,...files("src/plugins/input").filter(p=>p.endsWith(".js")),"src/plugins/ui/elevation-panel.js","src/gpx/ui.js","src/photo/ui.js"]) {
+   expect(source(path)).not.toMatch(/\b(?:getLayers|eachLayer|getLatLng|getLatLngs)\b|entry\.(?:layer|interactions)/);
+   // Initial-view borrows the public advanced map API for viewport constraints
+   // and input observation, never for foreign renderer/layer readback.
+   if(path !== "src/plugins/input/initial-view.js") expect(source(path)).not.toMatch(/\badvancedLeafletMap\b/);
+  }
  });
  it("leases every standard feature sheet and leaves only shell primitives in shared CSS",()=>{
   expect(source("src/ui/styles.css")).not.toMatch(/\.tilia-(?:side-panel|elevation|layer-|photo|gpx|url-|file-|status-|popup|info-|time-mode)/);

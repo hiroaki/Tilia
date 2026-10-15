@@ -17,6 +17,7 @@ export const builtinPluginCatalog = Object.freeze([
   Object.freeze({ id: "tilia-file-import", requires: Object.freeze(["tilia-toolbar"]), load: () => import("./plugins/input/file-import.js") }),
   Object.freeze({ id: "tilia-url-import", requires: Object.freeze(["tilia-toolbar"]), load: () => import("./plugins/input/url-import.js") }),
   Object.freeze({ id: "tilia-query-import", requires: Object.freeze([]), load: () => import("./plugins/input/query-import.js") }),
+  Object.freeze({ id: "tilia-initial-view", requires: Object.freeze([]), load: () => import("./plugins/input/initial-view.js") }),
   Object.freeze({ id: "tilia-settings", requires: Object.freeze(["tilia-panel", "tilia-toolbar"]), load: () => import("./plugins/ui/settings-panel.js") }),
   Object.freeze({ id: "tilia-dropzone", requires: Object.freeze([]), load: () => import("./plugins/input/dropzone.js") }),
   Object.freeze({ id: "tilia-gpx-domain", requires: Object.freeze([]), load: () => import("./plugins/domains/gpx.js") }),
