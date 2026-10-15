@@ -252,7 +252,7 @@ export const trackEditorPlugin = {
         report,
         draft: session.draft,
         trackId: draftTrack.id,
-        options: { editablePointRadius, pane: session.pane.name },
+        options: { editablePointRadius, pane: session.draftPane.name, handlePane: session.handlesPane.name },
         onOperation(operation, context) {
           if (!session || session.saving) return;
           session.history.record(operation);
@@ -303,7 +303,8 @@ export const trackEditorPlugin = {
         selection: createEmptySelection(),
         layersByTrackId: new Map(),
         suppression: [],
-        pane: null,
+        draftPane: null,
+        handlesPane: null,
         localEditing: null,
         selectionOverlay: createSelectionOverlay({ context, scope, report }),
         rectangleSelection: null,
@@ -311,35 +312,39 @@ export const trackEditorPlugin = {
       };
       const initialized = session;
       scope.defer(() => { if (session === initialized) session = null; }, { label: "draft-authority", retry: "safe" });
-      let pane;
-      scope.defer(() => pane?.dispose(), { label: "editor-pane", retry: "safe" });
-      pane = context.map.createPane({ name: "editor-draft", band: "modal" }); session.pane = pane;
-      session.rectangleSelection = createRectangleSelection({
-        report,
-        map,
-        scope: scope.child({ label: "editor-rectangle" }),
-        parent: gestureContainer,
-        onComplete(bounds) {
-          const localEditing = session?.localEditing;
-          if (!localEditing) return "cancel";
-          const range = localEditing.layer.getEditablePointRange();
-          const domain = resolveEditablePointDomain(session.draft, localEditing, range);
-          if (!domain) return "cancel";
-          const pointIds = selectPointIdsInContainerBounds(map, domain, bounds);
-          if (pointIds.length === 0) return "retry";
-          session.selection = createPointSelection({
-            trackId: localEditing.trackId,
-            segmentId: localEditing.segmentId,
-            pointIds,
-          });
-          syncSelectionPresentation();
-          return "success";
-        },
-        onActiveChange() {
-          renderPanel();
-        },
-      });
       try {
+        let draftPane, handlesPane;
+        scope.defer(() => draftPane?.dispose(), { label: "editor-draft-pane", retry: "safe" });
+        draftPane = context.map.createPane({ name: "editor-draft", band: "modal" });
+        initialized.draftPane = draftPane;
+        scope.defer(() => handlesPane?.dispose(), { label: "editor-handles-pane", retry: "safe" });
+        handlesPane = context.map.createPane({ name: "editor-handles", band: "modal" });
+        initialized.handlesPane = handlesPane;
+        session.rectangleSelection = createRectangleSelection({
+          report,
+          map,
+          scope: scope.child({ label: "editor-rectangle" }),
+          parent: gestureContainer,
+          onComplete(bounds) {
+            const localEditing = session?.localEditing;
+            if (!localEditing) return "cancel";
+            const range = localEditing.layer.getEditablePointRange();
+            const domain = resolveEditablePointDomain(session.draft, localEditing, range);
+            if (!domain) return "cancel";
+            const pointIds = selectPointIdsInContainerBounds(map, domain, bounds);
+            if (pointIds.length === 0) return "retry";
+            session.selection = createPointSelection({
+              trackId: localEditing.trackId,
+              segmentId: localEditing.segmentId,
+              pointIds,
+            });
+            syncSelectionPresentation();
+            return "success";
+          },
+          onActiveChange() {
+            renderPanel();
+          },
+        });
         for (const draftTrack of initialized.draft.tracks) {
           const trackIndex = draftTrack.originalTrackIndex, preferences = view.snapshot.preferences;
           if (!view.entry.visible || !preferences.tracksVisible || preferences.trackVisibility[trackIndex] === false) continue;

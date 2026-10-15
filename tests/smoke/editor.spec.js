@@ -473,3 +473,86 @@ test("displays multiple draft tracks and transfers local editing between segment
   await expect(page.locator(".tilia-track-editor-selection-ring")).toHaveCount(0);
   await expect(page.locator('[data-tilia-map-band="geometry"] path, .tilia-track-editor-draft')).toHaveCount(2);
 });
+
+// Only the new pane integration tests use this explicit fixture lifecycle.
+async function withEditorHarness(page, preferCanvas, run) {
+  await page.goto(`/tests/fixtures/editor.html?renderer=${preferCanvas ? "canvas" : "svg"}`);
+  await page.waitForFunction(() => !!window.editorHarness);
+  try { await run(); }
+  finally { await page.evaluate(() => window.editorHarness.destroy()); }
+}
+
+async function activateDraftAtTrackPoint(page) {
+  const position = await page.evaluate(() => {
+    const map = window.editorHarness.map;
+    const point = map.latLngToContainerPoint([35.2, 135.2]);
+    const rect = map.getContainer().getBoundingClientRect();
+    return { x: rect.x + point.x, y: rect.y + point.y };
+  });
+  // Click an actual fixture track coordinate, rather than the renderer's box.
+  await page.mouse.click(position.x, position.y);
+  await expect(page.locator("#map .leaflet-partially-editable-polyline-point")).not.toHaveCount(0);
+}
+
+for (const preferCanvas of [false, true]) {
+  test(`editing handles retain pane order across restart (${preferCanvas ? "Canvas" : "SVG"})`, async ({ page }) => {
+    await withEditorHarness(page, preferCanvas, async () => {
+      await loadGpx(page, "sample-track.gpx");
+      await page.getByRole("button", { name: "Track editor" }).click();
+      const verify = async () => {
+        const result = await page.evaluate(() => {
+          const map = document.querySelector("#map");
+          const vertex = map.querySelector(".leaflet-partially-editable-polyline-point");
+          const midpoint = map.querySelector(".leaflet-partially-editable-polyline-new-point");
+          const handles = vertex.parentElement;
+          const mapPane = handles.parentElement;
+          const draftRenderer = map.querySelector('[data-tilia-map-band="modal"] > svg, [data-tilia-map-band="modal"] > canvas');
+          const draft = draftRenderer.parentElement;
+          const panes = [...mapPane.children];
+          const hit = element => {
+            const rect = element.getBoundingClientRect();
+            const target = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2);
+            return !!target && handles.contains(target);
+          };
+          return {
+            separatePanes: handles !== draft,
+            samePane: midpoint.parentElement === handles,
+            bands: [handles.dataset.tiliaMapBand, draft.dataset.tiliaMapBand],
+            handlesAbove: panes.indexOf(handles) > panes.indexOf(draft),
+            z: [getComputedStyle(handles).zIndex, getComputedStyle(draft).zIndex],
+            renderer: draftRenderer.tagName.toLowerCase(),
+            vertexHit: hit(vertex), midpointHit: hit(midpoint),
+          };
+        });
+        expect(result).toEqual({ separatePanes: true, samePane: true, bands: ["modal", "modal"],
+          handlesAbove: true, z: ["660", "660"], renderer: preferCanvas ? "canvas" : "svg",
+          vertexHit: true, midpointHit: true });
+      };
+      for (let session = 0; session < 2; session++) {
+        await page.getByRole("button", { name: "Start Edit" }).click();
+        await activateDraftAtTrackPoint(page);
+        await verify();
+        if (session === 0) {
+          await page.getByRole("button", { name: "Cancel", exact: true }).click();
+          await expect(page.locator('#map [data-tilia-map-band="modal"]')).toHaveCount(0);
+        }
+      }
+    });
+    await expect(page.locator('#map [data-tilia-map-band="modal"]')).toHaveCount(0);
+  });
+}
+
+test("failed handles pane acquisition releases draft lease and allows retry", async ({ page }) => {
+  await withEditorHarness(page, false, async () => {
+    await loadGpx(page, "sample-track.gpx");
+    await page.getByRole("button", { name: "Track editor" }).click();
+    await page.evaluate(() => window.editorHarness.failNextHandlesPane());
+    await page.getByRole("button", { name: "Start Edit" }).click();
+    await expect(page.locator('#map [data-tilia-map-band="modal"]')).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Start Edit" })).toBeEnabled();
+    await page.getByRole("button", { name: "Start Edit" }).click();
+    await activateDraftAtTrackPoint(page);
+    await expect(page.locator('#map [data-tilia-map-band="modal"]')).toHaveCount(2);
+  });
+  await expect(page.locator('#map [data-tilia-map-band="modal"]')).toHaveCount(0);
+});

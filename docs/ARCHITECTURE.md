@@ -198,7 +198,11 @@ Panel state, popup visibility, form input, hover, and editor point selection are
 
 Plugin overlays read domain snapshots and own independent layers. Milestone labels and elevation highlights do not mutate the GPX renderer's polylines. Entry-bound overlays can bind their child lifetime to entry removal; session overlays can instead follow an editor or request lifetime.
 
-Map resources use ordered bands for base maps, geometry, markers, overlays, selection, and modal/editor presentation, below popup and shell UI. Owned private panes support local placement without arbitrary cross-plugin z-index competition. The current editor's vendor-created point/midpoint markers and drag helpers retain default placement where its public options do not provide the needed band; this does not establish a general exception for plugin resources.
+Map resources use ordered bands for base maps, geometry, markers, overlays, selection, and modal/editor presentation, below popup and shell UI. Owned private panes support local placement without arbitrary cross-plugin z-index competition.
+
+Within each band, Tilia-managed private panes and shared band panes stack in the order in which they were first created, with later panes above earlier ones. This keeps their relative order stable across additional leases and reconnection without changing band z-index values or exposing a public numeric `order` option. Replacing a managed pane gives its replacement a new creation position. Tilia does not move or take ownership of standard Leaflet panes or externally owned panes, and does not guarantee stacking order relative to those panes at the same z-index. See [Map, UI, and styles](PLUGIN-OPERATIONS.md#map-ui-and-styles) for the lease and reconnection contract.
+
+The track editor places its draft and its vertex/midpoint handles in separate private panes in the `modal` band, using the vendored library's public `pane` and `handlePane` options, respectively. Drag helper lines retain the library's default placement; this does not establish a general exception for plugin resources.
 
 The vendored `PartiallyEditablePolyline` JavaScript and CSS files in `plugins/x-track-editor/vendor/` must not be modified directly within Tilia. Implement Tilia-specific behavior in the editor integration through the library's public API.
 

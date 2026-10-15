@@ -143,3 +143,5 @@ When suppression ends, any surviving source is displayed according to its curren
 - Drafts/history are held in memory. Save the copy and export it before leaving the page if you need a file.
 
 For plugin implementation and lifecycle contracts, see [Developing plugins](../../docs/PLUGIN-OPERATIONS.md). For contributor checks and browser testing, see [Developing Tilia](../../docs/DEVELOPMENT.md).
+
+The editing session uses two private panes in the `modal` band. `editor-draft` is created before `editor-handles`, so vertex and midpoint handles appear above the draft at the same band z-index. Their names are passed to the vendored `PartiallyEditablePolyline` through its public `pane` and `handlePane` options, respectively. Drag helper lines retain the library's default placement. These editor panes are separate from the panes used for normal GPX and photo rendering.

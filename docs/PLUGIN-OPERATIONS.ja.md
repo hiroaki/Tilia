@@ -249,6 +249,10 @@ export const counterServiceKey = defineServiceKey({
 
 地図リスナーのイベントは、Leafletの生イベントではなく、不変の投影データ（`type`、`latlng`、`layerPoint`、`containerPoint`）です。座標は`{lat, lng}`を使います。取り付け時に描画帯域やそのScopeが所有するpaneリースを指定でき、他の所有者のpaneリースは拒否されます。
 
+同じband内では、Tiliaが管理する非公開paneと共有band paneの重なり順は、最初に作成された順序で決まります。後から作成されたpaneほど前面に表示されます。既存のpaneに対して追加のリースを取得しても、この順序は変わりません。非公開paneは最後のリースを解放するとDOMから外れますが、再取得すると、同じbandの他の管理対象paneに対して元の相対位置に再接続されます。
+
+管理対象のpaneが再接続ではなく置き換えられる場合は、置き換え後のpaneに新たな作成順が割り当てられます。例えば、非公開paneの最後のリースを解放する際、そのpaneのDOMからの除去中に再取得すると、プラグインが同じ名前を指定しても新しいpaneに置き換わります。bandのz-index値は変わらず、公開APIには数値で指定する`order`オプションはありません。TiliaはLeaflet標準paneや外部所有のpaneを移動せず、その所有権も引き受けません。これらのpaneとz-indexが同じ場合、相対的な重なり順は保証しません。
+
 `context.ui.mountSurface`は、マウント用コールバックに割り当てたコンテナーと子Scopeを渡します。リスナーや一時リソースはそのScopeで所有し、無関係なDOMを変更しないでください。レイヤー行、ポップアップ、設定、ツールバー項目には専用の提供先ホストを使い、別プラグインのコンテナーの存在を仮定しないでください。[PhotoのUI提供](../src/plugins/ui/photo.js)は、提供側とホストの寿命の組み合わせを示します。
 
 スタイルシートは`context.styles.use({id, href})`で読み込みます。同梱素材には`new URL("./styles.css", import.meta.url).href`のような絶対URLを使います。リースは`ready`と`release()`を公開します。同じ定義は最後の解放までスタイルシートを共有し、同じIDで競合する定義は拒否されます。CSSの読み込み成功が処理に必要な場合だけ`ready`を待ってください。

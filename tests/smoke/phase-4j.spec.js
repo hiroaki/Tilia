@@ -118,17 +118,49 @@ test("4J-C continues initialized editing, Undo/Redo and Save Copy after source d
   expect(result.name).toBe("initial (edited).gpx"); expect(result.tracks[0].segments[0].points[0].lat).not.toBe(35.68); expect(result.routes).toEqual([]); expect(result.waypoints).toEqual([]);
   await expect(page.locator(".leaflet-partially-editable-polyline-point")).toHaveCount(0);
 });
-test("4J-C vendor default panes permit real point/midpoint dragging over overlapping draft geometry and clean active gestures",async({page})=>{
+test("4J-C editor-owned modal panes stack handles above overlapping draft geometry and clean real drag gestures",async({page})=>{
   await instrumentDocumentPointers(page);
   await editorSession(page,{overlap:true});
   const pointerBaseline = await page.evaluate(() => window.documentPointerCount());
-  const placement=await page.evaluate(()=>({
-    markerPane:document.querySelector(".leaflet-partially-editable-polyline-point").parentElement.classList.contains("leaflet-marker-pane"),
-    modal:document.querySelector(".tilia-track-editor-draft").closest(".leaflet-pane").dataset.tiliaMapBand,
-    pointer: getComputedStyle(document.querySelector(".tilia-track-editor-draft")).pointerEvents,
-  }));expect(placement).toEqual({markerPane:true,modal:"modal",pointer:"none"});
+  const placement = await page.evaluate(() => {
+    const { map } = window.phase4j;
+    const vertex = document.querySelector(".leaflet-partially-editable-polyline-point");
+    const midpoint = document.querySelector(".leaflet-partially-editable-polyline-new-point");
+    const draft = document.querySelector(".tilia-track-editor-draft");
+    const draftPane = draft.closest(".leaflet-pane");
+    const handlesPane = vertex.closest(".leaflet-pane");
+    const siblings = [...draftPane.parentElement.children];
+    const hitHandles = element => {
+      const box = element.getBoundingClientRect();
+      const target = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+      return !!target && handlesPane.contains(target);
+    };
+    return {
+      separateEditorPanes: handlesPane !== draftPane && handlesPane !== map.getPane("markerPane"),
+      bothHandleTypesSharePane: midpoint.closest(".leaflet-pane") === handlesPane,
+      bands: [draftPane.dataset.tiliaMapBand, handlesPane.dataset.tiliaMapBand],
+      z: [getComputedStyle(draftPane).zIndex, getComputedStyle(handlesPane).zIndex],
+      // Equal band z-index: later-created sibling panes paint above earlier ones.
+      handlesAfterDraft: handlesPane.parentElement === draftPane.parentElement &&
+        siblings.indexOf(handlesPane) > siblings.indexOf(draftPane),
+      vertexHit: hitHandles(vertex),
+      midpointHit: hitHandles(midpoint),
+      pointer: getComputedStyle(draft).pointerEvents,
+    };
+  });
+  expect(placement).toEqual({
+    separateEditorPanes: true, bothHandleTypesSharePane: true,
+    bands: ["modal", "modal"], z: ["660", "660"], handlesAfterDraft: true,
+    vertexHit: true, midpointHit: true, pointer: "none",
+  });
   await page.locator(".leaflet-partially-editable-polyline-point").first().click();
   await expect(page.locator(".tilia-track-editor-selection-ring")).toHaveCount(1);
+  // Selection indicators keep their separate, noninteractive selection band.
+  expect(await page.locator(".tilia-track-editor-selection-ring").evaluate(ring => ({
+    band: ring.closest(".leaflet-pane").dataset.tiliaMapBand,
+    z: getComputedStyle(ring.closest(".leaflet-pane")).zIndex,
+    pointer: getComputedStyle(ring).pointerEvents,
+  }))).toEqual({ band: "selection", z: "640", pointer: "none" });
   await dragMarker(page,".leaflet-partially-editable-polyline-point",20,10);
   await expect(page.getByRole("button",{name:"Undo",exact:true})).toBeEnabled();
   await dragMarker(page,".leaflet-partially-editable-polyline-new-point",15,-10);
