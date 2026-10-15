@@ -69,7 +69,14 @@ test("application destruction ends active native editor drag and document handle
   }, data);
   await page.getByRole("button", { name: "Track editor", exact: true }).click();
   await page.getByRole("button", { name: "Start Edit", exact: true }).click();
-  await page.evaluate(() => window.lifecycle.app.map.fire("click", { latlng: { lat: 35.68, lng: 139.76 } }));
+  const draftPoint = await page.evaluate(() => {
+    const map = window.lifecycle.app.map;
+    map.setView([35.68,139.76],15,{animate:false});
+    const p = map.latLngToContainerPoint([35.68,139.76]);
+    const r = map.getContainer().getBoundingClientRect();
+    return { x:r.x+p.x, y:r.y+p.y };
+  });
+  await page.mouse.click(draftPoint.x,draftPoint.y);
   const marker = page.locator(".leaflet-partially-editable-polyline-point").first();
   await expect(marker).toBeVisible();
   const box = await marker.boundingBox();
@@ -108,7 +115,14 @@ test("destroy during rectangle capture releases the pointer and removes gesture 
   }, data);
   await page.getByRole("button", { name: "Track editor", exact: true }).click();
   await page.getByRole("button", { name: "Start Edit", exact: true }).click();
-  await page.evaluate(() => window.lifecycle.app.map.fire("click", { latlng: { lat: 35.68, lng: 139.76 } }));
+  const draftPoint = await page.evaluate(() => {
+    const map = window.lifecycle.app.map;
+    map.setView([35.68,139.76],15,{animate:false});
+    const p = map.latLngToContainerPoint([35.68,139.76]);
+    const r = map.getContainer().getBoundingClientRect();
+    return { x:r.x+p.x, y:r.y+p.y };
+  });
+  await page.mouse.click(draftPoint.x,draftPoint.y);
   await page.getByRole("button", { name: "Select area", exact: true }).click();
   const box = await page.locator("#map").boundingBox();
   await page.mouse.move(box.x + 400, box.y + 300); await page.mouse.down();
@@ -281,7 +295,14 @@ test("destroy joins pending source-independent Save Copy handoff without recreat
   }, data);
   await page.getByRole("button", { name: "Track editor", exact: true }).click();
   await page.getByRole("button", { name: "Start Edit", exact: true }).click();
-  await page.evaluate(() => window.lifecycle.app.map.fire("click", { latlng: { lat: 35.68, lng: 139.76 } }));
+  const draftPoint = await page.evaluate(() => {
+    const map = window.lifecycle.app.map;
+    map.setView([35.68,139.76],15,{animate:false});
+    const p = map.latLngToContainerPoint([35.68,139.76]);
+    const r = map.getContainer().getBoundingClientRect();
+    return { x:r.x+p.x, y:r.y+p.y };
+  });
+  await page.mouse.click(draftPoint.x,draftPoint.y);
   await page.evaluate(() => window.lifecycle.app.entries.remove(window.source.id));
   await page.getByRole("button", { name: "Save Copy", exact: true }).click();
   await page.waitForFunction(() => window.releaseSave);

@@ -245,6 +245,15 @@ export const trackEditorPlugin = {
       syncSelectionPresentation();
     }
 
+    function restoreSinglePointOrder(raiseChangedTrack) {
+      if (!session?.scope.alive) return;
+      for (const layers of session.layersByTrackId.values()) {
+        if (layers.bringSinglePointsToFront !== raiseChangedTrack) layers.bringSinglePointsToFront();
+      }
+      // Includes the initial controller before it has been registered in the session.
+      raiseChangedTrack();
+    }
+
     function createTrackLayers(draftTrack) {
       const controller = createDraftTrackLayers({
         map,
@@ -270,6 +279,7 @@ export const trackEditorPlugin = {
           setPointSelection(selection);
           syncSelectionPresentation();
         },
+        onLayersChanged: restoreSinglePointOrder,
         onLocalEditingRequest: startLocalEditing,
         onLocalEditingEnd({ layer }) {
           if (session?.localEditing?.layer === layer) {
@@ -632,11 +642,9 @@ export const trackEditorPlugin = {
       }
     });
     context.entries.subscribe(renderPanel, { emitCurrent: false });
-    context.map.listen("click", event => {
+    context.map.listen("click", () => {
       if (!session || session.saving) return;
-      const candidates = event.latlng ? [...session.layersByTrackId.values()].map(controller => controller.nearestEditingRequest(event.latlng)).filter(Boolean) : [];
-      const nearest = candidates.sort((a,b) => a.distance-b.distance)[0];
-      if (nearest) startLocalEditing(nearest); else endUserLocalEditing();
+      endUserLocalEditing();
     });
     const onKeyDown = context.scope.guard(event => {
       if (!session || session.saving || isFormTarget(event.target) || !(event.ctrlKey || event.metaKey)) return;
