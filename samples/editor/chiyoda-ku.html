@@ -38,8 +38,7 @@
     <script type="importmap">
       {
         "imports": {
-          "leaflet": "https://unpkg.com/leaflet@2.0.0-alpha.1/dist/leaflet.js",
-          "exifr": "https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/lite.esm.js"
+          "leaflet": "https://unpkg.com/leaflet@2.0.0-alpha.1/dist/leaflet.js"
         }
       }
     </script>
@@ -55,6 +54,8 @@
 
       const app = createDefaultTiliaApp("map", {
         plugins: [
+          "tilia-gpx-domain", "tilia-gpx-input", "tilia-gpx-renderer", "tilia-gpx-ui",
+          "tilia-map-selection-presenter", "tilia-file-import",
           "tilia-panel",
           "tilia-status",
           "tilia-layers",

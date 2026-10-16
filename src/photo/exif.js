@@ -1,4 +1,4 @@
-import exifr from "exifr";
+import exifr from "https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/lite.esm.js";
 
 export async function parsePhotoFile(file) {
   const exif = await exifr.parse(file, {
@@ -12,8 +12,8 @@ export async function parsePhotoFile(file) {
   }
 
   const hasGps = Number.isFinite(exif.latitude) && Number.isFinite(exif.longitude);
-  const dateTimeOriginal = exif.DateTimeOriginal || exif.CreateDate || null;
-  if (!hasGps && !dateTimeOriginal) {
+  const dateTimeOriginal = exif.DateTimeOriginal ?? exif.CreateDate ?? null;
+  if (!hasGps && dateTimeOriginal == null) {
     throw new Error(`No GPS and no photo timestamp in EXIF: ${file.name}`);
   }
 
@@ -27,6 +27,5 @@ export async function parsePhotoFile(file) {
     dateTimeOriginal,
     make: exif.Make || "",
     model: exif.Model || "",
-    previewUrl: URL.createObjectURL(file),
   };
 }

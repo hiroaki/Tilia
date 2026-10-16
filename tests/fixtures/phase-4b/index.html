@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Tilia Phase 4B Runtime</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@2.0.0-alpha.1/dist/leaflet.css" />
+    <style>
+      html, body, #map { height: 100%; margin: 0; }
+      #phase-4b-status { position: fixed; z-index: 1000; inset: 1rem auto auto 1rem; background: white; padding: .5rem; }
+    </style>
+    <script type="importmap">
+      {
+        "imports": {
+          "leaflet": "https://unpkg.com/leaflet@2.0.0-alpha.1/dist/leaflet.js"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <div id="map"></div>
+    <output id="phase-4b-status">booting</output>
+    <script type="module">
+      import { createDefaultTiliaApp } from "../../../src/index.js";
+      const app = createDefaultTiliaApp("map", { plugins: [] });
+      await app.whenReady();
+      document.querySelector("#phase-4b-status").textContent = `${app.listPlugins().length} plugins active`;
+    </script>
+  </body>
+</html>

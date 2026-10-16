@@ -1,80 +1,29 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
-const processInputItems = vi.hoisted(() => vi.fn());
-
-vi.mock("../src/core/input-processing.js", () => ({
-  processInputItems,
-}));
-
-import { importRemoteUrl } from "../src/core/remote-url-import.js";
-
-describe("importRemoteUrl", () => {
-  const originalWindow = globalThis.window;
-
-  beforeEach(() => {
-    processInputItems.mockReset();
-    vi.stubGlobal("window", globalThis);
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { createScopeController } from "../src/ownership/scope.js";
+import { importRemote, remoteOptions } from "../src/plugins/input/transport.js";
+let owner; afterEach(async () => { await owner?.close(); vi.useRealTimers(); vi.unstubAllGlobals(); });
+function fixture() { owner = createScopeController({ label: "transport" }); const context = { scope: owner.scope, inputs: { dispatch: vi.fn(async (f) => ({ name: f.name })) }, services: { optional: () => null }, diagnostics: { report: vi.fn() } }; return context; }
+const response = (bytes, headers = {}) => new Response(new Uint8Array(bytes), { headers });
+describe("owned domain-neutral remote transport", () => {
+  it("dispatches metadata without GPX coercion and accepts the exact byte limit", async () => {
+    const context = fixture(); vi.stubGlobal("fetch", vi.fn(async () => response(3, { "content-type": "application/xml", "content-disposition": 'attachment; filename="track.xml"' })));
+    await importRemote(context, { url: "https://example.com/file", scope: owner.scope, ...remoteOptions({ maxBytes: 3 }) });
+    expect(context.inputs.dispatch.mock.calls[0][0]).toMatchObject({ name: "track.xml", type: "application/xml", size: 3 });
   });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
-    Object.defineProperty(globalThis, "window", {
-      configurable: true,
-      value: originalWindow,
-    });
+  it.each([{"content-length": "4"}, {"content-length": "oops"}, {}])("rejects actual/declaration overflow before dispatch (%j)", async (headers) => {
+    const context = fixture(); vi.stubGlobal("fetch", vi.fn(async () => response(4, headers)));
+    await expect(importRemote(context, { url: "https://example.com/file.gpx", scope: owner.scope, ...remoteOptions({ maxBytes: 3 }) })).rejects.toThrow("too large"); expect(context.inputs.dispatch).not.toHaveBeenCalled();
   });
-
-  it("rejects empty and non-HTTP URLs without fetching", async () => {
-    const onStatus = vi.fn();
-    const fetchMock = vi.fn();
-    vi.stubGlobal("fetch", fetchMock);
-
-    await importRemoteUrl({ url: "", onStatus, onError: vi.fn() });
-    await importRemoteUrl({ url: "ftp://example.com/track.gpx", onStatus, onError: vi.fn() });
-
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(onStatus).toHaveBeenNthCalledWith(1, "URL is empty");
-    expect(onStatus).toHaveBeenNthCalledWith(2, "URL import failed: only http:// and https:// URLs are supported");
-  });
-
-  it("fetches a valid GPX URL and delegates the resulting file to input processing", async () => {
-    const body = new Blob(["<gpx />"], { type: "application/gpx+xml" });
-    const fetchMock = vi.fn().mockResolvedValue(new Response(body, {
-      status: 200,
-      headers: { "content-type": "application/gpx+xml" },
-    }));
-    vi.stubGlobal("fetch", fetchMock);
-    processInputItems.mockResolvedValue(undefined);
-    const registry = { id: "registry" };
-    const context = { id: "context" };
-    const onStatus = vi.fn();
-    const onError = vi.fn();
-    const onItemLoaded = vi.fn();
-
-    await importRemoteUrl({
-      url: "https://example.com/tracks/sample.gpx",
-      registry,
-      context,
-      onStatus,
-      onError,
-      onItemLoaded,
-    });
-
-    expect(fetchMock).toHaveBeenCalledWith("https://example.com/tracks/sample.gpx", expect.objectContaining({ mode: "cors" }));
-    expect(processInputItems).toHaveBeenCalledWith(expect.objectContaining({
-      registry, context, onStatus, onError, onItemLoaded, sourceLabel: "url",
-      items: [expect.objectContaining({ name: "sample.gpx", type: "application/gpx+xml" })],
-    }));
-  });
-
-  it("reports remote request failures through the existing callbacks", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 404 })));
-    const onStatus = vi.fn();
-    const onError = vi.fn();
-
-    await importRemoteUrl({ url: "https://example.com/missing.gpx", onStatus, onError });
-
-    expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: "HTTP 404" }));
-    expect(onStatus).toHaveBeenCalledWith("URL import failed: HTTP 404");
+  it.each([{timeoutMs: 0},{timeoutMs: 2147483648},{timeoutMs: 1.5},{timeoutMs: "2"},{maxBytes: -1},{maxBytes: Infinity},{maxBytes: NaN},{maxBytes: 1.5},{maxBytes: null}])("validates limits before acquisition (%j)", (options) => { expect(() => remoteOptions(options)).toThrow(TypeError); });
+  it("rejects unsupported schemes without fetch", async () => { const context = fixture(), fetch = vi.fn(); vi.stubGlobal("fetch", fetch); await expect(importRemote(context, { url: "data:text/plain,test", scope: owner.scope, ...remoteOptions() })).rejects.toThrow(TypeError); expect(fetch).not.toHaveBeenCalled(); });
+  it("timeout covers a noncooperative dispatch while owner closure remains responsive", async () => {
+    vi.useFakeTimers(); const context = fixture(); let finish;
+    context.inputs.dispatch.mockImplementation((_file, {signal}) => new Promise((r) => { finish = () => r({ name: "late" }); expect(signal.aborted).toBe(false); }));
+    vi.stubGlobal("fetch", vi.fn(async () => response(1)));
+    const work = importRemote(context, { url: "https://example.com/file.gpx", scope: owner.scope, ...remoteOptions({timeoutMs: 10}) });
+    for (let i = 0; i < 40 && !finish; i++) await Promise.resolve();
+    expect(finish).toBeTypeOf("function"); await vi.advanceTimersByTimeAsync(10);
+    const signal = context.inputs.dispatch.mock.calls[0][1].signal; expect(signal.aborted).toBe(true); expect(signal.reason.name).toBe("TimeoutError");
+    await owner.close(); finish(); await work; expect(context.diagnostics.report).not.toHaveBeenCalled();
   });
 });

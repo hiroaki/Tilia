@@ -25,13 +25,12 @@ describe("parseGpxText", () => {
       {
         name: "First",
         points: [
-          { lat: 35, lon: 135, name: "Start" },
-          { lat: 35.1, lon: 135.1, name: "Goal" },
+          { lat: 35, lon: 135, name: "Start", elevation: null, timestamp: null },
+          { lat: 35.1, lon: 135.1, name: "Goal", elevation: null, timestamp: null },
         ],
       },
       {
-        name: undefined,
-        points: [{ lat: 36, lon: 136, name: "" }],
+        points: [{ lat: 36, lon: 136, name: "", elevation: null, timestamp: null }],
       },
     ]);
   });
@@ -89,7 +88,7 @@ describe("parseGpxText", () => {
     const parsed = parseGpxText(xml, { fileName: "many.gpx", createDomParser: createXmldomParser });
     expect(parsed.tracks).toEqual([
       { name: "A", segments: [{ points: [{ lat: 35, lon: 135, elevation: null, timestamp: null }] }, { points: [{ lat: 36, lon: 136, elevation: 12, timestamp: Date.parse("2024-01-01T00:00:00Z") }] }] },
-      { name: undefined, segments: [{ points: [{ lat: 37, lon: 137, elevation: null, timestamp: null }] }] },
+      { segments: [{ points: [{ lat: 37, lon: 137, elevation: null, timestamp: null }] }] },
     ]);
   });
   it("throws a file-scoped error for invalid GPX XML", () => {
@@ -187,9 +186,9 @@ describe("parseGpxText", () => {
     </gpx>`;
     const parsed = parseGpxText(xml, { createDomParser: createXmldomParser });
 
-    expect(parsed.waypoints).toEqual([{ lat: 5, lon: 6, name: "" }]);
-    expect(parsed.routes).toEqual([{ name: undefined, points: [] }]);
-    expect(parsed.tracks).toEqual([]);
+    expect(parsed.waypoints).toEqual([{ lat: 5, lon: 6, name: "", elevation: null, timestamp: null }]);
+    expect(parsed.routes).toEqual([{ points: [] }]);
+    expect(parsed.tracks).toEqual([{ segments: [] }]);
   });
 
   it.each([
@@ -213,7 +212,7 @@ describe("parseGpxText", () => {
     ],
   ])("does not mistake parsererror application data in %s for an XML failure", (_label, xml) => {
     expect(parseGpxText(xml, { createDomParser: createXmldomParser }).waypoints)
-      .toEqual([{ lat: 1, lon: 2, name: "" }]);
+      .toEqual([{ lat: 1, lon: 2, name: "", elevation: null, timestamp: null }]);
   });
 
   it("keeps namespace-free core elements while ignoring foreign and nested lookalikes", () => {
@@ -232,10 +231,9 @@ describe("parseGpxText", () => {
     </gpx>`;
     const parsed = parseGpxText(xml, { createDomParser: createXmldomParser });
 
-    expect(parsed.waypoints).toEqual([{ lat: 1, lon: 2, name: "" }]);
-    expect(parsed.routes).toEqual([{ name: undefined, points: [{ lat: 3, lon: 4, name: "" }] }]);
+    expect(parsed.waypoints).toEqual([{ lat: 1, lon: 2, name: "", elevation: null, timestamp: null }]);
+    expect(parsed.routes).toEqual([{ points: [{ lat: 3, lon: 4, name: "", elevation: null, timestamp: null }] }]);
     expect(parsed.tracks).toEqual([{
-      name: undefined,
       segments: [{ points: [{ lat: 5, lon: 6, elevation: null, timestamp: null }] }],
     }]);
   });
@@ -361,7 +359,7 @@ describe("parseGpxText", () => {
       <wpt lat="1" lon="2"/>
     </gpx>`;
     expect(parseGpxText(xml, { createDomParser: createXmldomParser }).waypoints)
-      .toEqual([{ lat: 1, lon: 2, name: "" }]);
+      .toEqual([{ lat: 1, lon: 2, name: "", elevation: null, timestamp: null }]);
   });
 
   it.each([
@@ -370,7 +368,7 @@ describe("parseGpxText", () => {
     ["after an XML declaration", `<?xml version="1.0"?><?producer <!DOCTYPE is only text?><gpx><wpt lat="1" lon="2"/></gpx>`],
   ])("does not mistake DOCTYPE text in a processing instruction %s for a declaration", (_label, xml) => {
     expect(parseGpxText(xml, { createDomParser: createXmldomParser }).waypoints)
-      .toEqual([{ lat: 1, lon: 2, name: "" }]);
+      .toEqual([{ lat: 1, lon: 2, name: "", elevation: null, timestamp: null }]);
   });
 
   it.each([

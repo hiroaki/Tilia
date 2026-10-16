@@ -311,3 +311,8 @@
     grid-template-columns: auto minmax(0, 1fr) auto;
   }
 }
+/* Assigned floating mounts are pointer-transparent; only this UI receives input. */
+.tilia-route-search-panel,
+.tilia-route-search-menu {
+  pointer-events: auto;
+}

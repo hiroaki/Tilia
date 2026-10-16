@@ -1,206 +1,27 @@
-import { installDropzonePlugin } from "./plugins/input/dropzone.js";
-import { installFileImportControl } from "./plugins/input/file-import.js";
-import { installUrlImportControl } from "./plugins/input/url-import.js";
-import { installQueryImportPlugin } from "./plugins/input/query-import.js";
-import { installElevationPanelControl } from "./plugins/ui/elevation-panel.js";
-import { installBaseMapControl } from "./plugins/ui/base-map-control.js";
-import { installLayersControl } from "./plugins/ui/layers-control.js";
-import { installPanelPlugin } from "./plugins/ui/panel.js";
-import { installSettingsPanelControl } from "./plugins/ui/settings-panel.js";
-import { installStatusControl } from "./plugins/ui/status-control.js";
-import { resolveBuiltinUiOptions } from "./ui/protocol.js";
+// Lazy metadata lets dependency planning run without evaluating optional implementations.
+export const builtinPluginCatalog = Object.freeze([
+  Object.freeze({ id: "tilia-toolbar", requires: Object.freeze([]), load: () => import("./plugins/ui/toolbar.js") }),
+  Object.freeze({ id: "tilia-gpx-renderer", requires: Object.freeze(["tilia-gpx-domain"]), load: () => import("./plugins/renderers/gpx.js") }),
+  Object.freeze({ id: "tilia-gpx-input", requires: Object.freeze(["tilia-gpx-domain"]), load: () => import("./plugins/input/gpx.js") }),
+  Object.freeze({ id: "tilia-gpx-ui", requires: Object.freeze(["tilia-gpx-domain"]), load: () => import("./plugins/ui/gpx.js") }),
 
-function definePlugin(spec) {
-	return Object.freeze(spec);
-}
+  Object.freeze({ id: "tilia-photo-renderer", requires: Object.freeze(["tilia-photo-domain"]), load: () => import("./plugins/renderers/photo.js") }),
+  Object.freeze({ id: "tilia-jpeg-input", requires: Object.freeze(["tilia-photo-domain"]), load: () => import("./plugins/input/jpeg.js") }),
+  Object.freeze({ id: "tilia-photo-ui", requires: Object.freeze(["tilia-photo-domain"]), load: () => import("./plugins/ui/photo.js") }),
+  Object.freeze({ id: "tilia-map-selection-presenter", requires: Object.freeze([]), load: () => import("./plugins/ui/map-selection-presenter.js") }),
+  Object.freeze({ id: "tilia-panel", requires: Object.freeze([]), load: () => import("./plugins/ui/panel.js") }),
+  Object.freeze({ id: "tilia-status", requires: Object.freeze([]), load: () => import("./plugins/ui/status-control.js") }),
+  Object.freeze({ id: "tilia-base-maps-control", requires: Object.freeze([]), load: () => import("./plugins/ui/base-map-control.js") }),
+  Object.freeze({ id: "tilia-layers", requires: Object.freeze(["tilia-panel", "tilia-toolbar"]), load: () => import("./plugins/ui/layers-control.js") }),
+  Object.freeze({ id: "tilia-elevation", requires: Object.freeze(["tilia-panel", "tilia-toolbar", "tilia-gpx-domain"]), load: () => import("./plugins/ui/elevation-panel.js") }),
+  Object.freeze({ id: "tilia-file-import", requires: Object.freeze(["tilia-toolbar"]), load: () => import("./plugins/input/file-import.js") }),
+  Object.freeze({ id: "tilia-url-import", requires: Object.freeze(["tilia-toolbar"]), load: () => import("./plugins/input/url-import.js") }),
+  Object.freeze({ id: "tilia-query-import", requires: Object.freeze([]), load: () => import("./plugins/input/query-import.js") }),
+  Object.freeze({ id: "tilia-initial-view", requires: Object.freeze([]), load: () => import("./plugins/input/initial-view.js") }),
+  Object.freeze({ id: "tilia-settings", requires: Object.freeze(["tilia-panel", "tilia-toolbar"]), load: () => import("./plugins/ui/settings-panel.js") }),
+  Object.freeze({ id: "tilia-dropzone", requires: Object.freeze([]), load: () => import("./plugins/input/dropzone.js") }),
+  Object.freeze({ id: "tilia-gpx-domain", requires: Object.freeze([]), load: () => import("./plugins/domains/gpx.js") }),
+  Object.freeze({ id: "tilia-photo-domain", requires: Object.freeze([]), load: () => import("./plugins/domains/photo.js") }),
+]);
 
-function resolveSurfaceOptions(app) {
-	const surfaces = app.ui?.surfaceManager;
-	return surfaces ? { surfaces } : {};
-}
-
-export const panel = definePlugin({
-	id: "tilia-panel",
-	setup(app) {
-		return installPanelPlugin({
-			map: app.map,
-			...resolveSurfaceOptions(app),
-		});
-	},
-});
-
-export const status = definePlugin({
-	id: "tilia-status",
-	setup(app, options = {}) {
-		return installStatusControl({
-			map: app.map,
-			...resolveBuiltinUiOptions("tilia-status", options),
-		});
-	},
-});
-
-export const baseMaps = definePlugin({
-	id: "tilia-base-maps-control",
-	setup(app, options = {}) {
-		const api = installBaseMapControl({
-			map: app.map,
-			baseMaps: app.baseMaps,
-			onStatus: app.setStatus,
-			...resolveBuiltinUiOptions("tilia-base-maps-control", options),
-		});
-		api.render();
-		const removeRefreshHandler = app.addRefreshHandler(() => api.render());
-		const destroy = api.destroy?.bind(api);
-		api.destroy = () => {
-			removeRefreshHandler();
-			destroy?.();
-		};
-		return api;
-	},
-});
-
-export const layers = definePlugin({
-	id: "tilia-layers",
-	requires: ["tilia-panel"],
-	setup(app, options = {}) {
-		const api = installLayersControl({
-			map: app.map,
-			core: app.core,
-			panel: app.services["tilia-panel"],
-			onStatus: app.setStatus,
-			onError: app.setError,
-			onEntriesChanged: () => app.refreshView(),
-			...resolveBuiltinUiOptions("tilia-layers", options),
-		});
-		api.render();
-		const removeRefreshHandler = app.addRefreshHandler(() => api.render());
-		const destroy = api.destroy?.bind(api);
-		api.destroy = () => {
-			removeRefreshHandler();
-			destroy?.();
-		};
-		return api;
-	},
-});
-
-export const elevation = definePlugin({
-	id: "tilia-elevation",
-	requires: ["tilia-panel"],
-	setup(app, options = {}) {
-		const api = installElevationPanelControl({
-			map: app.map,
-			core: app.core,
-			panel: app.services["tilia-panel"],
-			onStatus: app.setStatus,
-			...resolveBuiltinUiOptions("tilia-elevation", options),
-		});
-		api.refresh();
-		const removeRefreshHandler = app.addRefreshHandler(() => api.refresh());
-		const destroy = api.destroy?.bind(api);
-		api.destroy = () => {
-			removeRefreshHandler();
-			destroy?.();
-		};
-		return api;
-	},
-});
-
-export const fileImport = definePlugin({
-	id: "tilia-file-import",
-	setup(app, options = {}) {
-		return installFileImportControl({
-			map: app.map,
-			registry: app.registry,
-			context: app.context,
-			onStatus: app.setStatus,
-			onError: app.setError,
-			onItemLoaded: () => app.refreshView(),
-			...resolveBuiltinUiOptions("tilia-file-import", options),
-		});
-	},
-});
-
-export const urlImport = definePlugin({
-	id: "tilia-url-import",
-	setup(app, options = {}) {
-		return installUrlImportControl({
-			map: app.map,
-			registry: app.registry,
-			context: app.context,
-			onStatus: app.setStatus,
-			onError: app.setError,
-			onItemLoaded: () => app.refreshView(),
-			...resolveSurfaceOptions(app),
-			...resolveBuiltinUiOptions("tilia-url-import", options),
-		});
-	},
-});
-
-export const queryImport = definePlugin({
-	id: "tilia-query-import",
-	setup(app, options = {}) {
-		return installQueryImportPlugin({
-			registry: app.registry,
-			context: app.context,
-			onStatus: app.setStatus,
-			onError: app.setError,
-			onItemLoaded: () => app.refreshView(),
-			...resolveBuiltinUiOptions("tilia-query-import", options),
-		});
-	},
-});
-
-export const settings = definePlugin({
-	id: "tilia-settings",
-	requires: ["tilia-panel"],
-	setup(app, options = {}) {
-		return installSettingsPanelControl({
-			map: app.map,
-			core: app.core,
-			panel: app.services["tilia-panel"],
-			onStatus: app.setStatus,
-			onError: app.setError,
-			...resolveBuiltinUiOptions("tilia-settings", options),
-		});
-	},
-});
-
-export const dropzone = definePlugin({
-	id: "tilia-dropzone",
-	setup(app, options = {}) {
-		const target = options.target || app.map.getContainer();
-		const destroy = installDropzonePlugin({
-			dropTarget: target,
-			registry: app.registry,
-			context: app.context,
-			onStatus: app.setStatus,
-			onError: app.setError,
-			onItemLoaded: () => app.refreshView(),
-		});
-		return { destroy, target };
-	},
-});
-
-// Expose the built-in plugin set as a registry for string-based app.use(...) lookups.
-export const builtins = Object.freeze({
-	panel,
-	status,
-	baseMaps,
-	layers,
-	elevation,
-	fileImport,
-	urlImport,
-	queryImport,
-	settings,
-	dropzone,
-	"tilia-panel": panel,
-	"tilia-status": status,
-	"tilia-base-maps-control": baseMaps,
-	"tilia-layers": layers,
-	"tilia-elevation": elevation,
-	"tilia-file-import": fileImport,
-	"tilia-url-import": urlImport,
-	"tilia-query-import": queryImport,
-	"tilia-settings": settings,
-	"tilia-dropzone": dropzone,
-});
+export const builtins = builtinPluginCatalog;

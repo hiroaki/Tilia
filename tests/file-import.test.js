@@ -1,155 +1,23 @@
-import { describe, expect, it, vi } from "vitest";
-
-import { processInputItems } from "../src/core/input-processing.js";
-import { installFileImportPlugin } from "../src/plugins/input/file-import.js";
-
-describe("processInputItems", () => {
-  it("reports the last successful load summary and item callbacks", async () => {
-    const registry = {
-      dispatch: vi.fn()
-        .mockResolvedValueOnce({ name: "first.gpx", summary: "1 point" })
-        .mockResolvedValueOnce({ name: "second.jpg", summary: "photo marker" }),
-    };
-    const context = {
-      state: {
-        layers: [{}, {}],
-      },
-    };
-    const onStatus = vi.fn();
-    const onError = vi.fn();
-    const onItemLoaded = vi.fn();
-    const items = [{ name: "first.gpx" }, { name: "second.jpg" }];
-
-    await processInputItems({
-      items,
-      registry,
-      context,
-      onStatus,
-      onError,
-      onItemLoaded,
-      sourceLabel: "file",
-    });
-
-    expect(registry.dispatch).toHaveBeenNthCalledWith(1, context, items[0]);
-    expect(registry.dispatch).toHaveBeenNthCalledWith(2, context, items[1]);
-    expect(onItemLoaded).toHaveBeenNthCalledWith(1, { name: "first.gpx", summary: "1 point" });
-    expect(onItemLoaded).toHaveBeenNthCalledWith(2, { name: "second.jpg", summary: "photo marker" });
-    expect(onError).not.toHaveBeenCalled();
-    expect(onStatus).toHaveBeenCalledWith(
-      "Loaded 2 file(s) from file. Total layers: 2. Last: second.jpg (photo marker)",
-    );
-  });
-
-  it("keeps going after item failures and includes the first failure in status", async () => {
-    const registry = {
-      dispatch: vi.fn()
-        .mockRejectedValueOnce(new Error("bad gpx"))
-        .mockResolvedValueOnce({ name: "photo.jpg", summary: "photo marker" })
-        .mockRejectedValueOnce(new Error("bad jpeg")),
-    };
-    const context = {
-      state: {
-        layers: [{}, {}, {}],
-      },
-    };
-    const onStatus = vi.fn();
-    const onError = vi.fn();
-    const items = [{ name: "broken.gpx" }, { name: "photo.jpg" }, { name: "broken.jpg" }];
-
-    await processInputItems({
-      items,
-      registry,
-      context,
-      onStatus,
-      onError,
-      sourceLabel: "drop",
-    });
-
-    expect(onError).toHaveBeenCalledTimes(2);
-    expect(onStatus).toHaveBeenCalledWith(
-      "Loaded 1 file(s) from drop. Total layers: 3. Last: photo.jpg (photo marker). Failed: 2. broken.gpx: bad gpx",
-    );
-  });
-
-  it("reports an overall failure when nothing could be loaded", async () => {
-    const registry = {
-      dispatch: vi.fn().mockRejectedValue(new Error("unsupported")),
-    };
-    const onStatus = vi.fn();
-    const onError = vi.fn();
-
-    await processInputItems({
-      items: [{ name: "notes.txt" }],
-      registry,
-      context: { state: { layers: [] } },
-      onStatus,
-      onError,
-    });
-
-    expect(onError).toHaveBeenCalledTimes(1);
-    expect(onStatus).toHaveBeenCalledWith("Failed: 1 file(s). notes.txt: unsupported");
-  });
-
-  it("returns early for an empty queue", async () => {
-    const registry = {
-      dispatch: vi.fn(),
-    };
-    const onStatus = vi.fn();
-
-    await processInputItems({
-      items: [],
-      registry,
-      context: { state: { layers: [] } },
-      onStatus,
-      onError: vi.fn(),
-    });
-
-    expect(registry.dispatch).not.toHaveBeenCalled();
-    expect(onStatus).not.toHaveBeenCalled();
+import { afterEach, describe, expect, it, vi } from "vitest";
+vi.mock("leaflet", () => import("./helpers/leaflet-ui.js"));
+import { uiFixture, byClass, settle } from "./helpers/production-ui.js";
+let f; afterEach(async () => { await f?.close(); f = null; });
+describe("File cancellation without uninstall join", () => {
+  it("keeps picker busy until handler settlement, stops later items and ignores stale completion", async () => {
+    f = await uiFixture(["tilia-file-import"]); let release; const calls=[];
+    await f.app.use({id:"x-input",setup(c){c.inputs.register({id:"test",discovery:{extensions:[".test"]},recognize:()=>true,handle({input}){calls.push(input.name);return new Promise((r)=>{release=r;});}});}});
+    const picker = byClass(f.map.container,"tilia-file-label")[0].children[0], cancel = byClass(f.map.container,"tilia-file-cancel")[0];
+    expect(picker.accept).toBe(".test"); picker.files=[{name:"first"},{name:"second"}];picker.value="chosen";picker.dispatchEvent(new Event("change"));await settle();
+    cancel.click(); expect(picker.disabled).toBe(true); expect(cancel.disabled).toBe(true); expect(byClass(f.map.container,"tilia-file-progress")[0].textContent).toContain("Cancelling");
+    release();await settle();expect(calls).toEqual(["first"]);expect(picker.disabled).toBe(false);expect(picker.value).toBe("");
+    picker.files=[{name:"third"}];picker.dispatchEvent(new Event("change"));await settle();await f.app.unuse("tilia-file-import");release();await settle();expect(byClass(f.map.container,"tilia-file-import-control")).toHaveLength(0);
   });
 });
 
-describe("installFileImportPlugin", () => {
-  it("processes selected files and clears the input value after change", async () => {
-    const listeners = new Map();
-    const fileInput = {
-      files: [{ name: "track.gpx" }],
-      value: "selected",
-      addEventListener: vi.fn((eventName, handler) => {
-        listeners.set(eventName, handler);
-      }),
-    };
-    const registry = {
-      dispatch: vi.fn().mockResolvedValue({ name: "track.gpx", summary: "1 point" }),
-    };
-    const context = {
-      state: {
-        layers: [{}],
-      },
-    };
-    const onStatus = vi.fn();
-    const onError = vi.fn();
-    const onItemLoaded = vi.fn();
-
-    installFileImportPlugin({
-      fileInput,
-      registry,
-      context,
-      onStatus,
-      onError,
-      onItemLoaded,
-    });
-
-    await listeners.get("change")({ target: fileInput });
-
-    expect(onItemLoaded).toHaveBeenCalledWith({ name: "track.gpx", summary: "1 point" });
-    expect(onStatus).toHaveBeenCalledWith(
-      "Loaded 1 file(s) from file. Total layers: 1. Last: track.gpx (1 point)",
-    );
-    expect(fileInput.value).toBe("");
-  });
-
-  it("does nothing when no input element is provided", () => {
-    expect(() => installFileImportPlugin({})).not.toThrow();
-  });
+describe("handler withdrawal cancels its batch",()=>{
+ it("stops remaining admission and suppresses successful completion status",async()=>{
+  f=await uiFixture(["tilia-file-import","tilia-status"]);let release;const calls=[];
+  await f.app.use({id:"x-held",setup(c){c.inputs.register({id:"held",recognize:()=>true,handle({input}){calls.push(input.name);return new Promise(r=>release=r);}});}});
+  const picker=byClass(f.map.container,"tilia-file-label")[0].children[0];picker.files=[{name:"first"},{name:"second"}];picker.dispatchEvent(new Event("change"));await settle();await f.app.unuse("x-held");release({name:"late"});await settle();expect(calls).toEqual(["first"]);expect(byClass(f.map.container,"tilia-status-text")[0].textContent).toBe("Ready");expect(picker.disabled).toBe(false);
+ });
 });

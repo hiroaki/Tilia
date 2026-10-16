@@ -1,8 +1,9 @@
 import { parseFixedOffsetMinutes } from "../core/photo-time-utils.js";
+import { lookupTimestamp } from "../gpx/queries.js";
 import { getGlobalTimeline } from "../gpx/interpretation.js";
 
-function flattenGpxTimeline(sources) {
-  return getGlobalTimeline(sources);
+export class PhotoInferenceNoMatchError extends Error {
+  constructor(message) { super(message); this.name = "PhotoInferenceNoMatchError"; }
 }
 
 function toModeAdjustedTimestamp(dateValue, mode) {
@@ -56,22 +57,12 @@ function interpolatePoint(before, after, targetTimestamp) {
 function inferPhotoLocationForMode(timeline, photo, mode) {
   const timestamp = toModeAdjustedTimestamp(photo?.dateTimeOriginal, mode);
   if (!Number.isFinite(timestamp)) {
-    throw new Error(`No valid photo timestamp: ${photo?.name || "unknown"}`);
+    throw new PhotoInferenceNoMatchError(`No valid photo timestamp: ${photo?.name || "unknown"}`);
   }
 
-  let before = null;
-  let after = null;
-  for (const point of timeline) {
-    if (point.timestamp <= timestamp) {
-      before = point;
-      continue;
-    }
-    after = point;
-    break;
-  }
-
-  if (!before || !after) {
-    throw new Error("Photo timestamp is outside GPX timeline range");
+  const { before, after } = lookupTimestamp({ points: timeline }, timestamp);
+  if (!before || !after || !Number.isFinite(new Date(before.timestamp).getTime()) || !Number.isFinite(new Date(after.timestamp).getTime())) {
+    throw new PhotoInferenceNoMatchError("Photo timestamp is outside GPX timeline range");
   }
 
   const inferred = interpolatePoint(before, after, timestamp);
@@ -79,6 +70,7 @@ function inferPhotoLocationForMode(timeline, photo, mode) {
   const ratio = totalSpan === 0 ? 0 : (timestamp - before.timestamp) / totalSpan;
 
   return {
+    inferredTimestamp: timestamp,
     lat: inferred.lat,
     lon: inferred.lon,
     locationSource: "gpx-time-inference",
@@ -90,12 +82,12 @@ function inferPhotoLocationForMode(timeline, photo, mode) {
   };
 }
 
-export function inferPhotoLocationFromGpx(sources, photo, options = {}) {
+export function inferPhotoLocationFromTimeline(capturedTimeline, photo, options = {}) {
   const mode = options.timeInterpretationMode || "auto";
 
-  const timeline = flattenGpxTimeline(sources);
+  const timeline = capturedTimeline.points;
   if (timeline.length < 2) {
-    throw new Error("No GPX timeline data for inference");
+    throw new PhotoInferenceNoMatchError("No GPX timeline data for inference");
   }
 
   if (mode !== "auto") {
@@ -111,12 +103,13 @@ export function inferPhotoLocationFromGpx(sources, photo, options = {}) {
     try {
       attempts.push(inferPhotoLocationForMode(timeline, photo, candidateMode));
     } catch (error) {
+      if (!(error instanceof PhotoInferenceNoMatchError)) throw error;
       errors.push(error);
     }
   }
 
   if (attempts.length === 0) {
-    throw errors[0] || new Error("Photo timestamp is outside GPX timeline range");
+    throw errors[0] || new PhotoInferenceNoMatchError("Photo timestamp is outside GPX timeline range");
   }
 
   attempts.sort((left, right) => {
@@ -140,4 +133,8 @@ export function inferPhotoLocationFromGpx(sources, photo, options = {}) {
     ...best,
     locationReason: `Inferred from GPX timeline using AUTO photo time resolved to ${best.timeInterpretationMode.toUpperCase()}`,
   };
+}
+
+export function inferPhotoLocationFromGpx(sources, photo, options = {}) {
+  return inferPhotoLocationFromTimeline({ points: getGlobalTimeline(sources) }, photo, options);
 }

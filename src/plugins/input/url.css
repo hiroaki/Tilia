@@ -1,0 +1,49 @@
+.tilia-url-box {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  align-items: center;
+}
+
+.tilia-url-floating-panel {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(420px, calc(100vw - 32px));
+  box-sizing: border-box;
+}
+
+.tilia-url-floating-panel-hidden {
+  display: none;
+}
+
+.tilia-url-input {
+  width: 100%;
+  box-sizing: border-box;
+  height: 34px;
+  padding: 7px 8px;
+}
+
+.tilia-url-load-button,
+.tilia-url-close-button {
+  height: 34px;
+  box-sizing: border-box;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+.tilia-url-floating-panel {
+    width: calc(100vw - 24px);
+  }
+.tilia-url-box {
+    flex-wrap: wrap;
+  }
+.tilia-url-input {
+    min-width: 0;
+    flex: 1 1 180px;
+  }
+}
+.tilia-url-progress { font-size: 12px; }
+
+.tilia-url-input { border: 1px solid #d6d3d1; border-radius: 6px; font-size: 13px; }

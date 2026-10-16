@@ -1,8 +1,7 @@
-import { resolve } from "node:path";
-
 import { expect, test } from "@playwright/test";
+import { mockPhotoExif, gpsPhoto } from "../helpers/photo-exif.js";
 
-const sampleGpsPhotoPath = resolve(import.meta.dirname, "../../samples/embed/IMG_2889.JPG");
+test.beforeEach(async ({ page }) => mockPhotoExif(page));
 
 test("viewer sample imports a GPS-tagged photo and shows it as an EXIF-based layer", async ({ page }) => {
   const pageErrors = [];
@@ -10,9 +9,9 @@ test("viewer sample imports a GPS-tagged photo and shows it as an EXIF-based lay
     pageErrors.push(error.message);
   });
 
-  await page.goto("/samples/viewer/");
+  await page.goto("/tests/fixtures/viewer/");
 
-  await page.locator('.tilia-file-import-control input[type="file"]').setInputFiles(sampleGpsPhotoPath);
+  await page.locator('.tilia-file-import-control input[type="file"]').setInputFiles(gpsPhoto);
 
   await expect(page.locator(".tilia-status-text")).toContainText("IMG_2889.JPG");
   await expect(page.locator(".tilia-status-text")).toContainText("exif-gps");

@@ -1,44 +1,13 @@
 import { expect, test } from "@playwright/test";
+import { mockPhotoExif, timestampPhoto } from "../helpers/photo-exif.js";
 
-test("viewer settings panel updates the default time mode and re-shows status", async ({ page }) => {
-  const pageErrors = [];
-  page.on("pageerror", (error) => {
-    pageErrors.push(error.message);
-  });
-
-  await page.goto("/samples/viewer/");
-
-  await page.locator(".tilia-status-dismiss").click();
-  await expect(page.locator(".tilia-status-panel")).toHaveClass(/tilia-status-panel-dismissed/);
-
-  await page.getByRole("button", { name: "Settings" }).click();
-  await expect(page.locator(".tilia-side-panel:not(.tilia-side-panel-hidden)")).toBeVisible();
-  await expect(page.locator(".tilia-side-panel-title")).toHaveText("Settings");
-  await expect(page.locator(".tilia-default-time-mode-select")).toHaveValue("auto");
-  await expect(page.locator(".tilia-default-time-mode-custom")).toBeHidden();
-
-  const sidePanelBox = await page.locator(".tilia-side-panel:not(.tilia-side-panel-hidden)").evaluate((element) => {
-    const rect = element.getBoundingClientRect();
-    return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom };
-  });
-  const baseMapControlBox = await page.locator(".tilia-base-map-control").evaluate((element) => {
-    const rect = element.getBoundingClientRect();
-    return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom };
-  });
-  expect(baseMapControlBox.right).toBeLessThanOrEqual(sidePanelBox.left);
-
-  await page.locator(".tilia-default-time-mode-select").selectOption("custom");
-  await expect(page.locator(".tilia-default-time-mode-custom")).toBeVisible();
-  await page.locator(".tilia-default-time-mode-sign").selectOption("+");
-  await page.locator(".tilia-default-time-mode-offset").fill("00:00");
-  await page.locator(".tilia-default-time-mode-offset").press("Enter");
-  await expect(page.locator(".tilia-status-text")).toContainText("Default photo time mode set to +00:00");
-  await page.locator(".tilia-default-time-mode-select").selectOption("utc");
-  await expect(page.locator(".tilia-default-time-mode-custom")).toBeHidden();
-  await expect(page.locator(".tilia-status-panel")).not.toHaveClass(/tilia-status-panel-dismissed/);
-
-  await page.getByRole("button", { name: "Close" }).click();
-  await expect(page.locator(".tilia-side-panel")) .toHaveClass(/tilia-side-panel-hidden/);
-
-  expect(pageErrors).toEqual([]);
+test.beforeEach(async ({ page }) => mockPhotoExif(page));
+test("viewer settings exposes per-entry Photo modes and owns side layout/focus", async ({ page }) => {
+ const errors=[];page.on("pageerror",e=>errors.push(e.message));await page.goto("/tests/fixtures/viewer/");
+ await page.locator('input[type="file"]').setInputFiles(timestampPhoto);await expect(page.locator(".tilia-status-text")).toContainText("IMG_2892.JPG");
+ await page.getByRole("button",{name:"Settings",exact:true}).click();await expect(page.getByRole("dialog",{name:"Settings",exact:true})).toBeVisible();
+ const select=page.locator(".tilia-photo-time-mode-select");await expect(select).toHaveValue("auto");await select.selectOption("utc");await expect(select).toHaveValue("utc");
+ expect(await select.locator("option").evaluateAll(nodes=>nodes.map(n=>n.value))).toEqual(["auto","local","utc","custom"]);
+ const panel=await page.locator(".tilia-side-panel").boundingBox(),control=await page.locator(".tilia-base-map-control").boundingBox();expect(control.x+control.width).toBeLessThanOrEqual(panel.x);
+ await select.press("Escape");await expect(page.locator(".tilia-side-panel")).toBeHidden();await expect(page.getByRole("button",{name:"Settings",exact:true})).toBeFocused();expect(errors).toEqual([]);
 });

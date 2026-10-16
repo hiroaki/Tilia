@@ -1,77 +1,20 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-
-const leafletMocks = vi.hoisted(() => ({
-  groups: [],
-  markers: [],
-}));
-
-vi.mock("leaflet", () => ({
-  DivIcon: class {
-    constructor(options) { this.options = options; }
-  },
-  LayerGroup: class {
-    constructor() {
-      this.layers = [];
-      this.removed = false;
-      leafletMocks.groups.push(this);
-    }
-    addTo(map) { this.map = map; return this; }
-    clearLayers() { this.layers = []; return this; }
-    remove() { this.removed = true; return this; }
-  },
-  Marker: class {
-    constructor(latlng, options) {
-      this.latlng = latlng;
-      this.options = options;
-      leafletMocks.markers.push(this);
-    }
-    addTo(group) { group.layers.push(this); return this; }
-  },
-}));
-
+import { describe, expect, it, vi } from "vitest";
+vi.mock("leaflet", () => import("./helpers/leaflet-ui.js"));
+import { createScopeController } from "../src/ownership/index.js";
 import { createSelectionOverlay } from "../plugins/x-track-editor/selection-overlay.js";
-
-describe("x-track-editor selection overlay", () => {
-  beforeEach(() => {
-    leafletMocks.groups.length = 0;
-    leafletMocks.markers.length = 0;
-  });
-
-  it("renders one non-interactive ring per resolved selected point and replaces stale rings", () => {
-    const overlay = createSelectionOverlay({});
-    const group = leafletMocks.groups[0];
-    overlay.sync([]);
-    expect(group.layers).toEqual([]);
-    overlay.sync([
-      { point: { lat: 35.1, lon: 135.1 } },
-      { point: { lat: 35.2, lon: 135.2 } },
-      { point: { lat: 35.3, lon: 135.3 } },
-    ]);
-
-    expect(group.layers.map((marker) => marker.latlng)).toEqual([
-      [35.1, 135.1], [35.2, 135.2], [35.3, 135.3],
-    ]);
-    for (const marker of group.layers) {
-      expect(marker.options).toMatchObject({
-        interactive: false,
-        keyboard: false,
-        bubblingPointerEvents: false,
-        zIndexOffset: 1000,
-      });
-      expect(marker.options.icon.options.className).toBe("tilia-track-editor-selection-ring");
-    }
-
-    overlay.sync([{ point: { lat: 36, lon: 136 } }]);
-    expect(group.layers).toHaveLength(1);
-    expect(group.layers[0].latlng).toEqual([36, 136]);
-    overlay.sync([
-      { pointId: "resolver-a", point: { id: "draft-b", lat: 35, lon: 135 } },
-      { pointId: "resolver-b", point: { id: "draft-a", lat: 36, lon: 136 } },
-    ], { focusedPointId: "resolver-b" });
-    expect(group.layers[0].options.icon.options.className).toBe("tilia-track-editor-selection-ring");
-    expect(group.layers[1].options.icon.options.className).toContain("tilia-track-editor-selection-ring-focused");
-    overlay.destroy();
-    expect(group.layers).toEqual([]);
-    expect(group.removed).toBe(true);
-  });
+import { settle } from "./helpers/scoped-dom.js";
+it("owns noninteractive selection-band rings and withdraws old rings on replacement/closure", async () => {
+  const controller = createScopeController(); await controller.commit(); const scope = controller.scope.child();
+  const map = { layers: new Set() }, attachments = [];
+  const context = { map: { attachLayer(marker, options) {
+    attachments.push(options); marker.addTo(map); return { dispose: () => marker.remove() };
+  } } };
+  const overlay = createSelectionOverlay({context,scope});
+  overlay.sync([{pointId:"one",point:{lat:1,lon:2}},{pointId:"two",point:{lat:3,lon:4}}],{focusedPointId:"two"});
+  expect(map.layers.size).toBe(2); expect(attachments).toEqual([{band:"selection"},{band:"selection"}]);
+  expect([...map.layers][1].options.icon.options.className).toContain("focused");
+  expect([...map.layers].every(marker => !marker.options.interactive && !marker.options.keyboard)).toBe(true);
+  overlay.sync([{pointId:"new",point:{lat:5,lon:6}}]); await settle(); expect(map.layers.size).toBe(1);
+  await scope.dispose(); expect(map.layers.size).toBe(0); overlay.sync([{point:{lat:7,lon:8}}]); expect(map.layers.size).toBe(0);
+  await controller.close();
 });

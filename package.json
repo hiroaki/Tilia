@@ -5,12 +5,22 @@
   "scripts": {
     "serve": "node scripts/static-server.mjs",
     "test": "vitest run",
-    "test:smoke": "playwright test"
+    "test:smoke": "playwright test",
+    "test:smoke:phase4b": "playwright test tests/smoke/phase-4b.spec.js",
+    "test:smoke:phase4c": "playwright test tests/smoke/phase-4c.spec.js",
+    "test:smoke:phase4d": "playwright test tests/smoke/phase-4d.spec.js",
+    "test:smoke:phase4e": "playwright test tests/smoke/phase-4e.spec.js",
+    "test:smoke:phase4f": "playwright test tests/smoke/phase-4f.spec.js",
+    "test:smoke:phase4g": "playwright test tests/smoke/phase-4g.spec.js",
+    "test:smoke:phase4h": "playwright test tests/smoke/phase-4h.spec.js",
+    "test:regression": "playwright test --project=regression",
+    "test:samples": "vitest run --project=samples && playwright test --project=samples"
   },
   "devDependencies": {
     "@playwright/test": "^1.54.1",
     "@xmldom/xmldom": "^0.8.11",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "es-module-lexer": "1.7.0"
   },
   "dependencies": {
     "leaflet": "2.0.0-alpha.1"

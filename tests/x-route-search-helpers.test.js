@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeGpxSource } from "../src/gpx/source.js";
+import { normalizeGpxDocument } from "../src/gpx/document.js";
 
 import {
   createImportedRouteSource,
@@ -105,10 +105,10 @@ describe("x-route-search helpers", () => {
     });
     expect(source.tracks[0].name).toBeUndefined();
     expect(source).not.toHaveProperty("routes");
-    expect(normalizeGpxSource(source)).toMatchObject({
+    expect(normalizeGpxDocument(source)).toMatchObject({
       tracks: source.tracks,
       routes: [],
-      waypoints: source.waypoints,
+      waypoints: source.waypoints.map(point=>({...point,elevation:null,timestamp:null})),
     });
     expect(source).not.toHaveProperty("trackPointDetails");
   });

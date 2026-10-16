@@ -2,6 +2,9 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
-    exclude: ["**/node_modules/**", "**/dist/**", "**/tests/smoke/**"],
+    projects: [
+      { test: { name: "unit", include: ["tests/*.test.js"] } },
+      { test: { name: "samples", include: ["tests/samples/*.test.js"] } },
+    ],
   },
 });

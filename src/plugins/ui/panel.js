@@ -1,116 +1,91 @@
-import { DomEvent } from "leaflet";
-import { TILIA_CONTROL_PRIORITY, TILIA_UI_LAYER } from "../../ui/protocol.js";
-
-export function installPanelPlugin({ map, surfaces = null }) {
-  const mapContainer = map.getContainer();
-  const ownerDocument = mapContainer.ownerDocument;
-  const panelRoot = ownerDocument.createElement("aside");
-  panelRoot.className = "tilia-side-panel tilia-side-panel-hidden";
-  const layoutClasses = ["tilia-side-panel-layout-side", "tilia-side-panel-layout-bottom"];
-
-  const panelHeader = ownerDocument.createElement("div");
-  panelHeader.className = "tilia-side-panel-header";
-
-  const panelTitle = ownerDocument.createElement("h2");
-  panelTitle.className = "tilia-side-panel-title";
-  panelTitle.textContent = "Panel";
-
-  const closeButton = ownerDocument.createElement("button");
-  closeButton.type = "button";
-  closeButton.className = "tilia-side-panel-close";
-  closeButton.textContent = "Close";
-
-  const panelBody = ownerDocument.createElement("div");
-  panelBody.className = "tilia-side-panel-body";
-
-  panelHeader.appendChild(panelTitle);
-  panelHeader.appendChild(closeButton);
-  panelRoot.appendChild(panelHeader);
-  panelRoot.appendChild(panelBody);
-  const mountedSurface = surfaces?.mount({
-    id: "tilia-panel-root",
-    surface: TILIA_UI_LAYER.panel,
-    element: panelRoot,
-    priority: TILIA_CONTROL_PRIORITY.normal,
-  });
-  if (!mountedSurface) {
-    mapContainer.appendChild(panelRoot);
-  }
-
-  for (const eventName of ["click", "dblclick", "mousedown", "mouseup", "pointerdown", "pointerup"]) {
-    panelRoot.addEventListener(eventName, (event) => {
-      event.stopPropagation();
-    });
-  }
-  panelRoot.addEventListener("dblclick", (event) => {
-    event.preventDefault();
-  });
-  DomEvent.disableScrollPropagation(panelRoot);
-
-  let activePanelId = null;
-  let activeSpec = null;
-
-  function closePanel() {
-    activePanelId = null;
-    activeSpec = null;
-    panelRoot.classList.add("tilia-side-panel-hidden");
-    panelRoot.classList.remove(...layoutClasses);
-    panelRoot.classList.add("tilia-side-panel-layout-side");
-    surfaces?.setPanelState({ active: false });
-    panelBody.innerHTML = "";
-  }
-
-  function openPanel({ panelId, title, render, layout = "side" }) {
-    activeSpec = { panelId, title, render, layout };
-    activePanelId = panelId;
-    panelTitle.textContent = title;
-    panelRoot.classList.remove(...layoutClasses);
-    panelRoot.classList.add(layout === "bottom" ? "tilia-side-panel-layout-bottom" : "tilia-side-panel-layout-side");
-    panelBody.innerHTML = "";
-    const content = render();
-    if (content instanceof HTMLElement) {
-      panelBody.appendChild(content);
-    }
-    panelRoot.classList.remove("tilia-side-panel-hidden");
-    surfaces?.setPanelState({
-      active: true,
-      layout,
-      element: panelRoot,
-    });
-  }
-
-  function rerenderPanel(panelId) {
-    if (!activeSpec) {
-      return;
-    }
-    if (panelId && activePanelId !== panelId) {
-      return;
-    }
-    openPanel(activeSpec);
-  }
-
-  closeButton.addEventListener("click", closePanel);
-
-  panelRoot.classList.add("tilia-side-panel-layout-side");
-
-  return {
-    openPanel,
-    closePanel,
-    rerenderPanel,
-    destroy() {
-      surfaces?.setPanelState({ active: false });
-      mountedSurface?.unmount?.();
-      panelRoot.remove?.();
-    },
-    togglePanel(spec) {
-      if (activePanelId === spec.panelId) {
-        closePanel();
-      } else {
-        openPanel(spec);
+import { panelServiceKey } from "../contracts/panel.js";
+import { listen, node, reportError } from "../../ui/scoped-dom.js";
+export default Object.freeze({
+  id: "tilia-panel",
+  setup(context) {
+    context.styles.use({ id: "tilia-panel-ui", href: new URL("./panel.css", import.meta.url).href });
+    let active = null, root, body, title;
+    let requestVersion = 0;
+    const cancelledHandle = Object.freeze({ dispose: () => Promise.resolve() });
+    const report = (error) => reportError(context, error);
+    const closeRecord = (record) => {
+      if (!record) return Promise.resolve();
+      const current = active === record;
+      const version = requestVersion;
+      if (current) {
+        active = null;
+        root.classList.add("tilia-side-panel-hidden");
+        delete root.dataset.tiliaPanelLayout;
       }
-    },
-    isOpen(panelId) {
-      return activePanelId === panelId;
-    },
-  };
-}
+      // Revoke this captured scope before cleanup; stale failures/handles must
+      // never change a reentrant replacement, even when its ID is identical.
+      const closing = record.scope.dispose();
+      // Observe even fire-and-forget supersession; the scope retains failures
+      // for the ordinary panel-owner residual/retry path.
+      void closing.catch(report);
+      record.container.remove();
+      if (current && active === null && version === requestVersion) {
+        try { (record.focus?.isConnected ? record.focus : root.ownerDocument.querySelector?.(".tilia-toolbar-item button:not(:disabled)") ?? root.parentNode)?.focus?.(); } catch (error) { report(error); }
+      }
+      return closing;
+    };
+    const close = (id) => {
+      if (id !== undefined && active?.id !== id) return Promise.resolve();
+      ++requestVersion;
+      return closeRecord(active);
+    };
+    context.ui.mountSurface({ id: "panel", surface: "panel", ariaLabel: "Tilia panel",
+      mount({ container, scope }) {
+        Object.assign(container.style, { position: "absolute", inset: "0", pointerEvents: "none" });
+        root = node(container, "aside", "tilia-side-panel tilia-side-panel-layout-side tilia-side-panel-hidden");
+        root.style.pointerEvents = "auto";
+        root.setAttribute("role", "dialog"); root.setAttribute("aria-label", "Tilia panel");
+        container.tabIndex = -1;
+        const header = node(root, "div", "tilia-side-panel-header");
+        title = node(header, "h2", "tilia-side-panel-title", "Panel");
+        const button = node(header, "button", "tilia-control-close tilia-side-panel-close", "Close");
+        button.type = "button";
+        body = node(root, "div", "tilia-side-panel-body");
+        listen(scope, button, "click", () => close(), report);
+        listen(scope, root, "keydown", (e) => { if (e.key === "Escape") { e.preventDefault(); return close(); } }, report);
+        for (const event of ["click", "dblclick", "mousedown", "pointerdown", "wheel"])
+          listen(scope, root, event, (e) => e.stopPropagation());
+        scope.defer(() => close(), { retry: "safe" });
+      },
+    });
+    function validate(spec) {
+      if (!spec || typeof spec !== "object" || Array.isArray(spec) || typeof spec.id !== "string" || !spec.id.trim()
+          || typeof spec.title !== "string" || !spec.title.trim() || typeof spec.mount !== "function"
+          || !["side", "bottom"].includes(spec.layout === undefined ? "side" : spec.layout)) throw new TypeError("Invalid panel specification");
+    }
+    function open(spec) {
+      validate(spec);
+      const { id, title: label, mount, layout = "side" } = spec;
+      context.scope.assertAlive();
+      // Last admitted request wins. Abort/focus callbacks may synchronously
+      // admit a newer request while the captured old record is closing.
+      const request = ++requestVersion;
+      void closeRecord(active);
+      if (request !== requestVersion) return cancelledHandle;
+      const scope = context.scope.child({ label: `panel:${id}` });
+      const container = node(body, "div", "tilia-panel-content");
+      const record = { id, scope, container, focus: container.ownerDocument.activeElement };
+      active = record;
+      title.textContent = label; root.setAttribute("aria-label", label);
+      root.classList.toggle("tilia-side-panel-layout-side", layout === "side");
+      root.classList.toggle("tilia-side-panel-layout-bottom", layout === "bottom");
+      root.dataset.tiliaPanelLayout = layout;
+      root.classList.remove("tilia-side-panel-hidden");
+      scope.defer(() => container.remove(), { retry: "safe" });
+      try { mount({ container, scope }); } catch (error) { void closeRecord(record); throw error; }
+      return Object.freeze({ dispose() {
+        if (active === record) ++requestVersion;
+        return closeRecord(record);
+      } });
+    }
+    context.services.provide(panelServiceKey, {
+      open, close, isOpen: (id) => active?.id === id,
+      toggle(spec) { validate(spec); return active?.id === spec.id ? close(spec.id) : open(spec); },
+    });
+  },
+});

@@ -1,5 +1,3 @@
-import { cloneGpxSource } from "../../src/gpx/source.js";
-
 function clonePoint(point) {
   return {
     id: point.id,
@@ -32,11 +30,11 @@ function createIdFactory() {
 }
 
 export function createDraftDocument(source) {
-  const clonedSource = cloneGpxSource(source);
+  const canonicalSource = source;
   const createId = createIdFactory();
   return {
-    name: clonedSource.name,
-    tracks: clonedSource.tracks.map((track, originalTrackIndex) => ({
+    name: canonicalSource.name ?? "track.gpx",
+    tracks: canonicalSource.tracks.map((track, originalTrackIndex) => ({
       id: createId("track"),
       originalTrackIndex,
       name: track.name,
@@ -46,8 +44,8 @@ export function createDraftDocument(source) {
           id: createId("point"),
           lat: point.lat,
           lon: point.lon,
-          elevation: point.elevation,
-          timestamp: point.timestamp,
+          elevation: point.elevation ?? null,
+          timestamp: point.timestamp ?? null,
         })),
       })),
     })),

@@ -1,161 +1,41 @@
-import { DomEvent } from "leaflet";
-import { createButton, createPanel, installMapControl } from "../../map/controls.js";
-import { TILIA_CONTROL_PRIORITY, TILIA_UI_LAYER } from "../../ui/protocol.js";
-import { importRemoteUrl } from "../../core/remote-url-import.js";
-import {
-  DEFAULT_URL_IMPORT_MAX_BYTES,
-  DEFAULT_URL_IMPORT_TIMEOUT_MS,
-} from "../../core/input-utils.js";
-
-export function installUrlImportPlugin({
-  urlInput,
-  loadButton,
-  registry,
-  context,
-  onStatus,
-  onError,
-  onItemLoaded,
-  timeoutMs = DEFAULT_URL_IMPORT_TIMEOUT_MS,
-  maxBytes = DEFAULT_URL_IMPORT_MAX_BYTES,
-}) {
-  if (!urlInput || !loadButton) {
-    return;
-  }
-
-  const runImport = () =>
-    importRemoteUrl({
-      url: urlInput.value,
-      registry,
-      context,
-      onStatus,
-      onError,
-      onItemLoaded,
-      timeoutMs,
-      maxBytes,
-    });
-
-  loadButton.addEventListener("click", runImport);
-  urlInput.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      runImport();
+import { listen, node, reportError } from "../../ui/scoped-dom.js";
+import { registerLauncher } from "../../ui/toolbar-launcher.js";
+import { importRemote, remoteOptions, status } from "./transport.js";
+export default Object.freeze({ id: "tilia-url-import", requires: ["tilia-toolbar"], setup(context, options = {}) {
+  context.styles.use({ id: "tilia-url-input-ui", href: new URL("./url.css", import.meta.url).href });
+  const limits = remoteOptions(options), report = (e) => reportError(context, e);
+  let form, input, load, progress, visible = false, pending;
+  const update = () => {
+    if (!context.scope.alive || !form) return;
+    form.classList.toggle("tilia-url-floating-panel-hidden", !visible);
+    input.disabled = load.disabled = !!pending;
+    progress.textContent = pending ? pending.controller.signal.aborted ? "Cancelling…" : "Loading…" : "";
+  };
+  const close = () => { visible = false; pending?.controller.abort(); update(); };
+  const run = async () => {
+    if (pending || !visible) return;
+    const scope = context.scope.child({ label: "url-request" }), controller = new AbortController(), record = { scope, controller };
+    pending = record; update();
+    try { await importRemote(context, { url: input.value, scope, signal: controller.signal, ...limits }); }
+    catch (error) { if (scope.alive && !controller.signal.aborted) { report(error); status(context, scope, `URL import failed: ${error.message}`); } }
+    finally {
+      try { await scope.dispose(); }
+      finally { if (context.scope.alive && pending === record) { pending = null; update(); } }
     }
-  });
-}
-
-function createUrlImportPanel({ map, surfaces = null, registry, context, onStatus, onError, onItemLoaded, timeoutMs, maxBytes }) {
-  const panel = createPanel("tilia-url-floating-panel tilia-url-floating-panel-hidden");
-  const form = createPanel("tilia-url-box");
-  const urlInput = document.createElement("input");
-  urlInput.className = "tilia-url-input";
-  urlInput.type = "url";
-  urlInput.placeholder = "https://example.com/track.gpx";
-
-  const loadButton = createButton("Load", "tilia-url-load-button");
-  const closeButton = createButton("Close", "tilia-url-close-button");
-  closeButton.addEventListener("click", () => {
-    panel.classList.add("tilia-url-floating-panel-hidden");
-  });
-
-  form.appendChild(urlInput);
-  form.appendChild(loadButton);
-  form.appendChild(closeButton);
-  panel.appendChild(form);
-
-  installUrlImportPlugin({
-    urlInput,
-    loadButton,
-    registry,
-    context,
-    onStatus,
-    onError,
-    onItemLoaded,
-    timeoutMs,
-    maxBytes,
-  });
-
-  for (const eventName of ["click", "dblclick", "mousedown", "mouseup", "pointerdown", "pointerup"]) {
-    DomEvent.on(panel, eventName, DomEvent.stopPropagation);
-  }
-  DomEvent.on(panel, "dblclick", DomEvent.preventDefault);
-  DomEvent.disableScrollPropagation(panel);
-
-  const mountedSurface = surfaces?.mount({
-    id: "tilia-url-import-floating-panel",
-    surface: TILIA_UI_LAYER.floating,
-    element: panel,
-    priority: TILIA_CONTROL_PRIORITY.high,
-  });
-  if (!mountedSurface) {
-    map.getContainer().appendChild(panel);
-  }
-
-  return {
-    panel,
-    destroy() {
-      mountedSurface?.unmount?.();
-      panel.remove?.();
-    },
-    focus() {
-      queueMicrotask(() => {
-        urlInput.focus();
-      });
-    },
   };
-}
-
-export function installUrlImportControl({
-  map,
-  surfaces = null,
-  registry,
-  context,
-  onStatus,
-  onError,
-  onItemLoaded,
-  position = "topleft",
-  priority = "normal",
-  timeoutMs = DEFAULT_URL_IMPORT_TIMEOUT_MS,
-  maxBytes = DEFAULT_URL_IMPORT_MAX_BYTES,
-}) {
-  const floatingPanel = createUrlImportPanel({
-    map,
-    surfaces,
-    registry,
-    context,
-    onStatus,
-    onError,
-    onItemLoaded,
-    timeoutMs,
-    maxBytes,
-  });
-
-  const control = installMapControl({
-    map,
-    position,
-    priority,
-    className: "tilia-url-import-control",
-    createContent() {
-      const wrap = createPanel("tilia-control-panel-compact");
-      const button = createButton("U", "tilia-control-button-icon");
-      button.title = "Load URL";
-      button.setAttribute("aria-label", "Load URL");
-      button.addEventListener("click", () => {
-        const isHidden = floatingPanel.panel.classList.contains("tilia-url-floating-panel-hidden");
-        floatingPanel.panel.classList.toggle("tilia-url-floating-panel-hidden", !isHidden);
-        if (isHidden) {
-          floatingPanel.focus();
-        }
-      });
-      wrap.appendChild(button);
-      return wrap;
-    },
-  });
-
-  return {
-    control,
-    destroy() {
-      floatingPanel.destroy();
-      control.remove?.();
-    },
-  };
-}
+  context.ui.mountSurface({ id: "url", surface: "floating", ariaLabel: "Load URL", mount({ container, scope }) {
+    form = node(container, "div", "tilia-control-panel tilia-url-floating-panel tilia-url-floating-panel-hidden"); form.setAttribute("role", "dialog"); form.setAttribute("aria-label", "Load URL");
+    const box = node(form, "div", "tilia-url-box");
+    input = node(box, "input", "tilia-url-input"); input.type = "url"; input.placeholder = "https://example.com/track.gpx"; input.setAttribute("aria-label", "Remote file URL");
+    load = node(box, "button", "tilia-control-button tilia-url-load-button", "Load"); load.type = "button";
+    const cancel = node(box, "button", "tilia-control-button tilia-url-close-button", "Close"); cancel.type = "button";
+    progress = node(form, "span", "tilia-url-progress"); progress.setAttribute("role", "status");
+    listen(scope, load, "click", run, report); listen(scope, cancel, "click", close, report);
+    listen(scope, input, "keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); return run(); } }, report);
+    listen(scope, form, "keydown", (e) => { if (e.key === "Escape") { e.preventDefault(); close(); } }, report);
+    for (const type of ["click", "dblclick", "mousedown", "pointerdown", "wheel"]) listen(scope, form, type, (e) => e.stopPropagation());
+  } });
+  registerLauncher(context, options, { kind: "action", label: "Load URL", iconText: "U", className: "tilia-url-import-control", activate() {
+    if (visible) close(); else { visible = true; update(); input.focus(); }
+  } });
+} });

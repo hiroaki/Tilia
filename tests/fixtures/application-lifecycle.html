@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Tilia application lifetime fixture</title>
+<link rel="stylesheet" href="/node_modules/leaflet/dist/leaflet.css">
+<script type="importmap">
+{"imports":{"leaflet":"/node_modules/leaflet/dist/leaflet.js"}}
+</script>
+<style>#map { width: 900px; height: 650px; }</style>
+<div id="sentinel">Page resource</div><div id="map" data-caller="preserve" style="--caller-value:42"></div>
+<script type="module">
+import { createDefaultTiliaApp } from "/src/index.js";
+import { Polyline, Map as LeafletMap } from "leaflet";
+const container = document.getElementById("map");
+window.lifecycle = {
+  container, Polyline,
+  createPageMap() {
+    const node = document.createElement("div"); node.style.cssText = "width:200px;height:200px"; document.body.appendChild(node);
+    return new LeafletMap(node).setView([35.68,139.76], 13);
+  },
+  create(options = {}) {
+    this.app = createDefaultTiliaApp(container, {
+      baseMapOptions: { tileUrl: "/tiles/{z}/{x}/{y}.png", center: [35.68, 139.76], zoom: 13 },
+      plugins: ["tilia-gpx-domain", "tilia-gpx-renderer", "tilia-gpx-input", "tilia-gpx-ui", "tilia-map-selection-presenter", "tilia-layers", "tilia-settings", "x-milestone", "x-track-editor", "x-route-search", "x-gpx-export"],
+      ...options,
+    });
+    return this.app;
+  },
+};
+window.fixtureReady = true;
+</script>
+</html>
