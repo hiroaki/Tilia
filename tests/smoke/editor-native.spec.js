@@ -97,8 +97,13 @@ for (const canvas of [false,true]) {
       const moved=(await circles(page))[0]; await click(page,...moved);
       await expect(page.locator(vertex)).toHaveCount(1);
       await click(page,35.678,139.765);
-      const empty=await point(page,35.678,139.765); await page.mouse.move(empty.x,empty.y);
-      await expect.poll(()=>page.evaluate(p=>getComputedStyle(document.elementFromPoint(p.x,p.y)).cursor,empty)).toBe('grab');
+      const empty=await point(page,35.678,139.765);
+      // Canvas may drop a move during its hover throttle; retry real movement as above.
+      await expect.poll(async () => {
+        await page.mouse.move(empty.x + 1, empty.y);
+        await page.mouse.move(empty.x, empty.y);
+        return page.evaluate(p => getComputedStyle(document.elementFromPoint(p.x,p.y)).cursor, empty);
+      }).toBe('grab');
       await page.getByRole('button',{name:'Cancel',exact:true}).click();
       expect(await circles(page)).toEqual([]);
       await page.getByRole('button',{name:'Start Edit',exact:true}).click();
