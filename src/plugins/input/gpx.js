@@ -3,7 +3,7 @@ export default Object.freeze({ id: "tilia-gpx-input", requires: ["tilia-gpx-doma
   const gpx = context.domains.require(gpxDomainKey);
   context.inputs.register({ id: "tilia-gpx", priority: 0,
     discovery: { extensions: [".gpx"], mimeTypes: ["application/gpx+xml"] },
-    recognize(input) { return input instanceof Blob && (input.type === "application/gpx+xml" || /\.gpx$/i.test(input.name ?? "")); },
+    recognize(input) { return input instanceof Blob && (input.type.split(";", 1)[0].trim().toLowerCase() === "application/gpx+xml" || /\.gpx$/i.test(input.name ?? "")); },
     async handle({ input, signal, scope }) {
       signal.throwIfAborted();
       const { parseGpxFile } = await import("../../gpx/parse.js");
