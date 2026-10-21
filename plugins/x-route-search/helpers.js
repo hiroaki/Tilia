@@ -183,14 +183,14 @@ export function createPhloemRequestBody({ profile, points, options = {} }) {
   }
 
   if (!Array.isArray(points)) {
-    throw new Error("Route points must be an array");
+    throw new Error("Routing points must be an array");
   }
 
   const normalizedPoints = points.map((point, index) => {
     const lat = parseCoordinateValue(point?.lat);
     const lon = parseCoordinateValue(point?.lon);
     if (!isValidLatitude(lat) || !isValidLongitude(lon)) {
-      throw new Error(`Invalid route point at index ${index}`);
+      throw new Error(`Invalid routing point at index ${index}`);
     }
     return { lat, lon };
   });

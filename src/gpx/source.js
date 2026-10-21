@@ -68,11 +68,19 @@ function normalizeTrack(track) {
   };
 }
 
+function normalizeRoute(route) {
+  return {
+    name: route?.name == null || route.name === "" ? undefined : String(route.name),
+    points: Array.isArray(route?.points) ? route.points.map(normalizeWaypoint).filter(Boolean) : [],
+  };
+}
+
 export function normalizeGpxSource(source = {}) {
   return {
     type: "gpx",
     name: source?.name ? String(source.name) : "track.gpx",
     tracks: Array.isArray(source.tracks) ? source.tracks.map(normalizeTrack).filter(Boolean) : [],
+    routes: Array.isArray(source.routes) ? source.routes.map(normalizeRoute) : [],
     waypoints: Array.isArray(source.waypoints) ? source.waypoints.map(normalizeWaypoint).filter(Boolean) : [],
   };
 }
@@ -85,6 +93,10 @@ export function cloneGpxSource(source = {}) {
       segments: Array.isArray(track?.segments) ? track.segments.map((segment) => ({
         points: Array.isArray(segment?.points) ? segment.points.map((point) => ({ ...point })) : [],
       })) : [],
+    })) : [],
+    routes: Array.isArray(source.routes) ? source.routes.map((route) => ({
+      name: route?.name,
+      points: Array.isArray(route?.points) ? route.points.map((point) => ({ ...point })) : [],
     })) : [],
     waypoints: Array.isArray(source.waypoints) ? source.waypoints.map((waypoint) => ({ ...waypoint })) : [],
   });

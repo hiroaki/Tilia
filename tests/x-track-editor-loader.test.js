@@ -5,18 +5,53 @@ vi.mock("leaflet", () => ({
   Marker: class Marker {},
   Polyline: class Polyline {},
   DivIcon: class DivIcon {},
+  FeatureGroup: class FeatureGroup {},
   Control: class Control {},
   DomEvent: {},
   DomUtil: {},
 }));
 
-import { trackEditorPlugin } from "../plugins/x-track-editor/loader.js";
+import { gpxExportPlugin } from "../plugins/x-gpx-export/loader.js";
+import { routeSearchPlugin } from "../plugins/x-route-search/loader.js";
+import {
+  recoverSelectionConsistencyFailure,
+  trackEditorPlugin,
+} from "../plugins/x-track-editor/loader.js";
 
 describe("x-track-editor plugin definition", () => {
   it("declares its UI dependencies", () => {
     expect(trackEditorPlugin.id).toBe("x-track-editor");
-    expect(trackEditorPlugin.requires).toEqual(["tilia-panel", "tilia-status"]);
+    expect(trackEditorPlugin.requires).toEqual(["tilia-panel"]);
     expect(trackEditorPlugin.stylesheets).toHaveLength(2);
     expect(typeof trackEditorPlugin.setup).toBe("function");
+  });
+
+  it("keeps status optional for repository plugins while preserving panel dependencies", () => {
+    expect(gpxExportPlugin.requires).toEqual(["tilia-panel"]);
+    expect(routeSearchPlugin.requires).toBeUndefined();
+  });
+
+  it("resets editing and reports details after a selection consistency failure", () => {
+    const callbacks = {
+      reportError: vi.fn(),
+      cancelRectangleSelection: vi.fn(),
+      detachLocalEditing: vi.fn(),
+      clearSelection: vi.fn(),
+      syncSelectionPresentation: vi.fn(),
+      setStatus: vi.fn(),
+    };
+    const details = { expectedCount: 2, resolvedCount: 1 };
+
+    recoverSelectionConsistencyFailure({ details, ...callbacks });
+
+    expect(callbacks.reportError).toHaveBeenCalledWith(
+      "Track editor selection consistency failure",
+      details,
+    );
+    expect(callbacks.cancelRectangleSelection).toHaveBeenCalledOnce();
+    expect(callbacks.detachLocalEditing).toHaveBeenCalledOnce();
+    expect(callbacks.clearSelection).toHaveBeenCalledOnce();
+    expect(callbacks.syncSelectionPresentation).toHaveBeenCalledOnce();
+    expect(callbacks.setStatus).toHaveBeenCalledWith(expect.stringContaining("editing was reset"));
   });
 });

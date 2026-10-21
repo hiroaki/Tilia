@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { normalizeGpxSource } from "../src/gpx/source.js";
 
 import {
   createImportedRouteSource,
@@ -103,6 +104,12 @@ describe("x-route-search helpers", () => {
       },
     });
     expect(source.tracks[0].name).toBeUndefined();
+    expect(source).not.toHaveProperty("routes");
+    expect(normalizeGpxSource(source)).toMatchObject({
+      tracks: source.tracks,
+      routes: [],
+      waypoints: source.waypoints,
+    });
     expect(source).not.toHaveProperty("trackPointDetails");
   });
 
@@ -209,19 +216,19 @@ describe("x-route-search helpers", () => {
     })).toThrow(/invalid route profile/i);
   });
 
-  it("throws when route points include invalid coordinates", () => {
+  it("throws when routing points include invalid coordinates", () => {
     expect(() => createPhloemRequestBody({
       profile: "car",
       points: [
         { lat: "", lon: "139.76" },
       ],
-    })).toThrow(/invalid route point/i);
+    })).toThrow("Invalid routing point at index 0");
   });
 
-  it("throws when route points input is not an array", () => {
+  it("throws when routing points input is not an array", () => {
     expect(() => createPhloemRequestBody({
       profile: "car",
       points: null,
-    })).toThrow(/must be an array/i);
+    })).toThrow("Routing points must be an array");
   });
 });

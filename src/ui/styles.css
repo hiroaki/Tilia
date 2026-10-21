@@ -111,7 +111,7 @@
   font-weight: 700;
 }
 
-.tilia-control-button:hover {
+.tilia-control-button:not(:disabled):hover {
   background: #f5f5f4;
 }
 
@@ -833,6 +833,38 @@
   min-width: 0;
   overflow-wrap: anywhere;
   word-break: break-word;
+}
+
+.tilia-route-point-marker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  height: 18px;
+  padding: 0 4px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  background: var(--route-color, #334155);
+  border: 1px solid #fff;
+  border-radius: 4px;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 75%);
+  text-shadow: 0 1px 1px rgb(0 0 0 / 35%);
+}
+
+.tilia-route-point-marker::after {
+  position: absolute;
+  bottom: -6px;
+  left: 50%;
+  width: 0;
+  height: 0;
+  content: "";
+  border-top: 6px solid var(--route-color, #334155);
+  border-right: 4px solid transparent;
+  border-left: 4px solid transparent;
+  transform: translateX(-50%);
 }
 
 @media (max-width: 960px) {

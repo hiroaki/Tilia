@@ -134,6 +134,9 @@ export function installBaseMapControl({ map, baseMaps, onStatus = null, position
 
   return {
     control,
+    destroy() {
+      control.remove();
+    },
     render,
   };
 }

@@ -20,6 +20,16 @@ export function serializeGpxSource(source, { creator = "Tilia" } = {}) {
     if (waypoint.name) lines.push(`    <name>${escapeXml(waypoint.name)}</name>`);
     lines.push("  </wpt>");
   }
+  for (const route of normalized.routes) {
+    lines.push("  <rte>");
+    if (route.name !== undefined) lines.push(`    <name>${escapeXml(route.name)}</name>`);
+    for (const point of route.points) {
+      lines.push(`    <rtept lat="${point.lat}" lon="${point.lon}">`);
+      if (point.name) lines.push(`      <name>${escapeXml(point.name)}</name>`);
+      lines.push("    </rtept>");
+    }
+    lines.push("  </rte>");
+  }
   for (const track of normalized.tracks) {
     lines.push("  <trk>");
     if (track.name !== undefined) lines.push(`    <name>${escapeXml(track.name)}</name>`);

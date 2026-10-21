@@ -149,10 +149,34 @@ app.whenReady().then(() => app.load(myFile));
 GPX ファイルまたは JPEG 画像を 1 件処理します。`input` には `File`・URL 文字列・登録済み入力ハンドラが受け付けるオブジェクトを渡せます。
 
 **GPX ファイル**（`.gpx`）:
+- `<trk>` / `<trkseg>` / `<trkpt>` の構造を読み込み済みsourceに保持する
 - トラックをポリラインとして地図に描画する
+- 各 `<rte>` を独立したGPX routeとして、順序を保った `<rtept>` とともに保持する
+- 2点以上のGPX routeを破線のポリラインで描画し、すべてのroute pointに専用マーカーを配置する
 - ウェイポイント（`<wpt>` 要素）をマーカーとして配置する
 - トラックポイントごとの標高（`<ele>`）とタイムスタンプ（`<time>`）を解析する
+- LayersパネルでTracks・Routes・Waypointsを独立して表示・非表示にできる
 - 読み込み後、地図をレイヤーの範囲に自動フィットする
+- 現在のTilia XML importerでは、暫定的なリソース上限として、1ファイルにつき最大20個の `<rte>`、1つの `<rte>` につき最大100個の `<rtept>` を受け付ける。これはTilia独自の上限であり、GPX仕様の上限ではない
+
+正規化後のGPX sourceには、`tracks`、`routes`、`waypoints`の3つの配列が常に存在します。
+
+```js
+{
+  type: "gpx",
+  name: "example.gpx",
+  tracks: [/* <trk> */],
+  routes: [{
+    name: "Planned path",
+    points: [{ lat: 35.0, lon: 135.0, name: "Start" }],
+  }],
+  waypoints: [/* <wpt> */],
+}
+```
+
+プログラムから渡すGPX sourceでは、`tracks`、`routes`、`waypoints`の各配列を省略できます。正規化処理は、省略された各フィールドを空配列で補います。
+
+現在対応しているGPX routeのフィールドは、`<rte>`の`name`と、`<rtept>`の緯度・経度・`name`です。
 
 **JPEG ファイル**（`.jpg`、`.jpeg`）:
 - 位置は次の順序で決定される:
@@ -160,8 +184,6 @@ GPX ファイルまたは JPEG 画像を 1 件処理します。`input` には `
   2. **GPX タイムスタンプ補間** — EXIF GPS がない場合、EXIF のキャプチャ時刻と読み込み済み GPX トラックのタイムラインを照合して線形補間
   3. **エラー** — EXIF に GPS も使えるタイムスタンプもない場合はエラーを投げる
 - タイムスタンプは現在の photo time mode（`"auto"`、`"local"`、`"utc"`、または `"+09:00"` のような固定オフセット）に従って解釈される
-
-> **注意:** GPX ルート（`<rte>`）は現在サポートしていません。トラック（`<trk>`）とウェイポイント（`<wpt>`）のみが処理されます。
 
 ### プラグインユーティリティ
 
@@ -185,6 +207,8 @@ const unsub = app.subscribeInteractions({
 unsub();
 ```
 
+GPX route polylineとroute-point markerは、現在`subscribeInteractions()`では公開されません。このAPIは引き続きtrack・waypoint・photo専用です。
+
 #### `app.provide(name, service)`
 
 名前付き共有サービスを登録します。他のプラグインから `app.services[name]` で参照できます。
@@ -199,7 +223,7 @@ unsub();
 
 #### `app.setStatus(text)`
 
-`tilia-status` が導入されていればステータスバーのテキストを更新します。未導入の場合は何もしません。
+`tilia-status` を介して任意のステータス通知を行います。ステータスプロバイダーが未導入なら安全に何も表示せず、後から導入した場合は、それ以降の通知が表示されます。
 
 #### `app.setError(error)`
 
@@ -223,12 +247,12 @@ unsub();
 | `tilia-panel` | — | レイヤー・高度・設定パネルのコンテナとなるサイドパネル（マップ内に描画される） |
 | `tilia-status` | — | 地図左下に表示されるステータスバー。読み込み結果やエラーを表示する |
 | `tilia-base-maps-control` | — | ベースマップ選択コントロール。`app.baseMaps` の可視エントリを、必要に応じて provider ごとにグループ分けして表示する |
-| `tilia-layers` | `tilia-panel`, `tilia-status` | サイドパネル内のレイヤー一覧。エントリごとに表示切替・削除・フィット・写真のタイムスタンプモード変更が可能 |
-| `tilia-elevation` | `tilia-panel`, `tilia-status` | サイドパネル内のインタラクティブな高度プロファイルチャート。チャートでホバーすると対応するトラックポイントが地図上に表示される |
+| `tilia-layers` | `tilia-panel` | レイヤー一覧。Tracks / Routes / Waypointsの全体表示切替、エントリ単位の表示切替・削除・フィット・写真タイムスタンプモード変更が可能 |
+| `tilia-elevation` | `tilia-panel` | サイドパネル内のインタラクティブな高度プロファイルチャート。チャートでホバーすると対応するトラックポイントが地図上に表示される |
 | `tilia-file-import` | — | 地図上のコントロール（左上）にファイル選択ボタンを追加。`.gpx`・`.jpg`・`.jpeg` に対応、複数ファイルを同時に選択可能 |
 | `tilia-url-import` | — | URL 入力フォームを開くコントロール。HTTP/HTTPS のみ対応（CORS が必要）。ファイル名は `Content-Disposition` または URL パスから推定。`timeoutMs` で遅い fetch を中断し、`maxBytes` で大きすぎるリモートファイルを拒否できる |
 | `tilia-query-import` | — | `tilia-url-import` のクエリパラメータ版。フォームやコントロールを持たず、代わりにクエリーパラメータ `gpx` にセットされている URL を入力とする |
-| `tilia-settings` | `tilia-panel`, `tilia-status` | 設定パネル。新規追加写真に適用するデフォルトのタイムスタンプ解釈モードを設定できる |
+| `tilia-settings` | `tilia-panel` | 設定パネル。新規追加写真に適用するデフォルトのタイムスタンプ解釈モードを設定できる |
 | `tilia-dropzone` | — | マップコンテナ全体をドロップ対象にする。ドラッグ中はビジュアルハイライトを表示する |
 
 ### リポジトリ同梱の optional プラグイン
@@ -237,9 +261,9 @@ unsub();
 
 | ID | 依存 | 説明 |
 |----|------|------|
-| `x-track-editor` | `tilia-panel`, `tilia-status` | GPX の working copy から編集セッションを開始し、トラックポイントを編集して保存時に新規レイヤーとして残す |
-| `x-gpx-export` | `tilia-panel`, `tilia-status` | 選択した GPX レイヤーを `.gpx` としてダウンロード出力する |
-| `x-route-search` | `tilia-status` | 左側フォームを表示して Phloem `POST /route` を呼び出し、結果ルートを新しい GPX 風レイヤーとして取り込む |
+| `x-track-editor` | `tilia-panel` | GPX の working copy から編集セッションを開始し、トラックポイントを編集して保存時に新規レイヤーとして残す |
+| `x-gpx-export` | `tilia-panel` | 選択した GPX レイヤーを `.gpx` としてダウンロード出力する |
+| `x-route-search` | — | 左側フォームを表示して Phloem `POST /route` を呼び出し、各検索結果を Start/Via/Goal のウェイポイントを伴う GPX トラックとして取り込む |
 
 #### `x-route-search` のオプション
 
@@ -277,7 +301,8 @@ unsub();
 ```js
 const myPlugin = {
   id: "x-my-plugin",           // lower-kebab-case、ベンダー prefix 付き
-  requires: ["tilia-status"],   // 先に導入が必要なプラグイン ID（省略可）
+  // 主要機能に必須のプラグインだけを宣言する。app.setStatus() による通知は任意であり、
+  // ここで tilia-status を要求する必要はない。
   stylesheets: [
     new URL("./my-plugin.css", import.meta.url).href,
   ],
@@ -299,7 +324,8 @@ const myPlugin = {
       },
     });
 
-    // API オブジェクトを返す。destroy() を実装すると app.unuse() 時に呼ばれる
+    // plugin 固有の操作を持つ API オブジェクトを返す。返す API が資源を
+    // 所有する場合は destroy() を公開し、そこで所有する資源をすべて解放する。
     return {
       doSomething() { /* ... */ },
       destroy() {
@@ -307,13 +333,17 @@ const myPlugin = {
       },
     };
 
-    // クリーンアップ関数を直接返すことも可能:
+    // 公開 API が不要なら、クリーンアップ関数を直接返すことも可能:
     // return () => { control.remove?.(); };
   },
 };
 
 await app.use(myPlugin);
 ```
+
+`setup()` は API オブジェクト、クリーンアップ関数、または、公開 API がなく解放すべき資源も所有しない場合は `undefined` を返せます。`app.unuse()` は plugin とその service 登録を削除する前に、明示的に返されたクリーンアップ関数または API オブジェクトの `destroy()` を呼び出します。
+
+各 plugin は、該当する場合、所有するすべての資源を解放する責任があります。対象には Leaflet control、DOM・map event listener、application subscription、refresh handler、timer、observer、marker、その他保持している UI state が含まれます。`remove()` などのメソッドが lifecycle cleanup として自動解釈されることはありません。`destroy()` または戻り値のクリーンアップ関数としてcleanupを明示してください。
 
 `stylesheets` は省略可能です。指定した場合、Tilia は `setup()` 実行前に各 stylesheet を登録します。相対パスの asset は `new URL(..., import.meta.url).href` で plugin module 側から解決してください。
 

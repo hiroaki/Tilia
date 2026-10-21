@@ -23,7 +23,7 @@ export function installFileImportPlugin({ fileInput, registry, context, onStatus
 export function installFileImportControl({ map, registry, context, onStatus, onError, onItemLoaded, position = "topleft", priority = "normal" }) {
   let fileInput = null;
 
-  installMapControl({
+  const control = installMapControl({
     map,
     position,
     priority,
@@ -57,6 +57,9 @@ export function installFileImportControl({ map, registry, context, onStatus, onE
   });
 
   return {
+    destroy() {
+      control.remove();
+    },
     getInput() {
       return fileInput;
     },

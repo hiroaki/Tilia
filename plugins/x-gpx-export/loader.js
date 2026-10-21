@@ -34,7 +34,7 @@ function downloadTextFile(fileName, text) {
 
 export const gpxExportPlugin = {
   id: "x-gpx-export",
-  requires: ["tilia-panel", "tilia-status"],
+  requires: ["tilia-panel"],
   stylesheets: [
     new URL("./styles.css", import.meta.url).href,
   ],

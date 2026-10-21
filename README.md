@@ -12,6 +12,8 @@ Spiritual successor to [maps.gpx](https://github.com/hiroaki/maps.gpx).
 
 Tilia provides a lightweight runtime and a plugin system that makes it straightforward to add an interactive map to any web page, whether as a self-contained viewer, an embedded map inside a blog or CMS, or as the foundation of a custom map application.
 
+GPX support covers standalone waypoints (`<wpt>`), planned GPX routes (`<rte>`), and recorded tracks (`<trk>`), preserving each as a distinct feature type.
+
 Functionality is provided by plugins. The core runtime is intentionally small; plugins handle data loading, UI controls, and visualization. You can use the built-in plugins, load third-party ones, or write your own.
 
 A live demo is available here: [https://hiroaki.github.io/Tilia/samples/](https://hiroaki.github.io/Tilia/samples/)
@@ -122,21 +124,21 @@ The current plugin loading, dependency-order, and dynamic-loading contract is su
 | `tilia-panel` | — | Side panel container; required by layers, elevation, and settings |
 | `tilia-status` | — | Status bar inside the panel |
 | `tilia-base-maps-control` | — | Base map selector control; lists visible entries from `app.baseMaps` |
-| `tilia-layers` | `tilia-panel`, `tilia-status` | Layer list with visibility toggle, delete, fit-to-view, and per-photo time mode |
-| `tilia-elevation` | `tilia-panel`, `tilia-status` | Interactive elevation profile chart for GPX tracks |
+| `tilia-layers` | `tilia-panel` | Layer list with Tracks / Routes / Waypoints visibility, per-entry visibility, delete, fit-to-view, and per-photo time mode |
+| `tilia-elevation` | `tilia-panel` | Interactive elevation profile chart for GPX tracks |
 | `tilia-file-import` | — | File picker map control; accepts `.gpx` and `.jpg`/`.jpeg` |
 | `tilia-url-import` | — | URL input map control; HTTP/HTTPS only (CORS required on the server), with configurable timeout and size guardrails |
 | `tilia-query-import` | — | Same as `tilia-url-import`, but without a control; instead, it takes the URL from the `gpx` query parameter |
-| `tilia-settings` | `tilia-panel`, `tilia-status` | Default photo timestamp interpretation mode (Auto / Local / UTC / Custom offset) |
+| `tilia-settings` | `tilia-panel` | Default photo timestamp interpretation mode (Auto / Local / UTC / Custom offset) |
 | `tilia-dropzone` | — | Drag-and-drop target covering the entire map area |
 
 The repository also includes optional third-party style plugins under `plugins/`:
 
 | ID | Requires | Description |
 |----|----------|-------------|
-| `x-track-editor` | `tilia-panel`, `tilia-status` | Creates a working copy of a GPX layer, edits track points, and saves the edited result as a new layer |
-| `x-gpx-export` | `tilia-panel`, `tilia-status` | Exports a selected GPX layer to a local `.gpx` file |
-| `x-route-search` | `tilia-status` | Opens a left-side route search form, queries Phloem `POST /route`, and imports returned routes as new GPX-like layers |
+| `x-track-editor` | `tilia-panel` | Creates a working copy of a GPX layer, edits track points, and saves the edited result as a new layer |
+| `x-gpx-export` | `tilia-panel` | Exports a selected GPX layer to a local `.gpx` file |
+| `x-route-search` | — | Opens a left-side route search form, queries Phloem `POST /route`, and imports each routing result as a GPX Track with Start/Via/Goal Waypoints |
 
 Third-party and custom plugins can be added via `app.use()`. No build tools are required to use or create plugins. See [docs/API.md](docs/API.md).
 

@@ -14,7 +14,7 @@ import { createSelectionHub } from "./selection-hub.js";
 import { createInputRegistry } from "./input-registry.js";
 import { parseGpxFile } from "../gpx/parse.js";
 import { normalizeGpxSource } from "../gpx/source.js";
-import { countTrackPoints, getNearestTrackModePoint } from "../gpx/interpretation.js";
+import { formatGpxSummary, getNearestTrackModePoint } from "../gpx/interpretation.js";
 import { buildGpxOverlay, buildPhotoOverlay, fitMapToGroup } from "../map/layers.js";
 import { getTrackStylePreset, TRACK_STYLE_PRESETS } from "../map/track-style-presets.js";
 import { parsePhotoFile } from "../photo/exif.js";
@@ -135,15 +135,23 @@ function applyGpxEntryVisibility(state, entry) {
   }
 
   const entryVisible = entry.visible !== false;
-  const { waypoints } = state.gpxVisibility;
+  const { routes, waypoints } = state.gpxVisibility;
   const group = entry.layer;
   const trackLayers = entry.interactions?.trackLayers || [];
+  const routeLayers = entry.interactions?.routeLayers || [];
+  const routePointLayers = entry.interactions?.routePoints || [];
   const waypointLayers = entry.interactions?.waypoints || [];
 
   for (const trackHandle of trackLayers) {
     const trackVisible = isValidGpxTrackIndex(entry, trackHandle?.trackIndex)
       && getEffectiveGpxTrackVisibility(state, entry, trackHandle.trackIndex);
     setLayerAttached(group, trackHandle?.layer, trackVisible);
+  }
+  for (const routeHandle of routeLayers) {
+    setLayerAttached(group, routeHandle?.layer, entryVisible && routes !== false);
+  }
+  for (const routePointHandle of routePointLayers) {
+    setLayerAttached(group, routePointHandle?.layer, entryVisible && routes !== false);
   }
   for (const waypoint of waypointLayers) {
     setLayerAttached(group, waypoint?.layer, entryVisible && waypoints !== false);
@@ -182,6 +190,23 @@ function bindGpxWaypointInteractions(entry, selectionHub) {
   }
 }
 
+function bindGpxRoutePointInteractions(entry, selectionHub) {
+  for (const routePointHandle of entry?.interactions?.routePoints || []) {
+    const layer = routePointHandle?.layer;
+    if (!layer || typeof layer.on !== "function" || layer._tiliaRoutePointSelectionBound) {
+      continue;
+    }
+    layer._tiliaRoutePointSelectionBound = true;
+    layer.on("click", () => {
+      selectionHub.selectRoutePoint(
+        entry,
+        routePointHandle.routePoint,
+        { routeIndex: routePointHandle.routeIndex, pointIndex: routePointHandle.pointIndex },
+      );
+    });
+  }
+}
+
 function bindPhotoMarkerInteraction(entry, selectionHub) {
   const marker = entry?.interactions?.marker;
   if (!marker || typeof marker.on !== "function" || marker._tiliaPhotoSelectionBound) {
@@ -210,6 +235,7 @@ function addGpxEntry({ state, map, interactionHub, selectionHub }, source, optio
 
   applyGpxEntryVisibility(state, entry);
   bindGpxTrackPointInteractions(entry, selectionHub);
+  bindGpxRoutePointInteractions(entry, selectionHub);
   bindGpxWaypointInteractions(entry, selectionHub);
 
   if (entry.visible !== false) {
@@ -242,7 +268,7 @@ export function createTiliaCore(map, options = {}) {
 
       return {
         ...parsed,
-        summary: `${countTrackPoints(parsed)} track points, ${parsed.waypoints.length} waypoints`,
+        summary: formatGpxSummary(parsed),
       };
     },
   );
@@ -295,6 +321,13 @@ export function createTiliaCore(map, options = {}) {
     },
     setGpxTracksVisibility(visible) {
       state.gpxVisibility.tracks = visible !== false;
+      for (const entry of state.entries) {
+        applyGpxEntryVisibility(state, entry);
+      }
+      return this.getGpxVisibility();
+    },
+    setGpxRoutesVisibility(visible) {
+      state.gpxVisibility.routes = visible !== false;
       for (const entry of state.entries) {
         applyGpxEntryVisibility(state, entry);
       }
@@ -358,6 +391,7 @@ export function createTiliaCore(map, options = {}) {
         trackStyle: getTrackStylePreset(presentation.trackStylePresetIndex),
       });
       const nextVisible = options.visible ?? entry.visible !== false;
+      selectionHub.clearSelectionForEntry(entryId);
       replaceEntryPresentation(state, entryId, {
         visible: nextVisible,
       });
@@ -372,6 +406,7 @@ export function createTiliaCore(map, options = {}) {
       }
       applyGpxEntryVisibility(state, entry);
       bindGpxTrackPointInteractions(entry, selectionHub);
+      bindGpxRoutePointInteractions(entry, selectionHub);
       bindGpxWaypointInteractions(entry, selectionHub);
       if (nextVisible) {
         nextOverlay.layer.addTo(map);
@@ -399,6 +434,7 @@ export function createTiliaCore(map, options = {}) {
       if (nextVisible) {
         nextOverlay.layer.addTo(map);
       }
+      selectionHub.clearSelectionForEntry(entryId);
       entry.layer.remove();
 
       replaceEntryPresentation(state, entryId, {
@@ -431,16 +467,12 @@ export function createTiliaCore(map, options = {}) {
       return entry;
     },
     removeEntry(entryId) {
-      const selection = selectionHub.getSelection();
       const entry = state.entries.find((candidate) => candidate.id === entryId);
       if (!entry) {
         return null;
       }
 
-      if (selection?.entry?.id === entryId) {
-        map.closePopup();
-        selectionHub.clearSelection();
-      }
+      selectionHub.clearSelectionForEntry(entryId);
 
       revokePhotoPreviewUrls([entry]);
       entry.layer.remove();
@@ -476,6 +508,9 @@ export function createTiliaCore(map, options = {}) {
     selectTrackPoint(entry, point, options) {
       return selectionHub.selectTrackPoint(entry, point, options);
     },
+    selectRoutePoint(entry, routePoint, locator, options) {
+      return selectionHub.selectRoutePoint(entry, routePoint, locator, options);
+    },
     selectWaypoint(entry, waypoint, options) {
       return selectionHub.selectWaypoint(entry, waypoint, options);
     },
@@ -483,7 +518,6 @@ export function createTiliaCore(map, options = {}) {
       return selectionHub.selectPhoto(entry, options);
     },
     clearAll() {
-      map.closePopup();
       selectionHub.clearSelection();
       revokePhotoPreviewUrls(state.entries);
       clearLayers(state, (layer) => layer.remove());

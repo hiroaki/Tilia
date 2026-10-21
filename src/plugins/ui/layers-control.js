@@ -1,7 +1,7 @@
 import { createButton, createPanel, createSelect, installMapControl } from "../../map/controls.js";
 import { createPhotoThumbnailNode } from "../../map/layers.js";
 import { getTrackStylePreset } from "../../map/track-style-presets.js";
-import { countTrackPoints } from "../../gpx/interpretation.js";
+import { formatGpxSummary } from "../../gpx/interpretation.js";
 import {
   buildFixedOffsetTimeMode,
   formatPhotoTimeModeLabel,
@@ -209,9 +209,7 @@ function createLayerMeta(entry) {
   }
 
   if (entry.kind === "gpx") {
-    const trackPoints = countTrackPoints(entry.source);
-    const waypoints = entry.source?.waypoints?.length || 0;
-    meta.textContent = `${trackPoints} track points / ${waypoints} waypoints`;
+    meta.textContent = formatGpxSummary(entry.source);
     return meta;
   }
 
@@ -278,6 +276,7 @@ export function installLayersControl({ map, core, panel, onStatus, onError, onEn
   let listNode = null;
   let clearAllButton = null;
   let tracksToggle = null;
+  let routesToggle = null;
   let waypointsToggle = null;
 
   function buildLayerContent() {
@@ -306,6 +305,19 @@ export function installLayersControl({ map, core, panel, onStatus, onError, onEn
     });
     tracksToggle = trackToggleField.checkbox;
     bulkToggles.appendChild(trackToggleField.wrap);
+
+    const routeToggleField = createGlobalGpxVisibilityToggle({
+      id: "tilia-gpx-routes-toggle",
+      label: "Routes",
+      className: "tilia-layer-bulk-toggle-routes",
+      onChange(checked) {
+        core.setGpxRoutesVisibility(checked);
+        render();
+        onStatus(`${checked ? "Showing" : "Hiding"} routes for all GPX layers`);
+      },
+    });
+    routesToggle = routeToggleField.checkbox;
+    bulkToggles.appendChild(routeToggleField.wrap);
 
     const waypointToggleField = createGlobalGpxVisibilityToggle({
       id: "tilia-gpx-waypoints-toggle",
@@ -355,6 +367,11 @@ export function installLayersControl({ map, core, panel, onStatus, onError, onEn
     if (tracksToggle) {
       tracksToggle.checked = gpxVisibility.tracks !== false;
       tracksToggle.disabled = !hasGpxEntries;
+    }
+
+    if (routesToggle) {
+      routesToggle.checked = gpxVisibility.routes !== false;
+      routesToggle.disabled = !hasGpxEntries;
     }
 
     if (waypointsToggle) {
@@ -408,7 +425,7 @@ export function installLayersControl({ map, core, panel, onStatus, onError, onEn
     }
   }
 
-  installMapControl({
+  const control = installMapControl({
     map,
     position,
     priority,
@@ -430,5 +447,13 @@ export function installLayersControl({ map, core, panel, onStatus, onError, onEn
     },
   });
 
-  return { render };
+  return {
+    destroy() {
+      if (panel.isOpen?.("layers")) {
+        panel.closePanel();
+      }
+      control.remove();
+    },
+    render,
+  };
 }

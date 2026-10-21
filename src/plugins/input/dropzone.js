@@ -7,20 +7,20 @@ export function installDropzonePlugin({ dropTarget, registry, context, onStatus,
 
   const activeClass = "drop-active";
 
-  dropTarget.addEventListener("dragover", (event) => {
+  const onDragOver = (event) => {
     event.preventDefault();
     dropTarget.classList.add(activeClass);
-  });
+  };
 
-  dropTarget.addEventListener("dragleave", (event) => {
+  const onDragLeave = (event) => {
     // Keep highlight when moving between child elements.
     if (dropTarget.contains(event.relatedTarget)) {
       return;
     }
     dropTarget.classList.remove(activeClass);
-  });
+  };
 
-  dropTarget.addEventListener("drop", async (event) => {
+  const onDrop = async (event) => {
     event.preventDefault();
     dropTarget.classList.remove(activeClass);
 
@@ -34,5 +34,16 @@ export function installDropzonePlugin({ dropTarget, registry, context, onStatus,
       sourceLabel: "drop",
       onItemLoaded,
     });
-  });
+  };
+
+  dropTarget.addEventListener("dragover", onDragOver);
+  dropTarget.addEventListener("dragleave", onDragLeave);
+  dropTarget.addEventListener("drop", onDrop);
+
+  return () => {
+    dropTarget.removeEventListener("dragover", onDragOver);
+    dropTarget.removeEventListener("dragleave", onDragLeave);
+    dropTarget.removeEventListener("drop", onDrop);
+    dropTarget.classList.remove(activeClass);
+  };
 }
