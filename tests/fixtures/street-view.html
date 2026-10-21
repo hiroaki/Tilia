@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Street View plugin integration</title>
+<base href="/unrelated-hosting-base/">
+<link rel="stylesheet" href="/node_modules/leaflet/dist/leaflet.css">
+<script type="importmap">{"imports":{"leaflet":"/node_modules/leaflet/dist/leaflet.js"}}</script>
+<style>body { margin: 0; } #map { width: 900px; height: 650px; }</style>
+<div id="map"></div>
+<script type="module">
+import { createDefaultTiliaApp } from "/src/index.js";
+const streetView = new URL(location.href).searchParams.has("options") ? ["x-street-view", {}] : "x-street-view";
+const app = createDefaultTiliaApp("map", {
+  baseMapOptions: {
+    tileUrl: "/tiles/{z}/{x}/{y}.png", center: [35.68, 139.76], zoom: 13,
+    mapOptions: { inertia: false },
+  },
+  plugins: ["tilia-gpx-domain", "tilia-gpx-renderer", "tilia-photo-domain", "tilia-photo-renderer", streetView],
+});
+await app.ready;
+window.streetViewFixture = { app, map: app.map };
+document.body.dataset.ready = "true";
+</script>
+</html>

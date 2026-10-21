@@ -1,0 +1,90 @@
+.tilia-side-panel {
+  position: absolute;
+  top: 12px;
+  right: calc(12px + var(--tilia-panel-offset-right));
+  bottom: 12px;
+  width: min(360px, 72vw);
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #d6d3d1;
+  border-radius: 12px;
+  background: #fffffff2;
+  box-shadow: 0 16px 40px #0000001a;
+  backdrop-filter: blur(8px);
+  overflow: hidden;
+  box-sizing: border-box;
+  max-height: calc(100% - 24px);
+}
+
+.tilia-side-panel-layout-side {
+  top: 12px;
+  right: calc(12px + var(--tilia-panel-offset-right));
+  bottom: 12px;
+  width: min(360px, 72vw);
+  flex-direction: column;
+}
+
+.tilia-side-panel-layout-bottom {
+  top: auto;
+  left: 12px;
+  right: 12px;
+  bottom: calc(12px + var(--tilia-panel-offset-bottom));
+  height: min(280px, 38vh);
+  max-height: calc(100% - 24px);
+  width: auto;
+  flex-direction: column;
+}
+
+.tilia-side-panel-layout-bottom .tilia-side-panel-header {
+  padding: 10px 12px;
+}
+
+.tilia-side-panel-layout-bottom .tilia-side-panel-body {
+  padding: 10px 12px 12px;
+}
+
+.tilia-side-panel-hidden {
+  display: none;
+}
+
+.tilia-side-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid #e7e5e4;
+  background: #fafaf9;
+}
+
+.tilia-side-panel-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1c1917;
+}
+
+.tilia-side-panel-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px;
+}
+
+@media (max-width: 960px) {
+.tilia-side-panel-layout-bottom {
+    height: min(320px, 44vh);
+  }
+}
+
+@media (max-width: 640px) {
+.tilia-side-panel {
+    left: 12px;
+    width: auto;
+  }
+.tilia-side-panel-layout-bottom {
+    top: auto;
+    height: min(360px, 52vh);
+    max-height: calc(100% - 24px);
+  }
+}

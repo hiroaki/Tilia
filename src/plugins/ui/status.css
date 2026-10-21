@@ -1,0 +1,38 @@
+.tilia-status-text {
+  font-size: 12px;
+  color: #57534e;
+}
+
+.tilia-status-control .tilia-control-panel {
+  width: auto;
+  max-width: min(320px, 70vw);
+}
+
+.tilia-status-panel {
+  position: relative;
+  padding-right: 28px;
+}
+
+.tilia-status-panel-dismissed {
+  display: none;
+}
+
+.tilia-status-dismiss {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #78716c;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.tilia-status-dismiss:hover {
+  background: #f5f5f4;
+  color: #1c1917;
+}

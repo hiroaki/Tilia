@@ -38,8 +38,7 @@
     <script type="importmap">
       {
         "imports": {
-          "leaflet": "https://unpkg.com/leaflet@2.0.0-alpha.1/dist/leaflet.js",
-          "exifr": "https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/lite.esm.js"
+          "leaflet": "https://unpkg.com/leaflet@2.0.0-alpha.1/dist/leaflet.js"
         }
       }
     </script>
@@ -51,22 +50,24 @@
 
     <script type="module">
       import { createDefaultTiliaApp } from "../../src/index.js";
-
       createDefaultTiliaApp("map", {
+        baseMapOptions: {
+          zoom: 2,
+          center: [0.0, 139.7413575],
+        },
         plugins: [
-          "tilia-panel",
           "tilia-status",
           "tilia-base-maps-control",
-          "tilia-layers",
-          "tilia-elevation",
-          "tilia-file-import",
-          "tilia-url-import",
-          "tilia-query-import",
-          "tilia-settings",
-          "tilia-dropzone",
+          "tilia-gpx-domain", "tilia-gpx-renderer", "tilia-gpx-input", "tilia-gpx-ui",
+          "tilia-photo-domain",
+          "tilia-photo-renderer", "tilia-jpeg-input", "tilia-photo-ui",
+          "tilia-toolbar", "tilia-elevation", "tilia-url-import", "tilia-query-import", "tilia-dropzone",
+          "tilia-map-selection-presenter", "tilia-panel", "tilia-layers", "tilia-settings", "tilia-file-import",
           "x-gsi-base-maps",
           "x-opentopomap-base-maps",
           "x-milestone",
+          "x-street-view",
+          "tilia-initial-view",
         ],
       });
     </script>

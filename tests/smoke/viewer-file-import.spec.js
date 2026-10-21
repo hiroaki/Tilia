@@ -11,7 +11,7 @@ test("viewer sample imports a GPX file and reflects it in the layers panel", asy
     pageErrors.push(error.message);
   });
 
-  await page.goto("/samples/viewer/");
+  await page.goto("/tests/fixtures/viewer/");
 
   await page.locator('.tilia-file-import-control input[type="file"]').setInputFiles(sampleTrackPath);
 
@@ -36,7 +36,7 @@ test("clicking a GPX route-point marker opens its popup", async ({ page }) => {
     pageErrors.push(error.message);
   });
 
-  await page.goto("/samples/viewer/");
+  await page.goto("/tests/fixtures/viewer/");
   await page.locator('.tilia-file-import-control input[type="file"]').setInputFiles(sampleRoutePath);
 
   const routePointMarker = page.locator(".tilia-route-point-marker").first();

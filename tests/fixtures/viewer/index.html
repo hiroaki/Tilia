@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Tilia Viewer</title>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@2.0.0-alpha.1/dist/leaflet.css"
+    />
+    <style>
+      :root {
+        --bg: #f5f5f4;
+      }
+
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: var(--bg);
+        color: var(--text);
+        font-family: "Hiragino Sans", "Yu Gothic", sans-serif;
+      }
+
+      .app {
+        height: 100%;
+      }
+
+      .app.drop-active {
+        box-shadow: inset 0 0 0 4px #0f766e66;
+      }
+
+      #map {
+        height: 100%;
+        width: 100%;
+      }
+    </style>
+    <script type="importmap">
+      {
+        "imports": {
+          "leaflet": "https://unpkg.com/leaflet@2.0.0-alpha.1/dist/leaflet.js"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <div id="app-root" class="app">
+      <div id="map"></div>
+    </div>
+
+    <script type="module">
+      import { createDefaultTiliaApp } from "../../../src/index.js";
+      createDefaultTiliaApp("map", {
+        plugins: [
+          "tilia-status",
+          "tilia-base-maps-control",
+          "tilia-gpx-domain", "tilia-gpx-renderer", "tilia-gpx-input", "tilia-gpx-ui",
+          "tilia-photo-domain",
+          "tilia-photo-renderer", "tilia-jpeg-input", "tilia-photo-ui",
+          "tilia-toolbar", "tilia-elevation", "tilia-url-import", "tilia-query-import", "tilia-dropzone",
+          "tilia-map-selection-presenter", "tilia-panel", "tilia-layers", "tilia-settings", "tilia-file-import",
+          "x-gsi-base-maps",
+          "x-opentopomap-base-maps",
+          "x-milestone",
+          "x-street-view"
+        ],
+      });
+    </script>
+  </body>
+</html>

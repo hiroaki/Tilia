@@ -1,0 +1,23 @@
+.tilia-file-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent);
+  color: #ffffff;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.tilia-file-label input {
+  display: none;
+}
+.tilia-file-label.tilia-control-button-icon {
+  padding: 0;
+  font-size: 16px;
+}
+.tilia-file-progress { font-size: 12px; }
+.tilia-file-progress:empty {
+  display: none;
+}

@@ -11,7 +11,7 @@ test("viewer elevation panel renders a profile for an imported GPX track", async
     pageErrors.push(error.message);
   });
 
-  await page.goto("/samples/viewer/");
+  await page.goto("/tests/fixtures/viewer/");
 
   await page.locator('.tilia-file-import-control input[type="file"]').setInputFiles(sampleTrackPath);
   await expect(page.locator(".tilia-status-text")).toContainText("sample-track.gpx");
@@ -22,7 +22,7 @@ test("viewer elevation panel renders a profile for an imported GPX track", async
   await expect(page.locator(".tilia-side-panel")).toHaveClass(/tilia-side-panel-layout-bottom/);
   await expect(page.locator(".tilia-elevation-chart")).toBeVisible();
   await expect(page.locator(".tilia-elevation-chart")).toHaveAttribute("aria-label", "Elevation profile");
-  await expect(page.locator(".tilia-status-text")).toContainText("Selected sample-track.gpx elevation profile");
+  await expect(page.locator(".tilia-elevation-name")).toContainText("sample-track.gpx");
 
   const bottomPanelBox = await page.locator(".tilia-side-panel:not(.tilia-side-panel-hidden)").evaluate((element) => {
     const rect = element.getBoundingClientRect();
@@ -37,8 +37,8 @@ test("viewer elevation panel renders a profile for an imported GPX track", async
   expect(pageErrors).toEqual([]);
 });
 
-test("selecting an elevation track closes the previous waypoint popup", async ({ page }) => {
-  await page.goto("/samples/viewer/");
+test("opening elevation preserves the previous waypoint selection and popup", async ({ page }) => {
+  await page.goto("/tests/fixtures/viewer/");
   await page.locator('.tilia-file-import-control input[type="file"]').setInputFiles(sampleTrackPath);
 
   await page.locator(".leaflet-marker-icon").click();
@@ -47,24 +47,28 @@ test("selecting an elevation track closes the previous waypoint popup", async ({
 
   await page.getByRole("button", { name: "Elevation" }).click();
 
-  await expect(page.locator(".tilia-status-text")).toContainText("Selected sample-track.gpx elevation profile");
-  await expect(page.locator(".leaflet-popup")).toHaveCount(0);
+  await expect(page.locator(".tilia-elevation-name")).toContainText("sample-track.gpx");
+  await expect(page.locator(".leaflet-popup")).toContainText("Start marker");
 });
 
 test("viewer elevation panel separates logical tracks and keeps hover and click interactions", async ({ page }) => {
-  await page.goto("/samples/viewer/");
+  await page.goto("/tests/fixtures/viewer/");
   await page.locator('.tilia-file-import-control input[type="file"]').setInputFiles(multiTrackPath);
   await page.getByRole("button", { name: "Elevation" }).click();
 
   const chart = page.locator(".tilia-elevation-chart");
   const paths = chart.locator("polyline[data-track-index]");
-  await expect(paths).toHaveCount(2);
-
-  const xSpans = await paths.evaluateAll((elements) => elements.map((element) => {
-    const coordinates = element.getAttribute("points").trim().split(" ").map((pair) => Number(pair.split(",")[0]));
-    return Math.max(...coordinates) - Math.min(...coordinates);
-  }));
-  expect(xSpans[1]).toBeGreaterThan(xSpans[0]);
+  await expect(paths).toHaveCount(3);
+  const spans = await paths.evaluateAll((elements) => {
+    const tracks = new Map();
+    for (const element of elements) {
+      const id = element.dataset.trackIndex;
+      const xs = element.getAttribute("points").trim().split(" ").map((pair) => Number(pair.split(",")[0]));
+      tracks.set(id, [...(tracks.get(id) ?? []), ...xs]);
+    }
+    return [...tracks.values()].map((xs) => Math.max(...xs) - Math.min(...xs));
+  });
+  expect(spans[1]).toBeGreaterThan(spans[0]);
 
   const chartBox = await chart.boundingBox();
   expect(chartBox).not.toBeNull();
@@ -73,25 +77,25 @@ test("viewer elevation panel separates logical tracks and keeps hover and click 
   await expect(page.locator(".tilia-elevation-guide-marker")).toBeVisible();
 
   await chart.click({ position: { x: chartBox.width * 0.75, y: chartBox.height * 0.5 } });
-  await expect(page.locator(".tilia-status-text")).toContainText("Selected multi-track-elevation.gpx track point at");
+  await expect(page.locator(".leaflet-popup")).toContainText("Track point");
 });
 
 test("map clicks select canonical points from each logical track", async ({ page }) => {
   const pageErrors = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
-  await page.goto("/samples/viewer/");
+  await page.goto("/tests/fixtures/viewer/");
   await page.locator('.tilia-file-import-control input[type="file"]').setInputFiles(multiTrackPath);
 
-  const trackPaths = page.locator(".leaflet-overlay-pane path.leaflet-interactive");
+  const trackPaths = page.locator('[data-tilia-map-band="geometry"] path.leaflet-interactive[fill="none"]');
   await expect(trackPaths).toHaveCount(2);
   // Keep fixture tracks nearby and substantial: Leaflet path clicks become flaky when fitBounds reduces a path to a few pixels.
   await trackPaths.nth(0).click();
   await expect(page.locator(".leaflet-popup")).toBeVisible();
   await expect(page.locator(".leaflet-popup")).toContainText("Track point");
 
-  await page.goto("/samples/viewer/");
+  await page.goto("/tests/fixtures/viewer/");
   await page.locator('.tilia-file-import-control input[type="file"]').setInputFiles(multiTrackPath);
-  const reloadedTrackPaths = page.locator(".leaflet-overlay-pane path.leaflet-interactive");
+  const reloadedTrackPaths = page.locator('[data-tilia-map-band="geometry"] path.leaflet-interactive[fill="none"]');
   await expect(reloadedTrackPaths).toHaveCount(2);
   await reloadedTrackPaths.nth(1).click();
   await expect(page.locator(".leaflet-popup")).toBeVisible();

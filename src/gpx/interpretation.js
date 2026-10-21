@@ -7,7 +7,9 @@ function distanceMeters(from, to) {
   const lat2 = toRadians(to.lat);
   const a = Math.sin(deltaLat / 2) ** 2
     + Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLon / 2) ** 2;
-  return earthRadius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  // Floating-point roundoff near antipodes can put the haversine above one.
+  const bounded = Math.max(0, Math.min(1, a));
+  return earthRadius * 2 * Math.atan2(Math.sqrt(bounded), Math.sqrt(1 - bounded));
 }
 
 export function getTrackDisplayName(track, trackIndex) {
@@ -202,7 +204,7 @@ export function getSourceTimeline(source) {
 export function getGlobalTimeline(sources) {
   let traversalIndex = 0;
   const timeline = (sources || []).flatMap((source) => {
-    if (source?.type !== "gpx") {
+    if (source?.type !== "gpx" && !(source?.type === undefined && Array.isArray(source?.tracks))) {
       return [];
     }
     const points = getSourceTimeline(source);

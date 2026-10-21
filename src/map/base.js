@@ -278,30 +278,44 @@ function resolveBaseLayerDefinitions(options) {
 export function createBaseMap(containerId, options = {}) {
   const {
     mapOptions = {},
-    center = [35.681236, 139.767125],
-    zoom = 10,
+    center = [0.0, 139.7413575],
+    zoom = 2,
     selectedBaseLayerId = null,
   } = options;
 
+  const definitions = resolveBaseLayerDefinitions(options).map(normalizeBaseLayerDefinition);
+  const ids = new Set();
+  for (const definition of definitions) {
+    if (ids.has(definition.id)) throw new Error(`Base layer already registered: ${definition.id}`);
+    ids.add(definition.id);
+  }
   const map = new LeafletMap(containerId, {
     closePopupOnClick: false,
     zoomControl: true,
     ...mapOptions,
   });
 
-  map.setView(center, zoom);
+  try {
+    map.setView(center, zoom);
 
-  const baseLayerManager = createBaseLayerManager({
-    map,
-    definitions: resolveBaseLayerDefinitions(options),
-    selectedBaseLayerId,
-  });
+    const baseLayerManager = createBaseLayerManager({
+      map,
+      definitions,
+      selectedBaseLayerId,
+    });
 
-  return {
-    map,
-    tileLayer: baseLayerManager.getCurrentLayer(),
-    baseLayer: baseLayerManager.getCurrent(),
-    baseLayers: baseLayerManager.list(),
-    baseLayerManager,
-  };
+    return {
+      map,
+      tileLayer: baseLayerManager.getCurrentLayer(),
+      baseLayer: baseLayerManager.getCurrent(),
+      baseLayers: baseLayerManager.list(),
+      baseLayerManager,
+    };
+  } catch (error) {
+    try { map.remove(); } catch (cleanupError) {
+      // Preserve the initiating synchronous error and its original cause.
+      console.error("Base Map construction rollback failed", cleanupError);
+    }
+    throw error;
+  }
 }

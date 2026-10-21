@@ -1,123 +1,16 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
-const cleanupMocks = vi.hoisted(() => ({
-  controls: [],
-}));
-
-vi.mock("../src/map/controls.js", () => ({
-  createButton: vi.fn(),
-  createPanel: vi.fn(),
-  createSelect: vi.fn(),
-  installMapControl: vi.fn(() => {
-    const control = { remove: vi.fn() };
-    cleanupMocks.controls.push(control);
-    return control;
-  }),
-}));
-
-vi.mock("../src/map/layers.js", () => ({
-  createPhotoThumbnailNode: vi.fn(() => null),
-  createTrackPointPopupContent: vi.fn(() => null),
-}));
-
-vi.mock("../src/core/input-processing.js", () => ({
-  processInputItems: vi.fn(),
-}));
-
-vi.mock("leaflet", () => ({
-  CircleMarker: class CircleMarker {
-    addTo() { return this; }
-    remove() {}
-  },
-}));
-
-import { installFileImportControl } from "../src/plugins/input/file-import.js";
-import { installBaseMapControl } from "../src/plugins/ui/base-map-control.js";
-import { installElevationPanelControl } from "../src/plugins/ui/elevation-panel.js";
-import { installLayersControl } from "../src/plugins/ui/layers-control.js";
-import { installSettingsPanelControl } from "../src/plugins/ui/settings-panel.js";
-
-function createPanelService(openPanelId = null) {
-  return {
-    closePanel: vi.fn(),
-    isOpen: vi.fn((panelId) => panelId === openPanelId),
-    rerenderPanel: vi.fn(),
-  };
-}
-
-describe("built-in map control cleanup", () => {
-  beforeEach(() => {
-    cleanupMocks.controls.length = 0;
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  it("removes the file-import control", () => {
-    const api = installFileImportControl({ map: {} });
-
-    api.destroy();
-
-    expect(cleanupMocks.controls[0].remove).toHaveBeenCalledOnce();
-  });
-
-  it("removes the base-map control", () => {
-    const api = installBaseMapControl({ map: {}, baseMaps: {} });
-
-    api.destroy();
-
-    expect(cleanupMocks.controls[0].remove).toHaveBeenCalledOnce();
-  });
-
-  it("removes the layers control and closes its active shared panel", () => {
-    const panel = createPanelService("layers");
-    const api = installLayersControl({
-      map: {},
-      core: { state: { entries: [] } },
-      panel,
-    });
-
-    api.destroy();
-
-    expect(panel.closePanel).toHaveBeenCalledOnce();
-    expect(cleanupMocks.controls[0].remove).toHaveBeenCalledOnce();
-  });
-
-  it("removes the settings control and closes its active shared panel", () => {
-    const panel = createPanelService("settings");
-    const api = installSettingsPanelControl({ map: {}, core: {}, panel });
-
-    api.destroy();
-
-    expect(panel.closePanel).toHaveBeenCalledOnce();
-    expect(cleanupMocks.controls[0].remove).toHaveBeenCalledOnce();
-  });
-
-  it("releases every elevation subscription, event handler, timer, panel, and control", () => {
-    vi.useFakeTimers();
-    const mapHandlers = new Map();
-    const map = {
-      on: vi.fn((eventName, handler) => mapHandlers.set(eventName, handler)),
-      off: vi.fn(),
-    };
-    const unsubscribeSelection = vi.fn();
-    const core = {
-      state: { entries: [] },
-      subscribeSelection: vi.fn(() => unsubscribeSelection),
-    };
-    const panel = createPanelService("elevation");
-    const api = installElevationPanelControl({ map, core, panel, onStatus: vi.fn() });
-    mapHandlers.get("popupclose")({ popup: { getContent: () => ({ dataset: { tiliaRevealVersion: "1" } }) } });
-    expect(vi.getTimerCount()).toBe(1);
-
-    api.destroy();
-
-    expect(unsubscribeSelection).toHaveBeenCalledOnce();
-    expect(map.off).toHaveBeenCalledWith("popupopen", mapHandlers.get("popupopen"));
-    expect(map.off).toHaveBeenCalledWith("popupclose", mapHandlers.get("popupclose"));
-    expect(vi.getTimerCount()).toBe(0);
-    expect(panel.closePanel).toHaveBeenCalledOnce();
-    expect(cleanupMocks.controls[0].remove).toHaveBeenCalledOnce();
-  });
+import { afterEach, describe, expect, it, vi } from "vitest";
+vi.mock("leaflet", () => import("./helpers/leaflet-ui.js"));
+import { uiFixture, byClass, settle } from "./helpers/production-ui.js";
+let f; afterEach(async()=>{await f?.close();f=null;});
+describe("standard product cleanup",()=>{
+ it("repeatedly installs and removes controls, panels and feature leases without removing semantic entries",async()=>{
+  f=await uiFixture(["tilia-gpx-domain"]);await f.app.domains.gpx.create({name:"profile.gpx",tracks:[{segments:[{points:[{lat:0,lon:0,elevation:10}]}]}]});
+  for(let i=0;i<2;i++){
+   for(const id of ["tilia-base-maps-control","tilia-status","tilia-elevation","tilia-file-import","tilia-url-import","tilia-dropzone"])await f.app.use(id);
+   f.click("Elevation");await settle();expect(byClass(f.map.container,"tilia-elevation-chart")).toHaveLength(1);
+   for(const id of ["tilia-dropzone","tilia-url-import","tilia-file-import","tilia-elevation","tilia-status","tilia-base-maps-control"])await f.app.unuse(id);
+   expect(byClass(f.map.container,"tilia-elevation-chart")).toHaveLength(0);expect(byClass(f.map.container,"tilia-toolbar-item")).toHaveLength(0);expect(f.app.entries.list()).toHaveLength(1);
+   expect(f.doc.head.children.filter((n)=>["tilia-elevation-ui","tilia-file-input-ui","tilia-url-input-ui","tilia-drop-input-ui","tilia-status-ui"].includes(n.dataset.tiliaStylesheet))).toHaveLength(0);
+  }
+ });
 });

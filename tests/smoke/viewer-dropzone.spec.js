@@ -6,7 +6,10 @@ test("viewer sample accepts a GPX file via the dropzone plugin", async ({ page }
     pageErrors.push(error.message);
   });
 
-  await page.goto("/samples/viewer/");
+  await page.goto("/tests/fixtures/viewer/");
+  // The input control is installed after Drop in this composition, and its
+  // discovery snapshot proves that the GPX handler has committed as well.
+  await expect(page.locator('input[type="file"]')).toHaveAttribute("accept", /\.gpx/);
 
   const becameActive = await page.evaluate(async () => {
     const target = document.querySelector("#map");
@@ -25,7 +28,7 @@ test("viewer sample accepts a GPX file via the dropzone plugin", async ({ page }
       cancelable: true,
       dataTransfer,
     }));
-    const activeAfterDragover = target.classList.contains("drop-active");
+    const activeAfterDragover = target.classList.contains("tilia-drop-active");
 
     target.dispatchEvent(new DragEvent("drop", {
       bubbles: true,
@@ -37,7 +40,7 @@ test("viewer sample accepts a GPX file via the dropzone plugin", async ({ page }
   });
 
   expect(becameActive).toBe(true);
-  await expect(page.locator("#map")).not.toHaveClass(/drop-active/);
+  await expect(page.locator("#map")).not.toHaveClass(/tilia-drop-active/);
   await expect(page.locator(".tilia-status-text")).toContainText("Loaded 1 file(s) from drop.");
   await expect(page.locator(".tilia-status-text")).toContainText("sample-track.gpx");
 

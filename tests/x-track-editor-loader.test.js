@@ -21,14 +21,14 @@ import {
 describe("x-track-editor plugin definition", () => {
   it("declares its UI dependencies", () => {
     expect(trackEditorPlugin.id).toBe("x-track-editor");
-    expect(trackEditorPlugin.requires).toEqual(["tilia-panel"]);
-    expect(trackEditorPlugin.stylesheets).toHaveLength(2);
+    expect(trackEditorPlugin.requires).toEqual(["tilia-gpx-domain", "tilia-panel", "tilia-toolbar"]);
+    expect(trackEditorPlugin.stylesheets).toBeUndefined();
     expect(typeof trackEditorPlugin.setup).toBe("function");
   });
 
   it("keeps status optional for repository plugins while preserving panel dependencies", () => {
-    expect(gpxExportPlugin.requires).toEqual(["tilia-panel"]);
-    expect(routeSearchPlugin.requires).toBeUndefined();
+    expect(gpxExportPlugin.requires).toEqual(["tilia-gpx-domain", "tilia-panel", "tilia-toolbar"]);
+    expect(routeSearchPlugin.requires).toEqual(["tilia-gpx-domain", "tilia-toolbar"]);
   });
 
   it("resets editing and reports details after a selection consistency failure", () => {

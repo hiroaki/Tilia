@@ -1,481 +1,375 @@
-**[Japanese 日本語版 API リファレンス](API.ja.md)**
+[日本語](API.ja.md)
 
-# Tilia API Reference
+# Tilia API reference
 
-The primary entry point for most use cases is [`createDefaultTiliaApp()`](#createdefaulttiliaappcontainer-options).
+This reference describes the public application API exported from `src/index.js`. Start with the [README](../README.md) for browser dependencies and a complete embedding example. Use the [Tilia plugin guide](PLUGINS.md) to choose features and the [Developing Tilia plugins](PLUGIN-OPERATIONS.md) to implement plugins.
 
+Tilia is early-alpha software; these APIs may change. Entries and domain data are immutable snapshots. Map layers present that data, and successful data operations do not imply that asynchronous rendering has finished.
 
-## Factory Functions
+## Construction and ownership
 
-### `createDefaultTiliaApp(container, options?)`
+### Create an application
 
-Creates a Leaflet base map and attaches a Tilia app runtime in one step. This is the recommended entry point for the majority of use cases.
-
-**Parameters**
-
-| Name | Type | Description |
-|------|------|-------------|
-| `container` | `string \| HTMLElement` | Map container element or its `id` |
-| `options` | `object?` | See below |
-
-**Options**
-
-| Name | Type | Description |
-|------|------|-------------|
-| `plugins` | `Array?` | Plugin list to install at startup (string IDs, plugin objects, or `[plugin, options]` tuples) |
-| `pluginOptions` | `object?` | Per-plugin option map keyed by plugin ID. Built-in UI plugins accept options such as `position` and `priority` here. |
-| `pluginUrls` | `object?` | Override loader paths for specific IDs: `{ "x-my-plugin": "./path/loader.js" }` |
-| `pluginLoader` | `function?` | Fully custom async loader: `async (pluginId) => pluginModule` |
-| `baseMapOptions` | `object?` | Passed to `createBaseMap()` (see below) |
-| `defaultPhotoTimeMode` | `"auto" \| "local" \| "utc" \| string` | Default EXIF timestamp interpretation mode for newly loaded photos (default: `"auto"`). Fixed offsets such as `"+09:00"` are supported. |
-
-**Returns** a [Tilia app instance](#app-instance-api).
-
-**Example**
+`createDefaultTiliaApp(container, options = {})` returns an application immediately. `container` is an existing DOM element or its ID. Give it a size and configure Leaflet CSS and the import map as shown in the [README](../README.md#basic-usage).
 
 ```js
-import { createDefaultTiliaApp } from "./src/index.js";
+import { createDefaultTiliaApp } from "../src/index.js";
 
 const app = createDefaultTiliaApp("map", {
-  plugins: [
-    "tilia-panel",
-    "tilia-status",
-    "tilia-base-maps-control",
-    "tilia-layers",
-    "x-gsi-base-maps",
-  ],
+  plugins: ["tilia-gpx-input", "tilia-gpx-renderer"],
+  baseMapOptions: { center: [35.68, 139.76], zoom: 12 },
 });
-
-// Wait for startup plugins to finish (only needed for advanced chaining)
-await app.whenReady();
-app.load(myGpxFile);
+await app.ready;
 ```
 
-### `createBaseMap(container, options?)`
+The import path assumes a host page one directory below the repository root; adjust it to your deployment. Each app creates and owns a distinct Leaflet Map. Supplying `options.map`, even as `undefined`, throws a `TypeError`; external Map injection is unsupported.
 
-Initializes a Leaflet map with an OpenStreetMap tile layer. Called internally by `createDefaultTiliaApp()`, but available for advanced setups.
+| Option | Meaning |
+| --- | --- |
+| `plugins` | Plugins to install at startup; defaults to an empty list |
+| `pluginOptions` | Options by plugin ID for string entries in `plugins` |
+| `builtins` | Application lazy catalog; defaults to official `tilia-*` entries. Replaces the entire catalog and may contain third-party IDs |
+| `baseMapOptions` | Initial Map and base-layer configuration, described below |
+| `baseLayerOverrides` | Per-ID overrides, merged with `baseMapOptions.baseLayerOverrides`; top-level values take precedence |
 
-**Options**
+Each `plugins` item may be an ID, `[definitionOrId, options]`, or `{ plugin: definitionOrId, options }`. Tuple/object options are explicit. Hard dependencies install automatically with empty options unless already installed. Configure a dependency before its consumer when it needs options; see [Choosing plugins](PLUGINS.md#choosing-plugins).
 
-| Name | Type | Default | Description |
-|------|------|---------|-------------|
-| `center` | `[lat, lng]` | `[35.681236, 139.767125]` | Initial map center (Tokyo Station) |
-| `zoom` | `number` | `10` | Initial zoom level |
-| `tileUrl` | `string` | `https://tile.openstreetmap.org/{z}/{x}/{y}.png` | Custom tile URL template |
-| `tileOptions` | `object` | — | Leaflet `TileLayer` options (e.g., `attribution`, `maxZoom`) |
-| `baseLayers` | `Array<object>` | OSM only | Base layer definition list. Each entry must include `id` and `url`; may also define `label`, `provider`, `category`, `options`, `attributionLabel`, `isDefault`, and `visibleInSelector` |
-| `selectedBaseLayerId` | `string` | first default entry | Initial active base layer ID |
-| `baseLayerOverrides` | `object` | — | Per-ID override map applied after definitions are loaded: `{ [id]: { label, visibleInSelector, options, ... } }` |
-| `mapOptions` | `object` | — | Leaflet `Map` constructor options |
+Optional implementations load when requested.
 
-**Returns** `{ map: L.Map, tileLayer: L.TileLayer, baseLayer, baseLayers, baseLayerManager }`
+### Base-map options
 
-### `createTiliaApp({ map, ...options })`
+| `baseMapOptions` field | Default / meaning |
+| --- | --- |
+| `mapOptions` | `{}`; Leaflet Map constructor options |
+| `center` | `[35.681236, 139.767125]`; initial latitude/longitude |
+| `zoom` | `10` |
+| `baseLayers` | Base-layer definitions; default is OpenStreetMap with ID `osm` |
+| `selectedBaseLayerId` | Initial selection among constructor definitions |
+| `tileUrl`, `tileOptions` | Customize the default layer when using default definitions |
+| `baseLayerOverrides` | Per-ID definition overrides; nested tile `options` merge |
 
-Low-level factory for callers that already own a Leaflet map instance. Accepts the same options as `createDefaultTiliaApp()` (except `baseMapOptions`), plus:
+A definition requires `id` and `url`. Optional fields are `label`, `provider`, `category`, `options` (Leaflet tile options, including attribution), `attributionLabel`, `isDefault`, and `visibleInSelector`. Definitions added later by provider plugins do not automatically become the initial selection. See the [plugin guide](PLUGINS.md) for provider and selector configuration.
 
-| Name | Type | Description |
-|------|------|-------------|
-| `map` | `L.Map` | **Required.** Existing Leaflet map to attach to |
-| `tileLayer` | `L.TileLayer?` | Base tile layer to associate with this app |
-| `baseLayer` | `object?` | Current base layer definition associated with this app |
-| `baseLayers` | `Array<object>?` | Base layer definitions to register into the runtime manager |
-| `selectedBaseLayerId` | `string?` | Initial active base layer ID when registering definitions |
-| `baseLayerOverrides` | `object?` | Per-ID override map applied to built-in and plugin-registered base layer definitions |
+The separately exported `createBaseMap(container, options = {})` accepts these base-map options and returns `{ map, tileLayer, baseLayer, baseLayers, baseLayerManager }`. It creates an independent Map whose cleanup belongs to its caller. Its result cannot be injected into a Tilia app.
 
+## Application methods
 
-## App Instance API
+| API | Return / behavior |
+| --- | --- |
+| `ready`, `whenReady()` | Same Promise, resolving to `app` after configured plugin installation |
+| `use(definitionOrId, options = {})` | Promise resolving to an opaque frozen handle `{ id }` |
+| `unuse(idOrHandle)` | Promise completing removal; accepts an ID or a handle from `use` |
+| `hasPlugin(id)` | Boolean indicating an active plugin |
+| `listPlugins()` | Frozen array of active IDs in activation order |
+| `load(input)` | Promise resolving to the chosen input handler's result |
+| `destroy()` | Shared Promise completing terminal application cleanup |
+| `map`, `getMap()` | Borrowed app-owned Leaflet Map |
+| `getBaseLayer()` | Current borrowed Leaflet tile layer, or `null` when none is selected |
+| `getBaseMap()` | A fresh wrapper `{ map, tileLayer }` referencing the existing app-owned Map and current tile layer (or `null`); creates no Map or layer |
+| `entries`, `domains`, `selection`, `rendering` | Guarded capabilities described below |
 
-All properties and methods below are available on the object returned by `createDefaultTiliaApp()` or `createTiliaApp()`.
+Await readiness before ordinary work. Startup failure initiates cleanup automatically. Readiness covers configured plugin setup; it does not wait for background imports started by a plugin or for rendering to complete.
 
-### Plugin lifecycle
-
-#### `app.use(pluginOrId, options?) → Promise<pluginApi>`
-
-Installs a plugin. The first argument may be:
-
-- A **string ID** — resolves a built-in, or dynamically imports from `plugins/<id>/loader.js`
-- A **plugin object** with `{ id, setup }` (see [Authoring Plugins](#authoring-plugins))
-
-Calling `use()` on an already-installed plugin returns the existing API without reinstalling.
-
-#### `app.unuse(pluginOrId) → Promise<pluginApi>`
-
-Removes a plugin and calls its `destroy()` method if defined. Returns the plugin's API object.
-
-#### `app.ready → Promise<app>`
-
-Resolves once all plugins listed in `options.plugins` have finished installing.
-
-#### `app.whenReady() → Promise<app>`
-
-Returns `app.ready`. Convenient for chaining after startup:
+### Install and remove plugins
 
 ```js
-const app = createDefaultTiliaApp("map", { plugins: [...] });
-app.whenReady().then(() => app.load(myFile));
+await app.use("tilia-file-import");
+console.log(app.listPlugins());
+await app.unuse("tilia-file-import");
 ```
 
-### Map access
+Installation resolves hard dependencies first. Calling `use` for an active plugin returns its handle without reconfiguring it. Removal can be rejected while a dependent plugin or an entry's provider lease needs the plugin. Remove consumers and their entries first. An absent valid ID is a removal no-op. Failed removal may retain cleanup obligations; only obligations marked safe by their owner can be retried. See [Developing plugins](PLUGIN-OPERATIONS.md) for lifecycle rules.
 
-| Member | Returns | Description |
-|--------|---------|-------------|
-| `app.map` | `L.Map` | The underlying Leaflet map instance |
-| `app.baseMaps` | `object` | Base layer catalog facade for listing, registering, and selecting base maps |
-| `getMap()` | `L.Map` | Same as `app.map` |
-| `getBaseLayer()` | `L.TileLayer` | The base tile layer |
-| `getBaseMap()` | `{ map, tileLayer }` | Both |
+### Load a file
 
-#### `app.baseMaps`
-
-The base-map service is available directly as `app.baseMaps` and is also published to other plugins as `app.services["tilia-base-maps"]`.
-
-| Member | Returns | Description |
-|--------|---------|-------------|
-| `list()` | `Array<object>` | All registered base layer definitions |
-| `listVisible()` | `Array<object>` | Definitions whose `visibleInSelector !== false` |
-| `get(id)` | `object \| null` | One definition by ID |
-| `has(id)` | `boolean` | Whether a definition is registered |
-| `getCurrent()` | `object \| null` | Current base layer definition |
-| `getCurrentLayer()` | `L.TileLayer \| null` | Current active Leaflet tile layer |
-| `register(definition)` | `object` | Register one base layer definition |
-| `registerMany(definitions)` | `Array<object>` | Register multiple base layer definitions |
-| `select(id)` | `{ definition, layer }` | Switch the active base layer |
-
-### Data loading
-
-#### `app.load(input) → Promise`
-
-Processes one GPX file or JPEG image. `input` may be a `File`, a URL string, or an equivalent object accepted by the registered input handlers.
-
-**GPX files** (`.gpx`):
-- Preserves `<trk>` / `<trkseg>` / `<trkpt>` structure in the loaded source
-- Draws one logical polyline per `<trk>`; segments within that track are intentionally connected in Track mode
-- Preserves each `<rte>` independently with its ordered `<rtept>` points
-- Draws each GPX route with two or more points as a dashed polyline and places a distinct marker at every route point
-- Places a marker for each waypoint (`<wpt>` element)
-- Parses elevation (`<ele>`) and timestamp (`<time>`) per track point
-- Provides independent global visibility controls for Tracks, Routes, and Waypoints in the Layers panel
-- Automatically fits the map view to the loaded layer
-- As provisional resource limits, the current Tilia XML importer accepts up to 20 `<rte>` elements per file and up to 100 `<rtept>` elements per `<rte>`. These are Tilia limits, not GPX specification limits.
-
-After normalization, a GPX source always has `tracks`, `routes`, and `waypoints` arrays:
+`load` waits for readiness and dispatches to a matching registered handler. It does not fetch a URL string or accept a public second argument for cancellation.
 
 ```js
-{
-  type: "gpx",
-  name: "example.gpx",
-  tracks: [/* <trk> values */],
-  routes: [{
-    name: "Planned path",
-    points: [{ lat: 35.0, lon: 135.0, name: "Start" }],
+const response = await fetch("../samples/embed/biwakososui.gpx");
+if (!response.ok) throw new Error(`GPX request failed: ${response.status}`);
+const file = new File([await response.text()], "biwakososui.gpx", {
+  type: "application/gpx+xml",
+});
+const { entry } = await app.load(file);
+console.log(entry.id);
+```
+
+The GPX handler returns `{ entry, name }`; the JPEG handler returns `{ entry, name, locationSource }`. `entry` is a snapshot, not a Leaflet layer. Missing or conflicting handlers reject dispatch. File/URL import controls accept user input; if no predefined startup file is needed, omit the fetch and use those controls as shown in the README.
+
+### Destroy an application
+
+`destroy()` makes the app terminal immediately, then aborts owned work, removes entries, closes plugins/resources, and removes the Map last. Await it before reusing the container:
+
+```js
+await app.destroy();
+```
+
+The container survives. Do not independently remove the borrowed Map or use an old Map or cached capability after destruction. Map-attached resources end with the Map; unrelated host timers/page listeners remain the host's responsibility. Leaflet's shared document infrastructure is independent of a single Map.
+
+Repeated `destroy()` calls from the host share the same completion Promise, including rejection; they do not automatically retry failed cleanup. Successful cleanup permits a new app with a distinct Map on the same container; cleanup failure does not guarantee immediate container reuse. Cleanup may wait for required resource handoffs, so completion is not a guarantee that every noncooperative task has settled.
+
+`ready`/`whenReady()`, `destroy()`, `hasPlugin()`, and `listPlugins()` remain accessible after shutdown starts; discovery returns `false`/an empty array. Other operations and cached capabilities are fenced. If a host `destroy()` call runs while readiness is pending, it rejects readiness immediately with `APP_DESTROYED`, even if startup later fails. If the bootstrap failure handler has already rejected readiness with the startup error, its automatic cleanup and later host destruction preserve that error. The ordering is the settlement of the readiness Promise, not when an underlying task first throws. Already settled readiness stays settled. Readiness and cleanup are separate Promises; neither waits for the other.
+
+## Semantic and display APIs
+
+### Entries and domain views
+
+An entry snapshot is `{ id, domain, visible }`. IDs are application-local; `domain` is a typed key such as `gpxDomainKey`, not the string `"gpx"`. Domain `get(id)` returns `{ entry, revision, snapshot }`; missing or wrong-domain entries throw. Snapshots do not change after later mutations; obtain a fresh view when needed.
+
+`app.domains` exposes `gpx` and `photo`. Creation requires the corresponding provider plugin, `tilia-gpx-domain` or `tilia-photo-domain`, installed directly or through a dependency. Input handlers parse files; renderers display data. Neither is required to create canonical data programmatically.
+
+| `app.entries` method | Return / behavior |
+| --- | --- |
+| `list()` | Frozen entry array in insertion order |
+| `get(id)` | Entry snapshot or `null` |
+| `setVisible(id, visible)` | Promise resolving to the entry snapshot; boolean visibility |
+| `remove(id)` | Promise resolving to the removed snapshot, or `null` if absent |
+| `clear()` | Promise resolving to a frozen array of entries targeted for removal |
+| `subscribe(listener, { emitCurrent = true } = {})` | Handle `{ unsubscribe() }` |
+
+Whole-entry visibility does not change the domain revision or clear selection. `clear` removes entries in reverse insertion order, attempts remaining entries after cleanup failures, and delivers one final batch event. Removal can commit even if cleanup later rejects; see [Errors](#errors-and-extension-boundary).
+
+Entry subscriptions initially receive `entries.list()` when `emitCurrent` is true. Subsequent notifications are events:
+
+| `type` | Other fields |
+| --- | --- |
+| `created` | `current` (entry snapshot) |
+| `domain-changed` | `entry`, `previousRevision`, `revision`, `change` |
+| `visibility-changed` | `previous`, `current` (entry snapshots) |
+| `removed` | `previous` (entry snapshot) |
+| `cleared` | `removed` (entry array) |
+
+For change-only callbacks, read the initial list separately:
+
+```js
+const initialEntries = app.entries.list();
+const subscription = app.entries.subscribe((event) => {
+  console.log(event.type);
+}, { emitCurrent: false });
+// When the host no longer needs updates:
+subscription.unsubscribe();
+```
+
+### Revision-checked commands
+
+Both domains expose `create(value, { visible = true, signal } = {})`, returning a Promise resolving to the new **entry snapshot**. `signal`, if supplied, is an AbortSignal. Cancellation before publication prevents creation; cancellation after commit does not undo an entry.
+
+Mutation signatures are `(id, value, { expectedRevision })`; they return Promises resolving to **domain views**. `expectedRevision` is required and must equal the current integer revision. Changed semantic data/preferences advance the revision; no-ops do not. A Photo preview-only resource change can leave the semantic revision unchanged.
+
+Read a current revision before each command and handle stale-revision errors when other consumers can edit. Do not mutate snapshots. Even commands with no value take options as their third argument:
+
+```js
+const view = app.domains.gpx.get(entry.id);
+await app.domains.gpx.recomputeDerived(entry.id, undefined, {
+  expectedRevision: view.revision,
+});
+```
+
+### GPX data and commands
+
+`app.domains.gpx.create(document)` accepts canonical data or `{ data: document, preferences }`. This normalized GPX subset is not a lossless container for arbitrary XML extensions.
+
+- Document: `{ name, metadata, tracks, routes, waypoints }`.
+- Track: `{ name, description, segments: [{ points }] }`.
+- Route: `{ name, description, points }`; waypoints are individual points.
+- Point: `{ lat, lon, elevation, timestamp, name, description, symbol }`.
+
+Coordinates use `lon` (Leaflet often uses `lng`). Latitude/longitude are finite numbers in geographic ranges. Elevation is finite or `null`; timestamps are finite Unix milliseconds or `null`. Omitted elevation/timestamp become `null`. Metadata supports `name`, `description`, and `timestamp`. Tracks/routes/waypoints default to empty arrays; supplied tracks require `segments` arrays and supplied segments/routes require `points` arrays.
+
+Preferences default to `tracksVisible`, `routesVisible`, and `waypointsVisible` all true, `trackVisibility: {}`, `routeVisibility: {}`, and `stylePresetId: "default"`. Per-track and per-route visibility use zero-based indexes as object keys; a missing index is visible. Snapshots are `{ data, preferences, derived }`; GPX `derived` is currently empty.
+
+```js
+const entry = await app.domains.gpx.create({
+  name: "Example track",
+  tracks: [{
+    segments: [{ points: [
+      { lat: 35.68, lon: 139.76, elevation: 10 },
+      { lat: 35.69, lon: 139.77, elevation: 20 },
+    ] }],
   }],
-  waypoints: [/* <wpt> values */],
-}
-```
-
-In a programmatic GPX source, each of the `tracks`, `routes`, and `waypoints` arrays may be omitted. Normalization supplies an empty array for each omitted field.
-
-The currently supported GPX route fields are `name` on `<rte>`, and latitude, longitude, and `name` on `<rtept>`.
-
-**JPEG files** (`.jpg`, `.jpeg`):
-- Location is determined in this order:
-  1. **EXIF GPS** — used directly when present
-  2. **GPX timestamp interpolation** — when EXIF GPS is absent, the EXIF capture timestamp is interpolated against the timeline of all loaded GPX tracks
-  3. **Error** — thrown when neither GPS nor a usable timestamp is available in EXIF
-- The timestamp is interpreted according to the current photo time mode (`"auto"`, `"local"`, `"utc"`, or a fixed offset such as `"+09:00"`)
-
-### Plugin utilities
-
-#### `app.subscribeInteractions(handlers) → unsubscribeFn`
-
-Subscribe to events triggered when GPX layers and photo markers are added to the map. Called once for each existing entry when first subscribing, then for each new entry as it is loaded. Returns an unsubscribe function.
-
-```js
-const unsub = app.subscribeInteractions({
-  // Called for each logical GPX <trk> layer
-  onTrackLayer({ entry, layer, trackIndex }) { /* layer is a Leaflet Polyline */ },
-
-  // Called for each GPX waypoint marker
-  onWaypointLayer({ entry, layer, waypoint }) { /* layer is a Leaflet Marker */ },
-
-  // Called for each photo marker
-  onPhotoMarker({ entry, layer }) { /* layer is a Leaflet Marker */ },
 });
-
-// Unsubscribe when done:
-unsub();
+const view = app.domains.gpx.get(entry.id);
+const updated = await app.domains.gpx.updatePoint(entry.id, {
+  target: { kind: "track-point", trackIndex: 0, segmentIndex: 0, pointIndex: 1 },
+  patch: { elevation: 25 },
+}, { expectedRevision: view.revision });
+console.log(updated.revision);
 ```
 
-GPX route polylines and route-point markers are not currently exposed through `subscribeInteractions()`. This API remains track-, waypoint-, and photo-specific.
+| GPX mutation | Value argument |
+| --- | --- |
+| `replaceData` | New document; keeps preferences and drops out-of-range track/route visibility indexes |
+| `updatePoint` | `{ target, patch }`; patch supports `lat`, `lon`, `elevation`, `timestamp` |
+| `setCategoryVisibility` | `{ category: "tracks" \| "routes" \| "waypoints", visible }` |
+| `setTrackVisibility` | `{ trackIndex, visible }` |
+| `setRouteVisibility` | `{ routeIndex, visible }` |
+| `setStylePreset` | Nonempty preset ID; visual interpretation belongs to the renderer |
+| `recomputeDerived` | `undefined`; currently a GPX no-op |
 
-#### `app.provide(name, service)`
+Point patches use `null` to clear elevation/timestamp; supplied patch values cannot be `undefined`. Track/route visibility indexes must be in-range integers and `visible` must be boolean. Storing `true` at an absent per-track/per-route index changes the stored preferences and advances the revision, even though that target was already effectively visible. Whole-entry visibility and category/track/route preferences are separate controls.
 
-Registers a named shared service so other plugins can access it via `app.services[name]`.
+Route visibility is `entry.visible && preferences.routesVisible && preferences.routeVisibility[routeIndex] !== false` and applies to its line and every numbered point marker. Read individual preferences through `app.domains.gpx.get(id).snapshot.preferences.routeVisibility`; category/entry toggles leave them intact. `replaceData` retains preferences by index, discards removed indexes, and defaults new indexes to visible. `setRouteVisibility` follows the common revision-checked mutation contract above, as does `setTrackVisibility`. Public visibility mutations retain semantic selection; Layers checkbox hides conditionally clear only selections made invisible by that operation.
 
-#### `app.addRefreshHandler(fn) → unsubscribeFn`
+### GPX targets and queries
 
-Registers a callback that fires whenever `app.refreshView()` is called (e.g., after a layer is added or removed). Returns an unsubscribe function.
+Targets use zero-based indexes:
 
-#### `app.refreshView()`
+| `kind` | Required index fields |
+| --- | --- |
+| `document` | None |
+| `track` | `trackIndex` |
+| `segment` | `trackIndex`, `segmentIndex` |
+| `route` | `routeIndex` |
+| `track-point` | `trackIndex`, `segmentIndex`, `pointIndex` |
+| `route-point` | `routeIndex`, `pointIndex` |
+| `waypoint` | `waypointIndex` |
 
-Triggers all registered refresh handlers.
+Queries are synchronous and return immutable envelopes containing `entryId` and `revision`, plus the fields below. Query targets may include `revision` to reject stale indexes. Nonexistent targets reject; existing empty paths can return empty results.
 
-#### `app.setStatus(text)`
+| Method | Result fields / accepted targets |
+| --- | --- |
+| `getDocument(id)` | `document` |
+| `getExtent(id, { target } = {})` | `bounds: { southWest: { lat, lon }, northEast: { lat, lon } }` or `null`; all kinds |
+| `getDistance(id, { target } = {})` | `recordedMeters`, `inferredGapMeters`, `totalMeters`; document, track, segment, route |
+| `getElevationProfile(id, { target } = {})` | `profiles: [{ target, samples }]`; document, track, segment, route |
+| `getNearestPoint(id, { target, coordinate })` | `match: { target, point, distanceSquared }` or `null`; explicit track, segment, or route required |
 
-Optionally reports status through `tilia-status`. When no status provider is installed, the call safely has no visible effect; installing one later enables subsequent messages.
+Extent/distance/elevation default to the document. Elevation samples contain `{ locator, distanceMeters, elevation, edgeKind }`; `edgeKind` is `start`, `recorded`, or `inferred-gap`. Missing elevation stays `null`. Document elevation profiles exclude standalone waypoints. Track segment gaps contribute inferred distance separately from recorded distance.
 
-#### `app.setError(error)`
-
-Records an error into the app state (`app.state.lastError`).
-
-### State and services
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `app.state` | `object` | Runtime state: `entries` (loaded layers), `sources`, `layers`, `lastError` |
-| `app.services` | `object` | Shared services published by plugins, keyed by plugin ID |
-| `app.plugins` | `Map` | Registry of installed plugins, keyed by plugin ID |
-
-
-## Built-In Plugins
-
-Install by passing a string ID to `app.use()`, or by listing in `options.plugins`.
-
-| ID | Requires | Description |
-|----|----------|-------------|
-| `tilia-panel` | — | Side panel container rendered inside the map area; used by layers, elevation, and settings plugins |
-| `tilia-status` | — | Status bar in the bottom-left corner of the map; shows load results and errors |
-| `tilia-base-maps-control` | — | Base map selector control; shows visible entries from `app.baseMaps`, grouped by provider when applicable |
-| `tilia-layers` | `tilia-panel` | Layer list with global Tracks / Routes / Waypoints visibility, per-entry visibility, delete, fit-to-view, and photo timestamp mode override |
-| `tilia-elevation` | `tilia-panel` | Interactive elevation profile chart in the side panel; hover highlights the corresponding track point on the map |
-| `tilia-file-import` | — | Map control (top-left) with a file picker; accepts `.gpx`, `.jpg`, `.jpeg`; supports multiple files at once |
-| `tilia-url-import` | — | Map control that opens a URL input; fetches via HTTP/HTTPS with CORS; filename inferred from `Content-Disposition` or the URL path; `timeoutMs` aborts slow fetches and `maxBytes` rejects oversized remote files |
-| `tilia-query-import` | — | Same as `tilia-url-import`, but without a form or control; instead, it reads the input URL from the query parameter `gpx` |
-| `tilia-settings` | `tilia-panel` | Settings panel with a single control: the default photo timestamp interpretation mode applied to newly loaded photos |
-| `tilia-dropzone` | — | Makes the entire map container a drag-and-drop target; visual highlight shown during drag |
-
-### Optional repository plugins
-
-These plugins are provided in this repository under `plugins/` as third-party style modules. They are not built-ins and must be installed explicitly.
-
-| ID | Requires | Description |
-|----|----------|-------------|
-| `x-track-editor` | `tilia-panel` | Starts a GPX editing session from a working copy, edits track points, and keeps the edited copy as a new layer on save |
-| `x-gpx-export` | `tilia-panel` | Exports a selected GPX layer to a `.gpx` download |
-| `x-route-search` | — | Shows a left-side route form, calls Phloem `POST /route`, and imports each routing result as a GPX Track with Start/Via/Goal Waypoints |
-
-#### `x-route-search` options
-
-`x-route-search` accepts plugin options through `app.use("x-route-search", options)` or `pluginOptions["x-route-search"]`:
-
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `endpoint` | `string` | `"http://127.0.0.1:3000/route"` | Phloem route endpoint URL |
-| `apiKey` | `string` | `""` | Optional API key; sent as `Authorization: Bearer <key>` |
-| `defaultProfile` | `string` | `"car"` | Initial route profile shown in the form |
-| `profileOptions` | `string[]` | `[defaultProfile, "car", "bike", "foot"]` | Allowed profile values in the profile selector (`car`, `bike`, `foot`). Unknown values are ignored. |
-| `timeoutMs` | `number` | `5000` | Request timeout for Phloem calls |
-| `importLimit` | `number` | `3` | Maximum number of routes imported per search (capped at 3) |
-| `position` | `string` | `"topleft"` | Map control button position |
-| `priority` | `string` | `"normal"` | Map control button priority |
-
-### Photo timestamp interpretation modes
-
-| Mode | Behaviour |
-|------|-----------|
-| `auto` | Tries `local` and `utc`, then keeps the interpretation that best matches the loaded GPX timeline. This is the default for newly loaded non-GPS photos. |
-| `local` | Treats the EXIF timestamp as the device's local wall-clock time (no timezone conversion). |
-| `utc` | Treats the EXIF timestamp as UTC. |
-| `+09:00`-style fixed offset | Treats the EXIF timestamp as a wall-clock time in the given numeric offset. Both `+0900` and `+09:00` forms are accepted. |
-
-> **Published embed warning.** `auto` depends on the viewer's runtime environment. If a public page infers photo positions from GPX tracks and needs stable results across timezones, set an explicit photo time mode instead of relying on `auto`. Use `utc` or a fixed offset string such as `+09:00`.
-
-
-## Authoring Plugins
-
-For the current operational contract around `requires`, startup order, built-in vs third-party IDs, and dynamic loading, see [PLUGIN-OPERATIONS.md](PLUGIN-OPERATIONS.md).
-
-A plugin is a plain object with `id` and `setup`:
+Nearest queries compare existing points by squared latitude/longitude differences. `distanceSquared` is in degrees squared, not meters; results are not interpolated points on segments. Pass a finite `{ lat, lon }` and an explicit path target:
 
 ```js
-const myPlugin = {
-  id: "x-my-plugin",           // lower-kebab-case, vendor-prefixed
-  // Declare only plugins required for primary functionality. Status reporting via
-  // app.setStatus() is optional and does not require tilia-status here.
-  stylesheets: [
-    new URL("./my-plugin.css", import.meta.url).href,
-  ],
-
-  setup(app, options) {
-    const control = app.ui.installMapControl({
-      map: app.map,
-      position: "topright",
-      priority: "high",
-      className: "my-plugin-control",
-      createContent() {
-        const panel = app.ui.createPanel();
-        const button = app.ui.createButton("M");
-        button.addEventListener("click", () => {
-          app.setStatus("My plugin was clicked");
-        });
-        panel.appendChild(button);
-        return panel;
-      },
-    });
-
-    // Return an API object with plugin-specific operations. If the returned API
-    // owns resources, expose destroy() and release all of them there.
-    return {
-      doSomething() { /* ... */ },
-      destroy() {
-        control.remove?.();
-      },
-    };
-
-    // If no public API is needed, return a cleanup function directly:
-    // return () => { control.remove?.(); };
-  },
-};
-
-await app.use(myPlugin);
-```
-
-`setup()` may return an API object, a cleanup function, or `undefined` when the plugin exposes no API and owns no resources requiring cleanup. Before removing the plugin and its service registration, `app.unuse()` invokes an explicitly returned cleanup function or the API object's `destroy()` method.
-
-Each plugin is responsible for releasing every resource it owns, where applicable: Leaflet controls, DOM and map event listeners, application subscriptions, refresh handlers, timers, observers, markers, and other retained UI state. Methods such as `remove()` are not automatically treated as lifecycle cleanup; expose cleanup explicitly through `destroy()` or by returning a cleanup function.
-
-`stylesheets` is optional. When present, Tilia registers each stylesheet before `setup()` runs. Use absolute URLs or resolve relative files inside the plugin module with `new URL(..., import.meta.url).href`.
-
-### Plugin ID rules
-
-- Must be `lower-kebab-case` (only lowercase letters, digits, and hyphens)
-- `tilia-` prefix is **reserved** for built-in plugins
-- Third-party IDs must include at least one hyphen (use a vendor prefix or `x-` for experiments)
-- Examples: `x-milestone`, `acme-heatmap`, `myco-tracker`
-
-### Dynamic loading
-
-String IDs are resolved by default from `plugins/<plugin-id>/loader.js`:
-
-```
-plugins/
-  x-milestone/
-    loader.js   ← must export a default plugin object,
-                   or a named export whose id matches the plugin ID
-```
-
-**Override a specific URL:**
-
-```js
-createDefaultTiliaApp("map", {
-  pluginUrls: {
-    "x-milestone": "./custom-plugins/x-milestone/loader.js",
-  },
+const distance = app.domains.gpx.getDistance(entry.id);
+const nearest = app.domains.gpx.getNearestPoint(entry.id, {
+  target: { kind: "track", trackIndex: 0 },
+  coordinate: { lat: 35.685, lon: 139.765 },
 });
+console.log(distance.totalMeters, nearest.match?.target);
 ```
 
-**Fully custom loader:**
+### Photo data, commands, and previews
+
+`app.domains.photo.create(value)` accepts data directly or `{ data, preferences, blob }`. Optional `blob` supplies the owned preview resource.
+
+| Data field | Meaning / default |
+| --- | --- |
+| `name` | `"photo"` |
+| `coordinate` | `{ lat, lon }` or `null`; geographic ranges |
+| `capturedAt` | Finite Unix milliseconds or `null` |
+| `make`, `model` | Camera strings, default `""` |
+| `source` | `{ mediaType, size }`; defaults to `"application/octet-stream"` and `0` bytes |
+
+Normalized data adds `hasGps`. Preferences contain `requestedTimeMode`, defaulting to `auto`: `auto`, `local`, `utc`, or a fixed offset such as `+09:00`, `-05:00`, or `+05:30`. Compact offsets (`+0900`) and `Z` normalize to `+09:00` and `+00:00`; hours must be 00–23 and minutes 00–59. Snapshots are `{ data, preferences, derived }`; derived fields are `resolvedTimeMode`, `inferredTimestamp`, `inferredLocation`, and `locationSource`.
+
+Fixed offsets interpret the EXIF wall-clock calendar fields in the specified offset; they do not rewrite `capturedAt`. JPEG input stores the parsed EXIF Date as Unix milliseconds, and inference reads its local calendar fields in that same browser environment. Programmatically supplied `capturedAt` must represent the intended wall-clock fields when read as a local Date; `local` retains its existing instant-based interpretation.
+
+| Photo mutation | Value argument |
+| --- | --- |
+| `replaceData` | Data object directly, optionally with its own `blob` property; keeps preferences (details below) |
+| `setRequestedTimeMode` | A preset or fixed offset, as above |
+| `recomputeDerived` | `undefined`; explicitly recomputes location/time inference |
+
+`replaceData(id, data, { expectedRevision })` normalizes the data object itself; the creation wrapper `{ data, preferences, blob }` is not a replacement format. It replaces the full data rather than applying a patch: omitted data fields take their defaults. To preserve other fields, pass `{ ...view.snapshot.data, name: "renamed.jpg" }`. Preferences remain unchanged. Omit the own `blob` property to retain the current preview resource; supply a `Blob` to replace it, or `null`/explicit `undefined` to clear it. Passing the same Blob retains the resource. A preview-only replacement/clear leaves the semantic revision unchanged and emits no `domain-changed` event; replacing/clearing a resource invalidates its old preview handles and disposes its URL. Blob resources are not part of public snapshots.
+
+Commands require `{ expectedRevision }` as their third argument. Recorded GPS coordinates take precedence. Without GPS, inference uses available timestamped GPX data. Later GPX changes do not automatically recompute committed Photos. Explicit recomputation can reject when no suitable match exists.
+
+`getPreview(id)` returns `null` without a preview resource, otherwise a handle:
+
+| Member | Meaning |
+| --- | --- |
+| `signal` | Aborts when preview/consumer becomes invalid or the handle is released |
+| `isCurrent()` | Whether the handle can still be used |
+| `readUrl()` | Current object URL; throws when stale |
+| `release()` | Ends this consumer's use; does not revoke the provider-owned URL |
+
+There is no public `handle.url`. Clear displayed image sources when the signal aborts and release handles when their view closes. Do not revoke the URL yourself. Plugins can pass `{ scope }` to bind preview use to an owned descendant Scope; host calls default to the application consumer lifetime.
+
+### Semantic selection
+
+| `app.selection` method | Return / behavior |
+| --- | --- |
+| `getCurrent()` | Frozen `{ entryId, domain, ref }` or `null` |
+| `request(candidate)` | Promise resolving to the selected snapshot |
+| `clear({ ifCurrent } = {})` | Promise resolving to `undefined`; with a selection snapshot, clears only a matching entry/domain/reference |
+| `subscribe(listener)` | Change-only handle `{ unsubscribe() }` |
+| `subscribeRequests(listener)` | Handle `{ unsubscribe() }`; receives the selected snapshot for successful requests, including repeated requests for the same selection |
+
+Create candidates through the matching domain facade:
 
 ```js
-createTiliaApp({
-  map,
-  pluginLoader: async (pluginId) => {
-    return import(`/plugins/${pluginId}/index.js`);
-  },
+const candidate = app.domains.gpx.selection.createCandidate(entry.id, {
+  kind: "track", trackIndex: 0,
 });
+await app.selection.request(candidate);
+const current = app.selection.getCurrent();
+const selectedTrack = app.domains.gpx.selection.resolve(current.entryId, current.ref);
 ```
 
-### UI styling contract
+GPX candidate targets use the kinds/indexes above without a caller-supplied revision. Photo uses `app.domains.photo.selection.createCandidate(id)` with its default target. Candidates are opaque, issued to one consumer in one application; do not fabricate, serialize, or pass them between app/plugin contexts. Domain `selection.resolve(id, ref)` returns immutable domain data or `null` for an unresolving reference; malformed references or missing/wrong-domain entries can throw.
 
-- Built-in UI styles are loaded automatically by the runtime.
-- Third-party plugins can declare `stylesheets` on the plugin object. Tilia injects each declared stylesheet once per document before `setup()` executes.
-- Built-in UI plugin options flow through `pluginOptions`. `position` selects the Leaflet control corner, `priority` controls relative visual strength, and `edgePolicy` controls whether a conflicting control yields to a panel or keeps its corner.
-- Floating UI that should live above the map but outside Leaflet controls can be mounted through the shared UI surface manager instead of appending directly to the map container.
-- During panel/layout arbitration, `edgePolicy: "keep"` lets a conflicting control keep its corner and makes the panel yield space instead. When `edgePolicy` is omitted, `priority: "high"` defaults to `keep` and other priorities default to `yield`.
+Selection events contain `{ previous, current, reason }`. Reasons are `requested`, `cleared`, `refreshed`, `remapped`, `domain-invalidated`, `entry-removed`, or `resolution-failed`. `subscribeRequests` has no initial notification and does not report clearing or domain reconciliation; request notifications follow any state-change notification, and shutdown/consumer invalidation can prevent their delivery. Read `getCurrent()` separately for initial state. Domain updates reconcile or invalidate references; removal clears the entry's selection. Hiding an entry, removing its renderer, or closing a popup does not clear semantic selection. The bundled third-party x-track-editor plugin maintains its draft selection independently of semantic selection.
 
-```js
-createDefaultTiliaApp("map", {
-  plugins: ["tilia-status", "tilia-file-import"],
-  pluginOptions: {
-    "tilia-file-import": {
-      position: "topright",
-      priority: "high",
-      edgePolicy: "keep",
-    },
-  },
-});
-```
+### Rendering status
 
-Use `app.ui.mountSurface()` for panel-like or floating UI that is not a Leaflet control:
+| `app.rendering` method | Return / behavior |
+| --- | --- |
+| `getStatus(id)` | Immutable status, or `null` without a rendering controller |
+| `list()` | Frozen status array |
+| `subscribe(listener, { emitCurrent = true } = {})` | Handle; initial status array, then individual status notifications |
+| `retry(id)` | Requests a fresh build of current semantics and synchronously returns status; does not await display |
 
-```js
-const panel = document.createElement("aside");
-panel.className = "my-plugin-panel";
+Status contains `entryId`, `domain`, `state`, `visible`, and `semanticRevision`. States are `unavailable`, `building`, `active`, or `failed`. Generation fields are `currentToken`/`currentRevision`, `pendingToken`/`pendingRevision`, `fallbackToken`/`fallbackRevision`, and `fallbackDisplayed`. Treat tokens as opaque. `lastFailure` is an error summary or `null`; `cleanupResidualCount` counts outstanding cleanup records.
 
-const mounted = app.ui.mountSurface({
-  id: "x-my-plugin-panel",
-  surface: "panel",       // or "floating"
-  element: panel,
-  priority: "high",
-});
+`retry(id)` accepts controllers in all four states, including `active` and `building`; it supersedes a pending attempt. With a renderer installed, it schedules a fresh asynchronous build at the current semantic revision. Without a renderer it remains `unavailable` and starts no build. It throws a plain `Error("Entry not found")` when no controller exists; accessing `app.rendering` after destruction throws `APP_DESTROYED`, while a cached rendering facade can throw `RENDERING_TERMINATED`. Later build failures are reported through status, not a returned Promise. Retry does not change semantic data/revision or guarantee display success, and is not an explicit retry of residual cleanup.
 
-// Later, during teardown:
-mounted.unmount();
-```
+Unavailable rendering can mean no renderer is installed. Failure does not roll back committed data. During replacement, a fallback may remain visible; status distinguishes its revision from the semantic revision. See [Architecture](ARCHITECTURE.md) for the generation model.
 
-> **Security note:** dynamically loaded plugins run with the same privileges as any other JavaScript on the page. Tilia does not sandbox plugin code.
+### Capabilities for owned plugin views
 
-### Trust and network assumptions
+Plugin-owned physical input APIs (`context.interactions` and map subscriptions), including their lifecycle and arbitration guarantees, are documented in [Public interaction contracts](INTERACTIONS.md). They are separate from semantic selection and are not an `app.interactions` API.
 
-- Remote plugin modules loaded by string ID, `pluginUrls`, or `pluginLoader` are fully trusted code from the browser's point of view.
-- `tilia-url-import` plugin accepts only HTTP/HTTPS, but it still depends on the remote server's CORS policy and availability.
-- CDN dependencies referenced by your importmap are part of the application's runtime trust boundary.
+PluginContext exposes the same entry/domain/selection/rendering facades with consumer-specific lifetimes. Some methods require a Scope that host code does not normally create:
 
-### Available API inside `setup(app, options)`
+- `entries.bindPresentationLifetime(id, { scope })` requires an owned child Scope strictly below the consumer. Removal closes that child; its returned `{ dispose() }` binding can close it earlier.
+- `rendering.suppress({ entryId, domain: gpxDomainKey, target: { kind: "track", trackIndex }, expectedRevision, scope })` returns `{ dispose() }` for temporary GPX track suppression. Scope must belong to the consumer. Suppression leaves persistent visibility, revision, and selection unchanged; overlapping leases keep a target suppressed until all owners release it.
+- `rendering.getSuppressionSnapshot()` returns a frozen array of `{ entryId, domain, ref }`. `subscribeSuppression(listener, { scope, emitCurrent = true } = {})` returns `{ unsubscribe() }` and delivers snapshot arrays. Scope defaults to the consumer; supplied scopes must belong to it.
 
-```js
-// Install a native Leaflet map control that wraps your content
-app.ui.installMapControl({ map, position, priority, edgePolicy, className, createContent })
+Binding/suppression `dispose()` returns a Promise. These APIs do not expose renderer layers or arbitrary domain suppression. The [developer guide](PLUGIN-OPERATIONS.md) explains owned Scopes, services, registration, and asynchronous work.
 
-// Create common UI elements
-app.ui.createPanel()               // returns a class-based panel element styled by the core stylesheet
-app.ui.createButton(label)         // returns a <button>
-app.ui.createSelect(optionValues, onChange)  // returns a <select>
+Suppression follows the domain target, not a renderer generation. Removing and reinstalling a renderer preserves valid suppression leases. GPX nonstructural changes remap their revision-scoped references; `replaceData` invalidates old track suppression even if the replacement has identical structure. Entry deletion also invalidates it. Releasing an obsolete lease cannot suppress or reveal a replacement target; releasing the final valid lease follows the current visibility preferences, not the preferences captured at acquisition.
 
-// Register an additional stylesheet for the current document
-app.ui.registerStylesheet({ href, id? })
+## Errors and extension boundary
 
-// Mount UI into a managed surface above the map container
-app.ui.mountSurface({ id, surface, element, priority? })
+Catch both synchronous exceptions and Promise rejections, and check `code` for defined conditions. Even methods normally returning Promises can throw synchronously during capability checks or argument destructuring. Validation/native browser errors can also occur; not every failure is an exported error class.
 
-// Access the low-level surface manager if needed
-app.ui.surfaceManager
+| Contract | Fields / interpretation |
+| --- | --- |
+| Application errors | `applicationErrorCodes.destroyed`: `APP_DESTROYED`; `cleanupFailed`: `APP_CLEANUP_FAILED` |
+| `SemanticError` | `code`, `committed`, `details`, optional `cause`; committed changes survive later cleanup failures |
+| `ExtensionError` | `code`, `committed`, `details`, optional `cause`; callback failure after commit does not undo publication |
+| `RenderingError` | `code`, optional `cause`; no general `committed` field |
+| Input dispatch failures | `InputDispatchError` has `code`/`details` describing settlement, cancellation, and cleanup; a failed load does not necessarily mean no entry exists |
+| Plugin failures | `PluginError` has `code`, `details`, optional `cause`; see developer guide for dependency/lifecycle conditions |
 
-// Subscribe to track / waypoint / photo events (returns unsubscribe fn)
-app.subscribeInteractions({ onTrackLayer, onWaypointLayer, onPhotoMarker })
+Application cleanup failure is an aggregate with original causes in `errors` and frozen contextual summaries in `details.failures`. The app remains terminal. Cached/in-flight failures are not all rewritten as application errors. Unsupported input and handler conflicts can retain `ExtensionError` codes.
 
-// Register a view refresh callback (returns unsubscribe fn)
-app.addRefreshHandler(fn)
+`PluginError` and `InputDispatchError` are not root exports; inspect their fields instead of importing nonexistent exports. The public barrel exports `SemanticError`, `ExtensionError`, `RenderingError`, their `semanticErrorCodes`, `extensionErrorCodes`, `renderingErrorCodes`, and `applicationErrorCodes`.
 
-// Trigger all refresh callbacks (call after mutating data)
-app.refreshView()
+Synchronous app lifecycle calls from plugin setup/cleanup reject with `PLUGIN_LIFECYCLE_REENTRANT`. Do not await the app's own lifecycle from those callbacks; asynchronous self-await cannot generally be detected.
 
-// Publish a named service for other plugins
-app.provide(name, service)
+### Other public exports
 
-// Read services published by other plugins
-app.services["tilia-panel"]   // { openPanel, closePanel, togglePanel, rerenderPanel, isOpen }
-app.services["tilia-status"]  // { setStatus }
-app.services["tilia-base-maps"]  // same object as app.baseMaps
-app.services["tilia-ui-surfaces"] // same object as app.ui.surfaceManager
-```
+| Export | Purpose |
+| --- | --- |
+| `builtins` | Official `tilia-*` lazy catalog; application catalog rules are in the developer guide |
+| `gpxDomainKey`, `photoDomainKey` | Shared typed identities; compare by identity |
+| `defineDomainKey({ id })` | Define an identity; does not create an application domain facade |
+| `defineServiceKey({ id, validate = null, createFacade })` | Define a service contract; `createFacade` is required |
+| `statusServiceKey`, `panelServiceKey`, `gpxQueryServiceKey` | Shared service contracts for plugins |
+| `cloneAndFreezePlainData(value, path = "snapshot")` | Clone/freeze `null`, `undefined`, strings, booleans, finite numbers, arrays, and plain objects; rejects objects such as Date, Blob, and Map |
 
+Typed IDs use lowercase alphanumeric words separated by hyphens. Independently created keys with the same ID are distinct; share contract keys between providers and consumers. Plain-data snapshots cannot contain cyclic references.
 
-## Samples
+Plugin-only service, input, base-map, contribution, and presentation registrations are documented in [Developing plugins](PLUGIN-OPERATIONS.md), with options in [Plugin guide](PLUGINS.md). They are not host methods such as `app.services` or `app.inputs`. Internal stores, registries, Scope controllers, and foundations are not exports of the public application API. Deep imports are not a JavaScript security boundary.
 
-| Sample | Path |
-|--------|------|
-| Full viewer | [`samples/viewer/index.html`](../samples/viewer/index.html) |
-| Embed gallery | [`samples/embed/index.html`](../samples/embed/index.html) |
-| Third-party plugin example | [`plugins/x-milestone/loader.js`](../plugins/x-milestone/loader.js) |
+Third-party IDs use fixed `plugins/<id>/loader.js` discovery. `src/` and `plugins/` must be siblings; the plugin directory is not configurable and does not depend on the page or base URL. Use direct definitions or explicit catalogs for nonstandard locations. See [Developing plugins](PLUGIN-OPERATIONS.md).

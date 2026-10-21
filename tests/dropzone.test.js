@@ -1,113 +1,14 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-
-const processInputItems = vi.hoisted(() => vi.fn());
-
-vi.mock("../src/core/input-processing.js", () => ({
-  processInputItems,
-}));
-
-import { installDropzonePlugin } from "../src/plugins/input/dropzone.js";
-
-function createDropTarget() {
-  const listeners = new Map();
-  const classList = {
-    add: vi.fn(),
-    remove: vi.fn(),
-  };
-
-  return {
-    classList,
-    listeners,
-    addEventListener: vi.fn((eventName, handler) => {
-      listeners.set(eventName, handler);
-    }),
-    removeEventListener: vi.fn((eventName, handler) => {
-      if (listeners.get(eventName) === handler) listeners.delete(eventName);
-    }),
-    contains: vi.fn((node) => node === "inside"),
-  };
-}
-
-describe("installDropzonePlugin", () => {
-  beforeEach(() => {
-    processInputItems.mockReset();
-  });
-
-  it("highlights on dragover and keeps the highlight while moving inside the target", async () => {
-    const dropTarget = createDropTarget();
-
-    installDropzonePlugin({
-      dropTarget,
-      registry: {},
-      context: {},
-      onStatus: vi.fn(),
-      onError: vi.fn(),
-    });
-
-    const dragoverEvent = { preventDefault: vi.fn() };
-    dropTarget.listeners.get("dragover")(dragoverEvent);
-    expect(dragoverEvent.preventDefault).toHaveBeenCalledTimes(1);
-    expect(dropTarget.classList.add).toHaveBeenCalledWith("drop-active");
-
-    dropTarget.listeners.get("dragleave")({ relatedTarget: "inside" });
-    expect(dropTarget.classList.remove).not.toHaveBeenCalled();
-
-    dropTarget.listeners.get("dragleave")({ relatedTarget: "outside" });
-    expect(dropTarget.classList.remove).toHaveBeenCalledWith("drop-active");
-  });
-
-  it("processes dropped files through the shared input pipeline", async () => {
-    const dropTarget = createDropTarget();
-    const registry = { id: "registry" };
-    const context = { id: "context" };
-    const onStatus = vi.fn();
-    const onError = vi.fn();
-    const onItemLoaded = vi.fn();
-    processInputItems.mockResolvedValue(undefined);
-
-    installDropzonePlugin({
-      dropTarget,
-      registry,
-      context,
-      onStatus,
-      onError,
-      onItemLoaded,
-    });
-
-    const dropEvent = {
-      preventDefault: vi.fn(),
-      dataTransfer: {
-        files: [{ name: "track.gpx" }, { name: "photo.jpg" }],
-      },
-    };
-    await dropTarget.listeners.get("drop")(dropEvent);
-
-    expect(dropEvent.preventDefault).toHaveBeenCalledTimes(1);
-    expect(dropTarget.classList.remove).toHaveBeenCalledWith("drop-active");
-    expect(processInputItems).toHaveBeenCalledWith({
-      items: [{ name: "track.gpx" }, { name: "photo.jpg" }],
-      registry,
-      context,
-      onStatus,
-      onError,
-      sourceLabel: "drop",
-      onItemLoaded,
-    });
-  });
-
-  it("returns early when no drop target is provided", () => {
-    expect(() => installDropzonePlugin({ dropTarget: null })).not.toThrow();
-    expect(processInputItems).not.toHaveBeenCalled();
-  });
-
-  it("removes all listeners and the active highlight during cleanup", () => {
-    const dropTarget = createDropTarget();
-    const destroy = installDropzonePlugin({ dropTarget });
-
-    destroy();
-
-    expect(dropTarget.listeners.size).toBe(0);
-    expect(dropTarget.removeEventListener).toHaveBeenCalledTimes(3);
-    expect(dropTarget.classList.remove).toHaveBeenCalledWith("drop-active");
+import { afterEach, describe, expect, it, vi } from "vitest";
+vi.mock("leaflet", () => import("./helpers/leaflet-ui.js"));
+import { uiFixture, settle } from "./helpers/production-ui.js";
+let f; afterEach(async () => { await f?.close(); f = null; });
+function drop(files, types = ["Files"]) { const e = new Event("drop", {cancelable:true}); Object.defineProperty(e,"dataTransfer",{value:{files,types}}); return e; }
+describe("owned Drop transport", () => {
+  it("dispatches sequential snapshots, continues ordinary failures, rejects busy batches and removes authority", async () => {
+    f = await uiFixture(["tilia-dropzone"]); const calls = []; let release;
+    await f.app.use({id:"x-input",setup(c){c.inputs.register({id:"test",recognize:()=>true,async handle({input}){ calls.push(input.name); if(input.name==="bad")throw new Error("bad"); await new Promise((r)=>{release=r;}); }});}});
+    const target = f.map.container; target.dispatchEvent(drop([{name:"bad"},{name:"held"}])); await settle(); expect(calls).toEqual(["bad","held"]);
+    target.dispatchEvent(drop([{name:"ignored"}])); await settle(); expect(calls).toEqual(["bad","held"]);
+    await f.app.unuse("tilia-dropzone"); release(); await settle(); target.dispatchEvent(drop([{name:"late"}])); expect(calls).toEqual(["bad","held"]);
   });
 });

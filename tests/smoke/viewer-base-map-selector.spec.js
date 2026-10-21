@@ -6,7 +6,7 @@ test("viewer base-map selector switches the active base layer", async ({ page })
     pageErrors.push(error.message);
   });
 
-  await page.goto("/samples/viewer/");
+  await page.goto("/tests/fixtures/viewer/");
 
   const selector = page.locator(".tilia-base-map-control .tilia-base-map-select");
   await expect(selector).toBeVisible();

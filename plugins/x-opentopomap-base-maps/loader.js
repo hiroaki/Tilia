@@ -1,3 +1,5 @@
+import { TileLayer } from "leaflet";
+
 const openTopoMapDefinition = Object.freeze({
 	id: "opentopomap",
 	label: "OpenTopoMap",
@@ -15,15 +17,12 @@ const openTopoMapDefinition = Object.freeze({
 
 const openTopoMapPlugin = {
 	id: "x-opentopomap-base-maps",
-	setup(app) {
-		if (!app.baseMaps?.register) {
-			throw new Error('Plugin "x-opentopomap-base-maps" requires app.baseMaps.register(definition)');
-		}
-
-		const registeredDefinition = app.baseMaps.register(openTopoMapDefinition);
-		return {
-			definitionId: registeredDefinition.id,
-		};
+	setup(context) {
+		context.baseMaps.register({
+			...openTopoMapDefinition,
+			rank: 200,
+			createLayer: () => new TileLayer(openTopoMapDefinition.url, { maxZoom: 19, ...openTopoMapDefinition.options }),
+		});
 	},
 };
 

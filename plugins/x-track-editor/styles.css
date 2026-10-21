@@ -175,7 +175,8 @@
 .tilia-track-editor-selection-shield {
   position: absolute;
   inset: 0;
-  z-index: 750;
+  z-index: 1;
+  pointer-events: none;
   cursor: crosshair;
   touch-action: none;
 }

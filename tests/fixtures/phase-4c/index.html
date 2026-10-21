@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Tilia Phase 4C</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@2.0.0-alpha.1/dist/leaflet.css">
+    <style>html, body, #map { width: 100%; height: 100%; margin: 0; }</style>
+    <script type="importmap">
+      { "imports": {
+        "leaflet": "https://unpkg.com/leaflet@2.0.0-alpha.1/dist/leaflet.js"
+      } }
+    </script>
+  </head>
+  <body>
+    <div id="map"></div>
+    <script type="module">
+      import { createDefaultTiliaApp } from "../../../src/index.js";
+      const app = createDefaultTiliaApp("map", {
+        plugins: [
+          "tilia-status",
+          "x-gsi-base-maps",
+          "x-opentopomap-base-maps",
+          "tilia-base-maps-control",
+        ],
+      });
+      try {
+        await app.whenReady();
+        window.phase4cApp = app;
+        document.body.dataset.phase4cReady = "true";
+      } catch (error) {
+        document.body.dataset.phase4cError = `${error.code || error.name}: ${error.message}`;
+        throw error;
+      }
+    </script>
+  </body>
+</html>
