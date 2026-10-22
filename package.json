@@ -19,7 +19,7 @@
   "devDependencies": {
     "@playwright/test": "^1.54.1",
     "@xmldom/xmldom": "^0.8.11",
-    "vitest": "^3.2.4",
+    "vitest": "^5.0.5",
     "es-module-lexer": "1.7.0"
   },
   "dependencies": {
