@@ -4,7 +4,7 @@ import { normalizeGpxDocument, resolveGpxTarget, updateGpxPoint } from "../src/g
 import { parseGpxText, MAX_ROUTES_PER_GPX, MAX_ROUTE_POINTS_PER_ROUTE } from "../src/gpx/parse.js";
 import { formatGpxDecimal, serializeGpxSource } from "../src/gpx/serialize.js";
 import { createGpxProvider } from "../src/plugins/domains/gpx-provider.js";
-const createDomParser = ({ onError } = {}) => new DOMParser({ errorHandler: { warning: onError, error: onError, fatalError: onError } });
+const createDomParser = ({ onError } = {}) => new DOMParser({ onError: (_level, message) => onError(message) });
 const parse = (xml, options = {}) => parseGpxText(xml, { createDomParser, ...options });
 const point = { lat: 0, lon: 180, elevation: 0, timestamp: 0, name: "  A & <B>  ", description: " description ", symbol: " Flag " };
 

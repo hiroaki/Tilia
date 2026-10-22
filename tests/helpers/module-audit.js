@@ -1,7 +1,7 @@
 import { expect } from "vitest";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { resolve, dirname, relative } from "node:path";
-import { init, parse } from "es-module-lexer";
+import { init, parse } from "es-module-lexer/minimal";
 const root=resolve(import.meta.dirname,"../.."),source=p=>readFileSync(resolve(root,p),"utf8");
 function files(directory){return readdirSync(resolve(root,directory),{withFileTypes:true}).flatMap(item=>item.isDirectory()?files(`${directory}/${item.name}`):[`${directory}/${item.name}`]);}
 const externalRoots = () => readdirSync(resolve(root, "plugins"), {withFileTypes:true})
@@ -18,7 +18,7 @@ function parsedEdges(module, path) {
   lazy:item.d>=0,
  }));
 }
-async function edges(path){await init;const text=source(path);const modules=path.endsWith(".html")?[...text.matchAll(/<script\b[^>]*type=["']module["'][^>]*>([\s\S]*?)<\/script>/g)].map(m=>m[1]):[text];return modules.flatMap(module=>parsedEdges(module,path));}
+async function edges(path){await init();const text=source(path);const modules=path.endsWith(".html")?[...text.matchAll(/<script\b[^>]*type=["']module["'][^>]*>([\s\S]*?)<\/script>/g)].map(m=>m[1]):[text];return modules.flatMap(module=>parsedEdges(module,path));}
 async function graph(roots,{lazy=true}={}){const seen=new Set(),queue=[...roots];while(queue.length){const path=queue.shift();if(seen.has(path))continue;seen.add(path);for(const edge of await edges(path)){if(!lazy&&edge.lazy)continue;if(edge.target.startsWith("src/")||edge.target.startsWith("plugins/")){expect(existsSync(resolve(root,edge.target)),`${path} -> ${edge.target}`).toBe(true);queue.push(edge.target);}}}return seen;}
 
 export { root, source, files, externalRoots, parsedEdges, edges, graph };
