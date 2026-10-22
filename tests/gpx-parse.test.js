@@ -7,7 +7,7 @@ import {
 } from "../src/gpx/parse.js";
 
 function createXmldomParser({ onError } = {}) {
-  return new DOMParser({ errorHandler: { warning: onError, error: onError, fatalError: onError } });
+  return new DOMParser({ onError: (_level, message) => onError(message) });
 }
 
 describe("parseGpxText", () => {

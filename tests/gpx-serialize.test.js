@@ -4,7 +4,7 @@ import { parseGpxText } from "../src/gpx/parse.js";
 import { normalizeGpxDocument } from "../src/gpx/document.js";
 import { serializeGpxSource } from "../src/gpx/serialize.js";
 
-const createDomParser = ({ onError } = {}) => new DOMParser({ errorHandler: { warning: onError, error: onError, fatalError: onError } });
+const createDomParser = ({ onError } = {}) => new DOMParser({ onError: (_level, message) => onError(message) });
 
 describe("serializeGpxSource", () => {
   it("serializes routes between waypoints and tracks while preserving order", () => {

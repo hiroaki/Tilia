@@ -8,7 +8,7 @@ Tilia uses browser ES modules directly. There is no build step for running the s
 
 ## Set up the repository
 
-Run the commands below from the repository root. Use **Node.js 22 with npm** to match the current [CI workflow](../.github/workflows/test.yml). The repository does not declare its own Node engine range; the CI version is the development baseline.
+Run the commands below from the repository root. Use **the latest Node.js 22.x with npm** to match the current [CI workflow](../.github/workflows/test.yml). Vitest 5 requires Node.js 22.12.0 or later within 22.x. The repository does not declare its own Node engine range; the CI version is the development baseline.
 
 Install the locked dependencies and the browser needed by the smoke tests:
 
@@ -23,7 +23,7 @@ On Linux machines that need browser system libraries, use the CI installation co
 npx playwright install --with-deps chromium
 ```
 
-`npm ci` installs from `package-lock.json` without updating it. Use `npm install` when deliberately changing dependency declarations, and review both `package.json` and `package-lock.json`. The current CI workflow uses `npm install`; do not assume it enforces an unchanged lockfile.
+`npm ci` installs from `package-lock.json` without updating it, both locally and in CI. Use `npm install` when deliberately changing dependency declarations, and review both `package.json` and `package-lock.json`.
 
 The Node dependencies supply test tools and a local Leaflet installation. Sample HTML has its own browser import maps: the viewer/embed pages map Leaflet `2.0.0-alpha.1` from a CDN. Installing npm dependencies does not replace those mappings. CDN modules, map tiles, and remote services may still require network access; some test fixtures use local or intercepted resources.
 
