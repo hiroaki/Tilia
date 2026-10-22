@@ -36,7 +36,7 @@ jobs:
           cp -r src githubio/docs/Tilia/src
 
       - name: Create PR in GitHubIO
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.GITHUBIO_REPO_TOKEN }}
           path: githubio
