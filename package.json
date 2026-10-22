@@ -18,7 +18,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.54.1",
-    "@xmldom/xmldom": "^0.8.11",
+    "@xmldom/xmldom": "^0.9.12",
     "vitest": "^3.2.4",
     "es-module-lexer": "1.7.0"
   },
