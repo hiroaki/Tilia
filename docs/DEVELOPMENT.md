@@ -8,7 +8,7 @@ Tilia uses browser ES modules directly. There is no build step for running the s
 
 ## Set up the repository
 
-Run the commands below from the repository root. Use **the latest Node.js 22.x with npm** to match the current [CI workflow](../.github/workflows/test.yml). Vitest 5 requires Node.js 22.12.0 or later within 22.x. The repository does not declare its own Node engine range; the CI version is the development baseline.
+Run the commands below from the repository root. Use **Node.js 24.22.1 with npm 11.19.1**, pinned by `volta` and `engines` in `package.json` and matched by the [CI workflow](../.github/workflows/test.yml).
 
 Install the locked dependencies and the browser needed by the smoke tests:
 
@@ -190,6 +190,6 @@ Before submitting:
 4. Run the appropriate checks and describe what was verified, including any environment limits or tests not run.
 5. Review the diff for unrelated changes, generated files, and dependency changes.
 
-There are no repository scripts named `build`, `lint`, or `typecheck`; do not list those as checks that were run. The current [CI workflow](../.github/workflows/test.yml) uses Ubuntu and Node.js 22, runs `npm test`, installs Chromium with its system dependencies, and runs the smoke suite. It is triggered for pull requests, pushes to `main`, and manual dispatch. Passing focused local checks does not replace that complete CI run.
+There are no repository scripts named `build`, `lint`, or `typecheck`; do not list those as checks that were run. The current [CI workflow](../.github/workflows/test.yml) uses Ubuntu and Node.js 24.22.1, runs `npm test`, installs Chromium with its system dependencies, and runs the smoke suite. It is triggered for pull requests, pushes to `main`, and manual dispatch. Passing focused local checks does not replace that complete CI run.
 
 Third-party plugins use fixed `plugins/<id>/loader.js` discovery and must not be added to the official catalog. `src/plugins/runtime/discovery.js` owns URL construction, import and definition validation; the runtime collects dependency metadata before setup. Audits traverse the public entry and independent external loader graphs. See [Developing plugins](PLUGIN-OPERATIONS.md) for layout and integration.
