@@ -3,17 +3,18 @@
 <meta charset="utf-8">
 <title>Street View plugin integration</title>
 <base href="/unrelated-hosting-base/">
-<link rel="stylesheet" href="/node_modules/leaflet/dist/leaflet.css">
-<script type="importmap">{"imports":{"leaflet":"/node_modules/leaflet/dist/leaflet.js"}}</script>
+<link rel="stylesheet" href="/src/map/vendor/leaflet/2.0.0-beta.1/leaflet.css">
+<script type="importmap">{"imports":{"leaflet":"/src/map/vendor/leaflet/2.0.0-beta.1/leaflet.js"}}</script>
 <style>body { margin: 0; } #map { width: 900px; height: 650px; }</style>
 <div id="map"></div>
 <script type="module">
+import { Canvas } from "leaflet";
 import { createDefaultTiliaApp } from "/src/index.js";
 const streetView = new URL(location.href).searchParams.has("options") ? ["x-street-view", {}] : "x-street-view";
 const app = createDefaultTiliaApp("map", {
   baseMapOptions: {
     tileUrl: "/tiles/{z}/{x}/{y}.png", center: [35.68, 139.76], zoom: 13,
-    mapOptions: { inertia: false },
+    mapOptions: { inertia: false, renderer: new URL(location.href).searchParams.get("renderer") === "canvas" ? new Canvas() : undefined },
   },
   plugins: ["tilia-gpx-domain", "tilia-gpx-renderer", "tilia-photo-domain", "tilia-photo-renderer", streetView],
 });

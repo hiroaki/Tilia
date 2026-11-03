@@ -55,11 +55,11 @@ python3 -m http.server 8010
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Tilia GPX map</title>
   <link rel="stylesheet"
-        href="https://unpkg.com/leaflet@2.0.0-alpha.1/dist/leaflet.css" />
+        href="./src/map/vendor/leaflet/2.0.0-beta.1/leaflet.css" />
   <script type="importmap">
   {
     "imports": {
-      "leaflet": "https://unpkg.com/leaflet@2.0.0-alpha.1/dist/leaflet.js"
+      "leaflet": "./src/map/vendor/leaflet/2.0.0-beta.1/leaflet.js"
     }
   }
   </script>
@@ -155,7 +155,7 @@ await app.destroy();
 
 ページと`src/`を静的ホスティングで配信します。第三者プラグインは`plugins/<id>/loader.js`へ配置し、IDで利用できます。`x-`は実験用で、ベンダー接頭辞も同じ扱いです。`src/`と`plugins/`は同じ親に置く固定配置で、探索先は設定できません。公式`src/builtins.js`への第三者登録は不要です。非標準配置には直接定義か明示アプリカタログを使います。サンプルページも配信する場合は`samples/`とその素材を含めます。バンドラーやビルド処理は不要です。
 
-LeafletのJavaScriptをimport mapで読み込み、CSSも含めます。例ではLeaflet `2.0.0-alpha.1`を使います。[依存関係の設定](docs/PLUGINS.ja.md#photos)を参照してください。ページの場所に合わせて`src/index.js`へのimportパスを調整します。
+LeafletのJavaScriptをimport mapで読み込み、CSSも含めます。例ではLeaflet `2.0.0-beta.1`を使います。[依存関係の設定](docs/PLUGINS.ja.md#photos)を参照してください。依存物を含む`src/`と`plugins/`を一緒に配信し、ページの場所に合わせてimport map・CSS・`src/index.js`のパスを調整します。ブラウザへの配信にビルドやnpmインストールは不要です。[同梱依存ライブラリ](docs/DEPENDENCIES.ja.md)も参照してください。
 
 CDNを使う例とリモートの地図タイルにはネットワーク接続が必要です。Leafletをローカルで配信する場合は、そのimport mapと素材のパスを変更してください。
 

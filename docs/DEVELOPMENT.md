@@ -25,7 +25,7 @@ npx playwright install --with-deps chromium
 
 `npm ci` installs from `package-lock.json` without updating it, both locally and in CI. Use `npm install` when deliberately changing dependency declarations, and review both `package.json` and `package-lock.json`.
 
-The Node dependencies supply test tools and a local Leaflet installation. Sample HTML has its own browser import maps: the viewer/embed pages map Leaflet `2.0.0-alpha.1` from a CDN. Installing npm dependencies does not replace those mappings. CDN modules, map tiles, and remote services may still require network access; some test fixtures use local or intercepted resources.
+Node dependencies supply test tools and Leaflet `2.0.0-beta.1` for Node tests. All sample and fixture browser import maps and stylesheets use the checked-in `src/map/vendor/leaflet/2.0.0-beta.1/` distribution; JPEG processing lazily loads `src/photo/vendor/exifr/7.1.3/lite.esm.js`. Browser deployment needs no build or npm installation. Map tiles and remote services retain their existing network requirements. See [vendored dependencies](DEPENDENCIES.md) for provenance, integrity and updates.
 
 ## Find the right component
 
@@ -161,7 +161,7 @@ The HTML report is written to `playwright-report/`; both report and result direc
 | Server cannot start | Port availability and the working directory; confirm any reused server serves this checkout |
 | Blank sample or module error | Browser console, import-map paths, CDN access, and Leaflet CSS |
 | Remote file import fails | HTTP status, server CORS policy, and an installed matching input handler |
-| JPEG import fails | Access to the pinned exifr CDN URL (including CSP/CORS) and the Photo/input plugins |
+| JPEG import fails | Deployment of the pinned local exifr bundle (including MIME type/CSP) and the Photo/input plugins |
 | Works in a fixture but fails in a sample | Public factory setup, actual plugin combination, real DOM/Leaflet behavior, and resource disposal |
 
 ## Practical scope

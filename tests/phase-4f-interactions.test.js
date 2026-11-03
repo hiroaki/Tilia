@@ -17,7 +17,7 @@ function target() {
     },
   };
 }
-async function fixture() {
+async function fixture(options = {}) {
   const root = createScopeController();
   await root.commit();
   const map = target(),
@@ -26,6 +26,7 @@ async function fixture() {
     map,
     scope: root.scope,
     onError: (e) => errors.push(e),
+    ...options,
   });
   const scope = root.scope.child();
   return { root, map, host, scope, api: host.createFacade(scope), errors };
@@ -333,5 +334,21 @@ it("revokes a binding before failing listener removal can dispatch reentrantly",
   f.map.fire("click", {});
   expect(handle).not.toHaveBeenCalled();
   f.map.off = off;
+  await f.root.close();
+});
+
+it("routes consumed Leaflet events through the map adapter without writing vendor internals", async () => {
+  const stopEventPropagation = vi.fn(), f = await fixture({ stopEventPropagation });
+  f.api.bind({ id: "consume", surface: f.api.mapSurface(), event: "click", tier: "background",
+    handle: () => ({ consume: true }) });
+  const carrier = { stopPropagation: vi.fn() }, event = { originalEvent: carrier };
+  f.map.fire("click", event);
+  expect(carrier.stopPropagation).toHaveBeenCalledOnce();
+  expect(stopEventPropagation).toHaveBeenCalledExactlyOnceWith(event);
+  expect(carrier).not.toHaveProperty("_stopped");
+  const nativeEvent = { stopPropagation: vi.fn() };
+  f.map.fire("click", nativeEvent);
+  expect(nativeEvent.stopPropagation).toHaveBeenCalledOnce();
+  expect(stopEventPropagation).toHaveBeenCalledOnce();
   await f.root.close();
 });

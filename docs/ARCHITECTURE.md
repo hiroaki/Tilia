@@ -27,6 +27,8 @@ Several choices follow from that principle:
 
 The result is a plugin system for Tilia's mapping use cases. It does not provide package discovery, dependency version solving, a general scheduler, or a JavaScript security sandbox. Public APIs and configuration are still subject to the project's early-alpha compatibility policy.
 
+Core map infrastructure owns the unmodified Leaflet distribution in `src/map/vendor/leaflet/`. The host loads its CSS and maps the bare `leaflet` specifier to one shared module URL for Core and plugins. The JPEG input plugin logically owns exifr in `src/photo/vendor/exifr/`; only JPEG processing loads it through the EXIF adapter. Photo domain, renderer and UI do not require the parser. These are file/distribution ownership boundaries, not new plugin APIs or module-unloading guarantees. See [dependency management](DEPENDENCIES.md).
+
 ## Application and plugin boundaries
 
 Host code creates an app through `createDefaultTiliaApp(container, options)`. The app owns a distinct Leaflet Map, semantic state, registries, and application infrastructure. The host supplies the container and chooses plugin configuration.

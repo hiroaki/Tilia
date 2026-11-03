@@ -1,3 +1,4 @@
+import { DomEvent } from "leaflet";
 import { builtins as defaultBuiltins } from "./builtins.js";
 import { createBaseMap } from "./map/base.js";
 import {
@@ -33,5 +34,8 @@ export function createDefaultTiliaApp(container, options = {}) {
     baseLayerOverrides,
     selectedBaseLayerId: baseMap.baseLayer?.id || null,
     tileLayer: baseMap.tileLayer,
-  }, { removeMap: () => baseMap.map.remove() }).app;
+  }, {
+    removeMap: () => baseMap.map.remove(),
+    stopEventPropagation: event => DomEvent.stopPropagation(event),
+  }).app;
 }

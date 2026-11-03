@@ -25,7 +25,7 @@ export function createPaneManager({ map, scope }) {
     const indexed = map.getPane?.(record.name);
     if (indexed && managedPanes.get(record.name) !== indexed)
       throw new Error("Refusing to manage a caller-owned pane");
-    // Leaflet 2.0 alpha createPane always creates an attached element and
+    // Leaflet createPane always creates an attached element and
     // replaces its named index entry. DOM removal alone leaves that entry.
     // Only an exact manager-owned indexed element may be replaced here.
     // Mark creation before calling Leaflet, so a partial throw still has cleanup ownership.

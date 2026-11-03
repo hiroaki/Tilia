@@ -21,6 +21,7 @@ export function createRenderingCoordinator({
   applicationController,
   map,
   getSemantics,
+  stopEventPropagation,
   onError = () => {},
 }) {
   const root = applicationController.createChildController({
@@ -48,6 +49,7 @@ export function createRenderingCoordinator({
     map,
     scope: root.scope,
     onError: report,
+    stopEventPropagation,
   });
   const channel = createSubscriptionChannel({
     getSnapshot: () => list(),

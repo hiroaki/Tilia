@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { resolve, relative } from "node:path";
 import { init, parse } from "es-module-lexer/minimal";
 import { builtinPluginCatalog } from "../src/builtins.js";
-import { root, source, files, externalRoots, parsedEdges, edges, graph } from "./helpers/module-audit.js";
+import { root, source, files, externalRoots, upstreamFiles, leafletModule, parsedEdges, edges, graph } from "./helpers/module-audit.js";
 describe("Phase 4I qualified architecture audits",()=>{
  it("rejects arbitrary nonliteral imports even in the discovery module", async () => {
   await init();
@@ -14,7 +14,7 @@ describe("Phase 4I qualified architecture audits",()=>{
  it("rejects forbidden legacy symbols without migration exceptions",()=>{
   const forbidden=/\b(?:refreshView|addRefreshHandler|subscribeInteractions|buildGpxOverlay|buildPhotoOverlay)\b|app\.(?:core|state)\b|core\.state\b|state\.(?:entries|sources|layers)\b|entry\.(?:source|layer|interactions)\b|selection-hub|interaction-hub/;
   for (const fixture of ["app.core", "entry.source", "refreshView()", 'import "./selection-hub.js"']) expect(forbidden.test(fixture)).toBe(true);
-  const matches=[];for(const directory of ["src","plugins","tests/fixtures"])for(const path of files(directory).filter(p=>/\.(?:js|mjs|html|css|json)$/.test(p))){source(path).split("\n").forEach((line,index)=>{if(forbidden.test(line))matches.push(`${path}:${index+1}:${line}`);});}expect(matches).toEqual([]);
+  const matches=[];for(const directory of ["src","plugins","tests/fixtures"])for(const path of files(directory).filter(p=>!upstreamFiles.has(p)&&/\.(?:js|mjs|html|css|json)$/.test(p))){source(path).split("\n").forEach((line,index)=>{if(forbidden.test(line))matches.push(`${path}:${index+1}:${line}`);});}expect(matches).toEqual([]);
  });
  it("traverses every parsed plugin/fixture import and excludes removed helpers",async()=>{
   await init(); const imports=parse(source("src/builtins.js"))[0].filter(item=>item.d>=0); expect(imports).toHaveLength(builtinPluginCatalog.length);
@@ -27,7 +27,7 @@ describe("Phase 4I qualified architecture audits",()=>{
   const production = ["src", "plugins"].flatMap(files).filter(path => path.endsWith(".js"));
   expect(production.filter(path => !reachable.has(path))).toEqual([]);
  });
- it("keeps the public eager graph free of Photo, complex plugin implementations and vendor",async()=>{const eager=await graph(["src/index.js"],{lazy:false});expect([...eager].filter(p=>p.startsWith("plugins/")||p.includes("/vendor/")||p.startsWith("src/photo/")||/plugins\/(?:domains\/photo|renderers\/photo|ui\/photo)/.test(p))).toEqual([]);});
+ it("keeps the eager graph free of optional Photo and plugin dependencies while sharing Core Leaflet",async()=>{const eager=await graph(["src/index.js"],{lazy:false});expect(eager.has(leafletModule)).toBe(true);expect([...eager].filter(p=>p.startsWith("plugins/")||(upstreamFiles.has(p)&&p!==leafletModule)||p.startsWith("src/photo/")||/plugins\/(?:domains\/photo|renderers\/photo|ui\/photo)/.test(p))).toEqual([]);});
  it("keeps generic hosts domain-neutral and prevents foreign renderer readback",async()=>{
   const hosts=[...files("src/ui").filter(p=>p.endsWith(".js")),...['panel','toolbar','layers-control','settings-panel','status-control','base-map-control','map-selection-presenter'].map(n=>`src/plugins/ui/${n}.js`)];
   for(const path of hosts){for(const edge of await edges(path))expect(edge.target,`${path} -> ${edge.target}`).not.toMatch(/^src\/(?:gpx|photo)\/|^src\/plugins\/(?:domains|renderers)\//);expect(source(path)).not.toMatch(/\bsemanticSnapshot\b|snapshot\.(?:data|preferences|derived)/);}

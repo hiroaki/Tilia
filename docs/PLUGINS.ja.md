@@ -139,15 +139,16 @@ await app.ready;
 
 ## 写真
 
-JPEG入力プラグインはJPEGファイルの処理時に、exifr 7.1.3を`https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/lite.esm.js`から直接インポートします。ネットワークとCSPでCDNへの接続を許可する必要があります。
+JPEG入力プラグインはJPEG処理時に、未改変のexifr 7.1.3 lite ESMを`src/photo/exif.js`からの相対パスで`src/photo/vendor/exifr/7.1.3/lite.esm.js`より遅延読み込みします。exifrのimport map設定や外部CDNの許可は不要です。依存物を含む`src/`をTiliaと一緒に配信し、CSPで同一オリジンのスクリプトを許可してください。Leaflet JS/CSSもローカル配信です。[取得元・配信方法](DEPENDENCIES.ja.md)を参照してください。
 
 LeafletのCSSを含め、モジュールスクリプトより前に次のimport mapを置きます。
 
 ```html
+<link rel="stylesheet" href="./src/map/vendor/leaflet/2.0.0-beta.1/leaflet.css" />
 <script type="importmap">
 {
   "imports": {
-    "leaflet": "https://unpkg.com/leaflet@2.0.0-alpha.1/dist/leaflet.js"
+    "leaflet": "./src/map/vendor/leaflet/2.0.0-beta.1/leaflet.js"
   }
 }
 </script>

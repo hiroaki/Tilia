@@ -1,30 +1,7 @@
+import { instrumentPointerListeners, pointerBaseline as recordPointerBaseline } from "../helpers/pointer-listeners.js";
 import { expect, test } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 
-async function instrumentDocumentPointers(page) {
-  // Test-only native document-listener instrumentation, without vendor internals.
-  await page.addInitScript(() => {
-    const records = new Map(), add = document.addEventListener, remove = document.removeEventListener;
-    const capture = options => typeof options === "boolean" ? options : Boolean(options?.capture);
-    document.addEventListener = function(type, callback, options) {
-      const result = add.call(this, type, callback, options);
-      if (/^pointer(?:move|up|cancel)$/.test(type)) {
-        if (!records.has(type)) records.set(type, new Map());
-        const callbacks = records.get(type);
-        if (!callbacks.has(callback)) callbacks.set(callback, new Set());
-        callbacks.get(callback).add(capture(options));
-      }
-      return result;
-    };
-    document.removeEventListener = function(type, callback, options) {
-      const result = remove.call(this, type, callback, options);
-      const callbacks = records.get(type); callbacks?.get(callback)?.delete(capture(options));
-      if (callbacks?.get(callback)?.size === 0) callbacks.delete(callback);
-      return result;
-    };
-    window.documentPointerCount = () => [...records.values()].reduce((sum, callbacks) => sum + [...callbacks.values()].reduce((n, values) => n + values.size, 0), 0);
-  });
-}
 
 test("4J-A exports rich immutable GPX and reimports its supported values", async ({ page }) => {
   const errors = []; page.on("pageerror", error => errors.push(error.message));
@@ -129,9 +106,9 @@ test("4J-C continues initialized editing, Undo/Redo and Save Copy after source d
   await expect(page.locator(".leaflet-partially-editable-polyline-point")).toHaveCount(0);
 });
 test("4J-C editor-owned modal panes stack handles above overlapping draft geometry and clean real drag gestures",async({page})=>{
-  await instrumentDocumentPointers(page);
+  await instrumentPointerListeners(page);
   await editorSession(page,{overlap:true});
-  const pointerBaseline = await page.evaluate(() => window.documentPointerCount());
+  const pointerBaseline = await recordPointerBaseline(page);
   const placement = await page.evaluate(() => {
     const { map } = window.phase4j;
     const vertex = document.querySelector(".leaflet-partially-editable-polyline-point");
@@ -177,7 +154,7 @@ test("4J-C editor-owned modal panes stack handles above overlapping draft geomet
   await expect(page.locator(".leaflet-partially-editable-polyline-point")).toHaveCount(4);
   await dragMarker(page,".leaflet-partially-editable-polyline-point",10,15,{release:false});
   await expect(page.locator(".leaflet-overlay-pane path[stroke-dasharray='5,1']")).not.toHaveCount(0);
-  expect(await page.evaluate(() => window.documentPointerCount())).toBeGreaterThan(pointerBaseline);
+  expect(await page.evaluate(() => window.nativePointerCount())).toBeGreaterThan(pointerBaseline);
   const overlapImage = test.info().outputPath("vendor-overlap-active-drag.png");
   await page.screenshot({ path: overlapImage });
   await test.info().attach("vendor-overlap-active-drag", { path: overlapImage, contentType: "image/png" });
@@ -186,15 +163,15 @@ test("4J-C editor-owned modal panes stack handles above overlapping draft geomet
   await page.mouse.up();
   await expect(page.locator(".leaflet-partially-editable-polyline-point")).toHaveCount(0);
   await expect(page.locator(".leaflet-overlay-pane path[stroke-dasharray='5,1']")).toHaveCount(0);
-  await expect(page.locator("body")).not.toHaveClass(/leaflet-dragging/);
-  expect(await page.evaluate(() => window.documentPointerCount())).toBe(pointerBaseline);
+  await expect(page.locator(".leaflet-container")).not.toHaveClass(/leaflet-dragging/);
+  expect(await page.evaluate(() => window.nativePointerCount())).toBe(pointerBaseline);
   await page.getByRole("button",{name:"Start Edit",exact:true}).click();
   await clickDraft(page);
   await dragMarker(page,".leaflet-partially-editable-polyline-new-point",10,-10,{release:false});
   await page.evaluate(()=>window.phase4j.app.unuse("x-track-editor")); await page.mouse.up();
   await expect(page.locator(".leaflet-partially-editable-polyline-point")).toHaveCount(0); await expect(page.locator(".tilia-track-editor-draft")).toHaveCount(0);
   await expect(page.locator(".leaflet-overlay-pane path[stroke-dasharray='5,1']")).toHaveCount(0);
-  expect(await page.evaluate(() => window.documentPointerCount())).toBe(pointerBaseline);
+  expect(await page.evaluate(() => window.nativePointerCount())).toBe(pointerBaseline);
   await page.evaluate(()=>window.phase4j.app.use("x-track-editor")); await expect(page.getByRole("button",{name:"Track editor",exact:true})).toBeVisible();
 });
 test("4J-C unresolved vendor helper residue quarantines uninstall and prohibits successful reinstall",async({page})=>{
@@ -310,11 +287,11 @@ test("4J-C vendor point dragging remains usable under an unrelated noninteractiv
 });
 
 
-test("4J-C public outer-layer removal terminates an active gesture and releases native document handlers", async ({ page }) => {
-  await instrumentDocumentPointers(page);await editorSession(page);
-  const baseline=await page.evaluate(()=>window.documentPointerCount());
+test("4J-C public outer-layer removal terminates an active gesture and releases native pointer handlers", async ({ page }) => {
+  await instrumentPointerListeners(page);await editorSession(page);
+  const baseline=await recordPointerBaseline(page);
   await dragMarker(page,".leaflet-partially-editable-polyline-point",15,12,{release:false});
-  expect(await page.evaluate(()=>window.documentPointerCount())).toBeGreaterThan(baseline);
+  expect(await page.evaluate(()=>window.nativePointerCount())).toBeGreaterThan(baseline);
   await page.evaluate(()=>{
     // Test-only public Leaflet inventory identifies the directly owned draft path.
     window.phase4j.map.eachLayer(layer=>{if(layer.options?.className==="tilia-track-editor-draft")layer.remove();});
@@ -322,7 +299,7 @@ test("4J-C public outer-layer removal terminates an active gesture and releases 
   await page.mouse.up();
   await expect(page.locator(".leaflet-partially-editable-polyline-point")).toHaveCount(0);
   await expect(page.locator(".leaflet-overlay-pane path[stroke-dasharray='5,1']")).toHaveCount(0);
-  expect(await page.evaluate(()=>window.documentPointerCount())).toBe(baseline);
+  expect(await page.evaluate(()=>window.nativePointerCount())).toBe(baseline);
   await page.getByRole("button",{name:"Cancel",exact:true}).click();
-  expect(await page.evaluate(()=>window.documentPointerCount())).toBe(baseline);
+  expect(await page.evaluate(()=>window.nativePointerCount())).toBe(baseline);
 });

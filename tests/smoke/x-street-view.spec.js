@@ -109,9 +109,9 @@ test("fixed location, real pan heading, panel navigation, alternating clicks and
   expect(errors).toEqual([]);
 });
 
-test("GPX and Photo clicks retain semantic selection; background clicks also clear it", async ({ page }) => {
+for (const renderer of ["svg", "canvas"]) test(`GPX and Photo clicks retain semantic selection; background clicks also clear it (${renderer})`, async ({ page }) => {
   const errors = []; page.on("pageerror", error => errors.push(error.message));
-  await ready(page);
+  await ready(page, `?renderer=${renderer}`);
   await page.evaluate(async () => {
     const { app } = window.streetViewFixture;
     await app.domains.gpx.create({ tracks: [{ segments: [{ points: [{ lat: 35.68, lon: 139.75 }, { lat: 35.69, lon: 139.75 }] }] }], waypoints: [{ lat: 35.68, lon: 139.76, name: "Smoke waypoint" }] });
@@ -146,6 +146,13 @@ test("discovers the plugin by ID with tuple options independently of the documen
   await ready(page, "?options");
   expect(loaders).toEqual(["/plugins/x-street-view/loader.js"]);
   expect(await page.evaluate(() => document.baseURI)).toContain("/unrelated-hosting-base/");
+  expect(await page.evaluate(() => ({
+    css: document.querySelector('link[rel="stylesheet"]').href,
+    leaflet: new URL(JSON.parse(document.querySelector('script[type="importmap"]').textContent).imports.leaflet, document.baseURI).href,
+  }))).toEqual({
+    css: new URL("/src/map/vendor/leaflet/2.0.0-beta.1/leaflet.css", page.url()).href,
+    leaflet: new URL("/src/map/vendor/leaflet/2.0.0-beta.1/leaflet.js", page.url()).href,
+  });
   expect(await page.evaluate(() => window.streetViewFixture.app.hasPlugin("x-street-view"))).toBe(true);
   await emptyClick(page); await expect(page.locator(".x-street-view-panel")).toBeVisible();
   await page.evaluate(() => window.streetViewFixture.app.unuse("x-street-view"));

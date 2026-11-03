@@ -70,7 +70,7 @@ interface InteractionInput {
 
 `type`はbindingのevent名です。座標は配送されたeventの`latlng`をコピーし、DOM座標から地図座標への変換は行いません。key、button、修飾キーは`originalEvent`があればそこから、なければ配送されたeventから取得します。key、button、座標の欠落は`null`、修飾キーの欠落は`false`になります。生event、意味上のhit target、pointer ID、pointer capture、touch一覧、`preventDefault`メソッドは含みません。
 
-登録可能な名前は`click`、`preclick`、`dblclick`、`mousedown`、`mouseup`、`mousemove`、`mouseover`、`mouseout`、`contextmenu`、`keydown`、`keyup`、`pointerdown`、`pointerup`、`pointermove`、`touchstart`、`touchend`です。登録可能とはHostがその名前を扱えるという意味で、すべてのtargetが発行する保証ではありません。同梱のLeaflet 2.0.0-alpha.1 Mapはpointer入力を使い、通常のDOM登録では上記すべてのmouse／touch名を発行しません。逆に`pointerover`、`pointerout`、`pointercancel`、`keypress`、`moveend`などの地図の状態eventはHostの`bind`では受け付けません。
+登録可能な名前は`click`、`preclick`、`dblclick`、`mousedown`、`mouseup`、`mousemove`、`mouseover`、`mouseout`、`contextmenu`、`keydown`、`keyup`、`pointerdown`、`pointerup`、`pointermove`、`touchstart`、`touchend`です。登録可能とはHostがその名前を扱えるという意味で、すべてのtargetが発行する保証ではありません。同梱のLeaflet 2.0.0-beta.1 Mapはpointer入力を使い、通常のDOM登録では上記すべてのmouse／touch名を発行しません。逆に`pointerover`、`pointerout`、`pointercancel`、`keypress`、`moveend`などの地図の状態eventはHostの`bind`では受け付けません。
 
 click、preclick、double clickは別eventです。Hostには単／複クリック識別、drag sequence、長押し識別、multi-touch仲裁はありません。touch由来のclickはclick経路を使えますが、端末ごとの長押し／contextmenu挙動はブラウザ・実機検証が必要です。markerのLeaflet `latlng`は、正確なpointer位置ではなくmarker位置を表す場合があります。
 
