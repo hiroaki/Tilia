@@ -99,7 +99,7 @@ export function createApplicationComposition({
   map,
   builtins = defaultBuiltins,
   ...options
-} = {}, { removeMap = () => {} } = {}) {
+} = {}, { removeMap = () => {}, stopEventPropagation } = {}) {
   if (!map) {
     throw new Error("Application composition requires a Leaflet map");
   }
@@ -129,6 +129,7 @@ export function createApplicationComposition({
       applicationController: appController,
       map,
       getSemantics: () => semanticFoundation,
+      stopEventPropagation,
       onError: onDiagnostic,
     });
     let semanticApi = null;

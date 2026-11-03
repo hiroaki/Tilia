@@ -29,7 +29,7 @@ npx playwright install --with-deps chromium
 
 ローカルとCIの両方で、`npm ci`は`package-lock.json`を更新せず、その内容に従ってインストールします。依存関係の宣言を意図的に変更する場合は`npm install`を使い、`package.json`と`package-lock.json`の両方を確認してください。
 
-Nodeの依存関係にはテストツールとローカルのLeafletが含まれます。一方、サンプルHTMLには独自のブラウザ用import mapがあり、ビューアと埋め込みページはLeaflet `2.0.0-alpha.1`をCDNにマッピングしています。npmでインストールしても、この設定は置き換わりません。CDNモジュール、地図タイル、リモートサービスにはネットワーク接続が必要な場合があります。一部のテスト用ページはローカルの素材やリクエストの差し替えを使います。
+Node依存関係にはテストツールとNodeテスト用のLeaflet `2.0.0-beta.1`が含まれます。サンプル・テストページのimport mapとCSSはすべて同梱の`src/map/vendor/leaflet/2.0.0-beta.1/`を参照し、JPEG処理時には`src/photo/vendor/exifr/7.1.3/lite.esm.js`を遅延読み込みします。ブラウザ配信にビルドやnpmインストールは不要です。地図タイルやリモートサービスの接続要件は従来どおりです。[取得元・検証・更新方法](DEPENDENCIES.ja.md)を参照してください。
 
 <a id="find-the-right-component"></a>
 
@@ -175,7 +175,7 @@ HTMLレポートは`playwright-report/`に保存されます。結果とレポ�
 | サーバーが起動しない | ポートの空きと作業ディレクトリ。再利用されるサーバーがこのチェックアウトを配信しているか |
 | サンプルが空白／モジュールエラー | ブラウザコンソール、import mapのパス、CDNへの接続、LeafletのCSS |
 | リモートファイルを読み込めない | HTTPステータス、配信元のCORS、対応する入力ハンドラーのインストール |
-| JPEGを読み込めない | 固定exifr CDN URLへの接続（CSP/CORSを含む）、Photoと入力プラグイン |
+| JPEGを読み込めない | 固定ローカルexifrバンドルの配信（MIME type・CSPを含む）、Photoと入力プラグイン |
 | テスト用ページでは動くがサンプルでは失敗 | 公開ファクトリーの設定、実際のプラグイン構成、実DOM・Leafletの動作、リソース破棄 |
 
 <a id="practical-scope"></a>

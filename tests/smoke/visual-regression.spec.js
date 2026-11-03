@@ -25,7 +25,12 @@ async function fixture(page, options) {
     document.getElementById("sentinel").hidden = true;
     document.body.style.margin = "0";
     Object.assign(window.lifecycle.container.style, { width: "100vw", height: "100vh" });
-    const app = window.lifecycle.create(options);
+    const { canvas, ...appOptions } = options;
+    if (canvas) {
+      const { Canvas } = await import("leaflet");
+      appOptions.baseMapOptions.mapOptions = { renderer: new Canvas() };
+    }
+    const app = window.lifecycle.create(appOptions);
     await app.ready;
   }, options);
   await stylesReady(page);
@@ -55,7 +60,7 @@ async function guideError(page, expected) {
 for (const canvas of [false, true]) {
   test(`elevation geometry, hover and semantic click agree after resize (${canvas ? "Canvas" : "SVG"})`, async ({ page }, testInfo) => {
     const errors = []; page.on("pageerror", e => errors.push(e.message));
-    await fixture(page, { baseMapOptions: { tileUrl: "/tiles/{z}/{x}/{y}.png", mapOptions: { preferCanvas: canvas } },
+    await fixture(page, { canvas, baseMapOptions: { tileUrl: "/tiles/{z}/{x}/{y}.png" },
       plugins: ["tilia-gpx-domain", "tilia-gpx-renderer", "tilia-elevation", "tilia-map-selection-presenter"] });
     const locators = await page.evaluate(async data => {
       const app = window.lifecycle.app;

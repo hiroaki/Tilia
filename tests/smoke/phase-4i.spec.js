@@ -4,7 +4,6 @@ import { mockPhotoExif } from "../helpers/photo-exif.js";
 const jpeg=resolve(import.meta.dirname,"../fixtures/photo-exif.jpg");
 test("pinned exifr uses native FileReader; uninstall does not join reads and late parsing cannot create entries",async({page})=>{
  const errors=[];page.on("pageerror",e=>errors.push(e.message));
- await page.route("https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/lite.esm.js",route=>route.fulfill({path:resolve(import.meta.dirname,"../fixtures/exifr-7.1.3-lite.esm.js"),contentType:"text/javascript"}));
  await page.addInitScript(()=>{
   const Native=window.FileReader;window.exifAudit={hold:true,readers:[],release:[],aborts:0};
   window.FileReader=class extends Native{constructor(){super();window.exifAudit.readers.push(this);}set onloadend(callback){super.onloadend=(event)=>{if(window.exifAudit.hold)window.exifAudit.release.push(()=>callback(event));else callback(event);};}abort(){window.exifAudit.aborts++;return super.abort();}};

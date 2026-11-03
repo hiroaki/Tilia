@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-vi.mock("https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/lite.esm.js", () => ({ default: { parse: vi.fn() } }));
-import exifr from "https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/lite.esm.js";
+vi.mock("../src/photo/vendor/exifr/7.1.3/lite.esm.js", () => ({ default: { parse: vi.fn() } }));
+import exifr from "../src/photo/vendor/exifr/7.1.3/lite.esm.js";
 import jpeg from "../src/plugins/input/jpeg.js";
 import { createInputRegistry } from "../src/extensions/index.js";
 import { createScopeController } from "../src/ownership/index.js";

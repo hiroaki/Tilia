@@ -121,15 +121,16 @@ The [viewer sample](../samples/viewer/index.html) combines GPX and Photos. The [
 
 ## Photos
 
-The JPEG input plugin imports exifr 7.1.3 directly from `https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/lite.esm.js` when processing a JPEG file. CDN access must be allowed by the network and CSP.
+The JPEG input plugin lazily imports the unmodified exifr 7.1.3 lite ESM bundle from `src/photo/vendor/exifr/7.1.3/lite.esm.js`, relative to `src/photo/exif.js`, when processing a JPEG. No exifr import-map entry or external CDN permission is needed. Deploy the complete `src/` with Tilia and allow same-origin scripts in your CSP. Leaflet JS/CSS are also served locally; see [dependency provenance and deployment](DEPENDENCIES.md).
 
 Include Leaflet CSS and place its import map before the module script:
 
 ```html
+<link rel="stylesheet" href="./src/map/vendor/leaflet/2.0.0-beta.1/leaflet.css" />
 <script type="importmap">
 {
   "imports": {
-    "leaflet": "https://unpkg.com/leaflet@2.0.0-alpha.1/dist/leaflet.js"
+    "leaflet": "./src/map/vendor/leaflet/2.0.0-beta.1/leaflet.js"
   }
 }
 </script>

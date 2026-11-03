@@ -45,11 +45,11 @@ Save this page as `example.html` in the repository root and open it through your
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Tilia GPX map</title>
   <link rel="stylesheet"
-        href="https://unpkg.com/leaflet@2.0.0-alpha.1/dist/leaflet.css" />
+        href="./src/map/vendor/leaflet/2.0.0-beta.1/leaflet.css" />
   <script type="importmap">
   {
     "imports": {
-      "leaflet": "https://unpkg.com/leaflet@2.0.0-alpha.1/dist/leaflet.js"
+      "leaflet": "./src/map/vendor/leaflet/2.0.0-beta.1/leaflet.js"
     }
   }
   </script>
@@ -137,7 +137,7 @@ The [Tilia plugin guide](docs/PLUGINS.md) lists all plugins, their dependencies,
 
 Serve your page and `src/` from static hosting. Place third-party plugins at `plugins/<id>/loader.js` and enable them by ID. `x-` means experimental; vendor prefixes work identically. `src/` and `plugins/` must be siblings; the plugin directory is not configurable. Third-party plugins do not belong in the official `src/builtins.js` catalog. Use direct definitions or explicit application catalogs for nonstandard locations. To host the sample pages, include `samples/` and its assets as well. No bundler or build step is needed.
 
-Load Leaflet's JavaScript through an import map and include its CSS. The examples use Leaflet `2.0.0-alpha.1`. See the [dependency setup](docs/PLUGINS.md#photos). Adjust the import path to `src/index.js` for your page's location.
+Load Leaflet's JavaScript through an import map and include its CSS. The examples use Leaflet `2.0.0-beta.1`. See the [dependency setup](docs/PLUGINS.md#photos). Deploy `src/` (including component-owned dependencies) together with `plugins/`; adjust the import map, CSS and `src/index.js` paths for your page's location. No build or npm installation is required for browser deployment. See [vendored dependencies](docs/DEPENDENCIES.md).
 
 The CDN-based examples and remote map tiles need network access. Leaflet may be hosted locally by updating its import mapping and asset paths.
 

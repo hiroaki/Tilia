@@ -1,3 +1,4 @@
+import { instrumentPointerListeners } from "../helpers/pointer-listeners.js";
 import { expect, test } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 
@@ -12,12 +13,13 @@ for (const canvas of [false, true]) test(`public destroy and distinct-Map same-c
   const errors = []; page.on("pageerror", error => errors.push(error.message));
   await fixture(page);
   const result = await page.evaluate(async ({ canvas, data }) => {
+    const { Canvas } = await import("leaflet");
     const f = window.lifecycle, original = f.container, maps = [];
     let pageClicks = 0;
     document.getElementById("sentinel").addEventListener("click", () => pageClicks++);
     const cycles = [];
     for (let index = 0; index < 2; index++) {
-      const app = f.create({ baseMapOptions: { tileUrl: "/tiles/{z}/{x}/{y}.png", center: [35.68,139.76], zoom: 13, mapOptions: { preferCanvas: canvas } } });
+      const app = f.create({ baseMapOptions: { tileUrl: "/tiles/{z}/{x}/{y}.png", center: [35.68,139.76], zoom: 13, mapOptions: { renderer: canvas ? new Canvas() : undefined } } });
       await app.ready;
       const map = app.map; maps.push(map);
       const entry = await app.domains.gpx.create(data);
@@ -43,25 +45,12 @@ for (const canvas of [false, true]) test(`public destroy and distinct-Map same-c
   expect(errors).toEqual([]);
 });
 
-test("application destruction ends active native editor drag and document handlers", async ({ page }) => {
-  await page.addInitScript(() => {
-    const records = new Map(), add = document.addEventListener, remove = document.removeEventListener;
-    const capture = options => typeof options === "boolean" ? options : Boolean(options?.capture);
-    document.addEventListener = function(type, callback, options) {
-      const result = add.call(this, type, callback, options);
-      if (/^pointer(move|up|cancel)$/.test(type)) { if (!records.has(type)) records.set(type, new Map()); const callbacks = records.get(type); if (!callbacks.has(callback)) callbacks.set(callback, new Set()); callbacks.get(callback).add(capture(options)); }
-      return result;
-    };
-    document.removeEventListener = function(type, callback, options) {
-      const result = remove.call(this, type, callback, options); const callbacks = records.get(type); callbacks?.get(callback)?.delete(capture(options)); if (!callbacks?.get(callback)?.size) callbacks?.delete(callback); return result;
-    };
-    window.pointerSummary = () => [...records].flatMap(([type, callbacks]) => [...callbacks].map(([fn, flags]) => ({ type, name: fn.name, fn: String(fn).slice(0, 240), flags: [...flags] })));
-    window.pointerCount = () => [...records.values()].reduce((sum, callbacks) => sum + [...callbacks.values()].reduce((n, values) => n + values.size, 0), 0);
-  });
+test("application destruction ends active native editor drag and pointer handlers", async ({ page }) => {
+  await instrumentPointerListeners(page);
   const errors = []; page.on("pageerror", error => errors.push(error.message));
   await fixture(page);
-  const baseline = await page.evaluate(() => { window.pageMap = window.lifecycle.createPageMap(); return window.pointerSummary(); });
-  expect(baseline.map(record => [record.type, record.name, record.flags])).toEqual([["pointermove", "_onUpdate", [true]], ["pointerup", "_onDelete", [true]], ["pointercancel", "_onDelete", [true]]]);
+  await page.locator("body").evaluate(() => {}); // Include Playwright's own hit-target listeners in the baseline.
+  const baseline = await page.evaluate(() => { window.pageMap = window.lifecycle.createPageMap(); return window.nativePointerSummary(); });
   await page.evaluate(async data => {
     const app = window.lifecycle.create(); await app.ready;
     const entry = await app.domains.gpx.create(data);
@@ -82,10 +71,10 @@ test("application destruction ends active native editor drag and document handle
   const box = await marker.boundingBox();
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2); await page.mouse.down();
   await page.mouse.move(box.x + 35, box.y + 30, { steps: 4 });
-  expect(await page.evaluate(() => window.pointerCount())).toBeGreaterThan(baseline.length);
+  expect(await page.evaluate(() => window.nativePointerCount())).toBeGreaterThan(baseline.length);
   await page.evaluate(() => window.lifecycle.app.destroy());
   await page.mouse.up();
-  expect(await page.evaluate(() => window.pointerSummary())).toEqual(baseline);
+  expect(await page.evaluate(() => window.nativePointerSummary())).toEqual(baseline);
   expect(await page.evaluate(() => { window.pageMap.setView([35.7,139.8], 12); return window.pageMap.getCenter().lat; })).toBeCloseTo(35.7);
   await expect(page.locator("#map .leaflet-pane,#map .tilia-ui-surface-root")).toHaveCount(0);
   expect(errors).toEqual([]);
