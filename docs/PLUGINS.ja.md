@@ -107,6 +107,7 @@ await app.unuse("x-milestone");
 | `x-gpx-export` | `tilia-gpx-domain`, `tilia-panel`, `tilia-toolbar` | 選んだGPXエントリーを`.gpx`ファイルでダウンロード |
 | `x-route-search` | `tilia-gpx-domain`, `tilia-toolbar` | Phloemで検索し、Start／Via／Goalウェイポイント付きのトラックとして取り込む |
 | `x-milestone` | `tilia-gpx-domain` | 表示されるGPXトラック沿いの距離ラベル |
+| [`x-distance-markers`](../plugins/x-distance-markers/README.ja.md) | `tilia-gpx-domain` | 選択したGPXトラックに、表示密度に応じた累積距離ラベルを表示 |
 | `x-gsi-base-maps` | — | 地理院地図の標準（`gsi-std`）と淡色（`gsi-pale`）を登録 |
 | `x-opentopomap-base-maps` | — | OpenTopoMap（`opentopomap`）を登録 |
 

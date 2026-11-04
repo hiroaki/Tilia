@@ -93,6 +93,7 @@ These repository plugins use the `x-` namespace and reside under `plugins/`. The
 | `x-gpx-export` | `tilia-gpx-domain`, `tilia-panel`, `tilia-toolbar` | Downloads a selected GPX entry as a `.gpx` file |
 | `x-route-search` | `tilia-gpx-domain`, `tilia-toolbar` | Searches through Phloem and imports results as tracks with Start/Via/Goal waypoints |
 | `x-milestone` | `tilia-gpx-domain` | Distance labels along visible GPX tracks |
+| [`x-distance-markers`](../plugins/x-distance-markers/README.md) | `tilia-gpx-domain` | Adaptive cumulative distance labels for the selected GPX track |
 | `x-gsi-base-maps` | — | Registers GSI Standard (`gsi-std`) and Pale (`gsi-pale`) maps |
 | `x-opentopomap-base-maps` | — | Registers OpenTopoMap (`opentopomap`) |
 
