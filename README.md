@@ -129,7 +129,7 @@ Choose plugins by the features your application needs:
 | Viewer controls | Selection popups and highlights, layers, elevation, settings, and status |
 | Input | File picker, remote URL, query parameter, and map-wide drag and drop |
 | Base maps | Map selector and optional GSI and OpenTopoMap providers |
-| Additional tools | Track Editor, GPX export, route search, and distance milestones |
+| Additional tools | Track Editor, GPX export, route search, and distance markers for the selected track |
 
 The [Tilia plugin guide](docs/PLUGINS.md) lists all plugins, their dependencies, settings, and usage. For custom plugins and installation/cleanup contracts, see [Developing Tilia plugins](docs/PLUGIN-OPERATIONS.md). The [Tilia architecture](docs/ARCHITECTURE.md) explains the design principles and component lifetimes.
 

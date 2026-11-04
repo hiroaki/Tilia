@@ -40,10 +40,8 @@ No plugins are enabled when `plugins` is omitted. The catalog makes implementati
 For dynamic installation:
 
 ```js
-await app.use("x-milestone", {
-  formatLabel: (meters) => `${(meters / 1000).toFixed(1)} km`,
-});
-await app.unuse("x-milestone");
+await app.use("x-distance-markers", { spacing: "small", maxMarkers: 300 });
+await app.unuse("x-distance-markers");
 ```
 
 `app.use` returns an opaque `{id}` handle, not a plugin API. Inspect active plugins with `app.hasPlugin(id)` or `app.listPlugins()`. Remove dependents before their prerequisites; active dependents and provider leases can block removal. Uninstalling a renderer does not delete its domain's entries. Call `await app.destroy()` when disposing of the whole application.
@@ -92,7 +90,7 @@ These repository plugins use the `x-` namespace and reside under `plugins/`. The
 | `x-track-editor` | `tilia-gpx-domain`, `tilia-panel`, `tilia-toolbar` | Edits an independent GPX track draft and saves a new entry |
 | `x-gpx-export` | `tilia-gpx-domain`, `tilia-panel`, `tilia-toolbar` | Downloads a selected GPX entry as a `.gpx` file |
 | `x-route-search` | `tilia-gpx-domain`, `tilia-toolbar` | Searches through Phloem and imports results as tracks with Start/Via/Goal waypoints |
-| `x-milestone` | `tilia-gpx-domain` | Distance labels along visible GPX tracks |
+| `x-milestone` | `tilia-gpx-domain` | Deprecated. Use `x-distance-markers` |
 | [`x-distance-markers`](../plugins/x-distance-markers/README.md) | `tilia-gpx-domain` | Adaptive cumulative distance labels for the selected GPX track |
 | `x-gsi-base-maps` | — | Registers GSI Standard (`gsi-std`) and Pale (`gsi-pale`) maps |
 | `x-opentopomap-base-maps` | — | Registers OpenTopoMap (`opentopomap`) |
@@ -118,7 +116,7 @@ Use **Open files**, **Load URL**, or drop files onto the map. Open **Layers** to
 
 Open **Elevation** for a track containing elevation data. Hover to locate chart samples on the map, or click to select a track point. Arrow keys move through samples; Enter or Space selects one. Map-linked presentation also needs the GPX renderer. Routes and standalone waypoints are not track elevation profiles.
 
-The [viewer sample](../samples/viewer/index.html) combines GPX and Photos. The [embed gallery](../samples/embed/index.html) demonstrates separate map instances.
+The [viewer sample](../samples/viewer/index.html) combines GPX and Photos. In the Layers panel, select a track name to show its distance markers. Select the same name again to clear the selection. The [embed gallery](../samples/embed/index.html) demonstrates separate map instances.
 
 ## Photos
 
@@ -268,16 +266,9 @@ Open **Route search**, choose a profile, set Start/Goal and optional Via points,
 
 ## Distance milestones
 
-`x-milestone` shows distance labels on GPX tracks. Labels respond to zoom and track visibility, respect temporary editor suppression, and disappear with their entry or plugin. No renderer dependency is declared; include `tilia-gpx-renderer` if you also want track lines.
+`x-distance-markers` shows cumulative distance from the start of the selected GPX track. Select a track, segment, or track point to show its labels. Clear the selection to hide them. The public options are `spacing` for label density and `maxMarkers` for the candidate limit. See the [distance markers README](../plugins/x-distance-markers/README.md) for details.
 
-| Option | Default / meaning |
-| --- | --- |
-| `formatLabel` | Function receiving distance in meters; default displays meters or kilometers |
-| `intervalDefinition` | Complete object with `mapping`, `minZoom`, `maxZoom`, `maxNumberOfSigns`, and `minIntervalMeters`; replaces the default object |
-
-The default definition has `minZoom: 5`, `maxZoom: 20`, `maxNumberOfSigns: 100`, and `minIntervalMeters: 100`. Its zoom-to-meter mapping is: 5→400000, 6→300000, 7→200000, 8–9→100000, 10–11→50000, 12–13→20000, 14–15→10000, 16–17→2000, 18–19→1000. Zoom 20 and above use the minimum interval. The sign-count setting selects coarser spacing where possible; it is not a strict marker-count cap.
-
-For a custom definition, supply integer zoom bounds with `maxZoom > minZoom`, a positive integer sign count, a positive finite minimum interval, and an object of positive finite mapping values. See the [implementation](../plugins/x-milestone/loader.js).
+**`x-milestone` is deprecated.** The old implementation has no hard candidate limit and can generate enough markers on long tracks to make the viewer unresponsive. Use its successor, `x-distance-markers`, for new development. The old implementation remains in the repository for now.
 
 ## Initial view
 

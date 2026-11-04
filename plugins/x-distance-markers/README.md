@@ -8,7 +8,7 @@ selected GPX track. This Tilia Birch repository plugin requires
 the corresponding track. Clicks on track points still use the existing popups.
 The dedicated sample lets you compare settings without changing the selection.
 
-The existing `x-milestone` plugin places labels at vertices on visible tracks
+The deprecated `x-milestone` plugin places labels at vertices on visible tracks
 and uses its target count to choose a zoom interval. `x-distance-markers`
 interpolates positions along the selected track and limits candidate generation
 even when a single edge spans thousands of kilometers. Birch core, the
