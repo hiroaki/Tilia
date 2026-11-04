@@ -1,0 +1,11 @@
+.x-distance-marker { pointer-events: none; text-align: center; }
+.x-distance-marker span {
+  display: inline-block;
+  padding: 1px 4px;
+  border: 1px solid #0f766e88;
+  border-radius: 4px;
+  background: #fffcf7ee;
+  color: #134e4a;
+  font: 600 10px/14px "Hiragino Sans", "Yu Gothic", sans-serif;
+  white-space: nowrap;
+}

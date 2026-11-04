@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Birch experimental distance markers</title>
+  <link rel="stylesheet" href="../../src/map/vendor/leaflet/2.0.0-beta.1/leaflet.css">
+  <script type="importmap">{"imports":{"leaflet":"../../src/map/vendor/leaflet/2.0.0-beta.1/leaflet.js"}}</script>
+  <style>
+    body { display: flex; flex-direction: column; min-height: 100dvh; margin: 0; font: 14px/1.5 system-ui, sans-serif; color: #134e4a; }
+    header { padding: 10px 16px; background: #fffcf7; }
+    p { margin: 4px 0; }
+    #map { flex: 1; min-height: 350px; }
+    header button[data-track] { margin: 4px 8px 4px 0; }
+  </style>
+</head>
+<body>
+  <header>
+    <strong>Experimental distance markers — Birch</strong>
+    <p>Select a track below, on the map, or in Layers. Zoom/pan to inspect density; click empty map space to clear selection.</p>
+    <button data-track="0">Sparse track + segment gap</button>
+    <button data-track="1">Tight loop</button>
+    <button data-track="2">Distant points (stress case)</button>
+    <label>Marker spacing
+      <select id="marker-spacing">
+        <option value="small">Small</option>
+        <option value="medium" selected>Medium</option>
+        <option value="large">Large</option>
+      </select>
+    </label>
+    <label>Candidate limit
+      <select id="marker-limit">
+        <option value="100" selected>100</option>
+        <option value="300">300</option>
+        <option value="1000">1,000</option>
+      </select>
+    </label>
+    <p id="map-stats">Zoom <output id="zoom-level"></output> · Markers <output id="marker-count"></output></p>
+    <p>Layers / Settings test visibility. Import your own GPX using the file button or drag and drop.</p>
+  </header>
+  <div id="map"></div>
+  <script type="module">
+    import { createDefaultTiliaApp } from "../../src/index.js";
+    const app = createDefaultTiliaApp("map", {
+      baseMapOptions: { center: [35.68, 139.76], zoom: 13 },
+      plugins: ["tilia-gpx-domain", "tilia-gpx-renderer", "tilia-gpx-input", "tilia-gpx-ui",
+        "tilia-toolbar", "tilia-panel", "tilia-layers", "tilia-settings", "tilia-file-import",
+        "tilia-dropzone", "tilia-elevation", "tilia-map-selection-presenter", "x-distance-markers"],
+    });
+    await app.ready;
+    const loop = Array.from({ length: 201 }, (_, i) => ({
+      lat: 35.68 + .012 * Math.sin(i / 200 * 4 * Math.PI),
+      lon: 139.76 + .016 * Math.cos(i / 200 * 4 * Math.PI),
+    }));
+    const entry = await app.domains.gpx.create({ name: "Distance marker evaluation", tracks: [
+      { name: "Sparse geometry with inferred gap", segments: [
+        { points: [{ lat: 35.65, lon: 139.65 }, { lat: 35.71, lon: 139.73 }] },
+        { points: [{ lat: 35.69, lon: 139.79 }, { lat: 35.73, lon: 139.87 }] },
+      ] },
+      { name: "Twice around a tight loop", segments: [{ points: loop }] },
+      { name: "Distant points", segments: [{ points: [{ lat: 0, lon: 0 }, { lat: 0, lon: 170 }] }] },
+    ] });
+    async function selectTrack(trackIndex) {
+      const target = { kind: "track", trackIndex };
+      await app.selection.request(app.domains.gpx.selection.createCandidate(entry.id, target));
+      const { bounds } = app.domains.gpx.getExtent(entry.id, { target });
+      app.map.fitBounds([[bounds.southWest.lat, bounds.southWest.lon], [bounds.northEast.lat, bounds.northEast.lon]], { padding: [40, 40], animate: false });
+    }
+    for (const button of document.querySelectorAll("[data-track]")) button.addEventListener("click", () => {
+      selectTrack(Number(button.dataset.track)).catch(console.error);
+    });
+    const spacing = document.querySelector("#marker-spacing");
+    const markerLimit = document.querySelector("#marker-limit");
+    async function applyMarkerOptions() {
+      spacing.disabled = true;
+      markerLimit.disabled = true;
+      try {
+        await app.unuse("x-distance-markers");
+        await app.use("x-distance-markers", {
+          spacing: spacing.value,
+          maxMarkers: Number(markerLimit.value),
+        });
+      } catch (error) {
+        console.error(error);
+      } finally {
+        spacing.disabled = false;
+        markerLimit.disabled = false;
+      }
+    }
+    spacing.addEventListener("change", applyMarkerOptions);
+    markerLimit.addEventListener("change", applyMarkerOptions);
+
+    const zoomLevel = document.querySelector("#zoom-level");
+    const markerCount = document.querySelector("#marker-count");
+    let statsFrame = null;
+    function updateStats() {
+      // Coalesce marker rebuilds and count Leaflet layers, including clipped icons.
+      if (statsFrame !== null) return;
+      statsFrame = requestAnimationFrame(() => {
+        statsFrame = null;
+        let count = 0;
+        app.map.eachLayer(layer => {
+          if (layer.options?.icon?.options.className === "x-distance-marker") count++;
+        });
+        zoomLevel.value = app.map.getZoom();
+        markerCount.value = count;
+      });
+    }
+    app.map.on("zoomend layeradd layerremove", updateStats);
+    updateStats();
+    // Development-only handle for console evaluation (suppression, replacement, disposal).
+    window.distanceMarkersDemo = { app, entryId: entry.id, selectTrack };
+    document.body.dataset.ready = "true";
+  </script>
+</body>
+</html>
