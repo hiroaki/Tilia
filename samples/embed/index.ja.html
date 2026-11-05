@@ -123,13 +123,63 @@
         color: #78716c;
       }
 
+      .story-card-route {
+        grid-template-columns: 1fr;
+      }
+
+      .route-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+        gap: 18px;
+      }
+
+      .route-layout .story-map {
+        height: 420px;
+      }
+
+      .route-sidebar {
+        min-width: 0;
+      }
+
+      .route-list {
+        margin: 0 0 18px;
+        padding-left: 2em;
+        max-height: 320px;
+        overflow-y: auto;
+      }
+
+      .route-list button {
+        width: 100%;
+        padding: 6px 8px;
+        border: 1px solid transparent;
+        border-radius: 6px;
+        background: transparent;
+        color: inherit;
+        font: inherit;
+        text-align: left;
+        overflow-wrap: anywhere;
+        cursor: pointer;
+      }
+
+      .route-list button[aria-pressed="true"] {
+        border-color: #0f766e;
+        background: #ccfbf1;
+      }
+
+      .route-detail-description {
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
+
       @media (max-width: 860px) {
         .story-card,
-        .story-card-gpx {
+        .story-card-gpx,
+        .route-layout {
           grid-template-columns: 1fr;
         }
 
-        .story-map {
+        .story-map,
+        .route-layout .story-map {
           height: 220px;
         }
       }
@@ -213,6 +263,28 @@
             <p class="story-status"></p>
           </div>
         </article>
+
+        <article class="story-card story-card-route" data-tilia-gpx-url="./biwako-sosui-rte.ja.gpx"
+          data-route-invalid="このサンプルには、地点を持つ単独の GPX ルート（トラックなし）が必要です。">
+          <div class="story-media">
+            <p class="story-kicker">ルート案内</p>
+            <h2 class="story-heading route-title">GPX ルートポイントで観光案内</h2>
+            <p class="story-description">リストの地点を選ぶと地図が移動し、地図の番号付きマーカーを選ぶと説明が表示されます。破線は地点間を直線で結んだもので、実際の経路を示すものではありません。</p>
+          </div>
+          <div class="route-layout">
+            <div class="story-map-wrap">
+              <div class="story-map"></div>
+              <p class="story-status" role="status"></p>
+            </div>
+            <div class="route-sidebar">
+              <ol class="route-list" aria-label="地点一覧"></ol>
+              <div class="route-detail" aria-live="polite">
+                <h3 class="story-heading route-detail-title">地点を選択してください</h3>
+                <p class="story-description route-detail-description"></p>
+              </div>
+            </div>
+          </div>
+        </article>
       </main>
     </div>
 
@@ -242,11 +314,77 @@
         const statusNode = card.querySelector(".story-status");
 
         // Each content block creates its own independent map and Tilia application.
-        const app = createDefaultTiliaApp(mapNode, { plugins: ["tilia-toolbar", "tilia-status", "tilia-base-maps-control", "tilia-panel", "tilia-layers", "tilia-settings", "tilia-file-import", "tilia-url-import", "tilia-query-import", "tilia-dropzone", "tilia-elevation", "tilia-gpx-domain", "tilia-gpx-renderer", "tilia-gpx-input", "tilia-gpx-ui", "tilia-photo-domain", "tilia-photo-renderer", "tilia-jpeg-input", "tilia-photo-ui", "tilia-map-selection-presenter"] });
+        const app = createDefaultTiliaApp(mapNode, {
+          plugins: [
+            "tilia-gpx-renderer",
+            "tilia-gpx-input",
+            "tilia-gpx-ui",
+            "tilia-map-selection-presenter",
+          ] });
 
         // The GPX URL comes from the card's data attribute.
         const result = await loadIntoApp(app, gpxUrl);
         setStatus(statusNode, `Loaded ${result.name}: ${result.summary}`);
+      }
+
+      async function bootRouteCard(card) {
+        const statusNode = card.querySelector(".story-status");
+        const list = card.querySelector(".route-list");
+        const title = card.querySelector(".route-detail-title");
+        const description = card.querySelector(".route-detail-description");
+        const emptyTitle = title.textContent;
+        const app = createDefaultTiliaApp(card.querySelector(".story-map"), {
+          // No GPX UI plugin: the external detail panel replaces popups.
+          plugins: ["tilia-gpx-input", "tilia-gpx-renderer", "tilia-map-selection-presenter"],
+        });
+
+        try {
+          const result = await loadIntoApp(app, card.dataset.tiliaGpxUrl);
+          const gpx = app.domains.gpx;
+          const data = gpx.getDocument(result.entry.id).document;
+          if (data.routes.length !== 1 || data.tracks.length !== 0 || !data.routes[0].points.length) {
+            throw new Error(card.dataset.routeInvalid);
+          }
+          const route = data.routes[0];
+          card.querySelector(".route-title").textContent = route.name || result.name;
+          const buttons = route.points.map((point, pointIndex) => {
+            const item = document.createElement("li");
+            const button = document.createElement("button");
+            button.type = "button";
+            button.textContent = point.name || String(pointIndex + 1);
+            button.addEventListener("click", async () => {
+              try {
+                const selected = await app.selection.request(gpx.selection.createCandidate(result.entry.id, {
+                  kind: "route-point", routeIndex: 0, pointIndex,
+                }));
+                if (app.selection.getCurrent() === selected) app.map.panTo([point.lat, point.lon]);
+              } catch (error) {
+                setStatus(statusNode, error.message);
+              }
+            });
+            item.append(button);
+            list.append(item);
+            return button;
+          });
+
+          // Selection belongs to Tilia; both controls project the same state.
+          // Map clicks update these nodes without moving the map.
+          const renderSelection = (current) => {
+            const matches = current?.entryId === result.entry.id && current.domain.id === "gpx"
+              && current.ref.kind === "route-point" && current.ref.routeIndex === 0;
+            const point = matches ? gpx.selection.resolve(current.entryId, current.ref) : null;
+            buttons.forEach((button, index) => {
+              button.setAttribute("aria-pressed", String(!!point && index === current.ref.pointIndex));
+            });
+            title.textContent = point ? buttons[current.ref.pointIndex].textContent : emptyTitle;
+            description.textContent = point?.description || "";
+          };
+          app.selection.subscribe(({ current }) => renderSelection(current));
+          renderSelection(app.selection.getCurrent());
+          setStatus(statusNode, `Loaded ${result.name}`);
+        } catch (error) {
+          setStatus(statusNode, error.message);
+        }
       }
 
       async function bootPhotoCard(card) {
@@ -258,7 +396,14 @@
 
         // Photo cards follow the same flow; only the source data attribute changes.
         const app = createDefaultTiliaApp(mapNode, {
-          plugins: ["tilia-toolbar", "tilia-status", "tilia-base-maps-control", "tilia-panel", "tilia-layers", "tilia-settings", "tilia-file-import", "tilia-url-import", "tilia-query-import", "tilia-dropzone", "tilia-elevation", "tilia-gpx-domain", "tilia-gpx-renderer", "tilia-gpx-input", "tilia-gpx-ui", "tilia-photo-domain", "tilia-photo-renderer", "tilia-jpeg-input", "tilia-photo-ui", "tilia-map-selection-presenter"],
+          plugins: [
+            "tilia-gpx-renderer",
+            "tilia-gpx-input",
+            "tilia-photo-renderer",
+            "tilia-jpeg-input",
+            "tilia-photo-ui",
+            "tilia-map-selection-presenter",
+          ],
           pluginOptions: {
             "tilia-jpeg-input": { defaultPhotoTimeMode: gpxUrl ? "+09:00" : "auto" },
           },
@@ -271,6 +416,10 @@
 
         const result = await loadIntoApp(app, photoUrl);
         setStatus(statusNode, `Loaded ${result.name}: ${result.summary}`);
+      }
+
+      for (const card of document.querySelectorAll(".story-card-route[data-tilia-gpx-url]")) {
+        bootRouteCard(card);
       }
 
       // Boot every card on the page so the same markup pattern can be repeated freely.

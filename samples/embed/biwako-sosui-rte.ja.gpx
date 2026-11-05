@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Hakodate Efficient Tour Planner"
+xmlns="http://www.topografix.com/GPX/1/1"
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+xsi:schemaLocation="http://www.topografix.com/GPX/1/1 https://www.topografix.com/GPX/1/1/gpx.xsd">
+<rte>
+<name>琵琶湖疏水ルート</name>
+<desc>大津の第一疏水取水口から京都市内の夷川発電所（夷川ダム）までの地点表示サンプル。</desc>
+<rtept lat="35.0139813" lon="135.8609581">
+<name>大津第一取水口</name>
+<desc>琵琶湖から第一疏水へ水を取り入れる琵琶湖疏水の起点</desc>
+</rtept>
+<rtept lat="35.0124225" lon="135.8577706">
+<name>大津閘門</name>
+<desc>日本初のレンガ造りの本格的閘門</desc>
+</rtept>
+<rtept lat="34.9946947" lon="135.8263741">
+<name>四ノ宮舟溜</name>
+<desc>積荷の揚げ降ろしや人の乗降などのための停泊スペース</desc>
+</rtept>
+<rtept lat="35.008266" lon="135.791009">
+<name>田邉朔郎像</name>
+<desc>琵琶湖疏水建設工事の主任技師</desc>
+</rtept>
+<rtept lat="35.010537" lon="135.788864">
+<name>蹴上インクライン</name>
+<desc>疏水を行き交う舟が高低差を乗り越えるために設置された傾斜鉄道</desc>
+</rtept>
+<rtept lat="35.0106139" lon="135.7939417">
+<name>南禅寺水路閣</name>
+<desc>疏水分線の一部で、南禅寺境内を通る水路橋</desc>
+</rtept>
+<rtept lat="35.0120169" lon="135.7881561">
+<name>琵琶湖疏水記念館</name>
+<desc>南禅寺船溜の前に位置する、疏水建築と歴史の総合資料館</desc>
+</rtept>
+<rtept lat="35.0157111" lon="135.7752917">
+<name>夷川発電所（夷川ダム）</name>
+<desc>大正時代から稼働を続ける歴史的な水力発電所</desc>
+</rtept>
+</rte>
+</gpx>
