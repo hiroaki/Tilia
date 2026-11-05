@@ -19,6 +19,7 @@ for (const path of ["/samples/embed/", "/samples/embed/index.ja.html"]) test(`em
 });
 
 for (const path of ["/samples/embed/", "/samples/embed/index.ja.html"]) {
+  const japanese = path.endsWith("index.ja.html");
   test(`route guide ${path} shares selection without popups or map-click navigation`, async ({ page }) => {
     await page.setViewportSize({ width: 1200, height: 1000 });
     await page.goto(path);
@@ -32,7 +33,7 @@ for (const path of ["/samples/embed/", "/samples/embed/index.ja.html"]) {
     await expect(buttons).toHaveCount(8);
     await expect(card.locator('.route-list button[aria-pressed="true"]')).toHaveCount(0);
     await expect(description).toBeEmpty();
-    await expect(card.locator(".route-title")).toHaveText("琵琶湖疏水ルート");
+    await expect(card.locator(".route-title")).toHaveText(japanese ? "琵琶湖疏水ルート" : "Lake Biwa Canal Route");
     await card.scrollIntoViewIfNeeded();
 
     // Every point is inside the map initially; no point is selected by import.
@@ -48,8 +49,8 @@ for (const path of ["/samples/embed/", "/samples/embed/index.ja.html"]) {
     const initialTransform = await pane.evaluate(node => node.style.transform);
     await markers.first().click();
     await expect(buttons.first()).toHaveAttribute("aria-pressed", "true");
-    await expect(title).toHaveText("大津第一取水口");
-    await expect(description).toHaveText("琵琶湖から第一疏水へ水を取り入れる琵琶湖疏水の起点");
+    await expect(title).toHaveText(japanese ? "大津第一取水口" : "Otsu First Intake");
+    await expect(description).toHaveText(japanese ? "琵琶湖から第一疏水へ水を取り入れる琵琶湖疏水の起点" : "Starting point of the Lake Biwa Canal, where water is drawn from Lake Biwa into the First Canal");
     await page.waitForTimeout(350);
     expect(await pane.evaluate(node => node.style.transform)).toBe(initialTransform);
     await expect(card.locator(".leaflet-popup")).toHaveCount(0);
@@ -57,7 +58,7 @@ for (const path of ["/samples/embed/", "/samples/embed/index.ja.html"]) {
     await buttons.last().click();
     await expect(buttons.last()).toHaveAttribute("aria-pressed", "true");
     await expect(buttons.first()).toHaveAttribute("aria-pressed", "false");
-    await expect(title).toHaveText("夷川発電所（夷川ダム）");
+    await expect(title).toHaveText(japanese ? "夷川発電所（夷川ダム）" : "Ebisugawa Power Station (Ebisugawa Dam)");
     await expect.poll(() => pane.evaluate(node => node.style.transform)).not.toBe(initialTransform);
     await expect(card.locator(".leaflet-popup")).toHaveCount(0);
 
@@ -88,7 +89,7 @@ for (const path of ["/samples/embed/", "/samples/embed/index.ja.html"]) {
   test(`route guide ${path} reuses a replacement GPX URL and renders description literally`, async ({ page }) => {
     await page.route(`**${path === "/samples/embed/" ? "/samples/embed/" : "/samples/embed/index.ja.html"}`, async route => {
       const response = await route.fetch();
-      await route.fulfill({ response, body: (await response.text()).replace('data-tilia-gpx-url="./biwako-sosui-rte.ja.gpx"', 'data-tilia-gpx-url="./replacement.gpx"') });
+      await route.fulfill({ response, body: (await response.text()).replace(/data-tilia-gpx-url="\.\/biwako-sosui-rte(?:\.ja)?\.gpx"/, 'data-tilia-gpx-url="./replacement.gpx"') });
     });
     await page.route("**/replacement.gpx", route => route.fulfill({
       contentType: "application/gpx+xml",

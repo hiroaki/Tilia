@@ -5,185 +5,7 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Tilia Embed Gallery Example</title>
     <link rel="stylesheet" href="../../src/map/vendor/leaflet/2.0.0-beta.1/leaflet.css" />
-    <style>
-      body {
-        margin: 0;
-        font-family: "Hiragino Sans", "Yu Gothic", sans-serif;
-        background: #f5f5f4;
-        color: #1c1917;
-      }
-
-      .app {
-        max-width: 1120px;
-        margin: 0 auto;
-        padding: 32px 20px 48px;
-      }
-
-      .page-header {
-        margin-bottom: 24px;
-      }
-
-      .page-title {
-        margin: 0;
-        font-size: 28px;
-        line-height: 1.2;
-      }
-
-      .page-copy {
-        margin: 10px 0 0;
-        max-width: 68ch;
-        font-size: 14px;
-        line-height: 1.6;
-        color: #57534e;
-      }
-
-      .story-list {
-        display: flex;
-        flex-direction: column;
-        gap: 18px;
-      }
-
-      .story-card {
-        display: grid;
-        grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
-        gap: 18px;
-        padding: 18px;
-        border: 1px solid #d6d3d1;
-        border-radius: 18px;
-        background: #fffcf7;
-        box-shadow: 0 12px 28px #00000010;
-      }
-
-      .story-card-gpx {
-        grid-template-columns: 1fr;
-      }
-
-      .story-media {
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-        min-width: 0;
-      }
-
-      .story-photo {
-        display: block;
-        width: 100%;
-        max-height: 360px;
-        object-fit: cover;
-        border-radius: 14px;
-        background: #e7e5e4;
-      }
-
-      .story-kicker {
-        margin: 0;
-        font-size: 11px;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        color: #57534e;
-      }
-
-      .story-heading {
-        margin: 0;
-        font-size: 18px;
-        line-height: 1.35;
-      }
-
-      .story-description {
-        margin: 0;
-        font-size: 13px;
-        line-height: 1.6;
-        color: #44403c;
-      }
-
-      .story-map-wrap {
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-      }
-
-      .story-map {
-        height: 260px;
-        width: 100%;
-        border-radius: 14px;
-        overflow: hidden;
-        background: #d6d3d1;
-      }
-
-      .story-status {
-        min-height: 1.4em;
-        margin: 0;
-        font-size: 12px;
-        line-height: 1.4;
-        color: #57534e;
-      }
-
-      .story-meta {
-        margin: 0;
-        font-size: 12px;
-        color: #78716c;
-      }
-
-      .story-card-route {
-        grid-template-columns: 1fr;
-      }
-
-      .route-layout {
-        display: grid;
-        grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
-        gap: 18px;
-      }
-
-      .route-layout .story-map {
-        height: 420px;
-      }
-
-      .route-sidebar {
-        min-width: 0;
-      }
-
-      .route-list {
-        margin: 0 0 18px;
-        padding-left: 2em;
-        max-height: 320px;
-        overflow-y: auto;
-      }
-
-      .route-list button {
-        width: 100%;
-        padding: 6px 8px;
-        border: 1px solid transparent;
-        border-radius: 6px;
-        background: transparent;
-        color: inherit;
-        font: inherit;
-        text-align: left;
-        overflow-wrap: anywhere;
-        cursor: pointer;
-      }
-
-      .route-list button[aria-pressed="true"] {
-        border-color: #0f766e;
-        background: #ccfbf1;
-      }
-
-      .route-detail-description {
-        white-space: pre-wrap;
-        overflow-wrap: anywhere;
-      }
-
-      @media (max-width: 860px) {
-        .story-card,
-        .story-card-gpx,
-        .route-layout {
-          grid-template-columns: 1fr;
-        }
-
-        .story-map,
-        .route-layout .story-map {
-          height: 220px;
-        }
-      }
-    </style>
+    <link rel="stylesheet" href="./embed.css" />
     <script type="importmap">
       {
         "imports": {
@@ -206,7 +28,7 @@
       </header>
 
       <main class="story-list">
-        <article class="story-card story-card-gpx" data-tilia-gpx-url="./biwakososui.gpx">
+        <article id="track-embed" class="story-card story-card-gpx" data-tilia-gpx-url="./biwakososui.gpx">
           <div class="story-media">
             <p class="story-kicker">トラック埋め込み</p>
             <h2 class="story-heading">琵琶湖疏水を歩く</h2>
@@ -220,7 +42,7 @@
           </div>
         </article>
 
-        <article class="story-card">
+        <article id="gps-photo-embed" class="story-card">
           <div class="story-media">
             <img
               class="story-photo"
@@ -242,6 +64,7 @@
         </article>
 
         <article
+          id="inferred-photo-embed"
           class="story-card"
           data-tilia-gpx-url="./biwakososui.gpx"
         >
@@ -251,11 +74,12 @@
               src="./IMG_2892.JPG"
               alt="Sample photo IMG_2892"
               data-tilia-photo-url="./IMG_2892.JPG"
+              data-tilia-photo-time-mode="+09:00"
             />
             <p class="story-kicker">写真埋め込み</p>
             <h2 class="story-heading">IMG_2892.JPG からの写真地図</h2>
             <p class="story-description">
-              この2枚目の画像は自身の <code>data-tilia-photo-url</code> 値を保持していますが、カードレベルで <code>data-tilia-gpx-url</code> も追加しています。Tilia はまずトラックを読み込み、画像自体に GPS 座標がない場合は GPX タイムラインから写真の位置を推測します。EXIF タイムスタンプはタイムゾーンを保存しないため、このサンプルでは地図初期化コードで写真の時間モードを <code>+09:00</code> に設定し、写真のタイムスタンプが意図したタイムゾーンで GPX トラックに対して解釈されるようにしています。
+              この2枚目の画像は自身の <code>data-tilia-photo-url</code> 値を保持していますが、カードレベルで <code>data-tilia-gpx-url</code> も追加しています。Tilia はまずトラックを読み込み、画像自体に GPS 座標がない場合は GPX タイムラインから写真の位置を推測します。EXIF タイムスタンプはタイムゾーンを保存しないため、このサンプルでは画像の <code>data-tilia-photo-time-mode="+09:00"</code> 属性で写真の時間モードを設定し、写真のタイムスタンプが意図したタイムゾーンで GPX トラックに対して解釈されるようにしています。
             </p>
           </div>
           <div class="story-map-wrap">
@@ -264,8 +88,7 @@
           </div>
         </article>
 
-        <article class="story-card story-card-route" data-tilia-gpx-url="./biwako-sosui-rte.ja.gpx"
-          data-route-invalid="このサンプルには、地点を持つ単独の GPX ルート（トラックなし）が必要です。">
+        <article id="route-guide-embed" class="story-card story-card-route" data-tilia-gpx-url="./biwako-sosui-rte.ja.gpx">
           <div class="story-media">
             <p class="story-kicker">ルート案内</p>
             <h2 class="story-heading route-title">GPX ルートポイントで観光案内</h2>
@@ -288,150 +111,6 @@
       </main>
     </div>
 
-    <script type="module">
-      import { createDefaultTiliaApp } from "../../src/index.js";
-
-      async function loadIntoApp(app, url) {
-        // Fetch the asset and hand it to Tilia through the same File-based path as local input.
-        const response = await fetch(url);
-        const blob = await response.blob();
-        const name = url.split("/").at(-1);
-        const file = new File([blob], name, {
-          type: blob.type,
-        });
-        const result = await app.load(file);
-        const summary = result.entry.domain.id === "gpx" ? `${Math.round(app.domains.gpx.getDistance(result.entry.id).totalMeters)} m` : result.locationSource ?? "no location";
-        return { ...result, summary };
-      }
-
-      function setStatus(node, text) {
-        node.textContent = text;
-      }
-
-      async function bootTrackCard(card) {
-        const gpxUrl = card.dataset.tiliaGpxUrl;
-        const mapNode = card.querySelector(".story-map");
-        const statusNode = card.querySelector(".story-status");
-
-        // Each content block creates its own independent map and Tilia application.
-        const app = createDefaultTiliaApp(mapNode, {
-          plugins: [
-            "tilia-gpx-renderer",
-            "tilia-gpx-input",
-            "tilia-gpx-ui",
-            "tilia-map-selection-presenter",
-          ] });
-
-        // The GPX URL comes from the card's data attribute.
-        const result = await loadIntoApp(app, gpxUrl);
-        setStatus(statusNode, `Loaded ${result.name}: ${result.summary}`);
-      }
-
-      async function bootRouteCard(card) {
-        const statusNode = card.querySelector(".story-status");
-        const list = card.querySelector(".route-list");
-        const title = card.querySelector(".route-detail-title");
-        const description = card.querySelector(".route-detail-description");
-        const emptyTitle = title.textContent;
-        const app = createDefaultTiliaApp(card.querySelector(".story-map"), {
-          // No GPX UI plugin: the external detail panel replaces popups.
-          plugins: ["tilia-gpx-input", "tilia-gpx-renderer", "tilia-map-selection-presenter"],
-        });
-
-        try {
-          const result = await loadIntoApp(app, card.dataset.tiliaGpxUrl);
-          const gpx = app.domains.gpx;
-          const data = gpx.getDocument(result.entry.id).document;
-          if (data.routes.length !== 1 || data.tracks.length !== 0 || !data.routes[0].points.length) {
-            throw new Error(card.dataset.routeInvalid);
-          }
-          const route = data.routes[0];
-          card.querySelector(".route-title").textContent = route.name || result.name;
-          const buttons = route.points.map((point, pointIndex) => {
-            const item = document.createElement("li");
-            const button = document.createElement("button");
-            button.type = "button";
-            button.textContent = point.name || String(pointIndex + 1);
-            button.addEventListener("click", async () => {
-              try {
-                const selected = await app.selection.request(gpx.selection.createCandidate(result.entry.id, {
-                  kind: "route-point", routeIndex: 0, pointIndex,
-                }));
-                if (app.selection.getCurrent() === selected) app.map.panTo([point.lat, point.lon]);
-              } catch (error) {
-                setStatus(statusNode, error.message);
-              }
-            });
-            item.append(button);
-            list.append(item);
-            return button;
-          });
-
-          // Selection belongs to Tilia; both controls project the same state.
-          // Map clicks update these nodes without moving the map.
-          const renderSelection = (current) => {
-            const matches = current?.entryId === result.entry.id && current.domain.id === "gpx"
-              && current.ref.kind === "route-point" && current.ref.routeIndex === 0;
-            const point = matches ? gpx.selection.resolve(current.entryId, current.ref) : null;
-            buttons.forEach((button, index) => {
-              button.setAttribute("aria-pressed", String(!!point && index === current.ref.pointIndex));
-            });
-            title.textContent = point ? buttons[current.ref.pointIndex].textContent : emptyTitle;
-            description.textContent = point?.description || "";
-          };
-          app.selection.subscribe(({ current }) => renderSelection(current));
-          renderSelection(app.selection.getCurrent());
-          setStatus(statusNode, `Loaded ${result.name}`);
-        } catch (error) {
-          setStatus(statusNode, error.message);
-        }
-      }
-
-      async function bootPhotoCard(card) {
-        const photo = card.querySelector("img[data-tilia-photo-url]");
-        const photoUrl = photo.dataset.tiliaPhotoUrl;
-        const gpxUrl = card.dataset.tiliaGpxUrl;
-        const mapNode = card.querySelector(".story-map");
-        const statusNode = card.querySelector(".story-status");
-
-        // Photo cards follow the same flow; only the source data attribute changes.
-        const app = createDefaultTiliaApp(mapNode, {
-          plugins: [
-            "tilia-gpx-renderer",
-            "tilia-gpx-input",
-            "tilia-photo-renderer",
-            "tilia-jpeg-input",
-            "tilia-photo-ui",
-            "tilia-map-selection-presenter",
-          ],
-          pluginOptions: {
-            "tilia-jpeg-input": { defaultPhotoTimeMode: gpxUrl ? "+09:00" : "auto" },
-          },
-        });
-
-        if (gpxUrl) {
-          const helper = await loadIntoApp(app, gpxUrl);
-          await app.entries.setVisible(helper.entry.id, false);
-        }
-
-        const result = await loadIntoApp(app, photoUrl);
-        setStatus(statusNode, `Loaded ${result.name}: ${result.summary}`);
-      }
-
-      for (const card of document.querySelectorAll(".story-card-route[data-tilia-gpx-url]")) {
-        bootRouteCard(card);
-      }
-
-      // Boot every card on the page so the same markup pattern can be repeated freely.
-      for (const card of document.querySelectorAll(".story-card-gpx[data-tilia-gpx-url]")) {
-        bootTrackCard(card);
-      }
-
-      for (const card of document.querySelectorAll(".story-card")) {
-        if (card.querySelector("img[data-tilia-photo-url]")) {
-          bootPhotoCard(card);
-        }
-      }
-    </script>
+    <script type="module" src="./embed.js"></script>
   </body>
 </html>
