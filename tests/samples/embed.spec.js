@@ -10,11 +10,18 @@ for (const path of ["/samples/embed/", "/samples/embed/index.ja.html"]) test(`em
 
   await expect(page.locator(".story-map.leaflet-container")).toHaveCount(4);
   await expect(page.locator(".story-status").nth(0)).toContainText("Loaded biwakososui.gpx");
-  await expect(page.locator(".story-status").nth(1)).toContainText("Loaded IMG_2889.JPG");
-  await expect(page.locator(".story-status").nth(2)).toContainText("Loaded IMG_2892.JPG");
   await expect(page.locator(".story-card").nth(2)).toHaveAttribute("data-tilia-gpx-url", "./biwakososui.gpx");
 
-  await expect(page.locator(".story-status").nth(2)).toContainText("gpx-time-inference");
+  // Photo cards show the loaded photo's metadata instead of a "Loaded ..." status line.
+  const meta = (card, key) => card.locator(`[data-photo-meta="${key}"]`);
+  const gpsPhoto = page.locator(".story-card").nth(1);
+  await expect(meta(gpsPhoto, "name")).toHaveText("IMG_2889.JPG");
+  await expect(meta(gpsPhoto, "locationSource")).toHaveText("exif-gps");
+  await expect(meta(gpsPhoto, "coordinate")).toHaveText(/^-?\d+\.\d{5}, -?\d+\.\d{5}$/);
+
+  const inferredPhoto = page.locator(".story-card").nth(2);
+  await expect(meta(inferredPhoto, "name")).toHaveText("IMG_2892.JPG");
+  await expect(meta(inferredPhoto, "locationSource")).toHaveText("gpx-time-inference");
   expect(pageErrors).toEqual([]);
 });
 

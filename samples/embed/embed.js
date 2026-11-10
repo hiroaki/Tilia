@@ -17,6 +17,33 @@ function setStatus(node, text) {
   node.textContent = text;
 }
 
+// Show the photo's metadata in the card's [data-photo-meta] nodes.
+// A node keeps the placeholder text written in the HTML when there is no value.
+function showPhotoMeta(card, app, result) {
+  const { data } = app.domains.photo.get(result.entry.id).snapshot;
+  const values = {
+    name: data.name,
+    coordinate: data.coordinate ? `${data.coordinate.lat.toFixed(5)}, ${data.coordinate.lon.toFixed(5)}` : null,
+    locationSource: result.locationSource,
+    make: data.make,
+    model: data.model,
+  };
+  // Identifier values are shown as code, not as prose.
+  const asCode = new Set(["locationSource"]);
+  card.querySelectorAll("[data-photo-meta]").forEach((node) => {
+    const key = node.dataset.photoMeta;
+    const value = values[key];
+    if (!value) return;
+    if (asCode.has(key)) {
+      const code = document.createElement("code");
+      code.textContent = value;
+      node.replaceChildren(code);
+    } else {
+      node.textContent = value;
+    }
+  });
+}
+
 // 1. Embed a GPX track in its own map.
 async function bootTrackCard(card) {
   const gpxUrl = card.dataset.tiliaGpxUrl;
@@ -41,7 +68,6 @@ async function bootTrackCard(card) {
 async function bootGpsPhotoCard(card) {
   const photo = card.querySelector("img[data-tilia-photo-url]");
   const mapNode = card.querySelector(".story-map");
-  const statusNode = card.querySelector(".story-status");
   const app = createDefaultTiliaApp(mapNode, {
     plugins: [
       "tilia-photo-renderer",
@@ -52,14 +78,13 @@ async function bootGpsPhotoCard(card) {
   });
 
   const result = await loadIntoApp(app, photo.dataset.tiliaPhotoUrl);
-  setStatus(statusNode, `Loaded ${result.name}: ${result.summary}`);
+  showPhotoMeta(card, app, result);
 }
 
 // 3. Infer a photo's location from a GPX track and its capture time.
 async function bootInferredPhotoCard(card) {
   const photo = card.querySelector("img[data-tilia-photo-url]");
   const mapNode = card.querySelector(".story-map");
-  const statusNode = card.querySelector(".story-status");
   const app = createDefaultTiliaApp(mapNode, {
     plugins: [
       "tilia-gpx-renderer",
@@ -78,7 +103,7 @@ async function bootInferredPhotoCard(card) {
   const helper = await loadIntoApp(app, card.dataset.tiliaGpxUrl);
   await app.entries.setVisible(helper.entry.id, false);
   const result = await loadIntoApp(app, photo.dataset.tiliaPhotoUrl);
-  setStatus(statusNode, `Loaded ${result.name}: ${result.summary}`);
+  showPhotoMeta(card, app, result);
 }
 
 // 4. Connect a GPX route to an external list and plain-text details.

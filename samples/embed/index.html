@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Tilia Embed Gallery Example</title>
+    <title>Tilia Embed Gallery</title>
     <link rel="stylesheet" href="../../src/map/vendor/leaflet/2.0.0-beta.1/leaflet.css" />
     <link rel="stylesheet" href="./embed.css" />
     <script type="importmap">
@@ -19,47 +19,57 @@
       <p><a href="./index.ja.html">日本語</a></p>
 
       <header class="page-header">
-        <h1 class="page-title">Tilia embed example: repeated maps from data attributes</h1>
+        <h1 class="page-title">Tilia Embed Gallery</h1>
         <p class="page-copy">
-          This sample treats Tilia as an embeddable library rather than as the standalone viewer.
-          Each content block owns its own map instance, and only the <code>data-*</code> URLs change.
-          That makes the same template reusable in a CMS or blog page.
+          These examples display GPX data and photos on a map embedded in an HTML page.
+          Each map is independent and works as a small application that uses Tilia from code on the HTML side.
+          With use in templates such as blogs in mind, you can update what is displayed simply by replacing the GPX or image files.
         </p>
       </header>
 
       <main class="story-list">
         <article id="track-embed" class="story-card story-card-gpx" data-tilia-gpx-url="./biwakososui.gpx">
-          <div class="story-media">
-            <p class="story-kicker">Track embed</p>
-            <h2 class="story-heading">Walking the Lake Biwa Canal</h2>
+          <div class="story-text">
+            <p class="story-kicker">GPX display</p>
+            <h2 class="story-heading">Load and display a GPX file</h2>
             <p class="story-description">
-              This block reads a GPX URL from its own <code>data-tilia-gpx-url</code> attribute and renders the track without any viewer-specific wrapper.
+              Tilia loads GPX files directly and displays their tracks, waypoints, and routes on the map.<br />
+              (This example contains no route data. A route example is introduced later.)
             </p>
           </div>
-          <div class="story-map-wrap">
-            <div class="story-map"></div>
-            <p class="story-status"></p>
+          <div class="story-body">
+            <div class="story-map-wrap">
+              <div class="story-map"></div>
+              <p class="story-status"></p>
+            </div>
           </div>
         </article>
 
         <article id="gps-photo-embed" class="story-card">
-          <div class="story-media">
+          <div class="story-text">
+            <p class="story-kicker">Photo map</p>
+            <h2 class="story-heading">Show a photo’s location on the map</h2>
+            <p class="story-description">
+              Tilia reads GPS coordinates from a photo’s EXIF data and shows that point on the map as the place where the photo was taken.
+            </p>
+          </div>
+          <div class="story-body story-body-photo">
             <img
               class="story-photo"
               src="./IMG_2889.JPG"
-              alt="Sample photo IMG_2889"
+              alt="Seedling bed beside the Lake Biwa Canal"
               data-tilia-photo-url="./IMG_2889.JPG"
             />
-            <p class="story-kicker">Photo embed</p>
-            <h2 class="story-heading">Photo map from IMG_2889.JPG</h2>
-            <p class="story-description">
-              The image element itself carries the source URL in <code>data-tilia-photo-url</code>.
-              Tilia reads the photo file and places its marker next to the image.
-            </p>
-          </div>
-          <div class="story-map-wrap">
-            <div class="story-map"></div>
-            <p class="story-status"></p>
+            <div class="photo-side">
+              <div class="story-map"></div>
+              <dl class="photo-meta" aria-label="Photo metadata">
+                <div><dt>File name</dt><dd data-photo-meta="name">None</dd></div>
+                <div><dt>Coordinates</dt><dd data-photo-meta="coordinate">None</dd></div>
+                <div><dt>Location source</dt><dd data-photo-meta="locationSource">None</dd></div>
+                <div><dt>Make</dt><dd data-photo-meta="make">None</dd></div>
+                <div><dt>Model</dt><dd data-photo-meta="model">None</dd></div>
+              </dl>
+            </div>
           </div>
         </article>
 
@@ -68,42 +78,52 @@
           class="story-card"
           data-tilia-gpx-url="./biwakososui.gpx"
         >
-          <div class="story-media">
+          <div class="story-text">
+            <p class="story-kicker">Photo map</p>
+            <h2 class="story-heading">Estimate a photo’s location from GPX</h2>
+            <p class="story-description">
+              Even for a photo without GPS coordinates, Tilia can estimate where it was taken if you load a GPX file whose track includes the photo’s capture time.
+            </p>
+          </div>
+          <div class="story-body story-body-photo">
             <img
               class="story-photo"
               src="./IMG_2892.JPG"
-              alt="Sample photo IMG_2892"
+              alt="Bridge over the Lake Biwa Canal surrounded by autumn foliage"
               data-tilia-photo-url="./IMG_2892.JPG"
               data-tilia-photo-time-mode="+09:00"
             />
-            <p class="story-kicker">Photo embed</p>
-            <h2 class="story-heading">Photo map from IMG_2892.JPG</h2>
-            <p class="story-description">
-              This second image keeps its own <code>data-tilia-photo-url</code> value, but also adds a card-level
-              <code>data-tilia-gpx-url</code>. Tilia loads the track first and then infers the photo location from the
-              GPX timeline when the image itself does not carry GPS coordinates. Because EXIF timestamps do not store
-              their timezone, this sample sets <code>data-tilia-photo-time-mode="+09:00"</code> on the image so the photo timestamp is interpreted against the GPX track in the intended timezone.
-            </p>
-          </div>
-          <div class="story-map-wrap">
-            <div class="story-map"></div>
-            <p class="story-status"></p>
+            <div class="photo-side">
+              <div class="story-map"></div>
+              <dl class="photo-meta" aria-label="Photo metadata">
+                <div><dt>File name</dt><dd data-photo-meta="name">None</dd></div>
+                <div><dt>Coordinates</dt><dd data-photo-meta="coordinate">None</dd></div>
+                <div><dt>Location source</dt><dd data-photo-meta="locationSource">None</dd></div>
+                <div><dt>Make</dt><dd data-photo-meta="make">None</dd></div>
+                <div><dt>Model</dt><dd data-photo-meta="model">None</dd></div>
+              </dl>
+            </div>
           </div>
         </article>
 
         <article id="route-guide-embed" class="story-card story-card-route" data-tilia-gpx-url="./biwako-sosui-rte.gpx">
-          <div class="story-media">
-            <p class="story-kicker">Route guide</p>
-            <h2 class="story-heading route-title">Sightseeing with GPX route points</h2>
-            <p class="story-description">Select a place in the list to pan the map, or select a numbered map marker to read its description. Dashed lines connect the places directly; they do not show the actual path.</p>
+          <div class="story-text">
+            <p class="story-kicker">A GPX-powered sightseeing guide</p>
+            <h2 class="story-heading">Use GPX as route data</h2>
+            <p class="story-description">
+              This is an example of using a GPX route for a sightseeing guide.
+              The route is drawn as a dashed line that connects the route points in order; it does not show an actual road path or a recorded track.<br />
+              This example displays the route title and the name and description of each place, all read from the GPX file.
+            </p>
           </div>
-          <div class="route-layout">
+          <div class="story-body route-layout">
             <div class="story-map-wrap">
               <div class="story-map"></div>
               <p class="story-status" role="status"></p>
             </div>
             <div class="route-sidebar">
-              <ol class="route-list" aria-label="Places"></ol>
+              <h3 class="route-title">A GPX-powered sightseeing guide</h3>
+              <ol class="route-list" aria-label="Places to visit"></ol>
               <div class="route-detail" aria-live="polite">
                 <h3 class="story-heading route-detail-title">Select a place</h3>
                 <p class="story-description route-detail-description"></p>
