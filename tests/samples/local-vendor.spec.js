@@ -46,7 +46,7 @@ for (const path of ["viewer/", "embed/", "embed/index.ja.html", "editor/editor.h
     await page.goto(`${prefix}/samples/${path}`);
     await expect(page.locator(".leaflet-container").first()).toBeVisible();
     if (path.startsWith("embed/")) {
-      await expect(page.locator(".story-status").nth(2)).toContainText("Loaded IMG_2892.JPG");
+      await expect(page.locator('#inferred-photo-embed [data-photo-meta="name"]')).toHaveText("IMG_2892.JPG");
       expect(dependencies).toContain(`${prefix}/src/photo/vendor/exifr/7.1.3/lite.esm.js`);
     } else if (path.startsWith("editor/")) {
       await expect(page.getByRole("button", { name: "Track editor", exact: true })).toBeVisible();

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Tilia Project"
+xmlns="http://www.topografix.com/GPX/1/1"
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+xsi:schemaLocation="http://www.topografix.com/GPX/1/1 https://www.topografix.com/GPX/1/1/gpx.xsd">
+<rte>
+<name>Lake Biwa Canal Route</name>
+<desc>Sample waypoints from the Otsu intake of the First Canal to the Ebisugawa Power Station (Ebisugawa Dam) in Kyoto.</desc>
+<rtept lat="35.0139813" lon="135.8609581">
+<name>Otsu First Intake</name>
+<desc>Starting point of the Lake Biwa Canal, where water is drawn from Lake Biwa into the First Canal</desc>
+</rtept>
+<rtept lat="35.0124225" lon="135.8577706">
+<name>Otsu Lock</name>
+<desc>Japan's first full-scale brick-built lock</desc>
+</rtept>
+<rtept lat="34.9946947" lon="135.8263741">
+<name>Shinomiya Boat Basin</name>
+<desc>Mooring area for loading and unloading cargo and for boarding and disembarking passengers</desc>
+</rtept>
+<rtept lat="35.008266" lon="135.791009">
+<name>Statue of Sakuro Tanabe</name>
+<desc>Chief engineer of the Lake Biwa Canal construction project</desc>
+</rtept>
+<rtept lat="35.010537" lon="135.788864">
+<name>Keage Incline</name>
+<desc>Inclined railway built so that boats on the canal could overcome the difference in elevation</desc>
+</rtept>
+<rtept lat="35.0106139" lon="135.7939417">
+<name>Nanzenji Suirokaku Aqueduct</name>
+<desc>Aqueduct bridge on a branch of the canal, passing through the grounds of Nanzen-ji Temple</desc>
+</rtept>
+<rtept lat="35.0120169" lon="135.7881561">
+<name>Lake Biwa Canal Museum</name>
+<desc>Comprehensive museum of canal architecture and history, located in front of the Nanzenji Boat Basin</desc>
+</rtept>
+<rtept lat="35.0157111" lon="135.7752917">
+<name>Ebisugawa Power Station (Ebisugawa Dam)</name>
+<desc>Historic hydroelectric power station in continuous operation since the Taisho era</desc>
+</rtept>
+</rte>
+</gpx>
