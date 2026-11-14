@@ -48,7 +48,7 @@ function listen(target, type, callback) {
   }
   throw new TypeError("Interaction target must be DOM or Leaflet Evented");
 }
-export function createInteractionHost({ map, scope, onError = () => {} }) {
+export function createInteractionHost({ map, scope, onError = () => {}, stopEventPropagation = () => {} }) {
   const surfaces = new WeakMap(),
     records = new Set(),
     occurrences = new WeakMap();
@@ -96,8 +96,9 @@ export function createInteractionHost({ map, scope, onError = () => {} }) {
   function stop(event) {
     const carrier = event?.originalEvent ?? event;
     carrier?.stopPropagation?.();
-    // Leaflet's documented DomEvent.stopPropagation carrier convention.
-    if (event?.originalEvent) event.originalEvent._stopped = true;
+    // The map adapter also stops Leaflet dispatch through its public API.
+    // Keep the host independent of browser-only Leaflet modules.
+    if (event?.originalEvent) stopEventPropagation(event);
   }
   function dispatch(surface, type, event) {
     if (!live(surface)) return;

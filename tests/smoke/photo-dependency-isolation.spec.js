@@ -13,7 +13,7 @@ test("GPX works without a resolvable EXIF provider; JPEG failure stays local acr
   const html = await readFile(new URL("../fixtures/application-lifecycle.html", import.meta.url), "utf8");
   expect(JSON.parse(html.match(/<script type="importmap">([\s\S]*?)<\/script>/)[1]).imports).not.toHaveProperty("exifr");
   let exifrRequests = 0;
-  await page.route("https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/lite.esm.js", route => {
+  await page.route("**/src/photo/vendor/exifr/7.1.3/lite.esm.js", route => {
     exifrRequests++;
     return route.fulfill({ status: 404, contentType: "text/plain", body: "EXIF unavailable" });
   });
@@ -90,8 +90,6 @@ test("JPEG succeeds without an exifr mapping and installation does not request E
   page.on("request", request => requested.push(request.url()));
   const html = await readFile(new URL("../fixtures/application-lifecycle.html", import.meta.url), "utf8");
   expect(JSON.parse(html.match(/<script type="importmap">([\s\S]*?)<\/script>/)[1]).imports).not.toHaveProperty("exifr");
-  const bundle = await readFile(new URL("../fixtures/exifr-7.1.3-lite.esm.js", import.meta.url));
-  await page.route("https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/lite.esm.js", route => route.fulfill({ contentType: "text/javascript", body: bundle }));
   await page.route("**/tiles/**", route => route.abort());
   await page.goto("/tests/fixtures/application-lifecycle.html");
   await page.waitForFunction(() => window.fixtureReady);
@@ -115,5 +113,25 @@ test("JPEG succeeds without an exifr mapping and installation does not request E
   expect(result).toMatchObject({ count: 1, make: "Apple", model: "iPhone 5", localDate: [2013, 11, 24, 15, 17, 17] });
   expect(result.coordinate.lat).toBeCloseTo(34.99678055555556, 10);
   expect(result.coordinate.lon).toBeCloseTo(135.81951944444444, 10);
-  expect(requested).toContain("https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/lite.esm.js");
+  expect(requested).toContain("http://127.0.0.1:4173/src/photo/vendor/exifr/7.1.3/lite.esm.js");
+});
+
+
+test("Photo domain works without JPEG input or an available EXIF distribution", async ({ page }) => {
+  const requested = [];
+  page.on("request", request => requested.push(request.url()));
+  await page.route("**/tiles/**", route => route.abort());
+  await page.route("**/src/photo/vendor/exifr/**", route => route.fulfill({ status: 404, body: "EXIF unavailable" }));
+  await page.goto("/tests/fixtures/application-lifecycle.html");
+  await page.waitForFunction(() => window.fixtureReady);
+  const result = await page.evaluate(async () => {
+    const app = window.lifecycle.create({ plugins: ["tilia-photo-domain"] });
+    await app.ready;
+    const entry = await app.domains.photo.create({ data: { name: "metadata only", coordinate: { lat: 35.68, lon: 139.76 } } });
+    const result = { name: app.domains.photo.get(entry.id).snapshot.data.name, jpegInstalled: app.hasPlugin("tilia-jpeg-input"), count: app.entries.list().length };
+    await app.destroy();
+    return result;
+  });
+  expect(result).toEqual({ name: "metadata only", jpegInstalled: false, count: 1 });
+  expect(requested.filter(url => /photo\/exif|exifr/.test(url))).toEqual([]);
 });

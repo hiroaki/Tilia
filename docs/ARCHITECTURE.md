@@ -27,6 +27,8 @@ Several choices follow from that principle:
 
 The result is a plugin system for Tilia's mapping use cases. It does not provide package discovery, dependency version solving, a general scheduler, or a JavaScript security sandbox. Public APIs and configuration are still subject to the project's early-alpha compatibility policy.
 
+Core map infrastructure owns the unmodified Leaflet distribution in `src/map/vendor/leaflet/`. The host loads its CSS and maps the bare `leaflet` specifier to one shared module URL for Core and plugins. The JPEG input plugin logically owns exifr in `src/photo/vendor/exifr/`; only JPEG processing loads it through the EXIF adapter. Photo domain, renderer and UI do not require the parser. These are file/distribution ownership boundaries, not new plugin APIs or module-unloading guarantees. See [dependency management](DEPENDENCIES.md).
+
 ## Application and plugin boundaries
 
 Host code creates an app through `createDefaultTiliaApp(container, options)`. The app owns a distinct Leaflet Map, semantic state, registries, and application infrastructure. The host supplies the container and chooses plugin configuration.
@@ -62,7 +64,7 @@ A feature can consist of several plugins with different responsibilities:
 | Renderer | Project domain snapshots onto the map | `tilia-gpx-renderer`, `tilia-photo-renderer` |
 | UI contributor | Supply format-specific layer rows, popup content, and settings | `tilia-gpx-ui`, `tilia-photo-ui` |
 | Host or presenter | Arrange contributions or display current selection | `tilia-layers`, `tilia-settings`, `tilia-map-selection-presenter` |
-| Tool or overlay | Use domain data while owning independent operation/presentation resources | Track Editor, route search, Milestone |
+| Tool or overlay | Use domain data while owning independent operation/presentation resources | Track Editor, route search, Distance Markers |
 
 This separation allows data to exist without a map renderer, a file handler to work without viewer controls, or an editor to keep its own session while the original view changes. Installing one role does not automatically install all the others; the [plugin guide](PLUGINS.md#choosing-plugins) gives concrete combinations.
 
@@ -196,7 +198,7 @@ A contribution can remain registered while its visual host is absent. Hosts clos
 
 Panel state, popup visibility, form input, hover, and editor point selection are local UI/session state. They do not replace authoritative entry data or global semantic selection. A mount or popup failure leaves that semantic state intact.
 
-Plugin overlays read domain snapshots and own independent layers. Milestone labels and elevation highlights do not mutate the GPX renderer's polylines. Entry-bound overlays can bind their child lifetime to entry removal; session overlays can instead follow an editor or request lifetime.
+Plugin overlays read domain snapshots and own independent layers. Distance markers and elevation highlights do not mutate the GPX renderer's polylines. Entry-bound overlays can bind their child lifetime to entry removal; session overlays can instead follow an editor or request lifetime.
 
 Map resources use ordered bands for base maps, geometry, markers, overlays, selection, and modal/editor presentation, below popup and shell UI. Owned private panes support local placement without arbitrary cross-plugin z-index competition.
 
@@ -214,7 +216,7 @@ The vendored `PartiallyEditablePolyline` JavaScript and CSS files in `plugins/x-
 | Photo rendering | Domain data and saved inference survive GPX changes | Marker and popup/highlight resources |
 | Track Editor | Source entry; Save Copy creates a new entry | Independent draft, editing markers, selection, suppression |
 | Route search | Successfully created GPX entries | Form, request, Start/Via/Goal markers |
-| Milestone | GPX data remains with its domain | Distance labels tied to the entry and overlay plugin |
+| Distance Markers | GPX data remains with its domain | Distance labels tied to the entry and overlay plugin |
 
 Photo inference occurs in the semantic domain, using an available GPX timeline when applicable. Later GPX changes do not silently recompute a saved Photo location; Photo commands can request recomputation.
 

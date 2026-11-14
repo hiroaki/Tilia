@@ -1,4 +1,4 @@
-import exifr from "https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/lite.esm.js";
+import exifr from "./vendor/exifr/7.1.3/lite.esm.js";
 
 export async function parsePhotoFile(file) {
   const exif = await exifr.parse(file, {

@@ -2,40 +2,45 @@
 
 # Tilia
 
-A JavaScript library for displaying GPX tracks, routes, waypoints, and JPEG photos on a [Leaflet 2](https://leafletjs.com/) map. Spiritual successor to [maps.gpx](https://github.com/hiroaki/maps.gpx).
+Tilia is an extensible framework for building interactive maps and geospatial applications on the web. It is built on [Leaflet 2](https://leafletjs.com/) and basically works with static files alone.
 
 > Early alpha — APIs and behavior may change without notice.
 
 ## Overview
 
-Use Tilia as a standalone viewer, embed maps in a blog or CMS, or build a custom map application. Its small runtime and optional plugins let you choose the data formats, visualizations, and controls your application needs. Multiple independent maps can coexist on one page.
+Use Tilia as a standalone viewer, embed maps in a blog or CMS, or build a custom map application. Its small runtime and optional plugins let you choose the data formats, visualizations, and controls your application needs. Multiple independent maps can also coexist on one page.
 
-- **GPX display:** recorded tracks (`<trk>`), planned routes (`<rte>`), and standalone waypoints (`<wpt>`) remain distinct feature types.
-- **Photo maps:** show JPEG photos at their EXIF GPS coordinates, or infer locations from matching GPX timestamps when suitable data is available.
-- **Interactive viewing:** add selection popups, highlights, layer visibility controls, elevation profiles, and per-entry settings.
+- **Supported formats:** GPX and JPEG (EXIF). GPX tracks (`<trk>`), routes (`<rte>`), and waypoints (`<wpt>`) are drawn as polylines and markers, and JPEG photos appear as markers at their EXIF GPS coordinates. For a photo without GPS coordinates, Tilia can infer a location from matching GPX timestamps.
+- **Layer panel:** enable a plugin to get a ready-made panel that shows or hides each loaded data set as a layer. No UI code of your own is needed, though you can also build a custom UI with the public API.
 - **Flexible input:** load files from your application, or add file picker, URL, query parameter, and drag-and-drop input.
-- **Optional tools:** edit tracks into new copies, export GPX, search routes through a routing service, and show distance labels.
+- **Extensible:** add features with plugins; examples include distance labels and track editing.
 - **No build step:** use browser ES modules and built-in or custom plugins directly.
 
 Try the [live samples](https://hiroaki.github.io/Tilia/samples/).
 
 ## Quick start
 
-Clone or download this repository, then start a static HTTP server from its root:
+Clone or download this repository and serve its root with any static HTTP server.
+
+If Node.js is available, you can use the bundled script without `npm install`. It serves the repository at `http://127.0.0.1:8010`; to use another port, pass it as in `npm run serve -- 3000`:
+
+```bash
+npm run serve
+```
+
+Alternatively, with Python for example:
 
 ```bash
 python3 -m http.server 8010
 ```
 
-Alternatively, use `ruby -run -e httpd . -p 8010`, or run `npm run serve -- 8010` with Node.js installed.
-
-Open [the sample index](http://localhost:8010/samples/) and choose a viewer or embed example. Serve pages over HTTP/HTTPS; opening them through `file://` does not support the module and fetch workflow.
+Open `/samples/` on the running server (for example <http://127.0.0.1:8010/samples/>) and choose a viewer or embed example. Serve pages over HTTP/HTTPS: Tilia is made of ES modules, which browsers do not load through `file://`.
 
 ## Basic usage
 
-### Embed a GPX map
+### Show a map
 
-Save this page as `example.html` in the repository root and open it through your HTTP server. It loads an existing sample track; replace its URL with your own GPX file when integrating Tilia.
+Save the following HTML as `example.html` in the repository root and open it in a browser through your HTTP server.
 
 ```html
 <!doctype html>
@@ -43,13 +48,12 @@ Save this page as `example.html` in the repository root and open it through your
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Tilia GPX map</title>
-  <link rel="stylesheet"
-        href="https://unpkg.com/leaflet@2.0.0-alpha.1/dist/leaflet.css" />
+  <title>Tilia map</title>
+  <link rel="stylesheet" href="./src/map/vendor/leaflet/2.0.0-beta.1/leaflet.css" />
   <script type="importmap">
   {
     "imports": {
-      "leaflet": "https://unpkg.com/leaflet@2.0.0-alpha.1/dist/leaflet.js"
+      "leaflet": "./src/map/vendor/leaflet/2.0.0-beta.1/leaflet.js"
     }
   }
   </script>
@@ -59,31 +63,39 @@ Save this page as `example.html` in the repository root and open it through your
   <script type="module">
     import { createDefaultTiliaApp } from "./src/index.js";
 
-    const app = createDefaultTiliaApp("map", {
-      plugins: ["tilia-gpx-input", "tilia-gpx-renderer"],
-    });
-
-    try {
-      await app.ready;
-      const response = await fetch("./samples/embed/biwakososui.gpx");
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const blob = await response.blob();
-      await app.load(new File([blob], "track.gpx", {
-        type: "application/gpx+xml",
-      }));
-    } catch (error) {
-      console.error("Could not initialize or load the map:", error);
-    }
+    const app = createDefaultTiliaApp("map");
+    await app.ready;
   </script>
 </body>
 </html>
 ```
 
-`createDefaultTiliaApp` accepts an existing element or its ID. Give the container a height. The example uses the default OpenStreetMap base map; GPX input fits the map to the imported data. Required plugin dependencies are installed automatically.
+`createDefaultTiliaApp` accepts an existing element or its ID. Give the container a height. This displays a map on the page. Without any plugins, though, it only displays the map and cannot load data such as GPX or photos.
 
-> If you do not need to load a predefined file at startup, omit the `fetch` and `app.load` steps and enable input plugins instead. They let users choose a local file or enter a URL, and handle the input controls and file loading for you.
+### Add plugins
 
-Using the same HTML setup, replace the module script above with this version to wait for user input:
+Choose plugins with the `plugins` option. The following are three typical combinations.
+
+#### Embed a GPX map
+
+Edit `example.html` and replace the module script with the following to enable GPX loading and drawing:
+
+```js
+import { createDefaultTiliaApp } from "./src/index.js";
+
+const app = createDefaultTiliaApp("map", {
+  plugins: ["tilia-gpx-input", "tilia-gpx-renderer"],
+});
+await app.ready;
+
+// Then load a GPX file with app.load(file). See the embed sample.
+```
+
+The [embed sample](samples/embed/index.html) includes complete examples that load files from URLs. This approach suits reusable templates such as those for a CMS.
+
+#### Build a viewer that loads user files
+
+To let users choose the data to display, add the input plugins:
 
 ```js
 import { createDefaultTiliaApp } from "./src/index.js";
@@ -91,33 +103,44 @@ import { createDefaultTiliaApp } from "./src/index.js";
 const app = createDefaultTiliaApp("map", {
   plugins: [
     "tilia-gpx-input", "tilia-gpx-renderer",
-    "tilia-file-import", "tilia-url-import",
+    "tilia-file-import", "tilia-url-import", "tilia-dropzone",
   ],
 });
 await app.ready;
 ```
 
-Select **Open files** to load a local GPX file, or **Load URL** to enter a remote file URL. The plugins provide the controls and handle loading; their toolbar dependency installs automatically. Remote requests still require permission from the server's CORS policy. See [input settings](docs/PLUGINS.md#input-settings) for options.
+This adds a control that opens a file picker and a control that opens a remote file URL form to the map, and also enables drag and drop onto the whole map. When you enter a remote URL, the server hosting the file must allow cross-origin requests.
 
-You can also keep the initial URL loading from the first example and add these input plugins to let users load additional files.
+See the [viewer sample](samples/viewer/index.html) for a complete example.
 
-### Add photos or viewer controls
+#### Add photos or viewer controls
 
-Enable the Photo input and renderer to display JPEG files, as shown in the [Tilia plugin guide](docs/PLUGINS.md#photos). Add UI plugins for layer controls, popups, elevation, and settings. The guide includes complete plugin combinations and configuration examples.
+Add the photo plugins to display JPEG files.
 
-See the working [viewer](samples/viewer/index.html) and [embed gallery](samples/embed/index.html). The gallery demonstrates multiple maps populated from `data-*` attributes, which is useful for reusable CMS templates.
+Add the corresponding UI plugins for popups, the layer panel, elevation, and settings.
 
-### Application lifetime
-
-Each app creates and owns its own Leaflet map. Await `app.ready` before using it. When removing a map component, for example during SPA unmount, dispose of the app:
+The following example adds the photo and popup plugins to the previous example:
 
 ```js
-await app.destroy();
+import { createDefaultTiliaApp } from "./src/index.js";
+
+const app = createDefaultTiliaApp("map", {
+  plugins: [
+    // GPX
+    "tilia-gpx-input", "tilia-gpx-renderer", "tilia-gpx-ui",
+    // JPEG photos
+    "tilia-jpeg-input", "tilia-photo-renderer", "tilia-photo-ui",
+    // Selection highlight (popup display)
+    "tilia-map-selection-presenter",
+    // User input
+    "tilia-file-import", "tilia-url-import", "tilia-dropzone",
+    // More plugins, such as the layer panel, elevation, and settings, can be added. See the plugin guide.
+  ],
+});
+await app.ready;
 ```
 
-Destruction makes the app unusable immediately and removes its map after cleanup. The container remains available; after successful destruction, create a new app on the same container. Repeated calls share the same outcome, including cleanup failure. External map injection is not supported. `app.map` is borrowed access to the live map; unrelated timers and listeners remain your responsibility.
-
-See the [Tilia API reference](docs/API.md) for the public API, errors, and lifecycle details.
+See the [Tilia plugin guide](docs/PLUGINS.md#photos) for all plugins, combinations, and settings.
 
 ## Plugins
 
@@ -129,21 +152,17 @@ Choose plugins by the features your application needs:
 | Viewer controls | Selection popups and highlights, layers, elevation, settings, and status |
 | Input | File picker, remote URL, query parameter, and map-wide drag and drop |
 | Base maps | Map selector and optional GSI and OpenTopoMap providers |
-| Additional tools | Track Editor, GPX export, route search, and distance milestones |
+| Additional tools | Track editor, GPX export, route search, and distance markers for the selected track |
 
-The [Tilia plugin guide](docs/PLUGINS.md) lists all plugins, their dependencies, settings, and usage. For custom plugins and installation/cleanup contracts, see [Developing Tilia plugins](docs/PLUGIN-OPERATIONS.md). The [Tilia architecture](docs/ARCHITECTURE.md) explains the design principles and component lifetimes.
+The [Tilia plugin guide](docs/PLUGINS.md) lists all plugins, their dependencies, settings, and usage. For custom plugins and installation/cleanup contracts, see [Developing Tilia plugins](docs/PLUGIN-OPERATIONS.md). The [Tilia architecture](docs/ARCHITECTURE.md) explains the design principles and component lifetimes. For the public API, errors, and the app lifecycle, see the [Tilia API reference](docs/API.md).
 
 ## Deployment
 
-Serve your page and `src/` from static hosting. Place third-party plugins at `plugins/<id>/loader.js` and enable them by ID. `x-` means experimental; vendor prefixes work identically. `src/` and `plugins/` must be siblings; the plugin directory is not configurable. Third-party plugins do not belong in the official `src/builtins.js` catalog. Use direct definitions or explicit application catalogs for nonstandard locations. To host the sample pages, include `samples/` and its assets as well. No bundler or build step is needed.
-
-Load Leaflet's JavaScript through an import map and include its CSS. The examples use Leaflet `2.0.0-alpha.1`. See the [dependency setup](docs/PLUGINS.md#photos). Adjust the import path to `src/index.js` for your page's location.
-
-The CDN-based examples and remote map tiles need network access. Leaflet may be hosted locally by updating its import mapping and asset paths.
+Serve the HTML page that hosts your map, together with the Tilia components it uses (`src/` and `plugins/`), from static hosting. Keep `src/` and `plugins/` side by side in the same parent directory, and adjust your page's import map, CSS, and `src/index.js` paths to match. No bundler, build step, or npm installation is required.
 
 ## Trust model
 
-Tilia runs in the browser. Plugins execute as normal page JavaScript; only load code you trust. Remote imports depend on the server's CORS policy and may fail. CDN dependencies are part of your application: pin their versions and review updates deliberately.
+Tilia runs in the browser. Plugins execute as normal page JavaScript; only load code you trust. Remote loading depends on the server's CORS policy and fails without the appropriate permission.
 
 ## Contributing
 

@@ -1,11 +1,19 @@
 import { expect } from "vitest";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { resolve, dirname, relative } from "node:path";
-import { init, parse } from "es-module-lexer";
+import { init, parse } from "es-module-lexer/minimal";
 const root=resolve(import.meta.dirname,"../.."),source=p=>readFileSync(resolve(root,p),"utf8");
 function files(directory){return readdirSync(resolve(root,directory),{withFileTypes:true}).flatMap(item=>item.isDirectory()?files(`${directory}/${item.name}`):[`${directory}/${item.name}`]);}
 const externalRoots = () => readdirSync(resolve(root, "plugins"), {withFileTypes:true})
  .filter(item => item.isDirectory()).map(item => `plugins/${item.name}/loader.js`);
+// Only exact manifest-listed upstream files are opaque dependency boundaries.
+// Directory names never exempt Tilia-owned or newly added code from traversal.
+const distributions = [
+ "src/map/vendor/leaflet/2.0.0-beta.1",
+ "src/photo/vendor/exifr/7.1.3",
+].map(directory => ({ directory, ...JSON.parse(source(`${directory}/manifest.json`)) }));
+const upstreamFiles = new Set(distributions.flatMap(item => Object.keys(item.files).map(name => `${item.directory}/${name}`)));
+const leafletModule = "src/map/vendor/leaflet/2.0.0-beta.1/leaflet.js";
 function parsedEdges(module, path) {
  const imports = parse(module)[0].filter(item => item.d !== -2);
  const dynamic = imports.filter(item => item.n === undefined);
@@ -14,11 +22,11 @@ function parsedEdges(module, path) {
   expect(module.slice(dynamic[0].ss, dynamic[0].se)).toBe("import(url.href)");
  } else expect(dynamic, `nonliteral imports: ${path}`).toEqual([]);
  return imports.filter(item => item.n !== undefined).map(item => ({
-  target:item.n.startsWith(".")?relative(root,resolve(dirname(resolve(root,path)),item.n)):item.n,
+  target:item.n === "leaflet" ? leafletModule : item.n.startsWith(".")?relative(root,resolve(dirname(resolve(root,path)),item.n)):item.n,
   lazy:item.d>=0,
  }));
 }
-async function edges(path){await init;const text=source(path);const modules=path.endsWith(".html")?[...text.matchAll(/<script\b[^>]*type=["']module["'][^>]*>([\s\S]*?)<\/script>/g)].map(m=>m[1]):[text];return modules.flatMap(module=>parsedEdges(module,path));}
+async function edges(path){if(upstreamFiles.has(path))return [];await init();const text=source(path);const modules=path.endsWith(".html")?[...text.matchAll(/<script\b[^>]*type=["']module["'][^>]*>([\s\S]*?)<\/script>/g)].map(m=>m[1]):[text];return modules.flatMap(module=>parsedEdges(module,path));}
 async function graph(roots,{lazy=true}={}){const seen=new Set(),queue=[...roots];while(queue.length){const path=queue.shift();if(seen.has(path))continue;seen.add(path);for(const edge of await edges(path)){if(!lazy&&edge.lazy)continue;if(edge.target.startsWith("src/")||edge.target.startsWith("plugins/")){expect(existsSync(resolve(root,edge.target)),`${path} -> ${edge.target}`).toBe(true);queue.push(edge.target);}}}return seen;}
 
-export { root, source, files, externalRoots, parsedEdges, edges, graph };
+export { root, source, files, externalRoots, parsedEdges, edges, graph, distributions, upstreamFiles, leafletModule };

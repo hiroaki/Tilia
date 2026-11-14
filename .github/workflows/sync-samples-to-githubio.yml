@@ -16,10 +16,10 @@ jobs:
 
     steps:
       - name: Checkout Tilia
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Checkout GitHubIO
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: hiroaki/hiroaki.github.io
           token: ${{ secrets.GITHUBIO_REPO_TOKEN }}
@@ -36,7 +36,7 @@ jobs:
           cp -r src githubio/docs/Tilia/src
 
       - name: Create PR in GitHubIO
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.GITHUBIO_REPO_TOKEN }}
           path: githubio

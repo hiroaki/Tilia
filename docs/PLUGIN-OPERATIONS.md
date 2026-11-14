@@ -336,7 +336,7 @@ Do not remove the borrowed Map yourself. Map-attached effects end with it, while
 
 Entry visibility, temporary display suppression, semantic data, and editing sessions have different lifetimes. Match your Scope to the effect rather than treating every effect as part of the renderer.
 
-- **Entry-bound overlays:** Milestone presentation uses `context.entries.bindPresentationLifetime(entryId, {scope})`. It withdraws synchronously when the entry is logically deleted, and joins cleanup before the final removal notification.
+- **Entry-bound overlays:** The distance markers plugin uses `context.entries.bindPresentationLifetime(entryId, {scope})`. It withdraws synchronously when the entry is logically deleted, and joins cleanup before the final removal notification.
 - **Independent editor sessions:** Track Editor creates a draft from its source. Source changes/deletion or renderer removal do not end editing or prevent Save Copy. Cancel discards the draft and releases temporary suppression; it never restores a source. App/editor disposal does end the session.
 - **Temporary suppression:** editor suppression is separate from persistent entry/track visibility preferences. Release it without rewriting the user's visibility settings.
 - **Vendor interaction helpers:** the current editor retains its narrowly approved placement exception. It does not grant other plugins ownership of vendor internals or permission to bypass the ordinary guarded resource model. See the [architecture](ARCHITECTURE.md#ui-overlays-and-session-state).

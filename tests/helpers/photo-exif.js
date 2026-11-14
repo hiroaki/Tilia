@@ -7,9 +7,9 @@ export const gpsPhoto = { name: "IMG_2889.JPG", mimeType: "image/jpeg", buffer }
 export const timestampPhoto = { name: "IMG_2892.JPG", mimeType: "image/jpeg", buffer };
 
 export async function mockPhotoExif(page) {
-  // Intercept only the external dependency. Tilia's lazy loader, transformation,
+  // Intercept only the vendored dependency. Tilia's lazy loader, transformation,
   // validation, domain publication, inference, UI and resource ownership stay real.
-  await page.route("https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/lite.esm.js", route => route.fulfill({
+  await page.route("**/src/photo/vendor/exifr/7.1.3/lite.esm.js", route => route.fulfill({
     contentType: "text/javascript",
     body: `export default { async parse(file, options) {
       if (!options.tiff || !options.exif || !options.gps) throw new Error("Missing EXIF parse options");

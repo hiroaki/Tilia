@@ -46,10 +46,8 @@ await app.ready;
 動的にインストールする場合は次のようにします。
 
 ```js
-await app.use("x-milestone", {
-  formatLabel: (meters) => `${(meters / 1000).toFixed(1)} km`,
-});
-await app.unuse("x-milestone");
+await app.use("x-distance-markers", { spacing: "small", maxMarkers: 300 });
+await app.unuse("x-distance-markers");
 ```
 
 `app.use`は不透明な`{id}`ハンドルを返し、プラグインAPIは返しません。`app.hasPlugin(id)`または`app.listPlugins()`で有効なものを確認します。前提プラグインより先に利用側を削除してください。有効な利用側やプロバイダーのリースが削除を阻止する場合があります。レンダラーの削除はドメインのエントリーを削除しません。アプリケーション全体を破棄するときは`await app.destroy()`を呼びます。
@@ -106,7 +104,8 @@ await app.unuse("x-milestone");
 | `x-track-editor` | `tilia-gpx-domain`, `tilia-panel`, `tilia-toolbar` | 独立したGPXトラックの下書きを編集し、新しいエントリーとして保存 |
 | `x-gpx-export` | `tilia-gpx-domain`, `tilia-panel`, `tilia-toolbar` | 選んだGPXエントリーを`.gpx`ファイルでダウンロード |
 | `x-route-search` | `tilia-gpx-domain`, `tilia-toolbar` | Phloemで検索し、Start／Via／Goalウェイポイント付きのトラックとして取り込む |
-| `x-milestone` | `tilia-gpx-domain` | 表示されるGPXトラック沿いの距離ラベル |
+| `x-milestone` | `tilia-gpx-domain` | 非推奨。後継は `x-distance-markers` |
+| [`x-distance-markers`](../plugins/x-distance-markers/README.ja.md) | `tilia-gpx-domain` | 選択したGPXトラックに、表示密度に応じた累積距離ラベルを表示 |
 | `x-gsi-base-maps` | — | 地理院地図の標準（`gsi-std`）と淡色（`gsi-pale`）を登録 |
 | `x-opentopomap-base-maps` | — | OpenTopoMap（`opentopomap`）を登録 |
 
@@ -133,21 +132,22 @@ await app.ready;
 
 標高データのあるトラックには**Elevation**を使います。ホバーでグラフのサンプル位置を地図に示し、クリックで点を選択できます。矢印キーで移動し、EnterまたはSpaceで選択します。地図と連動する表示にはGPXレンダラーも必要です。ルートや独立したウェイポイントはトラックの標高グラフではありません。
 
-[ビューアサンプル](../samples/viewer/index.html)はGPXと写真を組み合わせます。[埋め込みギャラリー](../samples/embed/index.html)は独立した複数の地図を示します。
+[ビューアサンプル](../samples/viewer/index.html)はGPXと写真を組み合わせます。Layers パネルでトラック名を選ぶと距離標が表示され、同じ名前をもう一度選ぶと選択が解除されます。[埋め込みギャラリー](../samples/embed/index.html)は独立した複数の地図を示します。
 
 <a id="photos"></a>
 
 ## 写真
 
-JPEG入力プラグインはJPEGファイルの処理時に、exifr 7.1.3を`https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/lite.esm.js`から直接インポートします。ネットワークとCSPでCDNへの接続を許可する必要があります。
+JPEG入力プラグインはJPEG処理時に、未改変のexifr 7.1.3 lite ESMを`src/photo/exif.js`からの相対パスで`src/photo/vendor/exifr/7.1.3/lite.esm.js`より遅延読み込みします。exifrのimport map設定や外部CDNの許可は不要です。依存物を含む`src/`をTiliaと一緒に配信し、CSPで同一オリジンのスクリプトを許可してください。Leaflet JS/CSSもローカル配信です。[取得元・配信方法](DEPENDENCIES.ja.md)を参照してください。
 
 LeafletのCSSを含め、モジュールスクリプトより前に次のimport mapを置きます。
 
 ```html
+<link rel="stylesheet" href="./src/map/vendor/leaflet/2.0.0-beta.1/leaflet.css" />
 <script type="importmap">
 {
   "imports": {
-    "leaflet": "https://unpkg.com/leaflet@2.0.0-alpha.1/dist/leaflet.js"
+    "leaflet": "./src/map/vendor/leaflet/2.0.0-beta.1/leaflet.js"
   }
 }
 </script>
@@ -294,18 +294,11 @@ GPXビューアに`x-track-editor`または`x-gpx-export`、あるいは両方�
 
 <a id="distance-milestones"></a>
 
-## 距離目盛り
+## 距離標
 
-`x-milestone`はGPXトラックに距離ラベルを表示します。ズームとトラック表示に応じて変わり、エディタの一時抑制に従い、エントリーやプラグインとともに消えます。レンダラー依存は宣言していないため、トラック線も必要なら`tilia-gpx-renderer`を加えます。
+`x-distance-markers` は、選択中の GPX トラックの始点からの累積距離を表示します。トラック、セグメント、トラック点のいずれかを選ぶと距離標が表示され、選択を解除すると消えます。公開オプションは表示密度を指定する `spacing` と、候補数の上限を指定する `maxMarkers` です。詳しくは [距離標プラグインの README](../plugins/x-distance-markers/README.ja.md) を参照してください。
 
-| オプション | 標準値／意味 |
-| --- | --- |
-| `formatLabel` | メートル単位の距離を受け取る関数。標準はメートルまたはキロメートル表示 |
-| `intervalDefinition` | `mapping`, `minZoom`, `maxZoom`, `maxNumberOfSigns`, `minIntervalMeters`を持つ完全なオブジェクト。標準オブジェクトを置き換える |
-
-標準の定義は`minZoom: 5`、`maxZoom: 20`、`maxNumberOfSigns: 100`、`minIntervalMeters: 100`です。ズームからメートルへの対応は、5→400000、6→300000、7→200000、8〜9→100000、10〜11→50000、12〜13→20000、14〜15→10000、16〜17→2000、18〜19→1000です。ズーム20以上は最小間隔を使います。標識数設定は可能な場合に粗い間隔を選ぶもので、厳密なマーカー数上限ではありません。
-
-独自定義には、`maxZoom > minZoom`を満たす整数のズーム範囲、正の整数の標識数、正の有限数の最小間隔、正の有限値を持つmappingオブジェクトを渡します。[実装](../plugins/x-milestone/loader.js)を参照してください。
+**`x-milestone` は非推奨です。** 旧実装には候補数の厳密な上限がなく、長距離トラックでは大量のマーカーを生成してビューアが応答しなくなることがあります。新規開発では後継の `x-distance-markers` を使用してください。旧実装は当面リポジトリに残します。
 
 <a id="initial-view"></a>
 
