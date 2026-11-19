@@ -14,7 +14,7 @@ describe("component-owned browser dependencies", () => {
   it("preserves every upstream byte and audits the complete distribution inventories", async () => {
     expect(existsSync(resolve(root, "vendor"))).toBe(false);
     expect(distributions.map(item => [item.name, item.owner, item.version])).toEqual([
-      ["leaflet", "Core map infrastructure", "2.0.0-beta.1"],
+      ["leaflet", "Core map infrastructure", "2.0.0-beta.4"],
       ["exifr", "tilia-jpeg-input", "7.1.3"],
     ]);
     await init();

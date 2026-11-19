@@ -125,11 +125,11 @@ The JPEG input plugin lazily imports the unmodified exifr 7.1.3 lite ESM bundle 
 Include Leaflet CSS and place its import map before the module script:
 
 ```html
-<link rel="stylesheet" href="./src/map/vendor/leaflet/2.0.0-beta.1/leaflet.css" />
+<link rel="stylesheet" href="./src/map/vendor/leaflet/2.0.0-beta.4/leaflet.css" />
 <script type="importmap">
 {
   "imports": {
-    "leaflet": "./src/map/vendor/leaflet/2.0.0-beta.1/leaflet.js"
+    "leaflet": "./src/map/vendor/leaflet/2.0.0-beta.4/leaflet.js"
   }
 }
 </script>

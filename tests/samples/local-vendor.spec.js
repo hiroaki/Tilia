@@ -7,7 +7,7 @@ let deployment;
 test.beforeAll(() => {
   deployment = mkdtempSync(resolve(tmpdir(), "tilia-deployment-"));
   for (const directory of ["src", "plugins", "samples"]) cpSync(new URL(`../../${directory}`, import.meta.url), resolve(deployment, directory), { recursive: true });
-  for (const directory of ["src/map/vendor/leaflet/2.0.0-beta.1", "src/photo/vendor/exifr/7.1.3"]) {
+  for (const directory of ["src/map/vendor/leaflet/2.0.0-beta.4", "src/photo/vendor/exifr/7.1.3"]) {
     const manifest = JSON.parse(readFileSync(resolve(deployment, directory, "manifest.json"), "utf8"));
     for (const [file, hash] of Object.entries(manifest.files)) {
       expect(createHash("sha256").update(readFileSync(resolve(deployment, directory, file))).digest("hex"), file).toBe(hash);
@@ -53,9 +53,9 @@ for (const path of ["viewer/", "embed/", "embed/index.ja.html", "editor/editor.h
     } else {
       await expect(page.locator(".tilia-status-control")).toBeVisible();
     }
-    expect(await page.evaluate(async () => (await import("leaflet")).version)).toBe("2.0.0-beta.1");
-    expect(dependencies).toContain(`${prefix}/src/map/vendor/leaflet/2.0.0-beta.1/leaflet.js`);
-    expect(dependencies).toContain(`${prefix}/src/map/vendor/leaflet/2.0.0-beta.1/leaflet.css`);
+    expect(await page.evaluate(async () => (await import("leaflet")).version)).toBe("2.0.0-beta.4");
+    expect(dependencies).toContain(`${prefix}/src/map/vendor/leaflet/2.0.0-beta.4/leaflet.js`);
+    expect(dependencies).toContain(`${prefix}/src/map/vendor/leaflet/2.0.0-beta.4/leaflet.css`);
     expect(failures).toEqual([]);
     expect(errors).toEqual([]);
   });

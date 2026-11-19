@@ -66,7 +66,7 @@ for (const canvas of [false,true]) {
       expect((await circles(page))[0][0]).toBeGreaterThan(35.68);
       // Ordinary line is native-interactive, and switching back restores the circle.
       const line=await point(page,35.68,139.759);
-      // Canvas coalesces hover checks for 32ms; move again while polling.
+      // Poll real pointer movement until the browser presents the updated cursor.
       await expect.poll(async () => {
         await page.mouse.move(line.x + 1, line.y);
         await page.mouse.move(line.x, line.y);
@@ -98,7 +98,7 @@ for (const canvas of [false,true]) {
       await expect(page.locator(vertex)).toHaveCount(1);
       await click(page,35.678,139.765);
       const empty=await point(page,35.678,139.765);
-      // Canvas may drop a move during its hover throttle; retry real movement as above.
+      // Retry real pointer movement while waiting for the background cursor.
       await expect.poll(async () => {
         await page.mouse.move(empty.x + 1, empty.y);
         await page.mouse.move(empty.x, empty.y);

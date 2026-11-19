@@ -150,8 +150,8 @@ test("discovers the plugin by ID with tuple options independently of the documen
     css: document.querySelector('link[rel="stylesheet"]').href,
     leaflet: new URL(JSON.parse(document.querySelector('script[type="importmap"]').textContent).imports.leaflet, document.baseURI).href,
   }))).toEqual({
-    css: new URL("/src/map/vendor/leaflet/2.0.0-beta.1/leaflet.css", page.url()).href,
-    leaflet: new URL("/src/map/vendor/leaflet/2.0.0-beta.1/leaflet.js", page.url()).href,
+    css: new URL("/src/map/vendor/leaflet/2.0.0-beta.4/leaflet.css", page.url()).href,
+    leaflet: new URL("/src/map/vendor/leaflet/2.0.0-beta.4/leaflet.js", page.url()).href,
   });
   expect(await page.evaluate(() => window.streetViewFixture.app.hasPlugin("x-street-view"))).toBe(true);
   await emptyClick(page); await expect(page.locator(".x-street-view-panel")).toBeVisible();
