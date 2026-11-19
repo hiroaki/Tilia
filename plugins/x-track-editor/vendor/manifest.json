@@ -1,0 +1,14 @@
+{
+  "name": "leaflet-partially-editable-polyline",
+  "version": "0.3.0",
+  "previousCommit": "6697674246e26ec13bc86733f79106e2e1271c4d",
+  "source": "https://api.github.com/repos/hiroaki/leaflet-partially-editable-polyline/tarball/v0.3.0",
+  "archiveSha256": "9c9dadde5a8d007608461bae0629d1955d867317526cb22df34bae4e4fecb292",
+  "files": {
+    "LICENSE": "63c2db64e417c440a6148254d4bd41245c2cc5153e20a24031a8a65496885bf8",
+    "leaflet-partially-editable-polyline.js": "637944b946b2ab0f6f706e43fe5cd8c77a6386feccc75d9f044a5a302215a9b1",
+    "leaflet-partially-editable-polyline.css": "3bed43694e099e6ce18bb3257a675e87d491c447f92c9b1ac32200d2ef6ca533"
+  },
+  "tagObject": "191d0b05f1708e0c8035802d0c43367c747bd0fd",
+  "commit": "abc5efc0bd0dad60d1576f5c78d9ddae8d5b6613"
+}

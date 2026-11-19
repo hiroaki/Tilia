@@ -8,7 +8,7 @@ for (const canvas of [false, true]) test(`Core, host and external plugin share L
   await page.waitForFunction(() => window.fixtureReady);
   const result = await page.evaluate(async canvas => {
     const L = await import("leaflet");
-    const direct = await import("/src/map/vendor/leaflet/2.0.0-beta.1/leaflet.js");
+    const direct = await import("/src/map/vendor/leaflet/2.0.0-beta.4/leaflet.js");
     const { PartiallyEditablePolyline } = await import("/plugins/x-track-editor/vendor/leaflet-partially-editable-polyline.js");
     const app = window.lifecycle.create({ plugins: ["tilia-gpx-input", "tilia-gpx-renderer", "x-track-editor"], baseMapOptions: { tileUrl: "/tiles/{z}/{x}/{y}.png", center: [35.68, 139.76], zoom: 13, mapOptions: { renderer: canvas ? new L.Canvas() : new L.SVG() } } });
     await app.ready;
@@ -21,5 +21,5 @@ for (const canvas of [false, true]) test(`Core, host and external plugin share L
     return result;
   }, canvas);
   expect(result).toEqual({ namespace: true, map: true, borrowed: true, pluginLayer: true, attached: true, renderer: true });
-  expect(modules).toEqual(["http://127.0.0.1:4173/src/map/vendor/leaflet/2.0.0-beta.1/leaflet.js"]);
+  expect(modules).toEqual(["http://127.0.0.1:4173/src/map/vendor/leaflet/2.0.0-beta.4/leaflet.js"]);
 });

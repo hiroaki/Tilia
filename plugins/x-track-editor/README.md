@@ -133,6 +133,13 @@ Saving does not modify or recreate the source. If saving fails, the draft remain
 
 When the session ends, the original entry, if it still exists, is displayed according to its current visibility settings. Those settings may have changed while the draft was open. Selecting draft points does not change which source feature is selected elsewhere in the app.
 
+## Vendored editing library
+
+The editor ships unmodified `leaflet-partially-editable-polyline` v0.3.0 JS/CSS
+and its 0BSD license. It resolves the host's single Leaflet module (currently
+2.0.0-beta.4); no build or external library server is required. See
+[dependency provenance](../../docs/DEPENDENCIES.md).
+
 ## Scope and limitations
 
 - Designed for local corrections and cleanup, not comprehensive long-track authoring.

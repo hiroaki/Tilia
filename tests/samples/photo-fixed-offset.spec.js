@@ -1,5 +1,11 @@
 import { expect, test } from "@playwright/test";
 
+// These tests verify local GPX/EXIF/UI behavior; an unavailable tile server must
+// not keep page.goto's load event pending. Keep all local asset requests real.
+test.beforeEach(async ({ page }) => {
+  await page.route("https://tile.openstreetmap.org/**", route => route.abort());
+});
+
 for (const timezoneId of ["Asia/Tokyo", "UTC", "America/New_York"]) {
   test.describe(`fixed offset in ${timezoneId}`, () => {
     test.use({ timezoneId });

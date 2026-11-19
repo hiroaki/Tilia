@@ -1,0 +1,13 @@
+{
+  "name": "leaflet",
+  "owner": "Core map infrastructure",
+  "version": "2.0.0-beta.4",
+  "source": "https://github.com/Leaflet/Leaflet/releases/download/v2.0.0-beta.4/leaflet.zip",
+  "archiveSha256": "2c377d3592447e3f9d7179e664e193f54c4b836b16b9da573c551c7180a10910",
+  "files": {
+    "LICENSE": "6cca66c5533df4495348243ab440b889831e1fd4bfc002a2845dd74da12c0b29",
+    "leaflet.css": "0164dcd761786d4e06a91b5f91a57f4e09fa6719513630499d3b1754db4fe173",
+    "leaflet.js": "7d1c709e5ec5d68c6573751c86c58c41369ec4b82dd788483182848e8792759f",
+    "leaflet.js.map": "368f6e46c9b7adedc9c461fa83d08291b0f04e556831b5b30be03f2ab6a58ced"
+  }
+}

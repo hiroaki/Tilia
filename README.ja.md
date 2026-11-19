@@ -59,11 +59,11 @@ python3 -m http.server 8010
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Tilia map</title>
-  <link rel="stylesheet" href="./src/map/vendor/leaflet/2.0.0-beta.1/leaflet.css" />
+  <link rel="stylesheet" href="./src/map/vendor/leaflet/2.0.0-beta.4/leaflet.css" />
   <script type="importmap">
   {
     "imports": {
-      "leaflet": "./src/map/vendor/leaflet/2.0.0-beta.1/leaflet.js"
+      "leaflet": "./src/map/vendor/leaflet/2.0.0-beta.4/leaflet.js"
     }
   }
   </script>

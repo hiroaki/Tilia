@@ -103,7 +103,7 @@ export function createDraftTrackLayers({
         }
         const point = current.points[0];
         if (!singlePointMarker) {
-          // Share the draft renderer: an upper Canvas pane would intercept line clicks.
+          // Share the draft renderer to keep singleton and line ordering consistent.
           singlePointMarker = new CircleMarker([point.lat, point.lon], {
             pane: options.pane,
             radius: 6, fillColor: layer.options.color, fillOpacity: 1,

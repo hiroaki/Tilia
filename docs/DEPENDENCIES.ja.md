@@ -10,25 +10,31 @@ LeafletはNodeテスト用であり、ブラウザのサンプルとfixtureは�
 
 | ライブラリ | バージョン | 上流の配布元 | 同梱ファイル | ライセンス |
 | --- | --- | --- | --- | --- |
-| Leaflet | 2.0.0-beta.1 | [公式リリースZIP](https://github.com/Leaflet/Leaflet/releases/download/v2.0.0-beta.1/leaflet.zip) | `leaflet.js`（ESM）、`leaflet.js.map`、`leaflet.css`、`LICENSE` | BSD-2-Clause |
+| Leaflet | 2.0.0-beta.4 | [公式リリースZIP](https://github.com/Leaflet/Leaflet/releases/download/v2.0.0-beta.4/leaflet.zip) | `leaflet.js`（ESM）、`leaflet.js.map`、`leaflet.css`、`LICENSE` | BSD-2-Clause |
+| leaflet-partially-editable-polyline | 0.3.0 | [公式タグのソースアーカイブ](https://api.github.com/repos/hiroaki/leaflet-partially-editable-polyline/tarball/v0.3.0) | `plugins/x-track-editor/vendor/`内のJS、CSS、`LICENSE` | 0BSD |
 | exifr | 7.1.3 | [公式npm tarball](https://registry.npmjs.org/exifr/-/exifr-7.1.3.tgz) | `dist/lite.esm.js`を`lite.esm.js`として配置、`LICENSE` | MIT |
 
 同梱ファイルはすべて、上流配布物とバイト単位で一致する未改変のコピーです。
 Leaflet ZIPのSHA-256はGitHubが公開するダイジェストと一致します。exifrのバンドルも、
 従来のバージョン固定の実パーサー用テストfixtureと一致します。アーカイブと各ファイルの
-SHA-256は、[Leafletのmanifest](../src/map/vendor/leaflet/2.0.0-beta.1/manifest.json)と
+SHA-256は、[Leafletのmanifest](../src/map/vendor/leaflet/2.0.0-beta.4/manifest.json)と
 [exifrのmanifest](../src/photo/vendor/exifr/7.1.3/manifest.json)に記録しています。
 `npm test`でファイルの完全性、Node用Leafletのバージョンと配布物の一致、
 サンプル・fixtureのローカル参照パスを検証します。
 
-LeafletのグローバルビルドはTiliaでは不要なため、同梱していません。beta.1の配布物は
+LeafletのグローバルビルドはTiliaでは不要なため、同梱していません。beta.4の配布物は
 `-src`ビルドではなく、圧縮済みのESMビルドとグローバルビルドです。標準マーカーは
 inline SVGを使うため、配信する`images/`ディレクトリはありません。同梱のソースマップは、
 未改変のESMファイルと同じディレクトリに配置します。
 
+エディタープラグインは、従来のプラグイン所有・バージョンなしのvendorパスを維持します。
+[manifest](../plugins/x-track-editor/vendor/manifest.json)にv0.3.0の取得元、SHA-256、タグオブジェクトを、
+`version`にリリース番号を記録しています。JS、CSS、ライセンスは上流の未改変ファイルです。
+`tests/editor-vendor-integrity.test.js`で一覧と完全性を検証します。
+
 ## 所有権
 
-Coreの地図基盤が`src/map/vendor/leaflet/2.0.0-beta.1/`を所有します。
+Coreの地図基盤が`src/map/vendor/leaflet/2.0.0-beta.4/`を所有します。
 JPEG入力プラグイン（`tilia-jpeg-input`）は、既存のEXIFアダプターと同じPhoto配下にある
 `src/photo/vendor/exifr/7.1.3/`を論理的に所有します。
 Photo Domain・Renderer・UIはexifrに依存しません。JPEG入力プラグインをインストールしても
@@ -46,8 +52,8 @@ Tiliaとプラグインはすべて、bare specifierの`leaflet`を使ってimpo
 - コンポーネントの依存物を含む`src/`と`plugins/`を、相対配置を保って配信します。
   サンプルを使う場合は、対象のサンプルディレクトリとその素材も含めます。
 - HTMLページを基準に、bare specifierの`leaflet`を
-  `src/map/vendor/leaflet/2.0.0-beta.1/leaflet.js`へマッピングし、
-  `src/map/vendor/leaflet/2.0.0-beta.1/leaflet.css`を読み込みます。
+  `src/map/vendor/leaflet/2.0.0-beta.4/leaflet.js`へマッピングし、
+  `src/map/vendor/leaflet/2.0.0-beta.4/leaflet.css`を読み込みます。
   クラスの同一性を保つため、Tiliaとプラグインで同一のモジュールURLを使います。
 - exifrは`src/photo/exif.js`からの相対パスで遅延読み込みします。exifr用のimport map設定は
   不要です。プラグインのインストール時やGPXのみの利用ではバンドルを取得しません。
@@ -61,9 +67,9 @@ Tiliaとプラグインはすべて、bare specifierの`leaflet`を使ってimpo
 
 ## Leaflet betaとの互換性
 
-[公式リリースノート](https://github.com/Leaflet/Leaflet/releases/tag/v2.0.0-beta.1)と
-[タグ固定の移行ガイド](https://github.com/Leaflet/Leaflet/blob/v2.0.0-beta.1/MIGRATION.md)を参照してください。
-beta.1はBaseline 2022のブラウザ（Safari 15.4以降）を対象とするプレリリースです。
+[公式リリースノート](https://github.com/Leaflet/Leaflet/releases/tag/v2.0.0-beta.4)と
+[タグ固定の移行ガイド](https://github.com/Leaflet/Leaflet/blob/v2.0.0-beta.4/MIGRATION.md)を参照してください。
+beta.4はBaseline 2022のブラウザ（Safari 15.4以降）を対象とするプレリリースです。
 
 - default exportと入れ子のクラス名は廃止されました。名前付きimportまたはnamespace importを
   使います。Tiliaと同梱プラグインは、すでに名前付きimportとコンストラクターを持つESのサブクラスを使っています。
@@ -85,6 +91,14 @@ beta.1はBaseline 2022のブラウザ（Safari 15.4以降）を対象とする�
   回帰テストでは、EventTargetを横断してネイティブリスナーを監査します。
 - 地図のCSSは独立したstacking contextを作り、コントロールとポップアップ以外では
   テキスト選択を無効にします。ホスト独自のpaneでは`user-select: text`が必要になる場合があります。
+
+## beta.1からbeta.4、およびエディターv0.3.0への変更
+
+Canvas入力はMapのhit testへ移ったため、canvas要素へ入力リスナーを追加しないでください。
+座標検証は厳格化され、アニメーション中の表示変更は移動先を基準に合成されます。
+Tiliaはlayer／Mapのイベント、有効な数値座標、公開リスナーAPIを使っており、実行コードの
+互換性修正は不要でした。エディターのpeer範囲は`^2.0.0-beta.3`です。上流はbeta.3を
+検証対象とし、Tiliaでは今回beta.4との組み合わせを検証しています。
 
 ## 更新
 

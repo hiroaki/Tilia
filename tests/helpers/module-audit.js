@@ -9,11 +9,11 @@ const externalRoots = () => readdirSync(resolve(root, "plugins"), {withFileTypes
 // Only exact manifest-listed upstream files are opaque dependency boundaries.
 // Directory names never exempt Tilia-owned or newly added code from traversal.
 const distributions = [
- "src/map/vendor/leaflet/2.0.0-beta.1",
+ "src/map/vendor/leaflet/2.0.0-beta.4",
  "src/photo/vendor/exifr/7.1.3",
 ].map(directory => ({ directory, ...JSON.parse(source(`${directory}/manifest.json`)) }));
 const upstreamFiles = new Set(distributions.flatMap(item => Object.keys(item.files).map(name => `${item.directory}/${name}`)));
-const leafletModule = "src/map/vendor/leaflet/2.0.0-beta.1/leaflet.js";
+const leafletModule = "src/map/vendor/leaflet/2.0.0-beta.4/leaflet.js";
 function parsedEdges(module, path) {
  const imports = parse(module)[0].filter(item => item.d !== -2);
  const dynamic = imports.filter(item => item.n === undefined);

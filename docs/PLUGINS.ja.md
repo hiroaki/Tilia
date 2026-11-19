@@ -143,11 +143,11 @@ JPEG入力プラグインはJPEG処理時に、未改変のexifr 7.1.3 lite ESM�
 LeafletのCSSを含め、モジュールスクリプトより前に次のimport mapを置きます。
 
 ```html
-<link rel="stylesheet" href="./src/map/vendor/leaflet/2.0.0-beta.1/leaflet.css" />
+<link rel="stylesheet" href="./src/map/vendor/leaflet/2.0.0-beta.4/leaflet.css" />
 <script type="importmap">
 {
   "imports": {
-    "leaflet": "./src/map/vendor/leaflet/2.0.0-beta.1/leaflet.js"
+    "leaflet": "./src/map/vendor/leaflet/2.0.0-beta.4/leaflet.js"
   }
 }
 </script>
