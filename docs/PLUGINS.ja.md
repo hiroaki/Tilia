@@ -103,7 +103,7 @@ await app.unuse("x-distance-markers");
 | --- | --- | --- |
 | `x-track-editor` | `tilia-gpx-domain`, `tilia-panel`, `tilia-toolbar` | 独立したGPXトラックの下書きを編集し、新しいエントリーとして保存 |
 | `x-gpx-export` | `tilia-gpx-domain`, `tilia-panel`, `tilia-toolbar` | 選んだGPXエントリーを`.gpx`ファイルでダウンロード |
-| `x-route-search` | `tilia-gpx-domain`, `tilia-toolbar` | Phloemで検索し、Start／Via／Goalウェイポイント付きのトラックとして取り込む |
+| `x-route-search` | `tilia-gpx-domain`, `tilia-panel`, `tilia-toolbar` | Phloemで検索し、Start／Via／Goalウェイポイント付きのトラックとして取り込む |
 | `x-milestone` | `tilia-gpx-domain` | 非推奨。後継は `x-distance-markers` |
 | [`x-distance-markers`](../plugins/x-distance-markers/README.ja.md) | `tilia-gpx-domain` | 選択したGPXトラックに、表示密度に応じた累積距離ラベルを表示 |
 | `x-gsi-base-maps` | — | 地理院地図の標準（`gsi-std`）と淡色（`gsi-pale`）を登録 |
@@ -277,7 +277,7 @@ GPXビューアに`x-track-editor`または`x-gpx-export`、あるいは両方�
 
 ## 経路検索
 
-`x-route-search`には、別途動作するPhloem互換の`POST /route`サービスが必要です。浮動の検索フォームを提供し、`tilia-panel`は不要です。読み込み結果をGPXトラックとして表示するには`tilia-gpx-renderer`、ポップアップには`tilia-gpx-ui`と選択表示を含めます。
+`x-route-search`には、別途動作するPhloem互換の`POST /route`サービスが必要です。検索フォームは右側の共通パネルで開きます。`tilia-panel`は依存先として自動的に導入されます。読み込み結果をGPXトラックとして表示するには`tilia-gpx-renderer`、ポップアップには`tilia-gpx-ui`と選択表示を含めます。
 
 | オプション | 標準値 | 意味 |
 | --- | --- | --- |
@@ -290,7 +290,7 @@ GPXビューアに`x-track-editor`または`x-gpx-export`、あるいは両方�
 
 公開ページではlocalhostの標準値に頼らず、実際のサービスに`endpoint`を設定します。別オリジンにはサーバーのCORS対応が必要です。HTTPSページでは、ブラウザからアクセス可能で、ページのセキュリティポリシーに適合する接続先が必要です。
 
-**Route search**を開き、プロファイル、Start／Goal、任意のVia点を設定して検索します。各結果はStart／Via／Goalウェイポイント付きの新しいGPXトラックエントリーです。実際のサービス契約は[クライアント](../plugins/x-route-search/client.js)と[リクエスト・応答ヘルパー](../plugins/x-route-search/helpers.js)を参照してください。
+**Route search**を開き、プロファイル、Start／Goal、任意のVia点を設定して検索します。各結果はStart／Via／Goalウェイポイント付きの新しいGPXトラックエントリーです。パネルを閉じたり別のツールに切り替えたりしても、入力と直近の取り込み履歴は保持され、進行中の検索結果も取り込まれます。最初の結果に合わせて地図を自動調整するのは、その結果の取り込み時にルート検索パネルが開いている場合です。実際のサービス契約は[クライアント](../plugins/x-route-search/client.js)と[リクエスト・応答ヘルパー](../plugins/x-route-search/helpers.js)を参照してください。
 
 <a id="distance-milestones"></a>
 

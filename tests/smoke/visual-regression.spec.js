@@ -112,21 +112,52 @@ test("common styles survive optional File disposal; default ranks and explicit r
   await expect(page.locator("link[data-tilia-stylesheet]")).toHaveCount(0);
 });
 
-test("Route without Panel and Status without Layers own their styling and release it on disposal", async ({ page }, testInfo) => {
+test("Route installs its shared Panel dependency and Status works without Layers", async ({ page }, testInfo) => {
   await fixture(page, { plugins: ["x-route-search", "tilia-status"] });
-  await expect(page.locator('link[data-tilia-stylesheet="tilia-panel-ui"],link[data-tilia-stylesheet="tilia-layers-ui"]')).toHaveCount(0);
+  await expect(page.locator('link[data-tilia-stylesheet="tilia-panel-ui"]')).toHaveCount(1);
+  await expect(page.locator('link[data-tilia-stylesheet="tilia-layers-ui"]')).toHaveCount(0);
   await page.getByRole("button", { name: "Route search", exact: true }).click();
-  expect(await page.getByRole("button", { name: "Close", exact: true }).evaluate(n => getComputedStyle(n).borderRadius)).toBe("999px");
+  const dialog = page.getByRole("dialog", { name: "Route Search", exact: true });
+  await expect(dialog).toHaveAttribute("data-tilia-panel-layout", "side");
+  const close = dialog.getByRole("button", { name: "Close", exact: true });
+  expect(await close.evaluate(n => getComputedStyle(n).borderRadius)).toBe("999px");
   expect(await page.locator(".tilia-status-text").evaluate(n => ({ font: getComputedStyle(n).fontSize, color: getComputedStyle(n).color }))).toEqual({ font: "12px", color: "rgb(87, 83, 78)" });
   await page.getByRole("button", { name: "Car", exact: true }).click();
-  await page.screenshot({ path: testInfo.outputPath("route-without-panel.png") });
-  await page.getByRole("button", { name: "Close", exact: true }).click();
+  await page.screenshot({ path: testInfo.outputPath("route-shared-panel.png") });
+  await close.click();
+  await expect(page.locator(".tilia-route-search-content")).toHaveCount(0);
   await page.evaluate(async () => { await window.lifecycle.app.unuse("x-route-search"); await window.lifecycle.app.unuse("tilia-status"); });
   await expect(page.locator('link[data-tilia-stylesheet="x-route-search"],link[data-tilia-stylesheet="tilia-status-ui"]')).toHaveCount(0);
   await expect(page.locator('link[data-tilia-stylesheet="tilia-core-ui"]')).toHaveCount(1);
   await page.evaluate(() => window.lifecycle.app.destroy());
   await expect(page.locator("link[data-tilia-stylesheet]")).toHaveCount(0);
 });
+
+for (const { plugins, panels } of [
+  { plugins: [], panels: 0 },
+  { plugins: ["tilia-panel"], panels: 1 },
+  { plugins: ["tilia-layers", "x-track-editor"], panels: 1 },
+]) {
+  test(`Route Search has no effects with ${plugins.join(", ") || "no plugins"}`, async ({ page }) => {
+    const routeRequests = [];
+    page.on("request", request => {
+      if (request.url().includes("/plugins/x-route-search/")) routeRequests.push(request.url());
+    });
+    await fixture(page, { plugins });
+    expect(await page.evaluate(() => window.lifecycle.app.hasPlugin("x-route-search"))).toBe(false);
+    await expect(page.locator('link[data-tilia-stylesheet="x-route-search"],[data-tilia-mount^="x-route-search:"]')).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Route search", exact: true })).toHaveCount(0);
+    await expect(page.locator(".tilia-side-panel")).toHaveCount(panels);
+    if (plugins.includes("tilia-layers")) {
+      await page.getByRole("button", { name: "Layers", exact: true }).click();
+      await expect(page.getByRole("dialog", { name: "Layers", exact: true })).toBeVisible();
+      await page.getByRole("button", { name: "Track editor", exact: true }).click();
+      await expect(page.getByRole("dialog", { name: "Track Editor", exact: true })).toBeVisible();
+      await expect(page.locator(".tilia-layers-panel-content")).toHaveCount(0);
+    }
+    expect(routeRequests).toEqual([]);
+  });
+}
 
 test("semantic elevation remains usable without a renderer", async ({ page }) => {
   await fixture(page, { plugins: ["tilia-elevation"] });
