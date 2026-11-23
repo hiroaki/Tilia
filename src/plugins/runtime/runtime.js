@@ -56,7 +56,21 @@ export function createPluginRuntime({ catalog = [], capabilityFactories = {}, on
   let queue = Promise.resolve();
   let callbackDepth = 0;
   let destroyPromise = null;
-  const destruction = deferred();
+  const shutdown = new AbortController();
+
+  async function raceShutdown(start, pluginId, message) {
+    const { signal } = shutdown;
+    const interruption = () => pluginError(pluginErrorCodes.destroying, message, { pluginId });
+    if (signal.aborted) throw interruption();
+    const stopped = deferred();
+    const abort = () => stopped.reject(interruption());
+    signal.addEventListener("abort", abort, { once: true });
+    try {
+      return await Promise.race([start(), stopped.promise]);
+    } finally {
+      signal.removeEventListener("abort", abort);
+    }
+  }
 
   function invokePluginCallback(callback) {
     callbackDepth += 1;
@@ -104,12 +118,7 @@ export function createPluginRuntime({ catalog = [], capabilityFactories = {}, on
         }
         let entry;
         try {
-          entry = await Promise.race([
-            loadDirectoryDefinition(id),
-            destruction.promise.then(() => {
-              throw pluginError(pluginErrorCodes.destroying, "Plugin discovery interrupted by shutdown", { pluginId: id });
-            }),
-          ]);
+          entry = await raceShutdown(() => loadDirectoryDefinition(id), id, "Plugin discovery interrupted by shutdown");
         } catch (cause) {
           if (id === rootId || state !== "active") throw cause;
           throw pluginError(pluginErrorCodes.dependencyFailed, `Dependency "${id}" failed for plugin "${rootId}"`, {
@@ -154,7 +163,7 @@ export function createPluginRuntime({ catalog = [], capabilityFactories = {}, on
     if (existing?.state === "quarantined") {
       throw pluginError(pluginErrorCodes.quarantined, `Plugin "${id}" is quarantined`, { pluginId: id });
     }
-    const implementation = await Promise.race([resolveImplementation(id), destruction.promise.then(() => { throw pluginError(pluginErrorCodes.destroying, "Plugin resolution interrupted by shutdown", { pluginId: id }); })]);
+    const implementation = await raceShutdown(() => resolveImplementation(id), id, "Plugin resolution interrupted by shutdown");
     if (state !== "active") throw pluginError(pluginErrorCodes.destroying, "Plugin runtime is destroying", { pluginId: id });
     const controller = createScopeController({ label: `plugin:${id}` });
     setScopeCleanupInvoker(controller.scope, invokePluginCallback);
@@ -190,15 +199,15 @@ export function createPluginRuntime({ catalog = [], capabilityFactories = {}, on
       },
       capabilityFactories,
     });
-    const stopped = destruction.promise.then(() => { throw pluginError(pluginErrorCodes.destroying, "Plugin runtime destruction interrupted setup", { pluginId: id }); });
-    stopped.catch(() => {});
     let setupPromise;
     let setupSettled = false;
     let phase = "setup";
     try {
-      const setupResultPromise = invokePluginCallback(() => implementation.setup(context, options));
-      setupPromise = Promise.resolve(setupResultPromise);
-      const setupResult = await Promise.race([setupPromise, stopped]);
+      const setupResult = await raceShutdown(() => {
+        const result = invokePluginCallback(() => implementation.setup(context, options));
+        setupPromise = Promise.resolve(result);
+        return setupPromise;
+      }, id, "Plugin runtime destruction interrupted setup");
       setupSettled = true;
       const cleanup = cleanupFor(setupResult, id);
       if (cleanup) controller.setSetupCleanup(cleanup, { label: `${id}:setup-cleanup` });
@@ -376,7 +385,7 @@ export function createPluginRuntime({ catalog = [], capabilityFactories = {}, on
     assertLifecycleEntry();
     if (state !== "active") return;
     state = "destroying";
-    destruction.resolve();
+    shutdown.abort();
     for (const record of records.values()) {
       if (record.state === "installing") {
         record.abortPromise = record.controller.snapshot().state === "active"
