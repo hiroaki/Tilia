@@ -69,7 +69,7 @@ test("Phase 4G GPS Photo production lifecycle, popup/highlight independence and 
   expect(errors).toEqual([]);
 });
 
-test("Phase 4G timestamp-only Photo tree selection, three settings modes and UI lifetimes", async ({ page }) => {
+test("Phase 4G timestamp-only Photo tree selection, time interpretation and UI lifetimes", async ({ page }) => {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/tests/fixtures/phase-4g/");
@@ -81,7 +81,6 @@ test("Phase 4G timestamp-only Photo tree selection, three settings modes and UI 
   await page.getByRole("button", { name: "IMG_2892.JPG", exact: true }).click();
   expect(await page.evaluate(() => window.phase4g.app.selection.getCurrent()?.ref)).toEqual({ kind: "photo" });
   await expect(page.locator(".leaflet-popup")).toHaveCount(0);
-  await page.getByRole("button", { name: "Settings", exact: true }).click();
   const select = page.locator(".tilia-photo-time-mode-select");
   await expect(select.locator("option")).toHaveCount(4);
   for (const mode of ["local", "utc", "auto"]) {

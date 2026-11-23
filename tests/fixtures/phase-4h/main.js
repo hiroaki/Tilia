@@ -7,7 +7,7 @@ const created = [], revoked = [];
 const fixture = createApplicationComposition({ map, plugins: [
   "tilia-status", "tilia-base-maps-control", "tilia-gpx-domain", "tilia-gpx-renderer", "tilia-gpx-input", "tilia-gpx-ui",
   "tilia-photo-domain", "tilia-photo-renderer", "tilia-jpeg-input", "tilia-photo-ui",
-  "tilia-map-selection-presenter", "tilia-layers", "tilia-settings", "tilia-file-import",
+  "tilia-map-selection-presenter", "tilia-layers", "tilia-file-import",
 ], pluginOptions: { "tilia-photo-domain": {
   createObjectURL(blob) { const url = URL.createObjectURL(blob); created.push(url); return url; },
   revokeObjectURL(url) { revoked.push(url); URL.revokeObjectURL(url); },

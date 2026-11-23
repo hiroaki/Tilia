@@ -12,7 +12,7 @@ test("viewer sample boots and renders the main controls", async ({ page }) => {
   await expect(page.locator(".tilia-base-map-control .tilia-base-map-select")).toBeVisible();
   await expect(page.locator(".tilia-file-import-control .tilia-file-label")).toBeVisible();
   await expect(page.locator(".tilia-status-control")).toBeVisible();
-  await expect(page.locator(".tilia-settings-control button")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Settings", exact: true })).toHaveCount(0);
 
   expect(pageErrors).toEqual([]);
 });

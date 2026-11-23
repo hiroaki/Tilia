@@ -22,14 +22,11 @@
 }
 
 .tilia-photo-row-text { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.tilia-photo-navigation { display: flex; gap: 6px; flex-wrap: wrap; }
+.tilia-photo-navigation { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .tilia-photo-navigation .tilia-control-button { padding: 4px 6px; font-size: 11px; }
 .tilia-photo-layer-content { display: grid; grid-template-columns: minmax(0, 1fr) 72px; gap: 8px; }
 .tilia-photo-layer-content .tilia-layer-thumbnail { grid-column: 2; grid-row: 1; }
-.tilia-photo-settings-name { margin: 0; font-size: 12px; color: #1c1917; }
-.tilia-photo-time-mode-select { min-width: 6rem; }
-.tilia-photo-settings { display: flex; flex-direction: column; gap: 8px; }
-.tilia-photo-setting-label { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tilia-photo-time-mode-select, .tilia-photo-time-offset { max-width: 100%; }
 .tilia-photo-time-custom { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .tilia-photo-time-custom[hidden] { display: none; }
 .tilia-photo-time-offset { padding: 4px 6px; }

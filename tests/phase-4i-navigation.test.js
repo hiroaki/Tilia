@@ -77,7 +77,7 @@ describe("Phase 4I explicit semantic navigation", () => {
     expect(f.map.fitBounds).not.toHaveBeenCalled(); expect(f.map.panTo).not.toHaveBeenCalled();
   });
 
-  it("Photo Reveal selects the photo while Fit and single selection have separate camera effects", async () => {
+  it("Photo Fit and name selection have separate effects, with pan on double-click", async () => {
     f = await uiFixture(["tilia-photo-ui", "tilia-layers"]);
     const other = await createPhoto({ lat: 1, lon: 2 }), entry = await createPhoto();
     await f.app.entries.setVisible(entry.id, false);
@@ -86,14 +86,12 @@ describe("Phase 4I explicit semantic navigation", () => {
     byClass(f.map.container, "tilia-photo-fit")[1].click(); await settle();
     expect(f.map.fitBounds).toHaveBeenCalledWith([[35, 135], [35, 135]], fitOptions);
     expect(f.app.selection.getCurrent().entryId).toBe(other.id);
-    byClass(f.map.container, "tilia-photo-reveal")[1].click(); await settle();
+    expect(byClass(f.map.container, "tilia-photo-reveal")).toHaveLength(0);
+    byClass(f.map.container, "tilia-layer-name")[1].click(); await settle();
     expect(f.app.selection.getCurrent()).toMatchObject({ entryId: entry.id, ref: { kind: "photo" } });
-    expect(f.map.panTo).toHaveBeenCalledWith({ lat: 35, lng: 135 }, undefined);
+    expect(f.map.panTo).not.toHaveBeenCalled();
     expect(f.app.entries.get(entry.id).visible).toBe(false);
     expect(f.app.hasPlugin("tilia-photo-renderer")).toBe(false);
-    f.map.panTo.mockClear();
-    byClass(f.map.container, "tilia-layer-name")[0].click(); await settle();
-    expect(f.map.panTo).not.toHaveBeenCalled();
     byClass(f.map.container, "tilia-layer-name")[1].dispatchEvent(new Event("dblclick", { cancelable: true })); await settle();
     expect(f.map.panTo).toHaveBeenCalledWith({ lat: 35, lng: 135 }, undefined);
   });
@@ -109,23 +107,23 @@ describe("Phase 4I explicit semantic navigation", () => {
     await f.app.entries.remove(track.id); f.click("Layers"); await settle();
     byClass(f.map.container, "tilia-photo-fit")[0].click(); await settle();
     expect(f.map.fitBounds).toHaveBeenCalledWith([[5, 30], [5, 30]], fitOptions);
-    byClass(f.map.container, "tilia-photo-reveal")[0].click(); await settle();
+    byClass(f.map.container, "tilia-layer-name")[0].dispatchEvent(new Event("dblclick", { cancelable: true })); await settle();
     expect(f.app.selection.getCurrent().entryId).toBe(entry.id);
     expect(f.map.panTo).toHaveBeenCalledWith({ lat: 5, lng: 30 }, undefined);
   });
 
-  it("Photo without coordinates remains selectable but cannot Fit/Reveal", async () => {
+  it("Photo without coordinates remains selectable without camera effects", async () => {
     f = await uiFixture(["tilia-photo-ui", "tilia-layers"]);
     const entry = await createPhoto(null); f.click("Layers"); await settle();
     expect(byClass(f.map.container, "tilia-photo-fit")[0].disabled).toBe(true);
-    expect(byClass(f.map.container, "tilia-photo-reveal")[0].disabled).toBe(true);
-    byClass(f.map.container, "tilia-photo-reveal")[0].click(); await settle();
+    expect(byClass(f.map.container, "tilia-photo-reveal")).toHaveLength(0);
+    byClass(f.map.container, "tilia-layer-name")[0].dispatchEvent(new Event("dblclick", { cancelable: true })); await settle();
     expect(f.map.panTo).not.toHaveBeenCalled(); expect(f.map.fitBounds).not.toHaveBeenCalled();
     byClass(f.map.container, "tilia-layer-name")[0].click(); await settle();
     expect(f.app.selection.getCurrent().entryId).toBe(entry.id);
   });
 
-  it.each(["gpx", "photo"])("%s Reveal suppresses a camera effect after deletion, revision change, selection change or mount close", async (domain) => {
+  it.each(["gpx", "photo"])("%s navigation suppresses a camera effect after deletion, revision change, selection change or mount close", async (domain) => {
     f = await uiFixture([domain === "gpx" ? "tilia-gpx-ui" : "tilia-photo-ui"]);
     for (const race of ["delete", "revision", "selection", "close"]) {
       const entry = domain === "gpx" ? await f.app.domains.gpx.create(data()) : await createPhoto();
@@ -141,7 +139,9 @@ describe("Phase 4I explicit semantic navigation", () => {
       const mount = domain === "gpx" ? mountGpxRow : mountPhotoRow;
       mount({ container, scope, entry, selection, entries: f.context.entries,
         gpx: f.context.domains.gpx, photo: f.context.domains.photo, map: f.context.map, report: vi.fn() });
-      byClass(container, domain === "gpx" ? "tilia-gpx-reveal" : "tilia-photo-reveal")[0].click(); await settle();
+      if (domain === "gpx") byClass(container, "tilia-gpx-reveal")[0].click();
+      else byClass(container, "tilia-layer-name")[0].dispatchEvent(new Event("dblclick", { cancelable: true }));
+      await settle();
       expect(requested?.entryId).toBe(entry.id);
       if (race === "delete") await f.app.entries.remove(entry.id);
       else if (race === "revision") {

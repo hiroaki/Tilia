@@ -17,7 +17,7 @@
 | ドメイン | `tilia-gpx-domain` | `tilia-photo-domain` | データエントリーを所有し、コマンドとクエリを公開 |
 | レンダラー | `tilia-gpx-renderer` | `tilia-photo-renderer` | エントリーを地図に表示 |
 | 入力 | `tilia-gpx-input` | `tilia-jpeg-input` | ファイルを読み、エントリーを作成 |
-| UI提供 | `tilia-gpx-ui` | `tilia-photo-ui` | 形式ごとのレイヤー行とポップアップ内容、写真の時刻解釈設定を追加 |
+| UI提供 | `tilia-gpx-ui` | `tilia-photo-ui` | 形式ごとのレイヤー行とポップアップ内容を追加。写真行には時刻解釈の操作を含む |
 
 入力、レンダラー、UIはそれぞれのドメインを必須とし、自動インストールします。ドメインだけではファイルの解析も描画も行いません。UI提供にはホストが必要です。レイヤー行は`tilia-layers`、設定は`tilia-settings`、選択ポップアップと強調表示は`tilia-map-selection-presenter`が受け持ちます。これらのホストは形式ごとの提供プラグインをインストールしません。
 
@@ -71,7 +71,7 @@ await app.unuse("x-distance-markers");
 | `tilia-photo-domain` | — | 写真のメタデータ、保存した推定位置、プレビューリソース、コマンド |
 | `tilia-photo-renderer` | `tilia-photo-domain` | EXIFのGPS座標または保存した推定位置のマーカー |
 | `tilia-jpeg-input` | `tilia-photo-domain` | exifrを遅延読み込みしてEXIFを解析するJPEGハンドラー |
-| `tilia-photo-ui` | `tilia-photo-domain` | 写真のレイヤー行、ポップアップ、時刻解釈の設定 |
+| `tilia-photo-ui` | `tilia-photo-domain` | 時刻解釈を編集できる写真行とポップアップの内容 |
 | `tilia-map-selection-presenter` | — | 現在の意味上の選択をポップアップと強調表示で示す |
 
 <a id="viewer-controls-and-input"></a>
@@ -153,13 +153,13 @@ LeafletのCSSを含め、モジュールスクリプトより前に次のimport 
 </script>
 ```
 
-ファイル選択、レイヤー、設定、ポップアップを持つ写真ビューアの例です。
+ファイル選択、レイヤー、ポップアップを持つ写真ビューアの例です。
 
 ```js
 const app = createDefaultTiliaApp("map", {
   plugins: [
     "tilia-jpeg-input", "tilia-photo-renderer", "tilia-photo-ui",
-    "tilia-file-import", "tilia-layers", "tilia-settings",
+    "tilia-file-import", "tilia-layers",
     "tilia-map-selection-presenter",
   ],
 });
@@ -169,7 +169,11 @@ await app.ready;
 
 EXIFのGPS座標を優先します。GPSのない写真は、インストール済みGPXドメインが提供する対応する時系列から位置を推定できます。`tilia-gpx-input`を追加し、時刻付きGPXを写真より先に読み込んでください。推定のためにGPXレンダラーは必須ではありません。位置が見つからない場合、写真マーカーは表示されません。
 
-推定結果はPhotoエントリーに保存します。後のGPX変更・削除では自動移動しません。**Settings** の **Photo time** で、写真ごとに `auto`、`local`、`utc`、または **Custom offset**（符号と時・分）を選べます。固定オフセットはEnter、またはオフセット操作欄の外へフォーカスを移した時に確定します。関連データや時刻モードの変更、または明示的な再計算で新たな推定を試せます。変更に失敗した場合は確定済み設定と位置を保持します。設定変更による自動的な地図移動は行いません。
+推定結果はPhotoエントリーに保存します。後のGPX変更・削除では自動移動しません。**Layers** では写真名をクリックして選択し、**Fit** で地図の中心とズームを写真の位置に合わせられます。
+
+撮影日時があり、EXIF GPS がない写真では、**Fit** の横の **Photo time** メニューで、GPX 時系列と照合して位置を推定する際の時刻解釈を補正できます。推定済みの写真でも操作できます。`auto`、`local`、`utc`、または **Custom offset**（符号と時・分）を選び、固定オフセットは Enter または入力欄からフォーカスを移して確定します。撮影日時には、解釈で決まった UTC オフセットを表示します。`local` は撮影時点のブラウザーのタイムゾーンと夏時間を反映し、`auto` の解釈が未確定ならオフセットを省きます。EXIF GPS がある写真では元の撮影日時だけを表示し、撮影日時がない写真では `-` を表示します。どちらもメニューは表示しません。
+
+関連データや時刻モードの変更、または明示的な再計算で新たな推定を試せます。変更に失敗した場合は確定済み設定と位置を保持します。時刻解釈の変更で地図の表示範囲は変わりません。
 
 JPEGの初期設定は、登録とauto-panより前にJPEGプラグインへ指定します。
 

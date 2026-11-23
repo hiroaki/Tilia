@@ -1,5 +1,5 @@
 import { photoDomainKey } from "../../domains/keys.js";
-import { mountPhotoRow, mountPhotoPopup, mountPhotoSettings } from "../../photo/ui.js";
+import { mountPhotoRow, mountPhotoPopup } from "../../photo/ui.js";
 import { reportError } from "../../ui/scoped-dom.js";
 export default Object.freeze({
   id: "tilia-photo-ui", requires: ["tilia-photo-domain"],
@@ -20,9 +20,5 @@ export default Object.freeze({
     };
     context.contributions.layers.register(photoDomainKey, { mount: mount(mountPhotoRow) });
     context.contributions.popup.register(photoDomainKey, { mount: mount(mountPhotoPopup) });
-    context.contributions.settings.register({ id: "photo-time-mode", descriptor: {
-      supports: (entry) => entry.domain === photoDomainKey,
-      mount: mount(mountPhotoSettings),
-    } });
   },
 });

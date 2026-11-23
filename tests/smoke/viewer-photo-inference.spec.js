@@ -5,6 +5,7 @@ import { expect, test } from "@playwright/test";
 import { mockPhotoExif, timestampPhoto } from "../helpers/photo-exif.js";
 
 test.beforeEach(async ({ page }) => mockPhotoExif(page));
+test.use({ timezoneId: "Asia/Tokyo" });
 
 const sampleTrackPath = resolve(import.meta.dirname, "../fixtures/img-2892-auto-helper.gpx");
 
@@ -34,14 +35,12 @@ test("viewer sample infers a photo location from an imported GPX track", async (
 
   await expect(trackLayer).toHaveCount(1);
   await expect(photoLayer).toHaveCount(1);
-  await expect(photoLayer.locator(".tilia-layer-meta")).toContainText("gpx-time-inference");
-  await page.getByRole("button", { name: "Settings", exact: true }).click();
-  const settings = page.getByRole("dialog", { name: "Settings", exact: true });
-  await expect(settings.locator(".tilia-entry-settings")).toHaveCount(1);
-  const mode = settings.getByRole("combobox", { name: "IMG_2892.JPG photo time mode" });
+  const captured = photoLayer.locator(".tilia-layer-meta");
+  await expect(captured).toHaveText("2013/11/24 15:22:39 +00:00");
+  await expect(trackLayer.locator(".tilia-photo-time-mode-select")).toHaveCount(0);
+  const mode = photoLayer.getByRole("combobox", { name: "IMG_2892.JPG photo time mode" });
   await expect(mode).toHaveValue("auto"); await mode.selectOption("utc"); await expect(mode).toHaveValue("utc");
-  await page.getByRole("button", { name: "Layers", exact: true }).click();
-  await expect(photoLayer.locator(".tilia-layer-meta")).toContainText("gpx-time-inference");
+  await expect(captured).toHaveText("2013/11/24 15:22:39 +00:00");
 
   expect(pageErrors).toEqual([]);
 });

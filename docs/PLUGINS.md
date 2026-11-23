@@ -13,7 +13,7 @@ For each data format, choose the parts your application needs:
 | Domain | `tilia-gpx-domain` | `tilia-photo-domain` | Owns data entries and exposes commands and queries |
 | Renderer | `tilia-gpx-renderer` | `tilia-photo-renderer` | Displays entries on the map |
 | Input | `tilia-gpx-input` | `tilia-jpeg-input` | Reads files and creates entries |
-| UI contribution | `tilia-gpx-ui` | `tilia-photo-ui` | Adds format-specific layer rows and popup content, plus Photo time settings |
+| UI contribution | `tilia-gpx-ui` | `tilia-photo-ui` | Adds format-specific layer rows and popup content, including Photo time in photo rows |
 
 Input, renderer, and UI plugins require their respective domain, which installs automatically. A domain alone does not parse files or draw anything. UI contributions need hosts: `tilia-layers` for layer rows, `tilia-settings` for settings, and `tilia-map-selection-presenter` for selection popups and highlights. These hosts do not install the format-specific contributions.
 
@@ -61,7 +61,7 @@ await app.unuse("x-distance-markers");
 | `tilia-photo-domain` | — | Photo metadata, saved inferred locations, preview resources, and commands |
 | `tilia-photo-renderer` | `tilia-photo-domain` | Markers at EXIF GPS coordinates or saved inferred locations |
 | `tilia-jpeg-input` | `tilia-photo-domain` | JPEG file handler with lazy EXIF parsing through exifr |
-| `tilia-photo-ui` | `tilia-photo-domain` | Photo layer rows, popup content, and time interpretation settings |
+| `tilia-photo-ui` | `tilia-photo-domain` | Photo layer rows with time interpretation controls, plus popup content |
 | `tilia-map-selection-presenter` | — | Presents current semantic selection with popups and highlights |
 
 ### Viewer controls and input
@@ -135,13 +135,13 @@ Include Leaflet CSS and place its import map before the module script:
 </script>
 ```
 
-For a Photo viewer with a file picker, layers, settings, and popups:
+For a Photo viewer with a file picker, layers, and popups:
 
 ```js
 const app = createDefaultTiliaApp("map", {
   plugins: [
     "tilia-jpeg-input", "tilia-photo-renderer", "tilia-photo-ui",
-    "tilia-file-import", "tilia-layers", "tilia-settings",
+    "tilia-file-import", "tilia-layers",
     "tilia-map-selection-presenter",
   ],
 });
@@ -151,7 +151,11 @@ await app.ready;
 
 EXIF GPS coordinates take precedence. A photo without GPS can receive an inferred location from a matching GPX timeline supplied by an installed GPX domain. For this, add `tilia-gpx-input` and load the timestamped GPX before the photo; a GPX renderer is optional for inference. Inference may fail to find a location, in which case no photo marker is shown.
 
-The inferred result is saved on the Photo entry. Later GPX changes or deletion do not automatically relocate it. For each photo, **Photo time** in **Settings** offers `auto`, `local`, `utc`, or **Custom offset** (sign plus hours/minutes). Commit custom fields with Enter or by moving focus outside the offset controls. Changing the Photo's relevant data or time mode, or explicitly recomputing, can attempt new inference. Failed changes preserve the committed setting and position; settings changes do not move the map automatically.
+The inferred result is saved on the Photo entry. Later GPX changes or deletion do not automatically relocate it. In **Layers**, select a photo by clicking its name and use **Fit** to center and zoom the map on its location.
+
+For photos with a capture time and no EXIF GPS, the **Photo time** menu beside **Fit** adjusts how the capture time is matched against the GPX timeline for location inference. It is available before and after a match is found. Choose `auto`, `local`, `utc`, or **Custom offset** (sign plus hours/minutes). Commit custom fields with Enter or by moving focus outside the offset controls. The capture date shows the interpreted UTC offset when available. `local` uses the browser's time zone on the capture date, including daylight saving time. Unresolved `auto` shows the capture date without an offset. Photos with EXIF GPS show the original capture date without an offset. Photos without a capture time display `-`. Both omit the menu.
+
+Changing the Photo's relevant data or time mode, or explicitly recomputing, can attempt new inference. Failed changes preserve the committed setting and position. Editing Photo time leaves the map viewport in place.
 
 Set the initial JPEG interpretation through the JPEG plugin, before publication and auto-pan:
 

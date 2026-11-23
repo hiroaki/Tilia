@@ -26,8 +26,12 @@ test("explicit Fit/Reveal uses semantic targets on real Leaflet without renderer
   await expect.poll(() => page.evaluate(() => window.navigationCalls.pans.at(-1))).toEqual({ lat: 7, lng: 70 });
   await page.getByRole("button", { name: "Fit photo.jpg", exact: true }).click();
   expect(await page.evaluate(() => window.navigationCalls.fits.at(-1))).toEqual({ bounds: [[35, 135], [35, 135]], options: { padding: [20, 20], maxZoom: 18 } });
-  await page.getByRole("button", { name: "Reveal photo.jpg", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Reveal photo.jpg", exact: true })).toHaveCount(0);
+  const photoName = page.getByRole("button", { name: "photo.jpg", exact: true });
+  await photoName.click();
   await expect.poll(() => page.evaluate(() => window.phase4h.app.selection.getCurrent())).toMatchObject({ entryId: ids.photo, ref: { kind: "photo" } });
+  expect(await page.evaluate(() => window.navigationCalls.pans)).toEqual([{ lat: 7, lng: 70 }]);
+  await photoName.dblclick();
   await expect.poll(() => page.evaluate(() => window.navigationCalls.pans.at(-1))).toEqual({ lat: 35, lng: 135 });
   await page.getByRole("button", { name: "A", exact: true }).dblclick();
   await expect.poll(() => page.evaluate(() => window.navigationCalls.fits.length)).toBe(3);
