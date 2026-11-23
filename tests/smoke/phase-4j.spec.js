@@ -48,9 +48,15 @@ test("4J-B form, draggable markers and context menu automatically create persist
   await page.mouse.move(box.x + box.width/2, box.y + box.height/2); await page.mouse.down();
   await page.mouse.move(box.x + box.width/2 + 25, box.y + box.height/2 + 10, { steps: 5 }); await page.mouse.up();
   await expect(page.getByRole("textbox", { name: "Start coordinates" })).not.toHaveValue("35.68,139.76");
-  await page.evaluate(() => window.phase4j.map.fire("contextmenu", { latlng: { lat:35.685, lng:139.765 }, containerPoint:{x:500,y:250} }));
+  const viaPoint = await page.evaluate(() => {
+    const { map } = window.phase4j;
+    const position = { x: 250, y: 250 };
+    const { lat, lng } = map.containerPointToLatLng(position);
+    return { position, text: `${lat}, ${lng}` };
+  });
+  await page.locator("#map").click({ button: "right", position: viaPoint.position });
   await page.getByRole("button", { name: "Add as Via" }).click();
-  await expect(page.getByRole("textbox", { name: "Via 1 coordinates" })).toHaveValue("35.685, 139.765");
+  await expect(page.getByRole("textbox", { name: "Via 1 coordinates" })).toHaveValue(viaPoint.text);
   await page.getByRole("button", { name: "Search Routes", exact:true }).click();
   await expect.poll(() => page.evaluate(() => window.phase4j.app.entries.list().length)).toBe(1);
   await expect(page.locator(".tilia-route-search-result")).toHaveCount(1);
@@ -65,6 +71,177 @@ test("4J-B form, draggable markers and context menu automatically create persist
   expect(result.document.waypoints.map(point => point.name)).toEqual(["Start","Via 1","Goal"]);
   expect(result.entries).toBe(1); await expect(page.locator(".tilia-route-search-marker-icon")).toHaveCount(0); expect(errors).toEqual([]);
 });
+
+test("4J-B Route Search uses the shared panel and restores input and import history", async ({ page }) => {
+  await page.route("http://127.0.0.1:3000/route", route => route.fulfill({
+    json: { route: { geometry: { type: "LineString", coordinates: [[139.76, 35.68], [139.77, 35.69]] } } },
+    headers: { "access-control-allow-origin": "*" },
+  }));
+  await page.goto("/tests/fixtures/phase-4j/");
+  await expect(page.locator("body")).toHaveAttribute("data-phase4j-ready", "true");
+  const launch = page.getByRole("button", { name: "Route search", exact: true });
+  const dialog = page.getByRole("dialog", { name: "Route Search", exact: true });
+  const start = dialog.getByRole("textbox", { name: "Start coordinates" });
+  const goal = dialog.getByRole("textbox", { name: "Goal coordinates" });
+  const menu = page.locator(".tilia-route-search-menu");
+  const results = dialog.locator(".tilia-route-search-result");
+  const markers = page.locator(".tilia-route-search-marker-icon");
+  const rightClickMap = () => page.locator("#map").click({ button: "right", position: { x: 250, y: 250 } });
+
+  await launch.click();
+  await expect(dialog).toBeVisible();
+  await launch.click();
+  await expect(dialog).toBeHidden();
+  await launch.click();
+  await start.fill("  ,139  ");
+  await start.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(launch).toBeFocused();
+  await rightClickMap();
+  await expect(menu).toBeHidden();
+  await launch.click();
+  await expect(start).toHaveValue("  ,139  ");
+  await start.fill("35.68,139.76");
+  await goal.fill("35.69,139.77");
+  await dialog.getByRole("button", { name: "Bike", exact: true }).click();
+  await start.click({ button: "right" });
+  await expect(menu).toBeHidden();
+  await rightClickMap();
+  await expect(menu).toBeVisible();
+  await page.getByRole("button", { name: "Layers", exact: true }).click();
+  const layers = page.getByRole("dialog", { name: "Layers", exact: true });
+  await expect(layers).toBeVisible();
+  await expect(menu).toBeHidden();
+  await expect(menu.getByRole("button", { includeHidden: true })).toHaveCount(0);
+  await expect(markers).toHaveCount(2);
+
+  await launch.click();
+  await expect(dialog).toBeVisible();
+  await expect(start).toHaveValue("35.68,139.76");
+  await expect(dialog.getByRole("button", { name: "Bike", exact: true })).toHaveClass(/tilia-route-search-profile-option-active/);
+  await dialog.getByRole("button", { name: "Search Routes", exact: true }).click();
+  await expect(results).toHaveCount(1);
+  await page.getByRole("button", { name: "Track editor", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Track Editor", exact: true })).toBeVisible();
+  await launch.click();
+  await expect(results).toHaveCount(1);
+  await dialog.getByRole("button", { name: "Clear Form", exact: true }).click();
+  await expect(start).toHaveValue("");
+  await expect(goal).toHaveValue("");
+  await expect(markers).toHaveCount(0);
+  await expect(results).toHaveCount(1);
+
+  await page.getByRole("button", { name: "Layers", exact: true }).click();
+  await layers.getByRole("button", { name: "Remove", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => window.phase4j.app.entries.list().length)).toBe(0);
+  await launch.click();
+  await expect(results).toHaveCount(1);
+  await dialog.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(dialog).toBeHidden();
+});
+
+test("4J-B detached route menu buttons are inert during plugin uninstall", async ({ page }) => {
+  await page.goto("/tests/fixtures/phase-4j/");
+  await expect(page.locator("body")).toHaveAttribute("data-phase4j-ready", "true");
+  await page.getByRole("button", { name: "Route search", exact: true }).click();
+  await page.getByRole("textbox", { name: "Start coordinates" }).fill("35.68,139.76");
+  await page.locator("#map").click({ button: "right", position: { x: 250, y: 250 } });
+  await expect(page.getByRole("button", { name: "Add as Via" })).toBeVisible();
+
+  const result = await page.evaluate(async () => {
+    const { app, map } = window.phase4j;
+    const menu = document.querySelector(".tilia-route-search-menu");
+    const surface = menu.parentElement;
+    const oldButton = menu.querySelector(".tilia-route-search-menu-action-via");
+    const form = document.querySelector(".tilia-route-search-content");
+    const snapshot = () => ({
+      inputs: Array.from(form.querySelectorAll("input"), input => input.value),
+      hidden: menu.classList.contains("tilia-route-search-menu-hidden"),
+      buttonCount: menu.querySelectorAll("button").length,
+    });
+    let completed = false;
+    let observation;
+    const observer = new MutationObserver(() => {
+      if (surface.isConnected || observation) return;
+      observation = {
+        duringUninstall: !completed && !app.hasPlugin("x-route-search"),
+        formStillMounted: form.isConnected,
+        buttonStillInMenu: menu.contains(oldButton),
+        before: snapshot(),
+      };
+      oldButton.click();
+      observation.after = snapshot();
+    });
+    observer.observe(map.getContainer(), { childList: true, subtree: true });
+    try {
+      await app.unuse("x-route-search").then(() => { completed = true; });
+      return observation;
+    } finally {
+      observer.disconnect();
+    }
+  });
+  expect(result).toMatchObject({
+    duringUninstall: true,
+    formStillMounted: true,
+    buttonStillInMenu: true,
+    before: { inputs: ["35.68,139.76", ""], hidden: false, buttonCount: 3 },
+  });
+  expect(result.after).toEqual(result.before);
+  await expect(page.locator(".tilia-route-search-menu, .tilia-route-search-content")).toHaveCount(0);
+});
+
+test("4J-B only the current route menu can set Start, Via and Goal", async ({ page }) => {
+  await page.goto("/tests/fixtures/phase-4j/");
+  await expect(page.locator("body")).toHaveAttribute("data-phase4j-ready", "true");
+  await page.getByRole("button", { name: "Route search", exact: true }).click();
+
+  const result = await page.evaluate(() => {
+    const { map } = window.phase4j;
+    const menu = document.querySelector(".tilia-route-search-menu");
+    const show = lat => map.fire("contextmenu", { latlng: { lat, lng: 139.76 }, containerPoint: { x: 250, y: 250 } });
+    const action = kind => menu.querySelector(`.tilia-route-search-menu-action-${kind}`);
+    const inputs = () => Array.from(document.querySelectorAll(".tilia-route-search-point-input"), input => input.value);
+    const launch = label => document.querySelector(`button[aria-label="${label}"]`).click();
+    const hidden = () => menu.classList.contains("tilia-route-search-menu-hidden");
+
+    show(35.61);
+    const firstStart = action("origin");
+    map.fire("click");
+    const closed = hidden() && !menu.contains(firstStart);
+    show(35.62);
+    firstStart.click();
+    const afterStaleStart = inputs();
+    const reopened = !hidden();
+    action("origin").firstElementChild.click();
+
+    show(35.63);
+    const firstVia = action("via");
+    launch("Layers");
+    const switched = hidden() && !menu.contains(firstVia)
+      && document.querySelector(".tilia-side-panel-title").textContent === "Layers";
+    launch("Route search");
+    show(35.64);
+    firstVia.click();
+    const afterStaleVia = inputs();
+    const returned = !hidden();
+    action("via").click();
+
+    show(35.65);
+    action("destination").click();
+    return { closed, reopened, switched, returned, afterStaleStart, afterStaleVia, points: inputs(), closedAfterSelection: hidden() };
+  });
+  expect(result).toEqual({
+    closed: true,
+    reopened: true,
+    switched: true,
+    returned: true,
+    afterStaleStart: ["", ""],
+    afterStaleVia: ["35.62, 139.76", ""],
+    points: ["35.62, 139.76", "35.64, 139.76", "35.65, 139.76"],
+    closedAfterSelection: true,
+  });
+});
+
 async function clickDraft(page) {
   const p = await page.evaluate(() => {
     const { map } = window.phase4j;

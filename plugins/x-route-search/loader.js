@@ -1,6 +1,7 @@
 import { DivIcon, Marker } from "leaflet";
 import { createButton, createPanel } from "../../src/map/controls.js";
 import { gpxDomainKey } from "../../src/domains/index.js";
+import { panelServiceKey } from "../../src/plugins/contracts/panel.js";
 import { statusServiceKey } from "../../src/plugins/contracts/status.js";
 import { listen, reportError } from "../../src/ui/scoped-dom.js";
 import { registerLauncher } from "../../src/ui/toolbar-launcher.js";
@@ -58,6 +59,7 @@ function createMarkerCoordinate(value) {
 }
 
 function formatPointInputValue(point) {
+  if (point?.inputValue !== undefined) return point.inputValue;
   const lat = point?.lat ?? "";
   const lon = point?.lon ?? "";
   if (lat !== "" && lon !== "") {
@@ -66,23 +68,12 @@ function formatPointInputValue(point) {
   return lat || lon || "";
 }
 
-function parsePointInputValue(value) {
-  const text = String(value ?? "").trim();
-  if (!text) {
-    return createEmptyPoint();
-  }
-
-  const parts = text.split(",");
-  if (parts.length === 1) {
-    return {
-      lat: parts[0].trim(),
-      lon: "",
-    };
-  }
-
+function parsePointInputValue(inputValue) {
+  const [lat, ...longitude] = inputValue.split(",");
   return {
-    lat: parts[0].trim(),
-    lon: parts.slice(1).join(",").trim(),
+    lat: lat.trim(),
+    lon: longitude.join(",").trim(),
+    inputValue,
   };
 }
 
@@ -175,9 +166,11 @@ function validateRoutePoints(state) {
 
 export const routeSearchPlugin = {
   id: "x-route-search",
-  requires: ["tilia-gpx-domain", "tilia-toolbar"],
+  requires: ["tilia-gpx-domain", "tilia-panel", "tilia-toolbar"],
   setup(context, options = {}) {
     const gpx = context.domains.require(gpxDomainKey);
+    const panel = context.services.require(panelServiceKey);
+    const panelId = "route-search";
     const status = context.services.optional(statusServiceKey);
     const report = error => reportError(context, error);
     context.styles.use({ id: "x-route-search", href: new URL("./styles.css", import.meta.url).href });
@@ -198,32 +191,20 @@ export const routeSearchPlugin = {
       loading: false,
       errorMessage: "",
       results: [],
-      menu: {
-        visible: false,
-        point: null,
-        x: 0,
-        y: 0,
-      },
     };
 
-    let panel, contextMenu, panelScope, menuScope, panelRows, menuRows, markers, request;
-    context.ui.mountSurface({ id: "route-form", surface: "floating", ariaLabel: "Route Search",
-      mount({ container, scope }) {
-        Object.assign(container.style, { position: "absolute", inset: "0", pointerEvents: "none" });
-        panelScope = scope;
-        panel = createPanel("tilia-route-search-panel tilia-route-search-panel-hidden");
-        container.appendChild(panel); bindPropagation(scope, panel); renderPanel();
-      } });
+    let panelMount, panelHandle, panelRows, contextMenu, activeMenu, markers, request;
+    context.scope.defer(() => panelHandle?.dispose(), { retry: "safe" });
     context.ui.mountSurface({ id: "route-menu", surface: "floating", ariaLabel: "Route point menu",
       mount({ container, scope }) {
         Object.assign(container.style, { position: "absolute", inset: "0", pointerEvents: "none" });
-        menuScope = scope;
         contextMenu = createPanel("tilia-route-search-menu tilia-route-search-menu-hidden");
         container.appendChild(contextMenu); bindPropagation(scope, contextMenu);
+        listen(scope, contextMenu, "click", onMenuClick, report);
         listen(scope, container, "contextmenu", event => event.preventDefault(), report);
       } });
     function bindPropagation(scope, element) {
-      for (const type of ["click", "dblclick", "mousedown", "mouseup", "pointerdown", "pointerup", "contextmenu", "wheel"])
+      for (const type of ["dblclick", "mousedown", "mouseup", "pointerdown", "pointerup", "contextmenu", "wheel"])
         listen(scope, element, type, event => event.stopPropagation(), report);
       listen(scope, element, "dblclick", event => event.preventDefault(), report);
     }
@@ -238,8 +219,9 @@ export const routeSearchPlugin = {
     }
 
     function hideContextMenu() {
-      state.menu.visible = false;
+      activeMenu = null;
       contextMenu?.classList.add("tilia-route-search-menu-hidden");
+      contextMenu?.replaceChildren();
     }
 
     function syncPointMarkers() {
@@ -304,24 +286,22 @@ export const routeSearchPlugin = {
       syncPointMarkers();
     }
 
-    function renderContextMenu() {
-      if (!context.scope.alive || !menuScope?.alive) return;
-      const old = menuRows; menuRows = menuScope.child({ label: "route-menu-actions" });
-      void old?.dispose().catch(report);
-      if (!state.menu.visible || !state.menu.point) {
-        contextMenu?.classList.add("tilia-route-search-menu-hidden");
-        contextMenu.replaceChildren();
-        return;
-      }
+    function onMenuClick(event) {
+      event.stopPropagation();
+      if (!activeMenu || activeMenu.mount !== panelMount || !panelMount.scope.alive) return;
+      const button = event.target?.closest?.("button[data-route-point-kind]");
+      if (button?.parentElement !== contextMenu) return;
+      setPoint(button.dataset.routePointKind, activeMenu.point);
+    }
 
-      contextMenu.classList.remove("tilia-route-search-menu-hidden");
-      contextMenu.style.left = `${state.menu.x}px`;
-      contextMenu.style.top = `${state.menu.y}px`;
-      contextMenu.replaceChildren();
+    function renderContextMenu({ point, x, y }) {
+      hideContextMenu();
+      contextMenu.style.left = `${x}px`;
+      contextMenu.style.top = `${y}px`;
 
       const title = document.createElement("div");
       title.className = "tilia-route-search-menu-title";
-      title.textContent = `${formatCoordinate(state.menu.point.lat)}, ${formatCoordinate(state.menu.point.lon)}`;
+      title.textContent = `${formatCoordinate(point.lat)}, ${formatCoordinate(point.lon)}`;
       contextMenu.appendChild(title);
 
       const actions = [
@@ -332,6 +312,7 @@ export const routeSearchPlugin = {
 
       for (const action of actions) {
         const button = createButton("", `tilia-route-search-menu-action tilia-route-search-menu-action-${action.kind}`);
+        button.dataset.routePointKind = action.kind;
         const mark = document.createElement("span");
         mark.className = `tilia-route-search-point-mark tilia-route-search-point-mark-${action.kind}`;
         mark.textContent = createPointMarkerText(action.kind);
@@ -340,11 +321,10 @@ export const routeSearchPlugin = {
         const text = document.createElement("span");
         text.textContent = `${action.label} ${createMenuActionLabel(action.kind)}`;
         button.appendChild(text);
-        listen(menuRows, button, "click", () => {
-          setPoint(action.kind, state.menu.point);
-        });
         contextMenu.appendChild(button);
       }
+      activeMenu = { mount: panelMount, point };
+      contextMenu.classList.remove("tilia-route-search-menu-hidden");
     }
 
     function createPointRow({ label, kind, index = null, point, onChange, onRemove }) {
@@ -432,7 +412,9 @@ export const routeSearchPlugin = {
           state.results = [...nextResults];
           if (index === 0 && context.entries.get(entry.id)) {
             const bounds = gpx.getExtent(entry.id).bounds;
-            if (bounds && current()) context.map.fitBounds([[bounds.southWest.lat, bounds.southWest.lon], [bounds.northEast.lat, bounds.northEast.lon]]);
+            if (bounds && current() && panel.isOpen(panelId)) {
+              context.map.fitBounds([[bounds.southWest.lat, bounds.southWest.lon], [bounds.northEast.lat, bounds.northEast.lon]]);
+            }
           }
         }
         if (current()) setStatus(`Route search: imported ${nextResults.length} route${nextResults.length === 1 ? "" : "s"}`);
@@ -488,28 +470,10 @@ export const routeSearchPlugin = {
     }
 
     function renderPanel() {
-      if (!context.scope.alive || !panelScope?.alive) return;
-      const old = panelRows; panelRows = panelScope.child({ label: "route-form-rows" });
+      if (!context.scope.alive || !panelMount?.scope.alive) return;
+      const { container, scope } = panelMount;
+      const old = panelRows; panelRows = scope.child({ label: "route-form-rows" });
       void old?.dispose().catch(report);
-      panel.replaceChildren();
-
-      const header = document.createElement("div");
-      header.className = "tilia-route-search-header";
-      const title = document.createElement("h2");
-      title.className = "tilia-route-search-title";
-      title.textContent = "Route Search";
-      header.appendChild(title);
-
-      const closeButton = document.createElement("button");
-      closeButton.type = "button";
-      closeButton.className = "tilia-control-close tilia-side-panel-close tilia-route-search-close";
-      closeButton.textContent = "Close";
-      listen(panelRows, closeButton, "click", () => {
-        panel.classList.add("tilia-route-search-panel-hidden");
-        hideContextMenu();
-      });
-      header.appendChild(closeButton);
-      panel.appendChild(header);
 
       const content = document.createElement("div");
       content.className = "tilia-route-search-content";
@@ -631,28 +595,36 @@ export const routeSearchPlugin = {
       content.appendChild(hint);
 
       renderResults(content);
-      panel.appendChild(content);
+      container.replaceChildren(content);
     }
 
     registerLauncher(context, options, { kind: "action", label: "Route search", iconText: "R",
       className: "tilia-route-search-control", activate() {
-        if (!panel) return;
-        const hidden = panel.classList.contains("tilia-route-search-panel-hidden");
-        panel.classList.toggle("tilia-route-search-panel-hidden", !hidden);
-        if (!hidden) hideContextMenu();
+        if (panel.isOpen(panelId)) return panel.close(panelId);
+        let opened;
+        const handle = panel.open({ id: panelId, title: "Route Search", layout: "side", mount(mount) {
+          opened = panelMount = mount;
+          listen(mount.scope, mount.container, "contextmenu", event => event.stopPropagation(), report);
+          mount.scope.signal.addEventListener("abort", () => {
+            if (panelMount !== mount) return;
+            panelMount = null;
+            panelRows = null;
+            // Keep the handle for teardown retries if the plugin is closing.
+            if (context.scope.alive) panelHandle = null;
+            hideContextMenu();
+          }, { once: true });
+          renderPanel();
+        } });
+        if (opened?.scope.alive) panelHandle = handle;
       } });
 
     function onContextMenu(event) {
-      if (!panel || panel.classList.contains("tilia-route-search-panel-hidden")) {
-        return;
-      }
-      state.menu = {
-        visible: true,
-        point: copyPoint({ lat: event.latlng.lat, lon: event.latlng.lng }),
+      if (!panelMount?.scope.alive) return;
+      renderContextMenu({
+        point: { lat: event.latlng.lat, lon: event.latlng.lng },
         x: event.containerPoint.x,
         y: event.containerPoint.y,
-      };
-      renderContextMenu();
+      });
     }
 
     context.map.listen("contextmenu", onContextMenu);

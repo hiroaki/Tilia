@@ -89,7 +89,7 @@ These repository plugins use the `x-` namespace and reside under `plugins/`. The
 | --- | --- | --- |
 | `x-track-editor` | `tilia-gpx-domain`, `tilia-panel`, `tilia-toolbar` | Edits an independent GPX track draft and saves a new entry |
 | `x-gpx-export` | `tilia-gpx-domain`, `tilia-panel`, `tilia-toolbar` | Downloads a selected GPX entry as a `.gpx` file |
-| `x-route-search` | `tilia-gpx-domain`, `tilia-toolbar` | Searches through Phloem and imports results as tracks with Start/Via/Goal waypoints |
+| `x-route-search` | `tilia-gpx-domain`, `tilia-panel`, `tilia-toolbar` | Searches through Phloem and imports results as tracks with Start/Via/Goal waypoints |
 | `x-milestone` | `tilia-gpx-domain` | Deprecated. Use `x-distance-markers` |
 | [`x-distance-markers`](../plugins/x-distance-markers/README.md) | `tilia-gpx-domain` | Adaptive cumulative distance labels for the selected GPX track |
 | `x-gsi-base-maps` | — | Registers GSI Standard (`gsi-std`) and Pale (`gsi-pale`) maps |
@@ -249,7 +249,7 @@ Only track points are editable; routes and waypoints are excluded from the saved
 
 ## Route search
 
-`x-route-search` requires a separately running Phloem-compatible `POST /route` service. It provides a floating search form; it does not require `tilia-panel`. Include `tilia-gpx-renderer` to display imported routes as GPX tracks, and `tilia-gpx-ui` plus selection presentation for their feature popups.
+`x-route-search` requires a separately running Phloem-compatible `POST /route` service. The search form opens in the shared right-side panel. Tilia installs `tilia-panel` automatically. Include `tilia-gpx-renderer` to display imported routes as GPX tracks, and `tilia-gpx-ui` plus selection presentation for their feature popups.
 
 | Option | Default | Meaning |
 | --- | --- | --- |
@@ -262,7 +262,7 @@ Only track points are editable; routes and waypoints are excluded from the saved
 
 Configure `endpoint` for your service rather than relying on the localhost default in a deployed page. Cross-origin access needs server CORS support; an HTTPS page also needs a browser-accessible endpoint compatible with its security policy.
 
-Open **Route search**, choose a profile, set Start/Goal and optional Via points, then run the search. Each imported result is a new GPX Track entry with Start/Via/Goal Waypoints. See the [client](../plugins/x-route-search/client.js) and [request/response helpers](../plugins/x-route-search/helpers.js) for the actual service contract.
+Open **Route search**, choose a profile, set Start/Goal and optional Via points, then run the search. Each imported result is a new GPX Track entry with Start/Via/Goal Waypoints. Closing the panel or switching to another tool preserves the form and recent import history, and pending searches still import their routes. The map automatically fits the first imported route only if the Route Search panel is open when that result is imported. See the [client](../plugins/x-route-search/client.js) and [request/response helpers](../plugins/x-route-search/helpers.js) for the actual service contract.
 
 ## Distance milestones
 

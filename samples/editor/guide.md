@@ -222,9 +222,9 @@ In your browser, access the sample you placed in the `public` directory via HTTP
 
 - http://localhost:3000/samples/editor/localhost.html
 
-Once the map page is displayed, click the "R" button on the left side of the screen to open the route search panel.
+Click the "R" button to open Route Search in the shared right-side panel. Opening Layers or Track Editor replaces the search form. Reopen Route Search to return to your inputs and recent imports.
 
-Enter the start and end points for the route search, and click the "Search Routes" button to execute the search. You can specify each point by right-clicking on the map, and you can also move the points by dragging the markers.
+Enter the start and end points for the route search, and click the "Search Routes" button to execute the search. While Route Search is open, right-click the map to specify points. Drag the markers to adjust them.
 
 Each route-search result is stored in Tilia as a GPX Track, with the Start, Via, and Goal locations stored as GPX Waypoints, and is shown as a separate item in the Layers panel "L".
 

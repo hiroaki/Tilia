@@ -1,53 +1,13 @@
-.tilia-route-search-panel {
-  position: absolute;
-  top: 12px;
-  left: 12px;
-  padding: 0;
-  width: min(360px, calc(100vw - 32px));
-  max-height: calc(100% - 24px);
-  display: flex;
-  flex-direction: column;
-  border: 1px solid #d6d3d1;
-  border-radius: 12px;
-  background: #fffffff2;
-  box-shadow: 0 16px 40px #0000001a;
-  backdrop-filter: blur(8px);
-  overflow: hidden;
-  box-sizing: border-box;
-}
-
-.tilia-route-search-panel.tilia-route-search-panel-hidden,
 .tilia-route-search-menu.tilia-route-search-menu-hidden {
   display: none;
-}
-
-.tilia-route-search-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 14px 16px;
-  border-bottom: 1px solid #e7e5e4;
-  background: #fafaf9;
-}
-
-.tilia-route-search-title {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: #1c1917;
-  white-space: nowrap;
 }
 
 .tilia-route-search-content {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  padding: 14px 16px 16px;
-  overflow: auto;
 }
 
-.tilia-route-search-intro,
 .tilia-route-search-hint,
 .tilia-route-search-empty,
 .tilia-route-search-result-meta {
@@ -117,8 +77,6 @@
   width: 100%;
 }
 
-.tilia-route-search-close,
-.tilia-route-search-inline-action,
 .tilia-route-search-profile-option,
 .tilia-route-search-add-via,
 .tilia-route-search-point-action {
@@ -200,6 +158,7 @@
 
 .tilia-route-search-menu {
   position: absolute;
+  pointer-events: auto;
   min-width: 180px;
   display: grid;
   gap: 6px;
@@ -297,12 +256,6 @@
 }
 
 @media (max-width: 700px) {
-  .tilia-route-search-panel {
-    left: 12px;
-    right: 12px;
-    width: auto;
-  }
-
   .tilia-route-search-actions {
     grid-template-columns: 1fr;
   }
@@ -310,9 +263,4 @@
   .tilia-route-search-point-row {
     grid-template-columns: auto minmax(0, 1fr) auto;
   }
-}
-/* Assigned floating mounts are pointer-transparent; only this UI receives input. */
-.tilia-route-search-panel,
-.tilia-route-search-menu {
-  pointer-events: auto;
 }
