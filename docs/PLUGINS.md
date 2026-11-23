@@ -13,7 +13,7 @@ For each data format, choose the parts your application needs:
 | Domain | `tilia-gpx-domain` | `tilia-photo-domain` | Owns data entries and exposes commands and queries |
 | Renderer | `tilia-gpx-renderer` | `tilia-photo-renderer` | Displays entries on the map |
 | Input | `tilia-gpx-input` | `tilia-jpeg-input` | Reads files and creates entries |
-| UI contribution | `tilia-gpx-ui` | `tilia-photo-ui` | Adds format-specific layer rows, popup content, and settings |
+| UI contribution | `tilia-gpx-ui` | `tilia-photo-ui` | Adds format-specific layer rows and popup content, including Photo time in photo rows |
 
 Input, renderer, and UI plugins require their respective domain, which installs automatically. A domain alone does not parse files or draw anything. UI contributions need hosts: `tilia-layers` for layer rows, `tilia-settings` for settings, and `tilia-map-selection-presenter` for selection popups and highlights. These hosts do not install the format-specific contributions.
 
@@ -57,11 +57,11 @@ await app.unuse("x-distance-markers");
 | `tilia-gpx-domain` | — | GPX tracks, routes, and waypoints; commands, queries, and selection candidates |
 | `tilia-gpx-renderer` | `tilia-gpx-domain` | Map rendering of tracks, routes, and waypoints |
 | `tilia-gpx-input` | `tilia-gpx-domain` | Parses GPX files, creates entries, and fits the map to imported bounds |
-| `tilia-gpx-ui` | `tilia-gpx-domain` | GPX layer rows, popup content, and per-entry settings |
+| `tilia-gpx-ui` | `tilia-gpx-domain` | GPX layer rows and popup content |
 | `tilia-photo-domain` | — | Photo metadata, saved inferred locations, preview resources, and commands |
 | `tilia-photo-renderer` | `tilia-photo-domain` | Markers at EXIF GPS coordinates or saved inferred locations |
 | `tilia-jpeg-input` | `tilia-photo-domain` | JPEG file handler with lazy EXIF parsing through exifr |
-| `tilia-photo-ui` | `tilia-photo-domain` | Photo layer rows, popup content, and time interpretation settings |
+| `tilia-photo-ui` | `tilia-photo-domain` | Photo layer rows with time interpretation controls, plus popup content |
 | `tilia-map-selection-presenter` | — | Presents current semantic selection with popups and highlights |
 
 ### Viewer controls and input
@@ -97,13 +97,13 @@ These repository plugins use the `x-` namespace and reside under `plugins/`. The
 
 ## GPX viewer
 
-This combination supports GPX file, URL, query, and drop input, with layers, selection presentation, elevation, and settings. The panel, toolbar, and GPX domain install as dependencies.
+This combination supports GPX file, URL, query, and drop input, with layers, selection presentation, and elevation. The panel, toolbar, and GPX domain install as dependencies.
 
 ```js
 const app = createDefaultTiliaApp("map", {
   plugins: [
     "tilia-gpx-input", "tilia-gpx-renderer", "tilia-gpx-ui",
-    "tilia-map-selection-presenter", "tilia-layers", "tilia-settings",
+    "tilia-map-selection-presenter", "tilia-layers",
     "tilia-elevation", "tilia-status", "tilia-base-maps-control",
     "tilia-file-import", "tilia-url-import", "tilia-query-import",
     "tilia-dropzone", "x-gsi-base-maps", "x-opentopomap-base-maps",
@@ -112,7 +112,7 @@ const app = createDefaultTiliaApp("map", {
 await app.ready;
 ```
 
-Use **Open files**, **Load URL**, or drop files onto the map. Open **Layers** to toggle or remove entries and **Settings** for GPX preferences. Click a rendered feature to select it and display its contributed popup. Closing the popup does not clear the semantic selection.
+Use **Open files**, **Load URL**, or drop files onto the map. Use **Layers** to show or hide GPX entries, categories, and individual tracks or routes, or to remove entries. Click a rendered feature to select it and display its contributed popup. Closing the popup does not clear the semantic selection.
 
 Open **Elevation** for a track containing elevation data. Hover to locate chart samples on the map, or click to select a track point. Arrow keys move through samples; Enter or Space selects one. Map-linked presentation also needs the GPX renderer. Routes and standalone waypoints are not track elevation profiles.
 
@@ -135,13 +135,13 @@ Include Leaflet CSS and place its import map before the module script:
 </script>
 ```
 
-For a Photo viewer with a file picker, layers, settings, and popups:
+For a Photo viewer with a file picker, layers, and popups:
 
 ```js
 const app = createDefaultTiliaApp("map", {
   plugins: [
     "tilia-jpeg-input", "tilia-photo-renderer", "tilia-photo-ui",
-    "tilia-file-import", "tilia-layers", "tilia-settings",
+    "tilia-file-import", "tilia-layers",
     "tilia-map-selection-presenter",
   ],
 });
@@ -151,7 +151,11 @@ await app.ready;
 
 EXIF GPS coordinates take precedence. A photo without GPS can receive an inferred location from a matching GPX timeline supplied by an installed GPX domain. For this, add `tilia-gpx-input` and load the timestamped GPX before the photo; a GPX renderer is optional for inference. Inference may fail to find a location, in which case no photo marker is shown.
 
-The inferred result is saved on the Photo entry. Later GPX changes or deletion do not automatically relocate it. Photo settings support `auto`, `local`, `utc`, and **Custom offset** (sign plus hours/minutes). Commit custom fields with Enter or by moving focus outside the offset controls. Changing the Photo's relevant data or time mode, or explicitly recomputing, can attempt new inference. Failed changes preserve the committed setting and position; settings changes do not move the map automatically.
+The inferred result is saved on the Photo entry. Later GPX changes or deletion do not automatically relocate it. In **Layers**, select a photo by clicking its name and use **Fit** to center and zoom the map on its location.
+
+For photos with a capture time and no EXIF GPS, the **Photo time** menu beside **Fit** adjusts how the capture time is matched against the GPX timeline for location inference. It is available before and after a match is found. Choose `auto`, `local`, `utc`, or **Custom offset** (sign plus hours/minutes). Commit custom fields with Enter or by moving focus outside the offset controls. The capture date shows the interpreted UTC offset when available. `local` uses the browser's time zone on the capture date, including daylight saving time. Unresolved `auto` shows the capture date without an offset. Photos with EXIF GPS show the original capture date without an offset. Photos without a capture time display `-`. Both omit the menu.
+
+Changing the Photo's relevant data or time mode, or explicitly recomputing, can attempt new inference. Failed changes preserve the committed setting and position. Editing Photo time leaves the map viewport in place.
 
 Set the initial JPEG interpretation through the JPEG plugin, before publication and auto-pan:
 

@@ -1,5 +1,5 @@
 import { gpxDomainKey } from "../../domains/keys.js";
-import { mountGpxRow, mountGpxPopup, mountGpxSettings } from "../../gpx/ui.js";
+import { mountGpxRow, mountGpxPopup } from "../../gpx/ui.js";
 import { reportError } from "../../ui/scoped-dom.js";
 export default Object.freeze({
   id: "tilia-gpx-ui", requires: ["tilia-gpx-domain"],
@@ -19,7 +19,6 @@ export default Object.freeze({
       build({ ...input, scope, gpx, entries: context.entries, map: context.map, selection: input.selection ?? context.selection, report });
     };
     context.contributions.layers.register(gpxDomainKey, { mount: mount(mountGpxRow) });
-    context.contributions.settings.register({ id: "gpx-preferences", descriptor: { supports: (entry) => entry.domain === gpxDomainKey, mount: mount(mountGpxSettings) } });
     context.contributions.popup.register(gpxDomainKey, { mount: mount(mountGpxPopup) });
   },
 });

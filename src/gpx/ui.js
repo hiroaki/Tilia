@@ -2,7 +2,6 @@ import { domainMount } from "../ui/domain-mount.js";
 import { listen, node } from "../ui/scoped-dom.js";
 import { resolveGpxTarget } from "./document.js";
 import { formatGpxSummary, getTrackDisplayName } from "./interpretation.js";
-import { TRACK_STYLE_PRESETS } from "../map/track-style-presets.js";
 import { clearSelectionHiddenByGpxCheckbox } from "./visibility.js";
 import { createWaypointPopupContent, createRoutePointPopupContent, createTrackPointPopupContent } from "./popup.js";
 
@@ -152,40 +151,6 @@ export function mountGpxRow(input) {
   }
   const subscription = selection.subscribe(() => model.update(render)); scope.defer(() => subscription.unsubscribe(), { retry: "safe" });
   model.update(render);
-}
-export function mountGpxSettings(input) {
-  const { container, scope, entry, gpx, report } = input, model = domainMount({ ...input, domain: gpx });
-  container.classList.add("tilia-gpx-settings");
-  const title = node(container, "h3", "tilia-gpx-settings-name");
-  const label = node(container, "label", "tilia-gpx-setting-label", "GPX style");
-  const style = node(label, "select", "tilia-control-select tilia-gpx-style-select");
-  model.controls.add(style); style.setAttribute("aria-label", "GPX style");
-  for (const id of [...new Set(["default", ...TRACK_STYLE_PRESETS.map((p) => p.id)])]) { const option = node(style, "option", "", id); option.value = id; }
-  let data, controlsScope, project = [];
-  const values = node(container, "div", "tilia-gpx-visibility-settings");
-  const render = (view) => {
-    title.textContent = view.snapshot.data.name;
-    const preset = view.snapshot.preferences.stylePresetId;
-    if (![...style.children].some((option) => option.value === preset)) { const option = node(style, "option", "", preset); option.value = preset; }
-    style.value = preset;
-    if (!data) {
-      data = view.snapshot.data; void controlsScope?.dispose().catch(report); controlsScope = scope.child({ label: "visibility-settings" }); values.replaceChildren(); project = [];
-      const checkbox = (label, checked, admit, gate) => {
-        const wrap = node(values, "label", "", label), toggle = node(wrap, "input", ""); toggle.type = "checkbox"; toggle.setAttribute("aria-label", label);
-        model.controls.add(toggle); controlsScope.defer(() => model.controls.delete(toggle));
-        project.push((v) => { toggle.checked = checked(v); });
-        listen(controlsScope, toggle, "change", () => { const visible = toggle.checked; return model.command(async (v) => {
-          await admit(visible, v.revision);
-          await clearSelectionHiddenByGpxCheckbox(input, v, { ...gate, visible });
-        }, render); }, report);
-      };
-      for (const category of ["tracks", "routes", "waypoints"]) checkbox(category, (v) => v.snapshot.preferences[`${category}Visible`], (visible, revision) => gpx.setCategoryVisibility(entry.id, { category, visible }, { expectedRevision: revision }), { category });
-      data.tracks.forEach((track, trackIndex) => checkbox(getTrackDisplayName(track, trackIndex), (v) => v.snapshot.preferences.trackVisibility[trackIndex] !== false, (visible, revision) => gpx.setTrackVisibility(entry.id, { trackIndex, visible }, { expectedRevision: revision }), { trackIndex }));
-    }
-    project.forEach((update) => update(view));
-  };
-  listen(scope, style, "change", () => { const value = style.value; return model.command((v) => gpx.setStylePreset(entry.id, value, { expectedRevision: v.revision }), render); }, report);
-  model.subscribe(render, (event) => { if (event.entry?.id === entry.id && event.change?.type === "replace-data") data = null; }); model.update(render);
 }
 export function mountGpxPopup({ container, selection, gpx }) {
   const view = gpx.get(selection.entryId), document = view.snapshot.data;

@@ -113,20 +113,21 @@ test('Layers name toggles selection while checkbox actions preserve unrelated se
   await expect.poll(() => selected(page)).toBeNull(); expect(await page.evaluate(() => window.phase4h.navigation)).toEqual([]);
 });
 
-test('Settings visibility checkboxes clear affected route/waypoint selections without opening popup or navigating', async ({ page }) => {
+test('Layers category checkboxes clear affected route/waypoint selections without opening popup or navigating', async ({ page }) => {
   await ready(page); await page.locator('.tilia-route-point-marker').first().click(); await expect(popup(page)).toBeVisible();
-  await page.getByRole('button', { name: 'Settings', exact: true }).click(); await instrumentNavigation(page);
-  const settings = page.locator('.tilia-gpx-visibility-settings');
-  await settings.getByRole('checkbox', { name: 'routes', exact: true }).uncheck();
+  await page.getByRole('button', { name: 'Layers', exact: true }).click(); await instrumentNavigation(page);
+  const routes = page.getByRole('checkbox', { name: 'phase-a.gpx routes', exact: true });
+  const waypoints = page.getByRole('checkbox', { name: 'phase-a.gpx waypoints', exact: true });
+  await routes.uncheck();
   await expect.poll(() => selected(page)).toBeNull(); await expect(popup(page)).toHaveCount(0); await expect(crosshair(page)).toHaveCount(0);
-  await settings.getByRole('checkbox', { name: 'routes', exact: true }).check(); await expect(popup(page)).toHaveCount(0);
+  await routes.check(); await expect(popup(page)).toHaveCount(0);
   expect(await page.evaluate(() => window.phase4h.navigation)).toEqual([]);
   await page.locator('img.leaflet-marker-icon[title="Waypoint A"]').click(); await expect(popup(page)).toBeVisible();
   await page.locator('.leaflet-popup-close-button').click(); await expect(popup(page)).toHaveCount(0);
   await page.evaluate(() => { window.phase4h.navigation = []; });
-  await settings.getByRole('checkbox', { name: 'waypoints', exact: true }).uncheck();
+  await waypoints.uncheck();
   await expect.poll(() => selected(page)).toBeNull(); await expect(crosshair(page)).toHaveCount(0);
-  await settings.getByRole('checkbox', { name: 'waypoints', exact: true }).check();
+  await waypoints.check();
   await expect(popup(page)).toHaveCount(0); expect(await page.evaluate(() => window.phase4h.navigation)).toEqual([]);
 });
 

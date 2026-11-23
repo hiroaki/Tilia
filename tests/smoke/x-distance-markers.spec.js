@@ -6,6 +6,7 @@ test("experimental sample: interpolated anchors, zoom consistency, selection, vi
   await page.route("https://**/*", route => route.abort());
   await page.goto("/samples/distance-markers/");
   await expect(page.locator("body")).toHaveAttribute("data-ready", "true");
+  await expect(page.getByRole("button", { name: "Settings", exact: true })).toHaveCount(0);
   const labels = page.locator(".x-distance-marker");
   await expect(labels).toHaveCount(0);
   await expect(page.locator("#marker-count")).toHaveText("0");

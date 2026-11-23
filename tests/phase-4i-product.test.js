@@ -4,13 +4,72 @@ import { uiFixture, byClass, settle } from "./helpers/production-ui.js";
 import { builtinPluginCatalog } from "../src/builtins.js";
 import * as scopedDom from "../src/ui/scoped-dom.js";
 import gpxPlugin from "../src/plugins/domains/gpx.js";
+import photoPlugin from "../src/plugins/domains/photo.js";
+import { photoDomainKey } from "../src/domains/keys.js";
 import { elevationLayout, nearestElevationSample } from "../src/gpx/elevation-layout.js";
 let f, release;afterEach(async()=>{release?.();release=null;await f?.close();f=null;});
 const data=(name="profile.gpx")=>({name,tracks:[{segments:[{points:[{lat:0,lon:0,elevation:10},{lat:1,lon:1,elevation:20}]}]}]});
 describe("Phase 4I semantic product behavior",()=>{
- it("keeps generic rows and Settings mounts stable across unrelated/domain changes",async()=>{
-  f=await uiFixture(["tilia-gpx-ui","tilia-layers","tilia-settings"]);const a=await f.app.domains.gpx.create(data("a")),b=await f.app.domains.gpx.create(data("b"));f.click("Layers");await settle();const rows=byClass(f.map.container,"tilia-layer-item"),nodes=byClass(f.map.container,"tilia-gpx-tree");await f.app.domains.gpx.setStylePreset(a.id,"amber",{expectedRevision:1});await settle();expect(byClass(f.map.container,"tilia-layer-item")).toEqual(rows);expect(byClass(f.map.container,"tilia-gpx-tree")).toEqual(nodes);
-  f.click("Settings");await settle();const sections=byClass(f.map.container,"tilia-entry-settings"),styles=byClass(f.map.container,"tilia-gpx-style-select");await f.app.domains.gpx.setStylePreset(a.id,"magenta",{expectedRevision:2});await settle();expect(byClass(f.map.container,"tilia-entry-settings")).toEqual(sections);expect(styles[0].value).toBe("magenta");expect(styles[1].value).toBe("default");expect(f.app.entries.get(b.id)).not.toBeNull();
+ it("keeps Layers rows stable when a GPX style changes through the API",async()=>{
+  f=await uiFixture(["tilia-gpx-ui","tilia-layers"]);const a=await f.app.domains.gpx.create(data("a")),b=await f.app.domains.gpx.create(data("b"));f.click("Layers");await settle();const rows=byClass(f.map.container,"tilia-layer-item"),nodes=byClass(f.map.container,"tilia-gpx-tree");await f.app.domains.gpx.setStylePreset(a.id,"amber",{expectedRevision:1});await settle();expect(byClass(f.map.container,"tilia-layer-item")).toEqual(rows);expect(byClass(f.map.container,"tilia-gpx-tree")).toEqual(nodes);expect(f.app.entries.get(b.id)).not.toBeNull();
+ });
+
+ it("keeps a Settings panel without contributions empty before and after loading GPX", async () => {
+   f = await uiFixture(["tilia-settings"]);
+   f.click("Settings");
+   await settle();
+   const [panel] = byClass(f.map.container, "tilia-side-panel");
+   expect(panel.attributes["aria-label"]).toBe("Settings");
+   expect(panel.classList.contains("tilia-side-panel-hidden")).toBe(false);
+   expect(byClass(panel, "tilia-entry-settings")).toHaveLength(0);
+
+   await f.app.use("tilia-gpx-ui");
+   await f.app.domains.gpx.create(data());
+   await settle();
+   expect(f.context.contributions.settings.getSnapshot()).toEqual([]);
+   expect(byClass(panel, "tilia-entry-settings")).toHaveLength(0);
+   byClass(panel, "tilia-side-panel-close")[0].click();
+   await settle();
+   expect(panel.classList.contains("tilia-side-panel-hidden")).toBe(true);
+ });
+
+ it("mounts a custom Settings contribution and keeps its section stable across domain changes", async () => {
+   f = await uiFixture(["tilia-gpx-ui", "tilia-photo-ui", "tilia-settings"]);
+   const gpx = await f.app.domains.gpx.create(data());
+   const photo = await f.app.domains.photo.create({ data: { name: "photo.jpg", coordinate: { lat: 1, lon: 2 } } });
+   f.click("Settings");
+   await settle();
+   expect(f.context.contributions.settings.getSnapshot()).toEqual([]);
+   expect(byClass(f.map.container, "tilia-entry-settings")).toHaveLength(0);
+   const cleanup = vi.fn();
+   await f.app.use({ id: "x-test-entry-settings", setup(context) {
+     context.contributions.settings.register({ id: "custom-entry-settings", descriptor: {
+       supports: (entry) => entry.domain === photoDomainKey,
+       mount({ container, scope, entry }) {
+         const field = container.ownerDocument.createElement("input");
+         field.className = "custom-entry-settings-field";
+         field.value = entry.id;
+         container.appendChild(field);
+         scope.defer(cleanup, { retry: "safe" });
+       },
+     } });
+   } });
+   await settle();
+   const sections = byClass(f.map.container, "tilia-entry-settings");
+   expect(sections).toHaveLength(1);
+   const [field] = byClass(sections[0], "custom-entry-settings-field");
+   expect(field.value).toBe(photo.id);
+
+   await f.app.domains.gpx.setStylePreset(gpx.id, "magenta", { expectedRevision: 1 });
+   await f.app.domains.photo.setRequestedTimeMode(photo.id, "utc", { expectedRevision: 1 });
+   await settle();
+   expect(byClass(f.map.container, "tilia-entry-settings")).toEqual(sections);
+   expect(byClass(sections[0], "custom-entry-settings-field")).toEqual([field]);
+   expect(cleanup).not.toHaveBeenCalled();
+   await f.app.unuse("x-test-entry-settings");
+   await settle();
+   expect(byClass(f.map.container, "tilia-entry-settings")).toHaveLength(0);
+   expect(cleanup).toHaveBeenCalledTimes(1);
  });
  it("withdraws an unselected stale row at action-time absence while external cleanup remains held",async()=>{
   let start;const entered=new Promise(r=>start=r),gate=new Promise(r=>release=r);
@@ -46,15 +105,63 @@ describe("Phase 4I semantic product behavior",()=>{
  });
 });
 
-describe("mount-local Settings race",()=>{
- it("admits equal revisions from two surfaces, disables locally and restores authoritative values after stale rejection",async()=>{
-  const report=vi.spyOn(scopedDom,"reportError");
-  let start;const entered=new Promise(r=>start=r),gate=new Promise(r=>release=r);
-  const builtins=builtinPluginCatalog.map(item=>item.id!=="tilia-gpx-domain"?item:{...item,load:async()=>({default:{...gpxPlugin,setup(c){gpxPlugin.setup({...c,domains:{...c.domains,provide(key,provider){c.domains.provide(key,{...provider,async prepareMutation(input){start();await gate;return provider.prepareMutation(input);}});}}});}}})});
-  f=await uiFixture(["tilia-gpx-ui"],{builtins});const entry=await f.app.domains.gpx.create(data());const descriptor=f.context.contributions.settings.getSnapshot().find(item=>item.id==="gpx-preferences").descriptor;
-  const mounts=[0,1].map(()=>{const container=f.doc.createElement("div");f.doc.body.appendChild(container);const scope=f.context.scope.child();descriptor.mount({container,scope,entry});return{container,scope};});
-  const controls=mounts.map(m=>byClass(m.container,"tilia-gpx-style-select")[0]);controls[0].value="amber";controls[0].dispatchEvent(new Event("change"));await entered;expect(controls[0].disabled).toBe(true);expect(controls[1].disabled).not.toBe(true);
-  controls[1].value="magenta";controls[1].dispatchEvent(new Event("change"));expect(controls[1].disabled).toBe(true);release();await settle();expect(f.app.domains.gpx.get(entry.id).revision).toBe(2);expect(f.app.domains.gpx.get(entry.id).snapshot.preferences.stylePresetId).toBe("amber");expect(controls.map(c=>c.value)).toEqual(["amber","amber"]);expect(controls.every(c=>!c.disabled)).toBe(true);
-  expect(report).toHaveBeenCalledWith(expect.anything(),expect.objectContaining({code:"ENTRY_STALE_REVISION"}));report.mockRestore();
+describe("mount-local Photo row race", () => {
+ it("admits equal revisions from two surfaces, disables locally and restores authoritative values after stale rejection", async () => {
+   const report = vi.spyOn(scopedDom, "reportError");
+   let start;
+   const entered = new Promise(resolve => { start = resolve; });
+   const gate = new Promise(resolve => { release = resolve; });
+   const delayed = {
+     ...photoPlugin,
+     setup(context) {
+       photoPlugin.setup({
+         ...context,
+         domains: {
+           ...context.domains,
+           provide(key, provider) {
+             context.domains.provide(key, {
+               ...provider,
+               async prepareMutation(input) {
+                 start();
+                 await gate;
+                 return provider.prepareMutation(input);
+               },
+             });
+           },
+         },
+       });
+     },
+   };
+   const builtins = builtinPluginCatalog.map(item => item.id === delayed.id
+     ? { ...item, load: async () => ({ default: delayed }) }
+     : item);
+   f = await uiFixture(["tilia-photo-ui"], { builtins });
+   const entry = await f.app.domains.photo.create({ data: { capturedAt: 0 } });
+   const adapter = f.context.contributions.layers.get(photoDomainKey);
+   const controls = [0, 1].map(() => {
+     const container = f.doc.createElement("div");
+     f.doc.body.appendChild(container);
+     adapter.mount({ container, scope: f.context.scope.child(), entry });
+     return byClass(container, "tilia-photo-time-mode-select")[0];
+   });
+
+   controls[0].value = "utc";
+   controls[0].dispatchEvent(new Event("change"));
+   await entered;
+   expect(controls[0].disabled).toBe(true);
+   expect(controls[1].disabled).not.toBe(true);
+   controls[1].value = "local";
+   controls[1].dispatchEvent(new Event("change"));
+   expect(controls[1].disabled).toBe(true);
+   release();
+   await settle();
+   expect(f.app.domains.photo.get(entry.id)).toMatchObject({
+     revision: 2,
+     snapshot: { preferences: { requestedTimeMode: "utc" } },
+   });
+   expect(controls.map(control => control.value)).toEqual(["utc", "utc"]);
+   expect(controls.every(control => !control.disabled)).toBe(true);
+   expect(report).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ code: "ENTRY_STALE_REVISION" }));
+   report.mockRestore();
  });
 });

@@ -36,7 +36,7 @@
       </select>
     </label>
     <p id="map-stats">Zoom <output id="zoom-level"></output> · Markers <output id="marker-count"></output></p>
-    <p>Layers / Settings test visibility. Import your own GPX using the file button or drag and drop.</p>
+    <p>Use Layers to change GPX visibility. Import your own GPX using the file button or drag and drop.</p>
   </header>
   <div id="map"></div>
   <script type="module">
@@ -44,7 +44,7 @@
     const app = createDefaultTiliaApp("map", {
       baseMapOptions: { center: [35.68, 139.76], zoom: 13 },
       plugins: ["tilia-gpx-domain", "tilia-gpx-renderer", "tilia-gpx-input", "tilia-gpx-ui",
-        "tilia-toolbar", "tilia-panel", "tilia-layers", "tilia-settings", "tilia-file-import",
+        "tilia-toolbar", "tilia-panel", "tilia-layers", "tilia-file-import",
         "tilia-dropzone", "tilia-elevation", "tilia-map-selection-presenter", "x-distance-markers"],
     });
     await app.ready;
