@@ -1,4 +1,4 @@
-import { retryScopeCleanup } from "../ownership/scope.js";
+import { onScopeClosed, retryScopeCleanup } from "../ownership/scope.js";
 
 export function guardedMount(owner, mount, onError) {
   return (input) => {
@@ -21,11 +21,17 @@ export function guardedMount(owner, mount, onError) {
     // The host remains the resource owner. The contributor owns only the
     // obligation to join closure and, on explicit retry, retry failed records.
     let attempted = false;
-    owner.defer(() => {
+    let closed = false;
+    const obligation = owner.defer(() => {
+      if (closed) return;
       const operation = attempted ? retryScopeCleanup(scope) : scope.dispose();
       attempted = true;
       return observe(operation);
     }, { label: "contribution-mount-close", retry: "safe" });
+    onScopeClosed(scope, () => {
+      closed = true;
+      if (owner.alive) void obligation.dispose().catch(onError);
+    });
     scope.defer(detach, { label: "contribution-mount-listeners", retry: "safe" });
     scope.signal.addEventListener("abort", detach, { once: true });
     owner.signal.addEventListener("abort", close, { once: true });

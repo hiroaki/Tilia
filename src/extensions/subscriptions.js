@@ -41,12 +41,12 @@ export function createSubscriptionChannel({ getSnapshot = null, onError = () => 
     const record = { scope, listener: scope.guard(listener) };
     subscribers.add(record);
     let active = true;
-    const unsubscribe = () => {
+    const withdraw = () => {
       if (!active) return;
       active = false;
       subscribers.delete(record);
     };
-    scope.defer(unsubscribe, { label: "typed-subscription", retry: "safe" });
+    const cleanup = scope.defer(withdraw, { label: "typed-subscription", retry: "safe" });
     if (emitCurrent && getSnapshot) {
       try {
         record.listener(getSnapshot());
@@ -58,7 +58,7 @@ export function createSubscriptionChannel({ getSnapshot = null, onError = () => 
         ));
       }
     }
-    return Object.freeze({ unsubscribe });
+    return Object.freeze({ unsubscribe() { void cleanup.dispose().catch(onError); } });
   }
 
   return Object.freeze({ subscribe, deliver });

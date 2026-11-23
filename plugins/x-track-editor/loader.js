@@ -1,4 +1,4 @@
-import { closePanelMountOnAbort } from "../../src/ui/panel-mount.js";
+import { createOwnedPanelOpener } from "../../src/ui/panel-mount.js";
 import { gpxDomainKey } from "../../src/domains/index.js";
 import { panelServiceKey } from "../../src/plugins/contracts/panel.js";
 import { statusServiceKey } from "../../src/plugins/contracts/status.js";
@@ -68,8 +68,7 @@ export const trackEditorPlugin = {
     context.styles.use({ id: "x-track-editor", href: new URL("./styles.css", import.meta.url).href });
     context.styles.use({ id: "x-track-editor-vendor", href: new URL("./vendor/leaflet-partially-editable-polyline.css", import.meta.url).href });
     let mount, rows, gestureContainer;
-    const panelHandles = new Set();
-    context.scope.defer(async () => { for (const handle of panelHandles) await handle.dispose(); }, { retry: "safe" });
+    const openPanel = createOwnedPanelOpener(context.scope, panel, report);
     context.ui.mountSurface({ id: "editor-gestures", surface: "floating", ariaLabel: "Track editor gestures",
       mount({ container }) {
         gestureContainer = container;
@@ -628,14 +627,11 @@ export const trackEditorPlugin = {
     registerLauncher(context, options, { kind: "action", label: "Track editor", iconText: "T",
       className: "tilia-track-editor-control", activate() {
         if (panel.isOpen("track-editor")) return panel.close("track-editor");
-        const handle = panel.open({ id: "track-editor", title: "Track Editor", mount(value) {
-          closePanelMountOnAbort(context.scope, value.scope, report);
-          if (!value.scope.alive) return;
+        openPanel({ id: "track-editor", title: "Track Editor", mount(value) {
           mount = value;
           value.scope.defer(() => { if (mount === value) mount = null; }, { retry: "safe" });
           renderPanel();
         } });
-        panelHandles.add(handle);
       } });
     context.selection.subscribe(() => {
       if (session) return;

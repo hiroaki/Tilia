@@ -1,4 +1,4 @@
-import { closePanelMountOnAbort } from "../../ui/panel-mount.js";
+import { createOwnedPanelOpener } from "../../ui/panel-mount.js";
 import { CircleMarker } from "leaflet";
 import { gpxDomainKey } from "../../domains/keys.js";
 import { elevationLayout, nearestElevationSample } from "../../gpx/elevation-layout.js";
@@ -7,13 +7,12 @@ import { listen, node, reportError } from "../../ui/scoped-dom.js";
 import { registerLauncher } from "../../ui/toolbar-launcher.js";
 export default Object.freeze({ id: "tilia-elevation", requires: ["tilia-panel", "tilia-toolbar", "tilia-gpx-domain"], setup(context, options = {}) {
     context.styles.use({ id: "tilia-elevation-ui", href: new URL("./elevation.css", import.meta.url).href });
-  const gpx = context.domains.require(gpxDomainKey), panel = context.services.require(panelServiceKey), report = (e) => reportError(context, e), handles = new Set();
+  const gpx = context.domains.require(gpxDomainKey), panel = context.services.require(panelServiceKey), report = (e) => reportError(context, e);
   let activeId;
+  const openPanel = createOwnedPanelOpener(context.scope, panel, report);
   registerLauncher(context, options, { kind: "action", label: "Elevation", iconText: "E", className: "tilia-elevation-control", activate() {
     if (panel.isOpen("elevation")) return panel.close("elevation");
-    handles.add(panel.open({ id: "elevation", title: "Elevation", layout: "bottom", mount({ container, scope }) {
-      closePanelMountOnAbort(context.scope, scope, report);
-      if (!scope.alive) return;
+    openPanel({ id: "elevation", title: "Elevation", layout: "bottom", mount({ container, scope }) {
       container.classList.add("tilia-elevation-panel-content");
       let session, hoverScope, layout, revision, chart, guide, guideLine, keyboardIndex = 0;
       const clearHover = () => { const old = hoverScope; hoverScope = null; void old?.dispose().catch(report); if (guide) guide.hidden = true; if (guideLine) guideLine.hidden = true; };
@@ -115,7 +114,6 @@ export default Object.freeze({ id: "tilia-elevation", requires: ["tilia-panel", 
       };
       const subscriptions = [context.entries.subscribe(render, { emitCurrent: false }), context.selection.subscribe(render), context.rendering.subscribe(clearHover, { emitCurrent: false })];
       scope.defer(() => subscriptions.forEach((s) => s.unsubscribe()), { retry: "safe" }); render();
-    } }));
+    } });
   } });
-  context.scope.defer(async () => { for (const handle of handles) await handle.dispose(); }, { retry: "safe" });
 } });

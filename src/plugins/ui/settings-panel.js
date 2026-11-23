@@ -1,4 +1,4 @@
-import { closePanelMountOnAbort } from "../../ui/panel-mount.js";
+import { createOwnedPanelOpener } from "../../ui/panel-mount.js";
 import { panelServiceKey } from "../contracts/panel.js";
 import { node, reportError } from "../../ui/scoped-dom.js";
 import { registerLauncher } from "../../ui/toolbar-launcher.js";
@@ -6,12 +6,11 @@ export default Object.freeze({
   id: "tilia-settings", requires: ["tilia-panel", "tilia-toolbar"],
   setup(context, options = {}) {
     context.styles.use({ id: "tilia-settings-ui", href: new URL("./settings.css", import.meta.url).href });
-    const panel = context.services.require(panelServiceKey), handles = new Set(), report = (e) => reportError(context, e);
+    const panel = context.services.require(panelServiceKey), report = (e) => reportError(context, e);
+    const openPanel = createOwnedPanelOpener(context.scope, panel, report);
     registerLauncher(context, options, { kind: "action", label: "Settings", iconText: "S", className: "tilia-settings-control", activate() {
       if (panel.isOpen("settings")) return panel.close("settings");
-      handles.add(panel.open({ id: "settings", title: "Settings", layout: "side", mount({ container, scope }) {
-        closePanelMountOnAbort(context.scope, scope, report);
-        if (!scope.alive) return;
+      openPanel({ id: "settings", title: "Settings", layout: "side", mount({ container, scope }) {
         container.classList.add("tilia-settings-panel-content");
         const records = new Map();
         const close = (record) => { if (records.get(record.key) === record) records.delete(record.key); void record.scope.dispose().catch(report); record.item.remove(); };
@@ -38,8 +37,7 @@ export default Object.freeze({
         };
         const subscriptions = [context.entries.subscribe(reconcile, { emitCurrent: false }), context.contributions.settings.subscribe(reconcile, { emitCurrent: false })];
         scope.defer(() => subscriptions.forEach((s) => s.unsubscribe()), { retry: "safe" }); reconcile();
-      } }));
+      } });
     } });
-    context.scope.defer(async () => { for (const handle of handles) await handle.dispose(); }, { retry: "safe" });
   },
 });

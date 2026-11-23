@@ -289,9 +289,12 @@ export function createSelectionStore({ applicationScope, getTarget, onError = ()
         if (event.issuer.alive) listener(event.selection);
       } else listener(event);
     }, { emitCurrent: false });
-    const handle = Object.freeze({ unsubscribe() { underlying.unsubscribe(); subscriptions.delete(handle); } });
+    const cleanup = scope.defer(() => {
+      underlying.unsubscribe();
+      subscriptions.delete(handle);
+    }, { label: "selection-subscription-index", retry: "safe" });
+    const handle = Object.freeze({ unsubscribe() { void cleanup.dispose().catch(onError); } });
     subscriptions.add(handle);
-    scope.defer(handle.unsubscribe, { label: "selection-subscription-index", retry: "safe" });
     return handle;
   }
 

@@ -171,8 +171,10 @@ describe("ownership scope lifecycle", () => {
 
     await child.dispose();
     await child.dispose();
+    expect(controller.snapshot().counts).toMatchObject({ children: 0, locals: 1 });
     await handle.dispose();
     await handle.dispose();
+    expect(controller.snapshot().counts).toMatchObject({ children: 0, locals: 0 });
     await controller.close();
 
     expect(childDispose).toHaveBeenCalledOnce();

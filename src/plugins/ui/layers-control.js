@@ -1,4 +1,4 @@
-import { closePanelMountOnAbort } from "../../ui/panel-mount.js";
+import { createOwnedPanelOpener } from "../../ui/panel-mount.js";
 import { statusServiceKey } from "../contracts/status.js";
 import { panelServiceKey } from "../contracts/panel.js";
 import { listen, node, reportError } from "../../ui/scoped-dom.js";
@@ -7,12 +7,11 @@ export default Object.freeze({
   id: "tilia-layers", requires: ["tilia-panel", "tilia-toolbar"],
   setup(context, options = {}) {
     context.styles.use({ id: "tilia-layers-ui", href: new URL("./layers.css", import.meta.url).href });
-    const panel = context.services.require(panelServiceKey), report = (e) => reportError(context, e), handles = new Set();
+    const panel = context.services.require(panelServiceKey), report = (e) => reportError(context, e);
+    const openPanel = createOwnedPanelOpener(context.scope, panel, report);
     registerLauncher(context, options, { kind: "action", label: "Layers", iconText: "L", className: "tilia-layers-control", activate() {
       if (panel.isOpen("layers")) return panel.close("layers");
-      handles.add(panel.open({ id: "layers", title: "Layers", layout: "side", mount({ container, scope }) {
-        closePanelMountOnAbort(context.scope, scope, report);
-        if (!scope.alive) return;
+      openPanel({ id: "layers", title: "Layers", layout: "side", mount({ container, scope }) {
         container.classList.add("tilia-layers-panel-content");
         node(container, "p", "tilia-layers-panel-text", "Layers panel: show or hide layers and inspect their contents.");
         const mutations = node(container, "fieldset", "tilia-layer-mutations");
@@ -73,8 +72,7 @@ export default Object.freeze({
         listen(scope, clear, "click", async () => { if (clear.disabled) return; clear.disabled = true; mutations.disabled = true; try { await context.entries.clear(); if (scope.alive) context.services.optional(statusServiceKey)?.set("Cleared all layers and sources"); } finally { if (scope.alive) { clear.disabled = false; mutations.disabled = false; reconcile(); } } }, report);
         const subscriptions = [context.entries.subscribe(reconcile, { emitCurrent: false }), context.contributions.layers.subscribe(reconcile, { emitCurrent: false }), context.selection.subscribe(selection)];
         scope.defer(() => subscriptions.forEach((s) => s.unsubscribe()), { retry: "safe" }); reconcile();
-      } }));
+      } });
     } });
-    context.scope.defer(async () => { for (const handle of handles) await handle.dispose(); }, { retry: "safe" });
   },
 });

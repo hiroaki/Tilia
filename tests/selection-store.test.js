@@ -138,6 +138,16 @@ describe("SelectionStore contracts", () => {
     await f.store.createFacade(f.app.scope).clear();
   });
 
+  it("releases explicitly unsubscribed cleanup records while the consumer stays active", async () => {
+    const f = await fixture();
+    const baseline = f.consumer.snapshot().counts.locals;
+    for (let index = 0; index < 50; index++) f.api.subscribe(() => {}).unsubscribe();
+    await Promise.resolve();
+    expect(f.consumer.scope.alive).toBe(true);
+    expect(f.consumer.snapshot().counts.locals).toBe(baseline);
+    await f.consumer.close();
+  });
+
   it("isolates listener and diagnostic reporter failures", async () => {
     const f = await fixture({ onError() { throw new Error("reporter"); } });
     f.api.subscribe(() => { throw new Error("listener"); });

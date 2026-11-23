@@ -387,7 +387,7 @@ describe("staged ownership records", () => {
         expect(controller.snapshot()).toMatchObject({
           state: "closed",
           counts: {
-            children: 1,
+            children: 0,
             tasks: 0,
             staged: 0,
             disposing: 0,
