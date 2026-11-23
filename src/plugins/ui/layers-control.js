@@ -1,3 +1,4 @@
+import { closePanelMountOnAbort } from "../../ui/panel-mount.js";
 import { statusServiceKey } from "../contracts/status.js";
 import { panelServiceKey } from "../contracts/panel.js";
 import { listen, node, reportError } from "../../ui/scoped-dom.js";
@@ -10,13 +11,15 @@ export default Object.freeze({
     registerLauncher(context, options, { kind: "action", label: "Layers", iconText: "L", className: "tilia-layers-control", activate() {
       if (panel.isOpen("layers")) return panel.close("layers");
       handles.add(panel.open({ id: "layers", title: "Layers", layout: "side", mount({ container, scope }) {
+        closePanelMountOnAbort(context.scope, scope, report);
+        if (!scope.alive) return;
         container.classList.add("tilia-layers-panel-content");
         node(container, "p", "tilia-layers-panel-text", "Layers panel: show or hide layers and inspect their contents.");
         const mutations = node(container, "fieldset", "tilia-layer-mutations");
         const clear = node(mutations, "button", "tilia-control-button tilia-layer-clear-button", "Delete all"); clear.type = "button";
         const list = node(mutations, "ul", "tilia-layer-list"), rows = new Map();
         let empty;
-        const withdraw = (row) => { if (rows.get(row.id) === row) rows.delete(row.id); row.item.remove(); void row.scope.dispose().catch(report); };
+        const withdraw = (row) => { if (rows.get(row.id) === row) rows.delete(row.id); void row.scope.dispose().catch(report); row.item.remove(); };
         const present = (row) => { if (!scope.alive || !row.scope.alive) return false; if (!context.entries.get(row.id)) { withdraw(row); return false; } return true; };
         const selection = () => { if (!scope.alive) return; const current = context.selection.getCurrent(); for (const row of rows.values()) row.item.classList.toggle("tilia-layer-selected", current?.entryId === row.id); };
         const reconcile = () => {

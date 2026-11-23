@@ -1,3 +1,4 @@
+import { closePanelMountOnAbort } from "../../src/ui/panel-mount.js";
 import { DivIcon, Marker } from "leaflet";
 import { createButton, createPanel } from "../../src/map/controls.js";
 import { gpxDomainKey } from "../../src/domains/index.js";
@@ -603,6 +604,8 @@ export const routeSearchPlugin = {
         if (panel.isOpen(panelId)) return panel.close(panelId);
         let opened;
         const handle = panel.open({ id: panelId, title: "Route Search", layout: "side", mount(mount) {
+          closePanelMountOnAbort(context.scope, mount.scope, report);
+          if (!mount.scope.alive) return;
           opened = panelMount = mount;
           listen(mount.scope, mount.container, "contextmenu", event => event.stopPropagation(), report);
           mount.scope.signal.addEventListener("abort", () => {

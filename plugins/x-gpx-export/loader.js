@@ -1,3 +1,4 @@
+import { closePanelMountOnAbort } from "../../src/ui/panel-mount.js";
 import { serializeGpxSource } from "../../src/gpx/serialize.js";
 import { gpxDomainKey } from "../../src/domains/index.js";
 import { panelServiceKey } from "../../src/plugins/contracts/panel.js";
@@ -42,6 +43,8 @@ export const gpxExportPlugin = Object.freeze({
     }
 
     function mount({ container, scope }) {
+      closePanelMountOnAbort(context.scope, scope, report);
+      if (!scope.alive) return;
       const root = node(container, "div", "tilia-gpx-export-panel");
       node(root, "p", "tilia-gpx-export-intro", "Export any GPX layer to a local .gpx file.");
       const label = node(root, "label", "tilia-gpx-export-label", "Layer");

@@ -1,3 +1,4 @@
+import { closePanelMountOnAbort } from "../../src/ui/panel-mount.js";
 import { gpxDomainKey } from "../../src/domains/index.js";
 import { panelServiceKey } from "../../src/plugins/contracts/panel.js";
 import { statusServiceKey } from "../../src/plugins/contracts/status.js";
@@ -628,6 +629,8 @@ export const trackEditorPlugin = {
       className: "tilia-track-editor-control", activate() {
         if (panel.isOpen("track-editor")) return panel.close("track-editor");
         const handle = panel.open({ id: "track-editor", title: "Track Editor", mount(value) {
+          closePanelMountOnAbort(context.scope, value.scope, report);
+          if (!value.scope.alive) return;
           mount = value;
           value.scope.defer(() => { if (mount === value) mount = null; }, { retry: "safe" });
           renderPanel();

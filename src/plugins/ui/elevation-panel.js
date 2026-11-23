@@ -1,3 +1,4 @@
+import { closePanelMountOnAbort } from "../../ui/panel-mount.js";
 import { CircleMarker } from "leaflet";
 import { gpxDomainKey } from "../../domains/keys.js";
 import { elevationLayout, nearestElevationSample } from "../../gpx/elevation-layout.js";
@@ -11,6 +12,8 @@ export default Object.freeze({ id: "tilia-elevation", requires: ["tilia-panel", 
   registerLauncher(context, options, { kind: "action", label: "Elevation", iconText: "E", className: "tilia-elevation-control", activate() {
     if (panel.isOpen("elevation")) return panel.close("elevation");
     handles.add(panel.open({ id: "elevation", title: "Elevation", layout: "bottom", mount({ container, scope }) {
+      closePanelMountOnAbort(context.scope, scope, report);
+      if (!scope.alive) return;
       container.classList.add("tilia-elevation-panel-content");
       let session, hoverScope, layout, revision, chart, guide, guideLine, keyboardIndex = 0;
       const clearHover = () => { const old = hoverScope; hoverScope = null; void old?.dispose().catch(report); if (guide) guide.hidden = true; if (guideLine) guideLine.hidden = true; };

@@ -1,3 +1,4 @@
+import { closePanelMountOnAbort } from "../../ui/panel-mount.js";
 import { panelServiceKey } from "../contracts/panel.js";
 import { node, reportError } from "../../ui/scoped-dom.js";
 import { registerLauncher } from "../../ui/toolbar-launcher.js";
@@ -9,9 +10,11 @@ export default Object.freeze({
     registerLauncher(context, options, { kind: "action", label: "Settings", iconText: "S", className: "tilia-settings-control", activate() {
       if (panel.isOpen("settings")) return panel.close("settings");
       handles.add(panel.open({ id: "settings", title: "Settings", layout: "side", mount({ container, scope }) {
+        closePanelMountOnAbort(context.scope, scope, report);
+        if (!scope.alive) return;
         container.classList.add("tilia-settings-panel-content");
         const records = new Map();
-        const close = (record) => { if (records.get(record.key) === record) records.delete(record.key); record.item.remove(); void record.scope.dispose().catch(report); };
+        const close = (record) => { if (records.get(record.key) === record) records.delete(record.key); void record.scope.dispose().catch(report); record.item.remove(); };
         const reconcile = () => {
           if (!scope.alive) return;
           const desired = new Set();
