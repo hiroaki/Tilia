@@ -17,7 +17,7 @@
 | ドメイン | `tilia-gpx-domain` | `tilia-photo-domain` | データエントリーを所有し、コマンドとクエリを公開 |
 | レンダラー | `tilia-gpx-renderer` | `tilia-photo-renderer` | エントリーを地図に表示 |
 | 入力 | `tilia-gpx-input` | `tilia-jpeg-input` | ファイルを読み、エントリーを作成 |
-| UI提供 | `tilia-gpx-ui` | `tilia-photo-ui` | 形式ごとのレイヤー行、ポップアップ内容、設定を追加 |
+| UI提供 | `tilia-gpx-ui` | `tilia-photo-ui` | 形式ごとのレイヤー行とポップアップ内容、写真の時刻解釈設定を追加 |
 
 入力、レンダラー、UIはそれぞれのドメインを必須とし、自動インストールします。ドメインだけではファイルの解析も描画も行いません。UI提供にはホストが必要です。レイヤー行は`tilia-layers`、設定は`tilia-settings`、選択ポップアップと強調表示は`tilia-map-selection-presenter`が受け持ちます。これらのホストは形式ごとの提供プラグインをインストールしません。
 
@@ -67,7 +67,7 @@ await app.unuse("x-distance-markers");
 | `tilia-gpx-domain` | — | GPXトラック・ルート・ウェイポイント、コマンド、クエリ、選択候補 |
 | `tilia-gpx-renderer` | `tilia-gpx-domain` | トラック、ルート、ウェイポイントを地図に描画 |
 | `tilia-gpx-input` | `tilia-gpx-domain` | GPX解析、エントリー作成、読み込んだ範囲に地図を合わせる |
-| `tilia-gpx-ui` | `tilia-gpx-domain` | GPXのレイヤー行、ポップアップ、エントリーごとの設定 |
+| `tilia-gpx-ui` | `tilia-gpx-domain` | GPXのレイヤー行とポップアップ |
 | `tilia-photo-domain` | — | 写真のメタデータ、保存した推定位置、プレビューリソース、コマンド |
 | `tilia-photo-renderer` | `tilia-photo-domain` | EXIFのGPS座標または保存した推定位置のマーカー |
 | `tilia-jpeg-input` | `tilia-photo-domain` | exifrを遅延読み込みしてEXIFを解析するJPEGハンドラー |
@@ -113,13 +113,13 @@ await app.unuse("x-distance-markers");
 
 ## GPXビューア
 
-次の構成はファイル、URL、クエリ、ドロップ入力と、レイヤー、選択表示、標高、設定に対応します。パネル、ツールバー、GPXドメインは依存先として導入されます。
+次の構成はファイル、URL、クエリ、ドロップ入力と、レイヤー、選択表示、標高に対応します。パネル、ツールバー、GPXドメインは依存先として導入されます。
 
 ```js
 const app = createDefaultTiliaApp("map", {
   plugins: [
     "tilia-gpx-input", "tilia-gpx-renderer", "tilia-gpx-ui",
-    "tilia-map-selection-presenter", "tilia-layers", "tilia-settings",
+    "tilia-map-selection-presenter", "tilia-layers",
     "tilia-elevation", "tilia-status", "tilia-base-maps-control",
     "tilia-file-import", "tilia-url-import", "tilia-query-import",
     "tilia-dropzone", "x-gsi-base-maps", "x-opentopomap-base-maps",
@@ -128,7 +128,7 @@ const app = createDefaultTiliaApp("map", {
 await app.ready;
 ```
 
-**Open files**、**Load URL**、または地図へのドロップで読み込みます。**Layers**でエントリーを表示・削除し、**Settings**でGPXを設定します。描画した対象をクリックすると選択され、提供されたポップアップを表示します。閉じても意味上の選択は消えません。
+**Open files**、**Load URL**、または地図へのドロップで読み込みます。**Layers**では、GPXエントリー全体、種類別、個々のトラックやルートの表示を切り替えたり、エントリーを削除したりできます。描画した対象をクリックすると選択され、提供されたポップアップを表示します。閉じても意味上の選択は消えません。
 
 標高データのあるトラックには**Elevation**を使います。ホバーでグラフのサンプル位置を地図に示し、クリックで点を選択できます。矢印キーで移動し、EnterまたはSpaceで選択します。地図と連動する表示にはGPXレンダラーも必要です。ルートや独立したウェイポイントはトラックの標高グラフではありません。
 
@@ -169,7 +169,7 @@ await app.ready;
 
 EXIFのGPS座標を優先します。GPSのない写真は、インストール済みGPXドメインが提供する対応する時系列から位置を推定できます。`tilia-gpx-input`を追加し、時刻付きGPXを写真より先に読み込んでください。推定のためにGPXレンダラーは必須ではありません。位置が見つからない場合、写真マーカーは表示されません。
 
-推定結果はPhotoエントリーに保存します。後のGPX変更・削除では自動移動しません。Photo設定の時刻解釈は`auto`、`local`、`utc`、および **Custom offset**（符号と時・分）です。固定オフセットはEnter、またはオフセット操作欄の外へフォーカスを移した時に確定します。関連データや時刻モードの変更、または明示的な再計算で新たな推定を試せます。変更に失敗した場合は確定済み設定と位置を保持します。設定変更による自動的な地図移動は行いません。
+推定結果はPhotoエントリーに保存します。後のGPX変更・削除では自動移動しません。**Settings** の **Photo time** で、写真ごとに `auto`、`local`、`utc`、または **Custom offset**（符号と時・分）を選べます。固定オフセットはEnter、またはオフセット操作欄の外へフォーカスを移した時に確定します。関連データや時刻モードの変更、または明示的な再計算で新たな推定を試せます。変更に失敗した場合は確定済み設定と位置を保持します。設定変更による自動的な地図移動は行いません。
 
 JPEGの初期設定は、登録とauto-panより前にJPEGプラグインへ指定します。
 

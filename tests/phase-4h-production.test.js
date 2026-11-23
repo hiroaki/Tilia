@@ -357,17 +357,15 @@ describe("Phase 4H production rendering and independent presentation", () => {
     expect(f.app.rendering.getStatus(entry.id).state).toBe("active");
     expect([...f.map.layers].find((l) => l instanceof Polyline && l.options.interactive !== false).options.color).toBe("#5c6bc0");
   });
-  it("mounts semantic hierarchy and revisioned visibility/style controls with independent adapter lifetimes", async () => {
-    const f = await fixture(["tilia-gpx-renderer", "tilia-gpx-ui", "tilia-map-selection-presenter", "tilia-layers", "tilia-settings"]);
+  it("mounts the Layers hierarchy and preserves revisioned visibility and style without Settings", async () => {
+    const f = await fixture(["tilia-gpx-renderer", "tilia-gpx-ui", "tilia-map-selection-presenter", "tilia-layers"]);
     const entry = await f.app.domains.gpx.create(evidence()); await settle();
     byClass(f.map.container, "tilia-control-button")[0].click(); await settle();
     expect(byClass(f.map.container, "tilia-gpx-segment")).toHaveLength(1);
     const toggle = byClass(f.map.container, "tilia-gpx-category-visible")[0]; toggle.checked = false; toggle.dispatchEvent(new Event("change")); await settle();
     expect(f.app.domains.gpx.get(entry.id).revision).toBe(2); expect(f.ownedLayers()).toHaveLength(0);
-    byClass(byClass(f.map.container, "tilia-settings-control")[0], "tilia-control-button")[0].click(); await settle();
-    const style = byClass(f.map.container, "tilia-gpx-style-select")[0]; style.value = "amber"; style.dispatchEvent(new Event("change")); await settle();
+    await f.app.domains.gpx.setStylePreset(entry.id, "amber", { expectedRevision: 2 }); await settle();
     expect(f.app.domains.gpx.get(entry.id).snapshot.preferences.stylePresetId).toBe("amber");
-    byClass(byClass(f.map.container, "tilia-layers-control")[0], "tilia-control-button")[0].click(); await settle();
     await f.app.unuse("tilia-gpx-ui"); await settle(); expect(byClass(f.map.container, "tilia-gpx-tree")).toHaveLength(0);
     toggle.checked = true; toggle.dispatchEvent(new Event("change")); await settle(); expect(f.app.domains.gpx.get(entry.id).revision).toBe(3);
     await f.app.use("tilia-gpx-ui"); await settle(); expect(byClass(f.map.container, "tilia-gpx-tree")).toHaveLength(1);
@@ -386,7 +384,7 @@ describe("Phase 4H production rendering and independent presentation", () => {
 
 });
 
-const phaseAPlugins = ["tilia-gpx-renderer", "tilia-gpx-ui", "tilia-map-selection-presenter", "tilia-layers", "tilia-settings"];
+const phaseAPlugins = ["tilia-gpx-renderer", "tilia-gpx-ui", "tilia-map-selection-presenter", "tilia-layers"];
 const phaseAData = () => ({ name: "phase-a.gpx", tracks: [
   { name: "Track A", segments: [{ points: [p(1), p(2)] }] },
   { name: "Track B", segments: [{ points: [p(3), p(4)] }] },
@@ -470,9 +468,9 @@ describe("Phase A GPX selection and popup UX", () => {
     expect(f.app.selection.getCurrent().entryId).toBe(entry.id);
   });
 
-  it.each(["Layers", "Settings"])("%s visibility checkboxes clear only affected selections without requests or navigation", async (panel) => {
-    const f = await fixture(phaseAPlugins), entry = await f.app.domains.gpx.create(phaseAData()); await settle(); launch(f, panel); await settle();
-    const trackToggles = () => panel === "Layers" ? byClass(f.map.container, "tilia-gpx-track-visible") : byClass(f.map.container, "tilia-gpx-visibility-settings")[0].children.slice(3).map((label) => label.children[0]);
+  it("Layers visibility checkboxes clear only affected selections without requests or navigation", async () => {
+    const f = await fixture(phaseAPlugins), entry = await f.app.domains.gpx.create(phaseAData()); await settle(); launch(f, "Layers"); await settle();
+    const trackToggles = () => byClass(f.map.container, "tilia-gpx-track-visible");
     const requests = vi.fn(); f.app.selection.subscribeRequests(requests);
     changeCheckbox(trackToggles()[1], false); await settle(); expect(f.app.selection.getCurrent()).toBeNull(); expect(popupIn(f)).toBeUndefined();
     await selectIn(f, entry); await settle(); popupIn(f).remove(); requests.mockClear();
@@ -503,11 +501,11 @@ describe("Phase A GPX selection and popup UX", () => {
     expect(f.app.selection.getCurrent()).toBeNull(); expect(popupIn(f)).toBeUndefined(); expect(crosshairsIn(f)).toHaveLength(0);
   });
 
-  it.each(["Layers", "Settings"])("%s failed visibility operations preserve selection and popup", async (panel) => {
+  it("failed Layers visibility operations preserve selection and popup", async () => {
     const f = await fixture(phaseAPlugins, {}, null, null, () => { throw new Error("visibility rejected"); });
-    const entry = await f.app.domains.gpx.create(phaseAData()); await settle(); launch(f, panel); await settle();
+    const entry = await f.app.domains.gpx.create(phaseAData()); await settle(); launch(f, "Layers"); await settle();
     const selected = await selectIn(f, entry); await settle(); const popup = popupIn(f);
-    const toggle = panel === "Layers" ? byClass(f.map.container, "tilia-gpx-track-visible")[0] : byClass(f.map.container, "tilia-gpx-visibility-settings")[0].children[3].children[0];
+    const toggle = byClass(f.map.container, "tilia-gpx-track-visible")[0];
     changeCheckbox(toggle, false); await settle();
     expect(f.app.selection.getCurrent()).toBe(selected); expect(popupIn(f)).toBe(popup); expect(toggle.checked).toBe(true); expect(toggle.disabled).toBe(false);
   });

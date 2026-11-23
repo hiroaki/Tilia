@@ -36,7 +36,9 @@ test("viewer sample infers a photo location from an imported GPX track", async (
   await expect(photoLayer).toHaveCount(1);
   await expect(photoLayer.locator(".tilia-layer-meta")).toContainText("gpx-time-inference");
   await page.getByRole("button", { name: "Settings", exact: true }).click();
-  const mode = page.locator(".tilia-photo-time-mode-select");
+  const settings = page.getByRole("dialog", { name: "Settings", exact: true });
+  await expect(settings.locator(".tilia-entry-settings")).toHaveCount(1);
+  const mode = settings.getByRole("combobox", { name: "IMG_2892.JPG photo time mode" });
   await expect(mode).toHaveValue("auto"); await mode.selectOption("utc"); await expect(mode).toHaveValue("utc");
   await page.getByRole("button", { name: "Layers", exact: true }).click();
   await expect(photoLayer.locator(".tilia-layer-meta")).toContainText("gpx-time-inference");
