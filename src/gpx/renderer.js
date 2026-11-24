@@ -3,8 +3,25 @@ import { CircleMarker, DivIcon, Marker, Polyline } from "leaflet";
 import { resolveGpxStyle } from "./style.js";
 import { gpxTargetPaths, queryGpx } from "./queries.js";
 const position = (p) => ({ lat: p.lat, lng: p.lon });
+function routeNumberColor(background) {
+  const [red, green, blue] = [1, 3, 5].map(offset => {
+    const channel = Number.parseInt(background.slice(offset, offset + 2), 16) / 255;
+    return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+  });
+  const luminance = 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+  const blackContrast = (luminance + 0.05) / 0.05;
+  const whiteContrast = 1.05 / (luminance + 0.05);
+  return blackContrast >= whiteContrast ? "#000" : "#fff";
+}
+
 class RoutePointIcon extends DivIcon {
-  createIcon(old) { const element = super.createIcon(old); element.style.setProperty("--route-color", this.options.routeColor); return element; }
+  createIcon(old) {
+    const element = super.createIcon(old);
+    const { routeColor } = this.options;
+    element.style.setProperty("--route-color", routeColor);
+    element.style.setProperty("--route-number-color", routeNumberColor(routeColor));
+    return element;
+  }
 }
 export function createGpxRenderer(colors) {
   return Object.freeze({

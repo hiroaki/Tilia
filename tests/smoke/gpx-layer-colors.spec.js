@@ -200,3 +200,57 @@ test("a route color change can be retried after a marker update fails", async ({
   await expect(routeLine.last()).toHaveAttribute("stroke", "#5c6bc0");
   await expect(picker(page, "Other route")).toHaveValue("#5c6bc0");
 });
+
+for (const colorScheme of ["light", "dark"]) {
+  test(`route numbers contrast with the route color in the ${colorScheme} theme`, async ({ page }) => {
+    await page.emulateMedia({ colorScheme });
+    await ready(page);
+    const route = picker(page, "Route A");
+    const routeLine = geometry(page).locator("path[stroke-dasharray]");
+    const routeNumbers = page.locator(".tilia-route-point-marker");
+    const expectRouteColor = async (value, background, foreground) => {
+      await expect(route).toHaveValue(value);
+      await expect(routeLine).toHaveAttribute("stroke", value);
+      await expect(routeNumbers).toHaveCount(2);
+      for (const [index, marker] of (await routeNumbers.all()).entries()) {
+        await expect(marker).toHaveText(String(index + 1));
+        await expect(marker).toHaveCSS("background-color", background);
+        await expect(marker).toHaveCSS("color", foreground);
+      }
+    };
+    const black = "rgb(0, 0, 0)", white = "rgb(255, 255, 255)";
+
+    await expectRouteColor("#0099cc", "rgb(0, 153, 204)", black);
+    await page.evaluate(async () => {
+      await window.phase4h.app.domains.gpx.setStylePreset(window.colorEntry, "indigo", { expectedRevision: 1 });
+    });
+    await expectRouteColor("#5c6bc0", "rgb(92, 107, 192)", white);
+
+    for (const [value, background, foreground] of [
+      ["#ffffff", white, black],
+      ["#000000", black, white],
+      ["#757575", "rgb(117, 117, 117)", white],
+      ["#767676", "rgb(118, 118, 118)", black],
+    ]) {
+      await changeColor(route, value);
+      await expectRouteColor(value, background, foreground);
+    }
+
+    const entryToggle = page.getByRole("checkbox", { name: /^Show entry / });
+    await entryToggle.uncheck();
+    await expect(routeNumbers).toHaveCount(0);
+    await entryToggle.check();
+    await expectRouteColor("#767676", "rgb(118, 118, 118)", black);
+
+    const oldToken = await page.evaluate(() => {
+      const { app } = window.phase4h;
+      const token = app.rendering.getStatus(window.colorEntry).currentToken;
+      app.rendering.retry(window.colorEntry);
+      return token;
+    });
+    await expect.poll(() => page.evaluate(() => window.phase4h.app.rendering.getStatus(window.colorEntry).currentToken))
+      .not.toBe(oldToken);
+    await expect(route).toBeEnabled();
+    await expectRouteColor("#767676", "rgb(118, 118, 118)", black);
+  });
+}
