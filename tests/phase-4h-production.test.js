@@ -27,7 +27,7 @@ import { createApplicationComposition } from "../src/application-composition.js"
 import { gpxQueryServiceKey } from "../src/plugins/contracts/gpx-query.js";
 import { cloneAndFreezePlainData } from "../src/domains/immutable.js";
 import { gpxDomainKey } from "../src/domains/keys.js";
-import { lookupTimestamp } from "../src/gpx/queries.js";
+import * as gpxQueries from "../src/gpx/queries.js";
 import layersPlugin from "../src/plugins/ui/layers-control.js";
 import { clearSelectionHiddenByGpxCheckbox } from "../src/gpx/visibility.js";
 const fixtures = [];
@@ -166,9 +166,9 @@ describe("Phase 4H typed GPX queries and captured Photo estimates", () => {
     await f.app.entries.setVisible(a.id, false);
     const service = f.context.services.require(gpxQueryServiceKey), captured = service.captureTimeline();
     expect(captured.points.map((point) => point.lat)).toEqual([1, 2, 4, 3]);
-    const zero = lookupTimestamp(captured, 0);
+    const zero = gpxQueries.lookupTimestamp(captured, 0);
     expect(zero.exact).toHaveLength(3); expect(zero.before.lat).toBe(4); expect(zero.after.lat).toBe(3);
-    expect(lookupTimestamp(captured, 10)).toMatchObject({ after: null, before: { lat: 3 } });
+    expect(gpxQueries.lookupTimestamp(captured, 10)).toMatchObject({ after: null, before: { lat: 3 } });
     await f.app.entries.remove(a.id); await f.app.entries.remove(b.id); await f.app.unuse("tilia-gpx-domain");
     expect(captured.points).toHaveLength(4);
     expect(() => service.captureTimeline()).toThrow();
@@ -639,6 +639,72 @@ describe("Phase B Layers hierarchy and deterministic renderer styling", () => {
     for (const className of ["tilia-gpx-children", "tilia-gpx-segments", "tilia-gpx-route-points"]) {
       for (const list of byClass(f.map.container, className)) expect(list.children.length).toBeGreaterThan(0);
     }
+  });
+  it("projects GPX selection changes without querying Fit bounds", async () => {
+    const f = await fixture(["tilia-gpx-ui", "tilia-layers"]);
+    const { gpx } = f.app.domains;
+    const large = await gpx.create({ name: "Large", tracks: [{ name: "Large track", segments: [{ points: [p(40), p(41)] }] }] });
+    const data = {
+      name: "Small",
+      tracks: [{ name: "Small track", segments: [{ points: [p(1), p(2)] }] }],
+      routes: [{ name: "Route", points: [{ ...p(3), name: "Route point" }] }],
+      waypoints: [{ ...p(4), name: "Waypoint" }],
+    };
+    const small = await gpx.create(data);
+    const query = vi.spyOn(gpxQueries, "queryGpx");
+    const extents = () => query.mock.calls.filter(([, method]) => method === "extent");
+    launch(f, "Layers");
+    await settle();
+    const [largeRow, smallRow] = byClass(f.map.container, "tilia-layer-item");
+    const [largeTrack] = byClass(largeRow, "tilia-gpx-node");
+    const [track, segment, route, point, waypoint] = byClass(smallRow, "tilia-gpx-node");
+    const [documentName] = byClass(smallRow, "tilia-layer-name");
+    const [, fitTrack] = byClass(smallRow, "tilia-gpx-fit");
+    expect(extents().length).toBeGreaterThan(0);
+    query.mockClear();
+
+    const pressed = (row) => byClass(row, "tilia-gpx-selected").map(button => button.textContent);
+    const unrelatedUpdate = vi.spyOn(largeTrack, "setAttribute");
+    for (const button of [documentName, track, segment, route, point, waypoint]) {
+      button.click();
+      await settle();
+      expect(pressed(smallRow)).toEqual([button.textContent]);
+      expect(button.attributes["aria-pressed"]).toBe("true");
+    }
+    expect(extents()).toHaveLength(0);
+    expect(unrelatedUpdate).not.toHaveBeenCalled();
+    await selectIn(f, large, { kind: "track", trackIndex: 0 });
+    expect(pressed(smallRow)).toEqual([]);
+    expect(waypoint.attributes["aria-pressed"]).toBe("false");
+    expect(pressed(largeRow)).toEqual(["Large track"]);
+    await f.app.selection.clear();
+    expect(pressed(largeRow)).toEqual([]);
+    expect(extents()).toEqual([]);
+
+    track.click();
+    await settle();
+    const replacement = { ...data, tracks: [{ name: "Moved track", segments: [{ points: [p(12), p(15)] }] }] };
+    await gpx.replaceData(small.id, replacement, { expectedRevision: 1 });
+    await settle();
+    expect(pressed(smallRow)).toEqual([]);
+    expect(track.attributes["aria-pressed"]).toBe("false");
+    expect(byClass(smallRow, "tilia-gpx-node")[0]).toBe(track);
+    expect(fitTrack.attributes["aria-label"]).toBe("Fit Moved track");
+    expect(extents().map(([view]) => view.entry.id)).toEqual([small.id, small.id, small.id, small.id]);
+    fitTrack.click();
+    expect(f.map.fitBounds).toHaveBeenCalledExactlyOnceWith([[12, 0], [15, 0]], { padding: [20, 20], maxZoom: 18 });
+
+    byClass(f.map.container, "tilia-side-panel-close")[0].click();
+    await settle();
+    const detachedUpdate = vi.spyOn(track, "setAttribute");
+    await selectIn(f, small, { kind: "track", trackIndex: 0 });
+    expect(detachedUpdate).not.toHaveBeenCalled();
+    launch(f, "Layers");
+    await settle();
+    const remountedTrack = byClass(f.map.container, "tilia-gpx-selected")[0];
+    expect(remountedTrack).not.toBe(track);
+    expect(remountedTrack.textContent).toBe("Moved track");
+    expect(remountedTrack.attributes["aria-pressed"]).toBe("true");
   });
   it("updates categories on replacement and releases old tree listeners without replacing the entry row", async () => {
     const f = await fixture(["tilia-gpx-ui", "tilia-layers"]), gpx = f.app.domains.gpx;

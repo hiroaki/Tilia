@@ -22,6 +22,15 @@ export function mountGpxRow(input) {
   const renderColors = (view) => {
     for (const project of colorProjections) project(view);
   };
+  const renderSelection = () => {
+    const selected = selection.getCurrent();
+    for (const { button, target } of buttons) {
+      const match = selected?.entryId === entry.id && selected.ref.kind === target.kind
+        && Object.entries(target).every(([key, value]) => selected.ref[key] === value);
+      button.classList.toggle("tilia-gpx-selected", match);
+      button.setAttribute("aria-pressed", String(match));
+    }
+  };
   const render = (view) => {
     viewRevision = view.revision;
     const { data } = view.snapshot;
@@ -31,11 +40,7 @@ export function mountGpxRow(input) {
     }
     for (const project of projections) project(view);
     renderColors(view);
-    const selected = selection.getCurrent();
-    for (const { button, target } of buttons) {
-      const match = selected?.entryId === entry.id && selected.ref.kind === target.kind && Object.entries(target).every(([key, value]) => selected.ref[key] === value);
-      button.classList.toggle("tilia-gpx-selected", !!match); button.setAttribute("aria-pressed", String(!!match));
-    }
+    renderSelection();
   };
   const rebuild = (data) => {
     structure = data; void structuralScope?.dispose().catch(report); container.replaceChildren();
@@ -185,7 +190,10 @@ export function mountGpxRow(input) {
       if (event.entry?.id === entry.id || event.current?.id === entry.id || event.previous?.id === entry.id || event.type === "cleared") model.update(render);
     }, { emitCurrent: false }); scope.defer(() => subscription.unsubscribe(), { retry: "safe" });
   }
-  const subscription = selection.subscribe(() => model.update(render)); scope.defer(() => subscription.unsubscribe(), { retry: "safe" });
+  const subscription = selection.subscribe(({ previous, current }) => {
+    if (previous?.entryId === entry.id || current?.entryId === entry.id) model.update(renderSelection);
+  });
+  scope.defer(() => subscription.unsubscribe(), { retry: "safe" });
   subscribeColors?.(() => model.update(renderColors));
   model.update(render);
 }
