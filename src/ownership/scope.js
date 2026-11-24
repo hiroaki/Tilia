@@ -119,6 +119,11 @@ function nextSequence(node) {
   return node.root.sequence;
 }
 
+function removeRecord(records, record) {
+  const index = records.lastIndexOf(record);
+  if (index !== -1) records.splice(index, 1);
+}
+
 function makeFailure(node, record, error, phase) {
   return {
     scopeId: node.id,
@@ -222,6 +227,13 @@ function disposeRecord(node, record, phase) {
         await invokeCleanup(node, () => record.dispose());
       }
       record.state = "disposed";
+      record.dispose = null;
+      if (record.kind === "staged") {
+        record.preflight = null;
+        record.commit = null;
+      }
+      if (node.setupCleanup === record) node.setupCleanup = null;
+      else removeRecord(node.locals, record);
       record.lastError = null;
       record.failure = null;
       return null;
@@ -308,15 +320,31 @@ async function cleanupNode(node, kind, retryOnly = false) {
 }
 
 function finalizeClose(node, failures, kind) {
+  node.priorChildResiduals = null;
   if (failures.length === 0) {
     node.state = "closed";
     node.closeReport = reportFor(node, []);
     node.closeError = null;
+    if (node.parent) {
+      removeRecord(node.parent.children, node);
+      node.parent.priorChildResiduals?.delete(node);
+      node.parent = null;
+    }
+    node.tasks.length = 0;
+    for (const notify of node.closeObservers.splice(0)) queueMicrotask(notify);
     return node.closeReport;
   }
   node.state = "cleanup-failed";
   node.closeError = cleanupError(node, failures, kind);
   throw node.closeError;
+}
+
+// Internal lifetime links can release their close obligations after success.
+// Observing a Scope never starts its cleanup or changes parent/child ordering.
+export function onScopeClosed(scope, notify) {
+  const node = scopeNodes.get(scope);
+  if (node.state === "closed") queueMicrotask(notify);
+  else node.closeObservers.push(notify);
 }
 
 function closeNode(node, kind = "dispose") {
@@ -544,6 +572,7 @@ function createNode({ label = "scope", parent = null, root = null, sequence = 0 
     closeReport: null,
     closeError: null,
     closeKind: null,
+    closeObservers: [],
     scope: null,
   };
 

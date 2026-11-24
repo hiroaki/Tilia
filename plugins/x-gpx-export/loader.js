@@ -1,3 +1,4 @@
+import { createOwnedPanelOpener } from "../../src/ui/panel-mount.js";
 import { serializeGpxSource } from "../../src/gpx/serialize.js";
 import { gpxDomainKey } from "../../src/domains/index.js";
 import { panelServiceKey } from "../../src/plugins/contracts/panel.js";
@@ -16,11 +17,8 @@ export const gpxExportPlugin = Object.freeze({
     const creator = options.creator ?? "Tilia";
     context.styles.use({ id: "x-gpx-export", href: new URL("./styles.css", import.meta.url).href });
     let selectedEntryId = null;
-    const handles = new Set();
     const report = error => reportError(context, error);
-    context.scope.defer(async () => {
-      for (const handle of handles) await handle.dispose();
-    }, { label: "export-panels", retry: "safe" });
+    const openPanel = createOwnedPanelOpener(context.scope, panel, report);
 
     function download(container, name, text) {
       const scope = context.scope.child({ label: "gpx-download" });
@@ -85,9 +83,8 @@ export const gpxExportPlugin = Object.freeze({
     }
     registerLauncher(context, options, { kind: "action",
       label: "GPX export", iconText: "G", className: "tilia-gpx-export-control", activate() {
-        const handle = panel.toggle({ id: "gpx-export", title: "GPX Export", mount });
-        if (handle?.dispose) handles.add(handle);
-        return handle;
+        if (panel.isOpen("gpx-export")) return panel.close("gpx-export");
+        return openPanel({ id: "gpx-export", title: "GPX Export", mount });
       } });
   },
 });

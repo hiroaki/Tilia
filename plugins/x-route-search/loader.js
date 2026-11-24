@@ -1,3 +1,4 @@
+import { createOwnedPanelOpener } from "../../src/ui/panel-mount.js";
 import { DivIcon, Marker } from "leaflet";
 import { createButton, createPanel } from "../../src/map/controls.js";
 import { gpxDomainKey } from "../../src/domains/index.js";
@@ -193,8 +194,8 @@ export const routeSearchPlugin = {
       results: [],
     };
 
-    let panelMount, panelHandle, panelRows, contextMenu, activeMenu, markers, request;
-    context.scope.defer(() => panelHandle?.dispose(), { retry: "safe" });
+    let panelMount, panelRows, contextMenu, activeMenu, markers, request;
+    const openPanel = createOwnedPanelOpener(context.scope, panel, report);
     context.ui.mountSurface({ id: "route-menu", surface: "floating", ariaLabel: "Route point menu",
       mount({ container, scope }) {
         Object.assign(container.style, { position: "absolute", inset: "0", pointerEvents: "none" });
@@ -601,21 +602,17 @@ export const routeSearchPlugin = {
     registerLauncher(context, options, { kind: "action", label: "Route search", iconText: "R",
       className: "tilia-route-search-control", activate() {
         if (panel.isOpen(panelId)) return panel.close(panelId);
-        let opened;
-        const handle = panel.open({ id: panelId, title: "Route Search", layout: "side", mount(mount) {
-          opened = panelMount = mount;
+        openPanel({ id: panelId, title: "Route Search", layout: "side", mount(mount) {
+          panelMount = mount;
           listen(mount.scope, mount.container, "contextmenu", event => event.stopPropagation(), report);
           mount.scope.signal.addEventListener("abort", () => {
             if (panelMount !== mount) return;
             panelMount = null;
             panelRows = null;
-            // Keep the handle for teardown retries if the plugin is closing.
-            if (context.scope.alive) panelHandle = null;
             hideContextMenu();
           }, { once: true });
           renderPanel();
         } });
-        if (opened?.scope.alive) panelHandle = handle;
       } });
 
     function onContextMenu(event) {

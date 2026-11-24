@@ -18,6 +18,33 @@ const entry = (id, requires, setup) => ({
 });
 
 describe("PluginRuntime", () => {
+  it("releases shutdown listeners after repeated setup and resolution failures", async () => {
+    const add = vi.spyOn(AbortSignal.prototype, "addEventListener");
+    const remove = vi.spyOn(AbortSignal.prototype, "removeEventListener");
+    const runtime = createPluginRuntime({ catalog: [
+      entry("x-repeat", [], () => {}),
+      entry("x-setup-failure", [], () => { throw new Error("setup"); }),
+      { id: "x-load-failure", load() { throw new Error("load"); } },
+    ] });
+    try {
+      for (let iteration = 0; iteration < 20; iteration++) {
+        await runtime.use("x-repeat");
+        await runtime.unuse("x-repeat");
+      }
+      await expect(runtime.use("x-setup-failure")).rejects.toMatchObject({ code: "PLUGIN_SETUP_FAILED" });
+      await expect(runtime.use("x-load-failure")).rejects.toMatchObject({ code: "PLUGIN_RESOLUTION_FAILED" });
+      const listeners = add.mock.calls.map(([type, listener]) => [type, listener]);
+      expect(listeners).toHaveLength(43);
+      for (const [type, listener] of listeners) expect(remove).toHaveBeenCalledWith(type, listener);
+      expect(runtime.state).toBe("active");
+      expect(runtime.list()).toEqual([]);
+    } finally {
+      await runtime.destroy();
+      add.mockRestore();
+      remove.mockRestore();
+    }
+  });
+
   it("distinguishes invalid IDs and missing external loaders", async () => {
     const runtime = createPluginRuntime();
     expect(() => runtime.use("Bad")).toThrowError(expect.objectContaining({ code: "PLUGIN_ID_INVALID" }));

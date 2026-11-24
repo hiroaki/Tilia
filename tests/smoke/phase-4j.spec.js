@@ -159,6 +159,7 @@ test("4J-B detached route menu buttons are inert during plugin uninstall", async
       hidden: menu.classList.contains("tilia-route-search-menu-hidden"),
       buttonCount: menu.querySelectorAll("button").length,
     });
+    const active = snapshot();
     let completed = false;
     let observation;
     const observer = new MutationObserver(() => {
@@ -175,16 +176,17 @@ test("4J-B detached route menu buttons are inert during plugin uninstall", async
     observer.observe(map.getContainer(), { childList: true, subtree: true });
     try {
       await app.unuse("x-route-search").then(() => { completed = true; });
-      return observation;
+      return { active, ...observation };
     } finally {
       observer.disconnect();
     }
   });
   expect(result).toMatchObject({
+    active: { inputs: ["35.68,139.76", ""], hidden: false, buttonCount: 3 },
     duringUninstall: true,
-    formStillMounted: true,
-    buttonStillInMenu: true,
-    before: { inputs: ["35.68,139.76", ""], hidden: false, buttonCount: 3 },
+    formStillMounted: false,
+    buttonStillInMenu: false,
+    before: { inputs: ["35.68,139.76", ""], hidden: true, buttonCount: 0 },
   });
   expect(result.after).toEqual(result.before);
   await expect(page.locator(".tilia-route-search-menu, .tilia-route-search-content")).toHaveCount(0);

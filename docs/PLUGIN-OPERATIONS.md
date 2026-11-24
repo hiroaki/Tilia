@@ -264,7 +264,7 @@ This setup fragment assumes `status` was obtained as in the first example. The c
 
 Disposers should use captured `dispose`, `unsubscribe`, `release`, timer IDs, or DOM references. During cleanup, operational reads through the context may already reject. Do not look up a new resource or obtain a replacement to clean up an old one.
 
-The default retry policy is `"never"`. Mark a disposer `retry: "safe"` only if repeating a failed, partially completed attempt is safe. A successful disposal record is never rerun. Cleanup continues through independent records and reports failures rather than stopping at the first exception.
+The default retry policy is `"never"`. Mark a disposer `retry: "safe"` only if repeating a failed, partially completed attempt is safe. A successful disposal record is never rerun. Internally, Scope diagnostics count retained children and cleanup records. Successfully closed children and successful disposals leave those counts, while failed records remain available for diagnostics and eligible retries. Cleanup continues through independent records and reports failures rather than stopping at the first exception.
 
 ## 6. Handle asynchronous work
 
