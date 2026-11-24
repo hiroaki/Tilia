@@ -6,12 +6,13 @@ const position = (p) => ({ lat: p.lat, lng: p.lon });
 class RoutePointIcon extends DivIcon {
   createIcon(old) { const element = super.createIcon(old); element.style.setProperty("--route-color", this.options.routeColor); return element; }
 }
-export function createGpxRenderer() {
+export function createGpxRenderer(colors) {
   return Object.freeze({
     planChange: () => "replace",
     build(input) {
       const { data, preferences } = input.semanticSnapshot;
       const style = resolveGpxStyle(input.semanticSnapshot);
+      const beginColor = colors?.begin(input);
       const view = { entry: { id: input.entryId }, revision: input.semanticRevision, snapshot: input.semanticSnapshot };
       const own = (layer, id, target, band = "geometry", nearest = false, group = null) => {
         input.resources.own(layer, (value) => value.remove(), { label: id, retry: "safe" });
@@ -26,26 +27,42 @@ export function createGpxRenderer() {
       data.tracks.forEach((track, trackIndex) => {
         if (!preferences.tracksVisible || preferences.trackVisibility[trackIndex] === false) return;
         const target = { kind: "track", trackIndex };
+        const drawable = beginColor?.(target, style.color);
+        const color = drawable?.color ?? style.color;
         const group = input.visibility.createGroup(target);
         const points = gpxTargetPaths(data, target)[0].points.map(({ point }) => position(point));
-        if (points.length > 1) own(new Polyline(points, style), `track:${trackIndex}`, target, "geometry", true, group);
+        if (points.length > 1) {
+          const line = new Polyline(points, { ...style, color });
+          own(line, `track:${trackIndex}`, target, "geometry", true, group);
+          drawable?.paint.push(color => line.setStyle({ color }));
+        }
         track.segments.forEach((segment, segmentIndex) => {
           if (segment.points.length !== 1) return;
           const pointTarget = { kind: "track-point", trackIndex, segmentIndex, pointIndex: 0 };
-          own(new CircleMarker(position(segment.points[0]), {
-            radius: 6, fillColor: style.color, fillOpacity: 1,
+          const marker = new CircleMarker(position(segment.points[0]), {
+            radius: 6, fillColor: color, fillOpacity: 1,
             color: "#fff", weight: 2, opacity: 1, interactive: true,
-          }), `track:${trackIndex}:segment:${segmentIndex}:point:0`, pointTarget, "geometry", false, group);
+          });
+          own(marker, `track:${trackIndex}:segment:${segmentIndex}:point:0`, pointTarget, "geometry", false, group);
+          drawable?.paint.push(fillColor => marker.setStyle({ fillColor }));
         });
       });
       data.routes.forEach((route, routeIndex) => {
         if (!preferences.routesVisible || preferences.routeVisibility[routeIndex] === false) return;
         const target = { kind: "route", routeIndex };
-        if (route.points.length > 1) own(new Polyline(route.points.map(position), { ...style, weight: Math.max(1, style.weight - 2), dashArray: "8 6" }), `route:${routeIndex}`, target, "geometry", true);
+        const drawable = beginColor?.(target, style.color);
+        const color = drawable?.color ?? style.color;
+        if (route.points.length > 1) {
+          const line = new Polyline(route.points.map(position), { ...style, color, weight: Math.max(1, style.weight - 2), dashArray: "8 6" });
+          own(line, `route:${routeIndex}`, target, "geometry", true);
+          drawable?.paint.push(color => line.setStyle({ color }));
+        }
         route.points.forEach((point, pointIndex) => {
           const label = String(pointIndex + 1), width = Math.max(18, 10 + label.length * 6);
-          const icon = new RoutePointIcon({ className: "tilia-route-point-marker", html: label, iconSize: [width, 18], iconAnchor: [width / 2, 24], routeColor: style.color });
-          own(new Marker(position(point), { icon }), `route:${routeIndex}:point:${pointIndex}`, { kind: "route-point", routeIndex, pointIndex }, "markers");
+          const icon = routeColor => new RoutePointIcon({ className: "tilia-route-point-marker", html: label, iconSize: [width, 18], iconAnchor: [width / 2, 24], routeColor });
+          const marker = new Marker(position(point), { icon: icon(color) });
+          own(marker, `route:${routeIndex}:point:${pointIndex}`, { kind: "route-point", routeIndex, pointIndex }, "markers");
+          drawable?.paint.push(color => marker.setIcon(icon(color)));
         });
       });
       if (preferences.waypointsVisible) data.waypoints.forEach((point, waypointIndex) => own(new Marker(position(point), { title: point.name }), `waypoint:${waypointIndex}`, { kind: "waypoint", waypointIndex }, "markers"));

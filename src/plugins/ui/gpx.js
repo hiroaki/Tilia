@@ -1,4 +1,5 @@
 import { gpxDomainKey } from "../../domains/keys.js";
+import { gpxLayerColorKey } from "../contracts/gpx-layer-color.js";
 import { mountGpxRow, mountGpxPopup } from "../../gpx/ui.js";
 import { reportError } from "../../ui/scoped-dom.js";
 export default Object.freeze({
@@ -18,7 +19,17 @@ export default Object.freeze({
       if (!input.scope.alive) { close(); return; }
       build({ ...input, scope, gpx, entries: context.entries, map: context.map, selection: input.selection ?? context.selection, report });
     };
-    context.contributions.layers.register(gpxDomainKey, { mount: mount(mountGpxRow) });
+    context.contributions.layers.register(gpxDomainKey, { mount: mount((input) => mountGpxRow({
+      ...input,
+      colorService: () => context.services.optional(gpxLayerColorKey),
+      subscribeColors(refresh) {
+        const subscriptions = [
+          context.services.subscribe(gpxLayerColorKey, refresh, { emitCurrent: false }),
+          context.rendering.subscribe(status => { if (status.entryId === input.entry.id) refresh(); }, { emitCurrent: false }),
+        ];
+        input.scope.defer(() => subscriptions.forEach(subscription => subscription.unsubscribe()), { retry: "safe" });
+      },
+    })) });
     context.contributions.popup.register(gpxDomainKey, { mount: mount(mountGpxPopup) });
   },
 });
