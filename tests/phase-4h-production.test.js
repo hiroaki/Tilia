@@ -1,3 +1,4 @@
+import { TRACK_STYLE_PRESETS } from "../src/map/track-style-presets.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { documentFixture, Element, byClass, settle } from "./helpers/scoped-dom.js";
 vi.mock("leaflet", () => {
@@ -296,7 +297,7 @@ describe("Phase 4H production rendering and independent presentation", () => {
     const entry = await f.app.domains.gpx.create({ tracks: [{ segments: [{ points: [p(0), p(1)] }, { points: [p(2)] }] }, { segments: [{ points: [p(20), p(21)] }] }], routes: [{ points: [p(30), p(31)] }], waypoints: [p(40)] }); await settle();
     const lines = [...f.map.layers].filter((l) => l instanceof Polyline);
     expect(lines.map((l) => l.point)).toEqual([[{ lat: 0, lng: 0 }, { lat: 1, lng: 0 }, { lat: 2, lng: 0 }], [{ lat: 20, lng: 0 }, { lat: 21, lng: 0 }], [{ lat: 30, lng: 0 }, { lat: 31, lng: 0 }]]);
-    expect(lines[2].options).toMatchObject({ dashArray: "8 6", weight: 4, color: "#c855bc" });
+    expect(lines[2].options).toMatchObject({ dashArray: "8 6", weight: 4, color: "#0099cc" });
     const markers = [...f.map.layers].filter((l) => l instanceof Marker);
     expect(markers).toHaveLength(3); expect(markers.slice(0, 2).map((m) => m.options.icon.options.html)).toEqual(["1", "2"]);
     lines[0].fire("click", { latlng: { lat: 1.9, lng: 0 } }); await settle();
@@ -660,16 +661,16 @@ describe("Phase B Layers hierarchy and deterministic renderer styling", () => {
       { segments: [] }, { segments: [{ points: [p(4), p(5)] }] },
     ], routes: [{ points: [] }, { points: [p(6), p(7)] }] }); await settle();
     const lines = () => [...f.map.layers].filter((layer) => layer instanceof Polyline);
-    expect(lines().map((layer) => layer.options.color)).toEqual(["#0099cc", "#c855bc", "#bc6c25"]);
-    expect([...f.map.layers].filter((layer) => layer instanceof Marker).map((layer) => layer.options.icon.options.routeColor)).toEqual(["#bc6c25", "#bc6c25"]);
+    expect(lines().map((layer) => layer.options.color)).toEqual(["#0099cc", "#0099cc", "#0099cc"]);
+    expect([...f.map.layers].filter((layer) => layer instanceof Marker).map((layer) => layer.options.icon.options.routeColor)).toEqual(["#0099cc", "#0099cc"]);
     await gpx.setTrackVisibility(entry.id, { trackIndex: 0, visible: false }, { expectedRevision: 1 }); await settle();
-    expect(lines().map((layer) => layer.options.color)).toEqual(["#c855bc", "#bc6c25"]);
+    expect(lines().map((layer) => layer.options.color)).toEqual(["#0099cc", "#0099cc"]);
     await f.app.selection.request(gpx.selection.createCandidate(entry.id, { kind: "route", routeIndex: 1 })); await settle();
-    expect(lines().map((layer) => layer.options.color)).toEqual(["#c855bc", "#bc6c25"]);
+    expect(lines().map((layer) => layer.options.color)).toEqual(["#0099cc", "#0099cc"]);
     await f.app.entries.setVisible(entry.id, false); await f.app.entries.setVisible(entry.id, true); await settle();
-    expect(lines().map((layer) => layer.options.color)).toEqual(["#c855bc", "#bc6c25"]);
+    expect(lines().map((layer) => layer.options.color)).toEqual(["#0099cc", "#0099cc"]);
     await gpx.setTrackVisibility(entry.id, { trackIndex: 0, visible: true }, { expectedRevision: 2 }); await settle();
-    expect(lines().map((layer) => layer.options.color)).toEqual(["#0099cc", "#c855bc", "#bc6c25"]);
+    expect(lines().map((layer) => layer.options.color)).toEqual(["#0099cc", "#0099cc", "#0099cc"]);
     for (const [preset, color] of [["forest", "#2a9d8f"], ["unknown", "#0099cc"]]) {
       await gpx.setStylePreset(entry.id, preset, { expectedRevision: gpx.get(entry.id).revision }); await settle();
       expect(lines().map((layer) => layer.options.color)).toEqual([color, color, color]);
@@ -742,12 +743,24 @@ describe("Phase B update edge cases", () => {
     await f.app.unuse("tilia-gpx-ui"); await settle(); changeCheckbox(active, true); await settle();
     expect(admissions).toBe(1); expect(f.app.domains.gpx.get(entry.id).revision).toBe(2);
   });
-  it("cycles the existing eight colors in canonical order", async () => {
-    const f = await fixture(["tilia-gpx-renderer"]);
-    await f.app.domains.gpx.create({ tracks: Array.from({ length: 9 }, (_, i) => ({ segments: [{ points: [p(i), p(i + 0.1)] }] })) }); await settle();
-    expect([...f.map.layers].filter((layer) => layer instanceof Polyline).map((layer) => layer.options.color)).toEqual([
-      "#0099cc", "#5c6bc0", "#c855bc", "#d1495b", "#bc6c25", "#f4a261", "#6a994e", "#2a9d8f", "#0099cc",
-    ]);
+  it("cycles the built-in palette across entries and keeps allocations local to the app", async () => {
+    const first = await fixture(["tilia-gpx-renderer"]), second = await fixture(["tilia-gpx-renderer"]);
+    const gpx = first.app.domains.gpx;
+    const data = { tracks: [{ segments: [{ points: [p(1), p(2)] }] }] };
+    const firstEntry = await gpx.create(data);
+    const explicit = await gpx.create({ data, preferences: { stylePresetId: "forest" } });
+    await gpx.setStylePreset(explicit.id, "default", { expectedRevision: 1 });
+    await first.app.entries.remove(firstEntry.id);
+    await gpx.replaceData(explicit.id, { ...data, name: "Renamed" }, { expectedRevision: 2 });
+    await first.app.entries.setVisible(explicit.id, false);
+    await first.app.entries.setVisible(explicit.id, true);
+    for (let i = 2; i <= TRACK_STYLE_PRESETS.length; i++) await gpx.create(data);
+    await second.app.domains.gpx.create(data);
+    await settle();
+    const colors = (f) => [...f.map.layers].filter(layer => layer instanceof Polyline).map(layer => layer.options.color);
+    const palette = TRACK_STYLE_PRESETS.map(preset => preset.color);
+    expect(colors(first)).toEqual([...palette.slice(1), palette[0]]);
+    expect(colors(second)).toEqual([palette[0]]);
   });
 });
 
@@ -787,10 +800,10 @@ describe("Issue 55 per-route visibility", () => {
     const lines = () => [...f.map.layers].filter((l) => l instanceof Polyline);
     const routeMarkers = () => [...f.map.layers].filter((l) => l instanceof Marker && l.options.icon);
     const colors = () => routeMarkers().map((m) => [m.options.icon.options.html, m.options.icon.options.routeColor]);
-    expect(lines()).toHaveLength(2); expect(colors()).toEqual([["1", "#5c6bc0"], ["2", "#5c6bc0"], ["1", "#c855bc"]]);
+    expect(lines()).toHaveLength(2); expect(colors()).toEqual([["1", "#0099cc"], ["2", "#0099cc"], ["1", "#0099cc"]]);
     const oldMarker = routeMarkers()[0];
     const hide = async (index, visible) => { await gpx.setRouteVisibility(entry.id, { routeIndex: index, visible }, { expectedRevision: gpx.get(entry.id).revision }); await settle(); };
-    await hide(0, false); expect(lines()).toHaveLength(1); expect(colors()).toEqual([["1", "#c855bc"]]);
+    await hide(0, false); expect(lines()).toHaveLength(1); expect(colors()).toEqual([["1", "#0099cc"]]);
     expect([...f.map.layers].filter((l) => l instanceof Marker && !l.options.icon)).toHaveLength(1);
     oldMarker.fire("click"); await settle(); expect(f.app.selection.getCurrent()).toBeNull();
     const hiddenPresentation = f.context.presentation.resolve(entry.id, { kind: "route", routeIndex: 0, revision: 2 });
@@ -799,7 +812,7 @@ describe("Issue 55 per-route visibility", () => {
     await gpx.setCategoryVisibility(entry.id, { category: "routes", visible: false }, { expectedRevision: gpx.get(entry.id).revision });
     await gpx.setCategoryVisibility(entry.id, { category: "routes", visible: true }, { expectedRevision: gpx.get(entry.id).revision }); await settle(); expect(routeMarkers()).toHaveLength(0);
     await f.app.entries.setVisible(entry.id, false); await f.app.entries.setVisible(entry.id, true); await settle(); expect(routeMarkers()).toHaveLength(0);
-    await hide(0, true); await hide(1, true); expect(colors()).toEqual([["1", "#5c6bc0"], ["2", "#5c6bc0"], ["1", "#c855bc"]]);
+    await hide(0, true); await hide(1, true); expect(colors()).toEqual([["1", "#0099cc"], ["2", "#0099cc"], ["1", "#0099cc"]]);
     await gpx.setStylePreset(entry.id, "forest", { expectedRevision: gpx.get(entry.id).revision }); await settle();
     expect(colors().map(([, color]) => color)).toEqual(["#2a9d8f", "#2a9d8f", "#2a9d8f"]);
     await hide(0, false); expect(colors()).toEqual([["1", "#2a9d8f"]]);

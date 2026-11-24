@@ -200,7 +200,7 @@ await app.domains.gpx.recomputeDerived(entry.id, undefined, {
 
 座標は`lon`を使います（Leafletでは多くの場合`lng`です）。緯度・経度は地理的な範囲内の有限数です。標高は有限数または`null`、時刻はUnixミリ秒の有限数または`null`です。標高・時刻の省略値は`null`になります。メタデータは`name`、`description`、`timestamp`に対応します。トラック・ルート・ウェイポイントは標準で空配列です。指定するトラックには`segments`配列、セグメント・ルートには`points`配列が必要です。
 
-設定の標準値は`tracksVisible`、`routesVisible`、`waypointsVisible`がすべてtrue、`trackVisibility: {}`、`routeVisibility: {}`、`stylePresetId: "default"`です。トラック別・ルート別の表示指定は0始まりのインデックスをオブジェクトのキーにし、未指定の項目は表示します。スナップショットは`{ data, preferences, derived }`で、GPXの`derived`は現在空です。
+設定の標準値は`tracksVisible`、`routesVisible`、`waypointsVisible`がすべてtrue、`trackVisibility: {}`、`routeVisibility: {}`、`stylePresetId: "default"`です。トラック別・ルート別の表示指定は0始まりのインデックスをオブジェクトのキーにし、未指定の項目は表示します。スナップショットは`{ data, preferences, derived }`で、GPXの`derived.defaultStyleIndex`は作成時に割り当てる組み込みパレットの0始まりのインデックスです。明示プリセットを指定した場合も、新規GPXは1色分の枠を使います。組み込みレンダラーでは`"default"`のとき全トラック・ルートに割り当て色を使い、`replaceData()`でも割り当てを維持します。未知のIDには先頭色を使います。
 
 ```js
 const entry = await app.domains.gpx.create({

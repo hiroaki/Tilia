@@ -84,11 +84,11 @@ test('real Leaflet route lines and number markers hide together; colors/numberin
   const markers = () => page.locator('.tilia-route-point-marker');
   const colors = () => markers().evaluateAll((nodes) => nodes.map((n) => [n.textContent, n.style.getPropertyValue('--route-color')]));
   await expect(geometry()).toHaveCount(2); await expect(markers()).toHaveCount(3);
-  expect(await colors()).toEqual([['1', '#5c6bc0'], ['2', '#5c6bc0'], ['1', '#c855bc']]);
+  expect(await colors()).toEqual([['1', '#0099cc'], ['2', '#0099cc'], ['1', '#0099cc']]);
   await page.getByRole('button', { name: 'A start', exact: true }).click(); await expect(popup(page)).toHaveCount(1);
   await page.evaluate(async () => {
     const { app, entryId, map } = window.phase4h;
-    map.eachLayer((layer) => { if (layer.options.icon?.options.routeColor === '#5c6bc0') window.phase4h.oldMarker = layer; });
+    map.eachLayer((layer) => { if (layer.options.icon?.options.routeColor && layer.getLatLng().lat === 35) window.phase4h.oldMarker = layer; });
     await app.domains.gpx.setRouteVisibility(entryId, { routeIndex: 0, visible: false }, { expectedRevision: 1 });
   });
   await expect(markers()).toHaveCount(1); await expect(geometry()).toHaveCount(1); await expect(toggle(page, 0)).not.toBeChecked();
@@ -96,7 +96,7 @@ test('real Leaflet route lines and number markers hide together; colors/numberin
   await expect(popup(page)).toHaveCount(0); await expect(page.locator('.tilia-selection-crosshair')).toHaveCount(0);
   await page.evaluate(() => window.phase4h.oldMarker.fire('click')); await expect(popup(page)).toHaveCount(0);
   await toggle(page, 0).check(); await expect(markers()).toHaveCount(3); await expect(popup(page)).toHaveCount(1);
-  expect(await colors()).toEqual([['1', '#5c6bc0'], ['2', '#5c6bc0'], ['1', '#c855bc']]);
+  expect(await colors()).toEqual([['1', '#0099cc'], ['2', '#0099cc'], ['1', '#0099cc']]);
   await toggle(page, 1).uncheck(); await expect(markers()).toHaveCount(2); await expect(geometry()).toHaveCount(2);
   await toggle(page, 2).uncheck(); await expect(markers()).toHaveCount(2);
   await page.evaluate(async () => {

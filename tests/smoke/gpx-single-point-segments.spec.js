@@ -60,8 +60,8 @@ for (const canvas of [false, true]) {
         [[35.68,139.762],[35.68,139.764]], [[35.68,139.766],[35.68,139.766]],
       ]);
       expect(actual.circles.map(c => [c.coordinate, c.fill])).toEqual([
-        [[35.68,139.754],"#0099cc"], [[35.68,139.76],"#5c6bc0"],
-        [[35.68,139.76],"#5c6bc0"], [[35.68,139.762],"#c855bc"], [[35.68,139.764],"#c855bc"],
+        [[35.68,139.754],"#0099cc"], [[35.68,139.76],"#0099cc"],
+        [[35.68,139.76],"#0099cc"], [[35.68,139.762],"#0099cc"], [[35.68,139.764],"#0099cc"],
       ]);
       for (const circle of actual.circles) expect(circle).toMatchObject({
         radius: 6, stroke: "#fff", weight: 2, opacity: 1, fillOpacity: 1, interactive: true,
