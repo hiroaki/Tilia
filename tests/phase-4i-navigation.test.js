@@ -44,7 +44,7 @@ describe("Phase 4I explicit semantic navigation", () => {
     expect(f.app.domains.gpx.get(entry.id).snapshot.preferences.tracksVisible).toBe(false);
     expect(f.app.hasPlugin("tilia-gpx-renderer")).toBe(false);
     expect(f.app.selection.getCurrent()).toBeNull();
-    byClass(f.map.container, "tilia-gpx-track")[0].children.find(n => n.classList.contains("tilia-gpx-node")).click();
+    byClass(byClass(f.map.container, "tilia-gpx-track")[0], "tilia-gpx-node")[0].click();
     await settle(); expect(f.map.panTo).not.toHaveBeenCalled();
     const documentButton = byClass(f.map.container, "tilia-layer-name")[0];
     f.map.fitBounds.mockClear(); documentButton.dispatchEvent(new Event("dblclick", { cancelable: true }));

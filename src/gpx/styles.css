@@ -1,6 +1,9 @@
 .tilia-gpx-tree { list-style: none; margin: 8px 0 0; padding-left: 0; }
 .tilia-gpx-children, .tilia-gpx-segments, .tilia-gpx-route-points { list-style: none; margin: 6px 0; padding-left: 12px; }
 .tilia-gpx-node { border: 0; background: transparent; cursor: pointer; text-align: left; padding: 0; font: inherit; color: #1c1917; }
+.tilia-gpx-color-name { display: inline-flex; align-items: center; gap: 6px; max-inline-size: calc(100% - 1.5rem); vertical-align: middle; }
+.tilia-gpx-color-name .tilia-gpx-node { min-inline-size: 0; overflow-wrap: anywhere; }
+.tilia-gpx-swatch { box-sizing: border-box; flex: none; inline-size: 1em; block-size: 1em; border: 1px solid rgb(128 128 128 / 75%); border-radius: 2px; }
 .tilia-route-point-marker {
   display: flex;
   align-items: center;

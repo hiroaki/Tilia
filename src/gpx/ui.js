@@ -2,6 +2,7 @@ import { domainMount } from "../ui/domain-mount.js";
 import { listen, node } from "../ui/scoped-dom.js";
 import { resolveGpxTarget } from "./document.js";
 import { formatGpxSummary, getTrackDisplayName } from "./interpretation.js";
+import { resolveGpxStyle } from "./style.js";
 import { clearSelectionHiddenByGpxCheckbox } from "./visibility.js";
 import { createWaypointPopupContent, createRoutePointPopupContent, createTrackPointPopupContent } from "./popup.js";
 
@@ -37,7 +38,14 @@ export function mountGpxRow(input) {
     structuralScope = scope.child({ label: "gpx-tree" }); projections = []; buttons = [];
     const child = structuralScope;
     const select = (parent, label, target, className = "tilia-gpx-node") => {
-      const button = node(parent, "button", className, label); button.type = "button"; buttons.push({ button, target });
+      let nameGroup = parent;
+      if (target.kind === "track" || target.kind === "route") {
+        nameGroup = node(parent, "span", "tilia-gpx-color-name");
+        const swatch = node(nameGroup, "span", "tilia-gpx-swatch");
+        swatch.setAttribute("aria-hidden", "true");
+        projections.push(({ snapshot }) => { swatch.style.backgroundColor = resolveGpxStyle(snapshot).color; });
+      }
+      const button = node(nameGroup, "button", className, label); button.type = "button"; buttons.push({ button, target });
       projections.push((view) => {
         const value = resolveGpxTarget(view.snapshot.data, target);
         const text = target.kind === "document" ? value.name : target.kind === "track" ? getTrackDisplayName(value, target.trackIndex) : target.kind === "segment" ? `Segment #${target.segmentIndex + 1} (${value.points.length} points)` : value.name || label;
