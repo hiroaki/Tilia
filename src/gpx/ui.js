@@ -2,6 +2,7 @@ import { domainMount } from "../ui/domain-mount.js";
 import { listen, node } from "../ui/scoped-dom.js";
 import { resolveGpxTarget } from "./document.js";
 import { formatGpxSummary, getTrackDisplayName } from "./interpretation.js";
+import { resolveGpxStyle } from "./style.js";
 import { clearSelectionHiddenByGpxCheckbox } from "./visibility.js";
 import { createWaypointPopupContent, createRoutePointPopupContent, createTrackPointPopupContent } from "./popup.js";
 
@@ -15,9 +16,12 @@ function sameTreeStructure(previous, next) {
 }
 
 export function mountGpxRow(input) {
-  const { container, scope, entry, gpx, selection, report, entries, map } = input;
+  const { container, scope, entry, gpx, selection, report, entries, map, colorService, subscribeColors } = input;
   const model = domainMount({ ...input, domain: gpx });
-  let structure, structuralScope, viewRevision, projections = [], buttons = [];
+  let structure, structuralScope, viewRevision, projections = [], colorProjections = [], buttons = [];
+  const renderColors = (view) => {
+    for (const project of colorProjections) project(view);
+  };
   const render = (view) => {
     viewRevision = view.revision;
     const { data } = view.snapshot;
@@ -26,6 +30,7 @@ export function mountGpxRow(input) {
       structure = data;
     }
     for (const project of projections) project(view);
+    renderColors(view);
     const selected = selection.getCurrent();
     for (const { button, target } of buttons) {
       const match = selected?.entryId === entry.id && selected.ref.kind === target.kind && Object.entries(target).every(([key, value]) => selected.ref[key] === value);
@@ -34,14 +39,45 @@ export function mountGpxRow(input) {
   };
   const rebuild = (data) => {
     structure = data; void structuralScope?.dispose().catch(report); container.replaceChildren();
-    structuralScope = scope.child({ label: "gpx-tree" }); projections = []; buttons = [];
+    structuralScope = scope.child({ label: "gpx-tree" }); projections = []; colorProjections = []; buttons = [];
     const child = structuralScope;
     const select = (parent, label, target, className = "tilia-gpx-node") => {
-      const button = node(parent, "button", className, label); button.type = "button"; buttons.push({ button, target });
+      let nameGroup = parent;
+      let picker;
+      if (target.kind === "track" || target.kind === "route") {
+        nameGroup = node(parent, "span", "tilia-gpx-color-name");
+        const colorSlot = node(nameGroup, "span", "tilia-gpx-color-slot");
+        const swatch = node(colorSlot, "span", "tilia-gpx-swatch");
+        swatch.setAttribute("aria-hidden", "true");
+        if (colorService) {
+          picker = node(colorSlot, "input", "tilia-gpx-color-picker");
+          picker.type = "color";
+          let projectedToken, activationToken;
+          const resetPicker = () => { activationToken = projectedToken; };
+          listen(child, picker, "click", resetPicker, report);
+          const projectColor = ({ snapshot }) => {
+            const state = colorService()?.get(entry.id, target);
+            projectedToken = state?.token;
+            const color = state?.color ?? state?.override ?? resolveGpxStyle(snapshot).color;
+            swatch.hidden = !!projectedToken;
+            swatch.style.backgroundColor = color;
+            picker.hidden = picker.disabled = !projectedToken;
+            if (picker.value !== color) picker.value = color;
+          };
+          colorProjections.push(projectColor);
+          listen(child, picker, "change", () => {
+            const token = activationToken ?? projectedToken;
+            if (projectedToken && token) colorService()?.set(entry.id, target, token, picker.value);
+            if (child.alive) model.update(projectColor);
+          }, report);
+        } else colorProjections.push(({ snapshot }) => { swatch.style.backgroundColor = resolveGpxStyle(snapshot).color; });
+      }
+      const button = node(nameGroup, "button", className, label); button.type = "button"; buttons.push({ button, target });
       projections.push((view) => {
         const value = resolveGpxTarget(view.snapshot.data, target);
         const text = target.kind === "document" ? value.name : target.kind === "track" ? getTrackDisplayName(value, target.trackIndex) : target.kind === "segment" ? `Segment #${target.segmentIndex + 1} (${value.points.length} points)` : value.name || label;
         if (button.textContent !== text) button.textContent = text;
+        picker?.setAttribute("aria-label", `Change color of ${text}`);
       });
       const current = () => {
         if (!child.alive) return null;
@@ -150,6 +186,7 @@ export function mountGpxRow(input) {
     }, { emitCurrent: false }); scope.defer(() => subscription.unsubscribe(), { retry: "safe" });
   }
   const subscription = selection.subscribe(() => model.update(render)); scope.defer(() => subscription.unsubscribe(), { retry: "safe" });
+  subscribeColors?.(() => model.update(renderColors));
   model.update(render);
 }
 export function mountGpxPopup({ container, selection, gpx }) {

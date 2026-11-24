@@ -1,26 +1,35 @@
 import { cloneAndFreezePlainData } from "../domains/immutable.js";
 import { CircleMarker, DivIcon, Marker, Polyline } from "leaflet";
-import { TRACK_STYLE_PRESETS } from "../map/track-style-presets.js";
+import { resolveGpxStyle } from "./style.js";
 import { gpxTargetPaths, queryGpx } from "./queries.js";
 const position = (p) => ({ lat: p.lat, lng: p.lon });
+function routeNumberColor(background) {
+  const [red, green, blue] = [1, 3, 5].map(offset => {
+    const channel = Number.parseInt(background.slice(offset, offset + 2), 16) / 255;
+    return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+  });
+  const luminance = 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+  const blackContrast = (luminance + 0.05) / 0.05;
+  const whiteContrast = 1.05 / (luminance + 0.05);
+  return blackContrast >= whiteContrast ? "#000" : "#fff";
+}
+
 class RoutePointIcon extends DivIcon {
-  createIcon(old) { const element = super.createIcon(old); element.style.setProperty("--route-color", this.options.routeColor); return element; }
-}
-// Canonical indices include hidden and empty objects, so ordinary rendering
-// replacements never renumber colors. Explicit and unknown presets retain their
-// existing entry-wide styling and fallback semantics.
-export function resolveGpxObjectStyle(preferences, data, target) {
-  if (preferences.stylePresetId === "default") {
-    const index = target.kind === "track" ? target.trackIndex : data.tracks.length + target.routeIndex;
-    return TRACK_STYLE_PRESETS[index % TRACK_STYLE_PRESETS.length];
+  createIcon(old) {
+    const element = super.createIcon(old);
+    const { routeColor } = this.options;
+    element.style.setProperty("--route-color", routeColor);
+    element.style.setProperty("--route-number-color", routeNumberColor(routeColor));
+    return element;
   }
-  return TRACK_STYLE_PRESETS.find((preset) => preset.id === preferences.stylePresetId) ?? TRACK_STYLE_PRESETS[0];
 }
-export function createGpxRenderer() {
+export function createGpxRenderer(colors) {
   return Object.freeze({
     planChange: () => "replace",
     build(input) {
       const { data, preferences } = input.semanticSnapshot;
+      const style = resolveGpxStyle(input.semanticSnapshot);
+      const beginColor = colors?.begin(input);
       const view = { entry: { id: input.entryId }, revision: input.semanticRevision, snapshot: input.semanticSnapshot };
       const own = (layer, id, target, band = "geometry", nearest = false, group = null) => {
         input.resources.own(layer, (value) => value.remove(), { label: id, retry: "safe" });
@@ -35,28 +44,42 @@ export function createGpxRenderer() {
       data.tracks.forEach((track, trackIndex) => {
         if (!preferences.tracksVisible || preferences.trackVisibility[trackIndex] === false) return;
         const target = { kind: "track", trackIndex };
-        const style = resolveGpxObjectStyle(preferences, data, target);
+        const drawable = beginColor?.(target, style.color);
+        const color = drawable?.color ?? style.color;
         const group = input.visibility.createGroup(target);
         const points = gpxTargetPaths(data, target)[0].points.map(({ point }) => position(point));
-        if (points.length > 1) own(new Polyline(points, style), `track:${trackIndex}`, target, "geometry", true, group);
+        if (points.length > 1) {
+          const line = new Polyline(points, { ...style, color });
+          own(line, `track:${trackIndex}`, target, "geometry", true, group);
+          drawable?.paint.push(color => line.setStyle({ color }));
+        }
         track.segments.forEach((segment, segmentIndex) => {
           if (segment.points.length !== 1) return;
           const pointTarget = { kind: "track-point", trackIndex, segmentIndex, pointIndex: 0 };
-          own(new CircleMarker(position(segment.points[0]), {
-            radius: 6, fillColor: style.color, fillOpacity: 1,
+          const marker = new CircleMarker(position(segment.points[0]), {
+            radius: 6, fillColor: color, fillOpacity: 1,
             color: "#fff", weight: 2, opacity: 1, interactive: true,
-          }), `track:${trackIndex}:segment:${segmentIndex}:point:0`, pointTarget, "geometry", false, group);
+          });
+          own(marker, `track:${trackIndex}:segment:${segmentIndex}:point:0`, pointTarget, "geometry", false, group);
+          drawable?.paint.push(fillColor => marker.setStyle({ fillColor }));
         });
       });
       data.routes.forEach((route, routeIndex) => {
         if (!preferences.routesVisible || preferences.routeVisibility[routeIndex] === false) return;
         const target = { kind: "route", routeIndex };
-        const style = resolveGpxObjectStyle(preferences, data, target);
-        if (route.points.length > 1) own(new Polyline(route.points.map(position), { ...style, weight: Math.max(1, style.weight - 2), dashArray: "8 6" }), `route:${routeIndex}`, target, "geometry", true);
+        const drawable = beginColor?.(target, style.color);
+        const color = drawable?.color ?? style.color;
+        if (route.points.length > 1) {
+          const line = new Polyline(route.points.map(position), { ...style, color, weight: Math.max(1, style.weight - 2), dashArray: "8 6" });
+          own(line, `route:${routeIndex}`, target, "geometry", true);
+          drawable?.paint.push(color => line.setStyle({ color }));
+        }
         route.points.forEach((point, pointIndex) => {
           const label = String(pointIndex + 1), width = Math.max(18, 10 + label.length * 6);
-          const icon = new RoutePointIcon({ className: "tilia-route-point-marker", html: label, iconSize: [width, 18], iconAnchor: [width / 2, 24], routeColor: style.color });
-          own(new Marker(position(point), { icon }), `route:${routeIndex}:point:${pointIndex}`, { kind: "route-point", routeIndex, pointIndex }, "markers");
+          const icon = routeColor => new RoutePointIcon({ className: "tilia-route-point-marker", html: label, iconSize: [width, 18], iconAnchor: [width / 2, 24], routeColor });
+          const marker = new Marker(position(point), { icon: icon(color) });
+          own(marker, `route:${routeIndex}:point:${pointIndex}`, { kind: "route-point", routeIndex, pointIndex }, "markers");
+          drawable?.paint.push(color => marker.setIcon(icon(color)));
         });
       });
       if (preferences.waypointsVisible) data.waypoints.forEach((point, waypointIndex) => own(new Marker(position(point), { title: point.name }), `waypoint:${waypointIndex}`, { kind: "waypoint", waypointIndex }, "markers"));

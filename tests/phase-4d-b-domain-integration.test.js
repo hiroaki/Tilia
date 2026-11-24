@@ -78,7 +78,7 @@ describe("Phase 4D-B GPX domain integration", () => {
       snapshot: {
         data: { tracks: [{ segments: [{ points: [{ lat: 35 }] }, { points: [{ lat: 36 }] }] }, { name: "second" }], routes: [{ name: "route" }], waypoints: [{ name: "waypoint" }] },
         preferences: { tracksVisible: true, routesVisible: true, waypointsVisible: false, trackVisibility: { 1: false }, stylePresetId: "red" },
-        derived: {},
+        derived: { defaultStyleIndex: 0 },
       },
     });
     expect(Object.isFrozen(first.snapshot.data.tracks[0].segments[0].points)).toBe(true);

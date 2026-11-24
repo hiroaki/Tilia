@@ -176,7 +176,7 @@ await app.domains.gpx.recomputeDerived(entry.id, undefined, {
 
 Coordinates use `lon` (Leaflet often uses `lng`). Latitude/longitude are finite numbers in geographic ranges. Elevation is finite or `null`; timestamps are finite Unix milliseconds or `null`. Omitted elevation/timestamp become `null`. Metadata supports `name`, `description`, and `timestamp`. Tracks/routes/waypoints default to empty arrays; supplied tracks require `segments` arrays and supplied segments/routes require `points` arrays.
 
-Preferences default to `tracksVisible`, `routesVisible`, and `waypointsVisible` all true, `trackVisibility: {}`, `routeVisibility: {}`, and `stylePresetId: "default"`. Per-track and per-route visibility use zero-based indexes as object keys; a missing index is visible. Snapshots are `{ data, preferences, derived }`; GPX `derived` is currently empty.
+Preferences default to `tracksVisible`, `routesVisible`, and `waypointsVisible` all true, `trackVisibility: {}`, `routeVisibility: {}`, and `stylePresetId: "default"`. Per-track and per-route visibility use zero-based indexes as object keys; a missing index is visible. Snapshots are `{ data, preferences, derived }`; GPX `derived.defaultStyleIndex` is the zero-based built-in palette index assigned at entry creation. New GPX entries reserve one slot each, including entries with an explicit preset. The built-in renderer uses the assigned color for all tracks and routes with `"default"`, preserves the assignment on `replaceData()`, and falls back to the first preset for unknown IDs.
 
 ```js
 const entry = await app.domains.gpx.create({

@@ -1,5 +1,6 @@
 import { cloneAndFreezePlainData, semanticError, semanticErrorCodes } from "../../domains/index.js";
 import { normalizeGpxDocument, updateGpxPoint } from "../../gpx/document.js";
+import { TRACK_STYLE_PRESETS } from "../../map/track-style-presets.js";
 import { createGpxSelectionAdapter } from "./gpx-selection.js";
 
 const categories = new Set(["tracks", "routes", "waypoints"]);
@@ -50,11 +51,11 @@ function normalizePreferences(value, trackCount, routeCount) {
   };
 }
 
-function snapshot(data, preferences) {
+function snapshot(data, preferences, defaultStyleIndex) {
   for (const field of ["tracksVisible", "routesVisible", "waypointsVisible"]) {
     if (typeof preferences[field] !== "boolean") invalid(`GPX ${field} must be boolean`, { field });
   }
-  return cloneAndFreezePlainData({ data, preferences, derived: {} });
+  return cloneAndFreezePlainData({ data, preferences, derived: { defaultStyleIndex } });
 }
 
 function same(left, right) {
@@ -62,11 +63,14 @@ function same(left, right) {
 }
 
 export function createGpxProvider() {
+  let nextStyleIndex = 0;
   return Object.freeze({
     selection: createGpxSelectionAdapter(),
     async prepareCreate({ value }) {
       const data = normalizeGpxDocument(value?.data ?? value);
-      const nextSnapshot = snapshot(data, normalizePreferences(value?.preferences, data.tracks.length, data.routes.length));
+      const preferences = normalizePreferences(value?.preferences, data.tracks.length, data.routes.length);
+      const nextSnapshot = snapshot(data, preferences, nextStyleIndex);
+      nextStyleIndex = (nextStyleIndex + 1) % TRACK_STYLE_PRESETS.length;
       return { instance: nextSnapshot, snapshot: nextSnapshot };
     },
     async prepareMutation({ currentInstance, command, expectedRevision }) {
@@ -101,7 +105,7 @@ export function createGpxProvider() {
         if (typeof command.stylePresetId !== "string" || command.stylePresetId.length === 0) invalid("Invalid GPX style preset");
         preferences = { ...preferences, stylePresetId: command.stylePresetId };
       } else invalid(`Unknown GPX command "${command.type}"`);
-      const nextSnapshot = snapshot(data, preferences);
+      const nextSnapshot = snapshot(data, preferences, currentInstance.derived.defaultStyleIndex);
       if (same(nextSnapshot, currentInstance)) return { changed: false };
       return {
         changed: true,
