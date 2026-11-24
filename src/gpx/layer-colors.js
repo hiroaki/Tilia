@@ -40,12 +40,13 @@ export function createGpxLayerColors({ scope, entries, rendering }) {
       if (!active || active.token !== token) return false;
       const { drawable } = active;
       const normalized = color.toLowerCase();
-      if (normalized === drawable.color) return true;
+      // A previous attempt may have painted only some layers before throwing.
       for (const paint of drawable.paint) {
         if (current(entryId, target)?.drawable !== drawable) return false;
         paint(normalized);
       }
       if (current(entryId, target)?.drawable !== drawable) return false;
+      if (normalized === drawable.color) return true;
       drawable.color = normalized;
       if (!overrides.has(entryId)) overrides.set(entryId, new Map());
       overrides.get(entryId).set(targetKey(target), normalized);

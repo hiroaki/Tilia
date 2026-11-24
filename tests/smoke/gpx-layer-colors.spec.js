@@ -143,3 +143,60 @@ test("a pending picker cannot write to a new generation and overrides reset on e
   await expect(track).toBeVisible();
   await expect(track).toHaveValue("#2a9d8f");
 });
+
+test("a route color change can be retried after a marker update fails", async ({ page }) => {
+  await ready(page);
+  const route = picker(page, "Route A");
+  const routeLine = geometry(page).locator("path[stroke-dasharray]");
+  const routeNumbers = page.locator(".tilia-route-point-marker");
+  const markerColors = () => routeNumbers.evaluateAll(nodes => nodes.map(node => node.style.getPropertyValue("--route-color")));
+  const status = () => page.evaluate(async () => {
+    const { gpxLayerColorKey } = await import("/src/plugins/contracts/gpx-layer-color.js");
+    const { app, context } = window.phase4h;
+    const { state, currentToken, semanticRevision } = app.rendering.getStatus(window.colorEntry);
+    const { color } = context.services.require(gpxLayerColorKey).get(window.colorEntry, { kind: "route", routeIndex: 0 });
+    return { state, currentToken, semanticRevision, color };
+  });
+
+  await expect(route).toBeEnabled();
+  const before = await status();
+  await page.evaluate(async () => {
+    const { app, map } = window.phase4h;
+    const point = lon => ({ lat: 35, lon });
+    await app.domains.gpx.create({
+      name: "Other GPX",
+      routes: [{ name: "Other route", points: [point(135.07), point(135.08)] }],
+    });
+    map.eachLayer(layer => {
+      if (layer.getElement?.()?.matches(".tilia-route-point-marker") && layer.getLatLng().lng === 135.05) {
+        layer.setIcon = function () {
+          delete this.setIcon;
+          throw new Error("Injected route marker update failure");
+        };
+      }
+    });
+  });
+  await expect(picker(page, "Other route")).toBeEnabled();
+  await changeColor(route, "#ce1201");
+  await expect(route).toHaveValue("#ce1201");
+  await expect(routeLine.first()).toHaveAttribute("stroke", "#ce1201");
+  expect(await markerColors()).toEqual(["#ce1201", "#0099cc", "#5c6bc0", "#5c6bc0"]);
+  expect(await status()).toEqual(before);
+
+  // The original color is still recorded even though only some layers show it.
+  await changeColor(route, before.color);
+  await expect(route).toHaveValue(before.color);
+  await expect(routeLine.first()).toHaveAttribute("stroke", before.color);
+  expect(await markerColors()).toEqual([before.color, before.color, "#5c6bc0", "#5c6bc0"]);
+  expect(await status()).toEqual(before);
+
+  await changeColor(route, "#ce1201");
+  await expect(route).toHaveValue("#ce1201");
+  await expect(routeLine.first()).toHaveAttribute("stroke", "#ce1201");
+  expect(await markerColors()).toEqual(["#ce1201", "#ce1201", "#5c6bc0", "#5c6bc0"]);
+  expect(await status()).toEqual({ ...before, color: "#ce1201" });
+  await expect(picker(page, "Track A")).toHaveValue("#0099cc");
+  await expect(geometry(page).locator('path[stroke="#0099cc"]')).toHaveCount(2);
+  await expect(routeLine.last()).toHaveAttribute("stroke", "#5c6bc0");
+  await expect(picker(page, "Other route")).toHaveValue("#5c6bc0");
+});
