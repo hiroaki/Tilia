@@ -96,6 +96,14 @@ export default Object.freeze({ id: "tilia-elevation", requires: ["tilia-panel", 
         const svg = (tag, attrs) => { const n = container.ownerDocument.createElementNS?.("http://www.w3.org/2000/svg", tag) ?? container.ownerDocument.createElement(tag); for (const [key, value] of Object.entries(attrs)) n.setAttribute(key, value); return n; };
         chart = svg("svg", { class: "tilia-elevation-chart", viewBox: `0 0 ${layout.width} ${layout.height}`, preserveAspectRatio: "none", "aria-label": "Elevation profile", role: "img", tabindex: "0" }); surface.appendChild(chart);
         chart.appendChild(svg("line", { x1: 3, x2: layout.width - 3, y1: layout.height - 20, y2: layout.height - 20, stroke: "#d6d3d1", "stroke-width": "1" }));
+        for (let index = 1; index < layout.spans.length; index++) {
+          const center = (layout.spans[index - 1].end + layout.spans[index].start) / 2;
+          for (const x of [center - 0.5, center + 0.5]) {
+            chart.appendChild(svg("line", { class: "tilia-elevation-track-divider", x1: x, x2: x,
+              y1: 8, y2: layout.height - 20, stroke: "#aaa", "stroke-width": 1,
+              "vector-effect": "non-scaling-stroke", "pointer-events": "none", "aria-hidden": "true" }));
+          }
+        }
         for (const stroke of layout.strokes) chart.appendChild(svg("polyline", { points: `${stroke.from.x},${stroke.from.y} ${stroke.to.x},${stroke.to.y}`, fill: "none", stroke: "#0f766e", "stroke-width": "2", "stroke-linejoin": "round", "stroke-linecap": "round", "stroke-dasharray": stroke.inferred ? "4 3" : "none", "data-track-index": stroke.trackIndex }));
         // Connected samples are already painted by the profile. Painting a dot
         // for each one makes dense tracks look solid when the SVG stretches.

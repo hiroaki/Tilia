@@ -26,6 +26,7 @@ test("recorded elevation geometry and map/chart point selection stay aligned acr
   await expect(popupDistance).toHaveText(expected.track);
   await page.getByRole("button", { name: "Elevation", exact: true }).click();
   const chart = page.locator(".tilia-elevation-chart");
+  await expect(chart.locator(".tilia-elevation-track-divider")).toHaveCount(0);
   await expect(chart.locator("polyline")).toHaveCount(3);
   await expect(chart.locator('polyline[stroke-dasharray="4 3"]')).toHaveCount(1);
   // Use the painted solid endpoints, in canonical traversal order. The dashed
@@ -196,6 +197,37 @@ test("a multi-entry mode switch rebuilds the open elevation chart once", async (
     expect(run.rebuilds).toBe(1);
     expect(run.focus).toBe(true);
     expect(run.strokes).toBe(run.mode === "track" ? 9999 : 9900);
+  }
+  await page.evaluate(() => window.lifecycle.app.destroy());
+});
+
+test("a divider marks only the space between tracks in both modes", async ({ page }) => {
+  await page.goto("/tests/fixtures/application-lifecycle.html");
+  await page.waitForFunction(() => window.fixtureReady);
+  await page.evaluate(async () => {
+    const app = window.lifecycle.create({ plugins: ["tilia-elevation"] });
+    await app.ready;
+    const segment = lon => ({ points: [0, 1].map(i => ({ lat: 35, lon: lon + i, elevation: 100 + i })) });
+    await app.domains.gpx.create({ tracks: [
+      { segments: [segment(135), segment(138)] }, { segments: [segment(145)] },
+    ] });
+  });
+  await page.getByRole("button", { name: "Elevation", exact: true }).click();
+  for (const mode of ["track", "segment"]) {
+    await page.evaluate(mode => window.lifecycle.app.domains.gpx.setPresentationMode(mode), mode);
+    const chart = page.locator(".tilia-elevation-chart");
+    const lines = chart.locator(".tilia-elevation-track-divider");
+    await expect(lines).toHaveCount(2);
+    const xs = await lines.evaluateAll(nodes => nodes.map(node => node.x1.baseVal.value));
+    const ends = await chart.evaluate(svg => [
+      [...svg.querySelectorAll('polyline[data-track-index="0"]')].at(-1).points.getItem(1).x,
+      svg.querySelector('polyline[data-track-index="1"]').points.getItem(0).x,
+    ]);
+    expect(xs[0]).toBeGreaterThan(ends[0]);
+    expect(xs[1]).toBeGreaterThan(xs[0]);
+    expect(xs[1]).toBeLessThan(ends[1]);
+    expect((xs[0] + xs[1]) / 2).toBeCloseTo((ends[0] + ends[1]) / 2);
+    await expect(lines.first()).toHaveCSS("pointer-events", "none");
   }
   await page.evaluate(() => window.lifecycle.app.destroy());
 });
