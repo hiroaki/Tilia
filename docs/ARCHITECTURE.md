@@ -194,6 +194,8 @@ Visibility also has separate layers: whole-entry visibility, domain child/catego
 
 UI hosts own placement, layout, ordering, outer containers, and mount lifetimes. Contributors own behavior and resources within their assigned subtrees. Narrow contributions provide toolbar items, domain layer rows, popup content, and settings. Host-defined groups, rank, and stable IDs determine ordering rather than installation timing.
 
+Core provides the shared UI surfaces and stylesheet management. `context.ui.mountSurface` supplies a container and a child Scope. Mounts within a surface are ordered by `rank`, with ties broken by the plugin and mount IDs, and the common stylesheet sets the z-order between surfaces. The stylesheet manager tracks leases by Scope. For example, the URL input form uses the `floating` surface and the shared `.tilia-control-panel` style with or without the panel plugin.
+
 A contribution can remain registered while its visual host is absent. Hosts close mounted resources when their lifetime ends; optional contributors can become visible again when an appropriate host is available. Hard plugin dependencies still govern whether a host plugin can be removed. Generic layer controls retain visibility/removal and a domain/ID fallback when no format-specific row contribution exists.
 
 Panel state, popup visibility, form input, hover, and editor point selection are local UI/session state. They do not replace authoritative entry data or global semantic selection. A mount or popup failure leaves that semantic state intact.
@@ -207,6 +209,16 @@ Within each band, Tilia-managed private panes and shared band panes stack in the
 The track editor places its draft and its vertex/midpoint handles in separate private panes in the `modal` band, using the vendored library's public `pane` and `handlePane` options, respectively. Drag helper lines retain the library's default placement; this does not establish a general exception for plugin resources. Draft clicks use native Leaflet layer hit-testing. Single-point segments use editor-owned CircleMarkers in the draft pane, above draft lines; during local editing their vendor vertex handles replace these circles.
 
 The vendored `PartiallyEditablePolyline` JavaScript and CSS files in `plugins/x-track-editor/vendor/` must not be modified directly within Tilia. Implement Tilia-specific behavior in the editor integration through the library's public API.
+
+### Panel ownership and layout
+
+Tilia retains the core/plugin split (Option A in [Issue #63](https://github.com/hiroaki/Tilia/issues/63)). `tilia-panel` is optional for an application. It owns the active panel, the `side` or `bottom` layout of that panel, the shell and content containers, focus restoration, and the content Scope. Closing or replacing a panel immediately revokes the old content Scope's operational authority, before asynchronous cleanup.
+
+Plugins that need a panel declare `tilia-panel` in `requires` and obtain the service via `context.services.require(panelServiceKey)`. The service provides `open`, `toggle`, `close`, and `isOpen`. The panel-specific helper `src/ui/panel-mount.js` ties an open panel's content to the consuming plugin's Scope. It starts disposal when that plugin begins teardown and retains the resources needed to retry failed cleanup. It is internal integration code for panel consumers.
+
+The application owns overlap adjustment between the panel and Leaflet controls at the right or bottom edge of the map. `src/ui/layout.js` uses `data-tilia-panel-layout` and `.tilia-side-panel-hidden` to identify the visible panel and measures the panel and relevant control corners as needed. If a control at the affected edge has a `keep` policy, the host offsets the panel. Otherwise it reserves space for the panel by offsetting the controls. The map-container layout attribute, the `--tilia-reserved-*` and `--tilia-panel-offset-*` variables, and the corresponding rules in the common and panel stylesheets form a deliberate internal contract between the application and `tilia-panel`. The public control placement options are described in [Control placement](PLUGINS.md#control-placement).
+
+Chromium verification at `fec0bb3` confirmed that a minimal application renders GPX, can mount the URL input form, and tears down its UI and layout resources without loading the panel implementation or stylesheet. That verified panel-free configuration is why Tilia keeps panel behavior optional and declines to move it into core (Option C). Revisit Option B, a generic placement API for reserving space along map edges, when another UI feature needs the same kind of coordination.
 
 ### Examples of independent lifetimes
 
