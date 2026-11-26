@@ -33,13 +33,14 @@ export function queryGpx(view, method, target = { kind: "document" }, coordinate
   const presentation = method === "presentation";
   const mode = presentation ? view.snapshot.derived.presentationMode : "track";
   const allPaths = gpxTargetPaths(document, target, mode);
-  const points = allPaths.flatMap((path) => path.points);
   let result;
-  if (method === "extent") result = { bounds: points.length ? {
-    southWest: points.reduce((a, { point }) => ({ lat: Math.min(a.lat, point.lat), lon: Math.min(a.lon, point.lon) }), { lat: Infinity, lon: Infinity }),
-    northEast: points.reduce((a, { point }) => ({ lat: Math.max(a.lat, point.lat), lon: Math.max(a.lon, point.lon) }), { lat: -Infinity, lon: -Infinity }),
-  } : null };
-  else if (method === "elevation" || presentation) {
+  if (method === "extent") {
+    const points = allPaths.flatMap(path => path.points);
+    result = { bounds: points.length ? {
+      southWest: points.reduce((a, { point }) => ({ lat: Math.min(a.lat, point.lat), lon: Math.min(a.lon, point.lon) }), { lat: Infinity, lon: Infinity }),
+      northEast: points.reduce((a, { point }) => ({ lat: Math.max(a.lat, point.lat), lon: Math.max(a.lon, point.lon) }), { lat: -Infinity, lon: -Infinity }),
+    } : null };
+  } else if (method === "elevation" || presentation) {
     if (!["document", "track", "segment", "route"].includes(target.kind)) invalidGpx("Elevation requires a path target");
     result = { profiles: allPaths.filter((path) => path.target.kind !== "waypoint").map((path) => {
       let cumulative = 0;
@@ -60,7 +61,7 @@ export function queryGpx(view, method, target = { kind: "document" }, coordinate
     if (!["track", "segment", "route"].includes(target.kind)) invalidGpx("Nearest point requires track, segment or route target");
     if (!coordinate || !Number.isFinite(coordinate.lat) || !Number.isFinite(coordinate.lon)) invalidGpx("Invalid nearest-point coordinate");
     let match = null;
-    for (const { point, target: pointTarget } of points) {
+    for (const { point, target: pointTarget } of allPaths[0].points) {
       const distanceSquared = (point.lat - coordinate.lat) ** 2 + (point.lon - coordinate.lon) ** 2;
       if (!match || distanceSquared < match.distanceSquared) match = { target: pointTarget, point: resolveGpxTarget(document, pointTarget), distanceSquared };
     }

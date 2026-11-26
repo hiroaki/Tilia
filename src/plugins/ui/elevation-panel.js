@@ -14,23 +14,22 @@ export default Object.freeze({ id: "tilia-elevation", requires: ["tilia-panel", 
     if (panel.isOpen("elevation")) return panel.close("elevation");
     openPanel({ id: "elevation", title: "Elevation", layout: "bottom", mount({ container, scope }) {
       container.classList.add("tilia-elevation-panel-content");
-      let session, hoverScope, layout, revision, chart, guide, guideLine, keyboardIndex = 0;
+      let session, hoverScope, layout, displayed, selection, nameLabel, chart, guide, guideLine, keyboardIndex = 0;
       const clearHover = () => { const old = hoverScope; hoverScope = null; void old?.dispose().catch(report); if (guide) guide.hidden = true; if (guideLine) guideLine.hidden = true; };
       const showGuide = (sample) => {
         guide.hidden = guideLine.hidden = false;
         guide.style.left = guideLine.style.left = `${sample.x / layout.width * 100}%`;
         guide.style.top = `${sample.y / layout.height * 100}%`;
       };
-      const chooseEntry = () => {
-        const selected = context.selection.getCurrent(), entries = context.entries.list();
+      const chooseEntry = (selected) => {
         if (selected?.domain === gpxDomainKey && context.entries.get(selected.entryId)) activeId = selected.entryId;
-        else if (!activeId || !context.entries.get(activeId)) activeId = entries.find((e) => e.domain === gpxDomainKey && gpx.get(e.id).snapshot.data.tracks.length)?.id;
+        else if (!activeId || !context.entries.get(activeId)) activeId = context.entries.list().find((e) => e.domain === gpxDomainKey && gpx.get(e.id).snapshot.data.tracks.length)?.id;
         return activeId && context.entries.get(activeId) ? gpx.get(activeId) : null;
       };
       const current = () => {
         if (!scope.alive || !session?.alive) return null;
         if (!activeId || !context.entries.get(activeId)) { clearHover(); render(); return null; }
-        const view = gpx.get(activeId); if (view.revision !== revision) { clearHover(); render(); return null; } return view;
+        const view = gpx.get(activeId); if (view.revision !== displayed?.revision) { clearHover(); render(); return null; } return view;
       };
       const resolve = (view, sample) => {
         const preferences = view.snapshot.preferences;
@@ -58,15 +57,36 @@ export default Object.freeze({ id: "tilia-elevation", requires: ["tilia-panel", 
         let lease; child.defer(() => lease?.dispose(), { retry: "safe" });
         lease = context.map.attachLayer(marker, { band: "overlays" });
       };
+      const showSelection = () => {
+        clearHover();
+        if (!guide || selection?.entryId !== displayed?.entry.id || selection?.ref.kind !== "track-point") return;
+        const point = layout.points.find((p) => ["trackIndex", "segmentIndex", "pointIndex"].every(key => p.locator[key] === selection.ref[key]));
+        if (point) showGuide(point);
+      };
+      const label = view => `${view.snapshot.data.name}${view.entry.visible ? "" : " (hidden)"}`;
       const render = () => {
         if (!scope.alive) return;
+        const selected = context.selection.getCurrent(), view = chooseEntry(selected);
+        // Selection and entry notifications can describe the same committed revision.
+        if (session && view?.entry.id === displayed?.entry.id && view?.revision === displayed?.revision) {
+          const visibilityChanged = view?.entry.visible !== displayed?.entry.visible;
+          if (visibilityChanged) nameLabel.textContent = label(view);
+          displayed = view;
+          if (visibilityChanged || selected !== selection) {
+            selection = selected;
+            showSelection();
+          }
+          return;
+        }
+        displayed = view;
+        selection = selected;
         const restoreFocus = chart && container.ownerDocument.activeElement === chart;
         clearHover(); const old = session; session = scope.child({ label: "elevation-chart" }); void old?.dispose().catch(report); container.replaceChildren();
-        const view = chooseEntry(); if (!view) { node(container, "p", "tilia-elevation-empty", "No GPX tracks"); layout = null; return; }
-        revision = view.revision;
+        chart = guide = guideLine = nameLabel = null;
+        if (!view) { node(container, "p", "tilia-elevation-empty", "No GPX tracks"); layout = null; return; }
         layout = elevationLayout(gpx.getPresentationProfile(view.entry.id).profiles, { paddingX: 3, paddingTop: 8, paddingBottom: 20 });
         if (!layout.points.length) {
-          node(container, "span", "tilia-elevation-name tilia-elevation-chart-label", `${view.snapshot.data.name}${view.entry.visible ? "" : " (hidden)"}`);
+          nameLabel = node(container, "span", "tilia-elevation-name tilia-elevation-chart-label", label(view));
           node(container, "p", "tilia-elevation-empty", view.snapshot.data.tracks.length ? "No elevation data" : "No GPX tracks"); return;
         }
         const wrap = node(container, "div", "tilia-elevation-chart-wrap");
@@ -86,7 +106,7 @@ export default Object.freeze({ id: "tilia-elevation", requires: ["tilia-panel", 
         guideLine = node(overlay, "div", "tilia-elevation-guide-line"); guideLine.hidden = true;
         guide = node(overlay, "div", "tilia-elevation-guide-marker"); guide.hidden = true;
         const footer = node(wrap, "div", "tilia-elevation-chart-footer");
-        node(footer, "span", "tilia-elevation-name tilia-elevation-chart-label", `${view.snapshot.data.name}${view.entry.visible ? "" : " (hidden)"}`);
+        nameLabel = node(footer, "span", "tilia-elevation-name tilia-elevation-chart-label", label(view));
         const distance = layout.distanceMeters >= 1000 ? `${(layout.distanceMeters / 1000).toFixed(1)} km` : `${Math.round(layout.distanceMeters)} m`;
         const summary = node(footer, "span", "tilia-elevation-summary tilia-elevation-chart-label tilia-elevation-chart-label-end", `${distance} / ${Math.round(layout.minimum)}–${Math.round(layout.maximum)} m / ascent ${Math.round(layout.ascent)} m`);
         summary.setAttribute("aria-live", "polite");
@@ -108,13 +128,9 @@ export default Object.freeze({ id: "tilia-elevation", requires: ["tilia-panel", 
           else if (event.key === "Enter" || event.key === " ") { event.preventDefault(); selectSample(layout.points[keyboardIndex]); }
         }, report);
         if (restoreFocus) chart.focus({ preventScroll: true });
-        const selected = context.selection.getCurrent();
-        if (selected?.entryId === view.entry.id && selected.ref.kind === "track-point") {
-          const point = layout.points.find((p) => ["trackIndex", "segmentIndex", "pointIndex"].every((key) => p.locator[key] === selected.ref[key]));
-          if (point) showGuide(point);
-        }
+        showSelection();
       };
-      const subscriptions = [context.entries.subscribe(render, { emitCurrent: false }), context.selection.subscribe(render), context.rendering.subscribe(() => { if (hoverScope) clearHover(); }, { emitCurrent: false })];
+      const subscriptions = [context.entries.subscribe(render, { emitCurrent: false }), context.selection.subscribe(render), context.rendering.subscribe(status => { if (hoverScope && status.entryId === activeId) clearHover(); }, { emitCurrent: false })];
       scope.defer(() => subscriptions.forEach((s) => s.unsubscribe()), { retry: "safe" }); render();
     } });
   } });

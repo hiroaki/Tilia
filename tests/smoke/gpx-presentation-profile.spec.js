@@ -49,5 +49,76 @@ test("an open popup and elevation chart follow mode changes and both sides of a 
     const { serializeGpxSource } = await import("/src/gpx/serialize.js");
     return serializeGpxSource(window.phase4h.app.domains.gpx.getDocument(id).document);
   }, expected.id)).toBe(expected.serialized);
+  const visibilityAndSelection = await page.evaluate(async id => {
+    const { app } = window.phase4h;
+    const chart = document.querySelector(".tilia-elevation-chart");
+    const guide = document.querySelector(".tilia-elevation-guide-marker");
+    const label = document.querySelector(".tilia-elevation-name");
+    const atBreak = guide.style.left;
+    const gpx = app.domains.gpx;
+    await app.selection.request(gpx.selection.createCandidate(id, { kind: "track-point", trackIndex: 0, segmentIndex: 0, pointIndex: 0 }));
+    const guideMoved = !guide.hidden && guide.style.left !== atBreak;
+    await app.entries.setVisible(id, false);
+    const hiddenLabel = label.textContent;
+    await app.entries.setVisible(id, true);
+    await app.selection.clear();
+    return { guideMoved, hiddenLabel, visibleLabel: label.textContent, guideHidden: guide.hidden,
+      sameChart: chart === document.activeElement && chart === document.querySelector(".tilia-elevation-chart") };
+  }, expected.id);
+  expect(visibilityAndSelection).toEqual({ guideMoved: true, hiddenLabel: "track.gpx (hidden)", visibleLabel: "track.gpx",
+    guideHidden: true, sameChart: true });
   expect(errors).toEqual([]);
+});
+
+test("a multi-entry mode switch rebuilds the open elevation chart once", async ({ page }, testInfo) => {
+  await page.goto("/tests/fixtures/application-lifecycle.html");
+  await page.waitForFunction(() => window.fixtureReady);
+  await page.evaluate(async () => {
+    const app = window.lifecycle.create({ plugins: ["tilia-elevation"] });
+    await app.ready;
+    const segments = Array.from({ length: 100 }, (_, s) => ({
+      points: Array.from({ length: 100 }, (_, p) => ({
+        lat: 35 + s / 1000, lon: 135 + p / 10000, elevation: s + p,
+      })),
+    }));
+    const gpx = app.domains.gpx;
+    for (const name of ["First", "Displayed", "Third"]) await gpx.create({ name, tracks: [{ segments }] });
+    const active = app.entries.list()[1].id;
+    await app.selection.request(gpx.selection.createCandidate(active, { kind: "track-point", trackIndex: 0, segmentIndex: 1, pointIndex: 0 }));
+  });
+  await page.getByRole("button", { name: "Elevation", exact: true }).click();
+  await page.locator(".tilia-elevation-chart").focus();
+  const runs = await page.evaluate(async () => {
+    const app = window.lifecycle.app, container = document.querySelector(".tilia-elevation-panel-content");
+    let rebuilds = 0;
+    const observer = new MutationObserver(records => {
+      for (const record of records) for (const added of record.addedNodes) {
+        if (added.classList?.contains("tilia-elevation-chart-wrap")) rebuilds++;
+      }
+    });
+    observer.observe(container, { childList: true });
+    const results = [];
+    try {
+      for (let iteration = 0; iteration < 4; iteration++) {
+        for (const mode of ["segment", "track"]) {
+          await new Promise(requestAnimationFrame);
+          rebuilds = 0;
+          const start = performance.now();
+          await app.domains.gpx.setPresentationMode(mode);
+          const elapsed = performance.now() - start;
+          const chart = container.querySelector("svg");
+          results.push({ iteration, mode, elapsed, rebuilds, focus: chart === document.activeElement,
+            strokes: chart.querySelectorAll("polyline").length });
+        }
+      }
+    } finally { observer.disconnect(); }
+    return results;
+  });
+  await testInfo.attach("elevation-switch-timings", { body: JSON.stringify(runs), contentType: "application/json" });
+  for (const run of runs) {
+    expect(run.rebuilds).toBe(1);
+    expect(run.focus).toBe(true);
+    expect(run.strokes).toBe(run.mode === "track" ? 9999 : 9900);
+  }
+  await page.evaluate(() => window.lifecycle.app.destroy());
 });
