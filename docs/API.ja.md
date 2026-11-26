@@ -250,9 +250,15 @@ await gpx.setPresentationMode("track");
 subscription.unsubscribe();
 ```
 
-Viewer では **Settings → GPX track display** から同じ値を変更できます。パネルを追加するには `plugins` に `"tilia-settings"` を指定します。購読は現在値を即時に通知し、その後、アプリの設定値が切り替わるたびに呼ばれます（即時通知を省略するには `{ emitCurrent: false }`）。変更は呼び出し順に処理され、Promise は対象エントリーの状態への反映後に解決します。描画状態は `app.rendering.getStatus(id)` から取得します。
+Viewer の **Settings → GPX track display** では、Track mode と Segment mode をラジオボタンで選べます。パネルを追加するには `plugins` に `"tilia-settings"` を指定します。
 
-各エントリーの確定値は `snapshot.derived.presentationMode` です。変更時にはリビジョンが進みます。同じ値の再指定はリビジョンを維持します。新規インポートと編集コピーにも、そのアプリのモードを適用します。設定はメモリ上に保持します。
+`setPresentationMode(mode)` は要求を呼び出し順に処理します。まずアプリの希望モードを設定し、値が変わった場合に `subscribePresentationMode` が通知します。その後、エントリーごとにモードを反映します。新規インポートと編集コピーは希望モードを継承します。各エントリーに確定した値は `snapshot.derived.presentationMode` です。setter の Promise は対象エントリーへの反映が完了すると解決します。地図の描画完了は `app.rendering.getStatus(id)` の対象です。
+
+反映中にエラーが発生すると Promise は拒否されます。希望モードと、その時点までに確定したエントリーの変更は保持されるため、エントリー間でモードが一時的に異なることがあります。原因を取り除いて `await gpx.setPresentationMode(gpx.getPresentationMode())` を再実行するか、Settings の再試行ボタンを使います。希望モードと一致しているエントリーはリビジョンを維持し、残りのエントリーだけを更新します。
+
+`getPresentationStatus()` は `{ mode, state }` を返します。`mode` は希望モード、`state` はエントリーへの反映状態（`"applying"`、`"applied"`、`"failed"`）です。`subscribePresentationStatus(listener, options)` は同じ形式で状態遷移を通知します。同じモードへの再試行もこの購読で追跡できます。
+
+モードと反映状態の購読はどちらも初期値を即時通知し、`{ emitCurrent: false }` で初期通知を省略できます。購読は利用側の Scope または GPX provider の登録が終了すると解除されます。Domain を再導入した場合は新たに購読してください。返されたハンドルの `unsubscribe()` は繰り返し呼び出せます。設定はメモリ上に保持します。
 
 `getPresentationProfile(id, { target } = {})` は `{ entryId, revision, mode, profiles }` を返します。対象とサンプルの構造は `getElevationProfile` と共通で、各サンプルに `lat` と `lon` が加わります。Track mode では、同じトラックの空でないセグメントを結ぶ区間を `inferred-gap` とし、距離に含めます。Segment mode では各セグメントの先頭を `start` とし、直前の区間の累積距離を引き継ぎます。各トラックの距離はゼロから始まります。どちらのモードでも、累積上昇量には記録区間のみを使います。既存の距離・標高・最近傍クエリ、写真の時刻照合、GPX出力は従来の意味を維持します。
 

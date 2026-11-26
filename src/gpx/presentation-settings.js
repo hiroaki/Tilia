@@ -1,5 +1,5 @@
 import { gpxDomainKey } from "../domains/keys.js";
-import { semanticErrorCodes } from "../domains/errors.js";
+import { semanticError, semanticErrorCodes } from "../domains/errors.js";
 import { createSubscriptionChannel } from "../extensions/subscriptions.js";
 import { invalidGpx } from "./document.js";
 
@@ -16,15 +16,20 @@ function checkMode(mode) {
 
 export function createPresentationSettings(provider, initialMode) {
   checkMode(initialMode);
-  let mode = initialMode;
-  let applied = true;
+  let status = Object.freeze({ mode: initialMode, state: "applied" });
   let tail = Promise.resolve();
-  const changes = createSubscriptionChannel({ getSnapshot: () => mode });
+  const changes = createSubscriptionChannel({ getSnapshot: () => status.mode });
+  const statusChanges = createSubscriptionChannel({ getSnapshot: () => status });
+
+  function publish(mode, state) {
+    status = Object.freeze({ mode, state });
+    statusChanges.deliver(status);
+  }
 
   async function applyToEntry(id, entries, owner) {
     while (entries.get(id)) {
       const view = entries.getDomainView(id, gpxDomainKey);
-      if (view.snapshot.derived.presentationMode === mode) return;
+      if (view.snapshot.derived.presentationMode === status.mode) return;
       try {
         await entries.update(owner, id, gpxDomainKey, { type: "apply-presentation-mode" }, { expectedRevision: view.revision });
         return;
@@ -37,25 +42,35 @@ export function createPresentationSettings(provider, initialMode) {
   }
 
   const settings = Object.freeze({
-    get: () => mode,
+    get: () => status.mode,
+    getStatus: () => status,
+    subscribeStatus: statusChanges.subscribe,
     subscribe: changes.subscribe,
-    set(next, { scope, owner, entries }) {
+    set(next, { scope, owner, entries, signal }) {
+      function assertRegistered() {
+        if (signal.aborted) throw semanticError(semanticErrorCodes.providerUnavailable, "GPX provider registration has ended");
+      }
       const operation = tail.then(async () => {
         scope.assertAlive();
-        owner.assertAlive();
+        assertRegistered();
         checkMode(next);
-        if (next === mode && applied) return;
-        applied = false;
-        if (next !== mode) {
-          mode = next;
-          changes.deliver(mode);
+        const changed = next !== status.mode;
+        if (!changed && status.state === "applied") return;
+
+        publish(next, "applying");
+        if (changed) changes.deliver(next);
+        try {
+          const targets = await entries.listAfterPendingCreations(gpxDomainKey);
+          for (const { id } of targets) {
+            assertRegistered();
+            await applyToEntry(id, entries, owner);
+          }
+          assertRegistered();
+        } catch (error) {
+          publish(next, "failed");
+          throw error;
         }
-        const targets = await entries.listAfterPendingCreations(gpxDomainKey);
-        for (const { id } of targets) {
-          owner.assertAlive();
-          await applyToEntry(id, entries, owner);
-        }
-        applied = true;
+        publish(next, "applied");
       });
       tail = operation.catch(() => {});
       return operation;

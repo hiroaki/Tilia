@@ -93,8 +93,10 @@ export function createDomainRegistry({ onError = () => {} } = {}) {
         scope.assertAlive();
         assertDomainKey(key);
         validateProvider(provider, key.id);
+        const withdrawal = new AbortController();
         const record = {
           id: nextRegistrationId++,
+          signal: AbortSignal.any([scope.signal, withdrawal.signal]),
           key,
           provider,
           owner: scope,
@@ -119,6 +121,7 @@ export function createDomainRegistry({ onError = () => {} } = {}) {
             if (!committed || providers.get(key) !== record) return;
             assertRemovable(record);
             providers.delete(key);
+            withdrawal.abort();
             channelFor(key).deliver(availability(key));
           },
           retry: "safe",

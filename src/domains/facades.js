@@ -50,15 +50,21 @@ export function createGpxFacade({ scope, entries, selection, registry }) {
     if (!settings) {
       throw semanticError(semanticErrorCodes.providerUnavailable, "GPX presentation settings are unavailable");
     }
-    return { settings, owner: registration.owner };
+    return { settings, owner: registration.owner, signal: registration.signal };
+  }
+  function subscribePresentation(method, listener, options) {
+    const { settings, signal } = presentation();
+    return settings[method](scope, listener, options, signal);
   }
   const queries = {
     getPresentationMode: () => presentation().settings.get(),
     setPresentationMode(mode) {
-      const { settings, owner } = presentation();
-      return settings.set(mode, { scope, owner, entries });
+      const { settings, owner, signal } = presentation();
+      return settings.set(mode, { scope, owner, entries, signal });
     },
-    subscribePresentationMode: (listener, options) => presentation().settings.subscribe(scope, listener, options),
+    subscribePresentationMode: (listener, options) => subscribePresentation("subscribe", listener, options),
+    getPresentationStatus: () => presentation().settings.getStatus(),
+    subscribePresentationStatus: (listener, options) => subscribePresentation("subscribeStatus", listener, options),
     getPresentationProfile: (id, options) => query(id, "presentation", options),
     getDocument: (id) => queryGpx(facade.get(id), "document"),
     getExtent: (id, options) => query(id, "extent", options),
