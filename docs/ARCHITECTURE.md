@@ -127,7 +127,7 @@ The creator is not the lifetime owner of a committed entry. An input operation o
 
 Application ownership and the provider lease solve different problems: imported or saved data must survive removal of its creating tool, while the implementation needed to interpret and release that data must remain available. Provider removal therefore rejects rather than silently deleting user data or leaving entries without their semantic implementation.
 
-The GPX domain owns the presentation mode for its application. A switch waits for GPX creations already in progress and updates each snapshot’s derived mode through the entry mutation queue, retrying against the latest revision if a data update wins. The map and presentation queries share a segment traversal and use the mode committed for that generation. Inferred connections are noninteractive dashed lines. Clicking a recorded line resolves a real point within its segment.
+The GPX domain owns the presentation mode for its application. A switch waits for GPX creations already in progress and updates each snapshot’s derived mode through the entry mutation queue, retrying against the latest revision if a data update wins. The map and presentation queries share a segment traversal and use the mode committed for that generation. The map draws inferred connections as noninteractive dotted lines. Clicking a recorded line resolves a real point within its segment.
 
 ### Creation and input
 

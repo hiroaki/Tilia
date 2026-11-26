@@ -60,7 +60,7 @@ test("temporary track and route colors repaint owned layers and survive visibili
   await changeColor(route, "#3344bb");
   expect(await identity()).toEqual(before);
   const trackLine = geometry(page).locator('path.leaflet-interactive[stroke="#ff3300"]');
-  const gap = geometry(page).locator('path[stroke="#ff3300"][stroke-dasharray="6 6"]');
+  const gap = geometry(page).locator('path[stroke="#ff3300"][stroke-dasharray]');
   await expect(gap).toHaveCount(1);
   const routeLine = geometry(page).locator('path[stroke="#3344bb"]');
   const singleton = geometry(page).locator('path[fill="#ff3300"][stroke="#fff"]');

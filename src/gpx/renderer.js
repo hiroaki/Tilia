@@ -54,7 +54,7 @@ export function createGpxRenderer(colors) {
           const segmentId = `track:${trackIndex}:segment:${segmentIndex}`;
           if (gapFrom) {
             const gap = new Polyline([position(gapFrom), position(points[0])], {
-              ...style, color, dashArray: "6 6", interactive: false,
+              ...style, color, dashArray: "1 14", lineCap: "round", interactive: false,
             });
             own(gap, `${segmentId}:gap`, null, "geometry", false, group);
             drawable?.paint.push(color => gap.setStyle({ color }));

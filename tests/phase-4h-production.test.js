@@ -297,7 +297,10 @@ describe("Phase 4H production rendering and independent presentation", () => {
     const entry = await f.app.domains.gpx.create({ tracks: [{ segments: [{ points: [p(0), p(1)] }, { points: [p(2)] }] }, { segments: [{ points: [p(20), p(21)] }] }], routes: [{ points: [p(30), p(31)] }], waypoints: [p(40)] }); await settle();
     const lines = [...f.map.layers].filter((l) => l instanceof Polyline);
     expect(lines.map((l) => l.point)).toEqual([[{ lat: 0, lng: 0 }, { lat: 1, lng: 0 }], [{ lat: 1, lng: 0 }, { lat: 2, lng: 0 }], [{ lat: 20, lng: 0 }, { lat: 21, lng: 0 }], [{ lat: 30, lng: 0 }, { lat: 31, lng: 0 }]]);
-    expect(lines[1].options).toMatchObject({ dashArray: "6 6", interactive: false });
+    expect(lines[1].options).toMatchObject({ lineCap: "round", interactive: false });
+    const [dot, space] = lines[1].options.dashArray.split(" ").map(Number);
+    expect(dot).toBeLessThan(space);
+    expect(lines[1].options.dashArray).not.toBe(lines[3].options.dashArray);
     expect(lines[3].options).toMatchObject({ dashArray: "8 6", weight: 4, color: "#0099cc" });
     const markers = [...f.map.layers].filter((l) => l instanceof Marker);
     expect(markers).toHaveLength(3); expect(markers.slice(0, 2).map((m) => m.options.icon.options.html)).toEqual(["1", "2"]);
