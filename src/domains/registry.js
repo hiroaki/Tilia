@@ -1,4 +1,5 @@
 import { createSubscriptionChannel } from "../extensions/subscriptions.js";
+import { forwardAbort } from "../ownership/abort.js";
 import { assertDomainKey } from "./identity.js";
 import { semanticError, semanticErrorCodes } from "./errors.js";
 
@@ -96,7 +97,7 @@ export function createDomainRegistry({ onError = () => {} } = {}) {
         const withdrawal = new AbortController();
         const record = {
           id: nextRegistrationId++,
-          signal: AbortSignal.any([scope.signal, withdrawal.signal]),
+          signal: null,
           key,
           provider,
           owner: scope,
@@ -118,14 +119,19 @@ export function createDomainRegistry({ onError = () => {} } = {}) {
           dispose({ committed }) {
             pending.get(key)?.delete(record);
             if (pending.get(key)?.size === 0) pending.delete(key);
-            if (!committed || providers.get(key) !== record) return;
-            assertRemovable(record);
-            providers.delete(key);
+            const published = committed && providers.get(key) === record;
+            if (published) {
+              assertRemovable(record);
+              providers.delete(key);
+            }
             withdrawal.abort();
-            channelFor(key).deliver(availability(key));
+            if (published) channelFor(key).deliver(availability(key));
           },
           retry: "safe",
         });
+        // Use forwardAbort for browsers lacking AbortSignal.any().
+        // Replace it with AbortSignal.any() when this compatibility is no longer needed.
+        record.signal = forwardAbort([scope.signal, withdrawal.signal]).signal;
         addTeardownPreflight?.(() => assertRemovable(record));
         return Object.freeze({ domain: key, registrationId: record.id, dispose: async () => {
           assertRemovable(record);

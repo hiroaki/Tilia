@@ -1,3 +1,4 @@
+import { getEventListeners } from "node:events";
 import { describe, expect, it, vi } from "vitest";
 import { createScopeController } from "../src/ownership/index.js";
 import { createPluginRuntime } from "../src/plugins/runtime/index.js";
@@ -96,6 +97,19 @@ describe("Phase 4D-A domain foundation", () => {
       .provide(otherKey, fakeProvider());
     await rollback.abort();
     expect(() => value.registry.resolve(otherKey)).toThrowError(expect.objectContaining({ code: semanticErrorCodes.providerUnavailable }));
+  });
+
+  it.each([false, true])("releases owner abort listeners on withdrawal (published: %s)", async published => {
+    const value = await fixture();
+    const listeners = () => getEventListeners(value.plugin.scope.signal, "abort");
+    const before = listeners();
+    const key = defineDomainKey({ id: "withdrawn" });
+    const registration = value.facade.provide(key, fakeProvider());
+    if (published) await value.activate();
+    await registration.dispose();
+    await registration.dispose();
+    expect(value.plugin.scope.signal.aborted).toBe(false);
+    expect(listeners()).toEqual(before);
   });
 
   it("rejects duplicate providers transactionally", async () => {
