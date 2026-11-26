@@ -14,11 +14,20 @@ test("viewer sample boots and renders the main controls", async ({ page }) => {
   await expect(page.locator(".tilia-status-control")).toBeVisible();
   const settings = page.getByRole("button", { name: "Settings", exact: true });
   await settings.click();
-  const mode = page.getByRole("combobox", { name: "GPX track display" });
-  await expect(mode).toHaveValue("track");
-  await mode.selectOption("segment");
-  await expect(mode).toBeEnabled();
-  await mode.press("Escape");
+  const group = page.getByRole("group", { name: "GPX track display" });
+  const track = group.getByRole("radio", { name: "Track mode", exact: true });
+  const segment = group.getByRole("radio", { name: "Segment mode", exact: true });
+  await expect(track).toBeChecked();
+  await track.focus();
+  await track.press("ArrowRight");
+  await expect(segment).toBeChecked();
+  await expect(segment).toBeFocused();
+  await segment.press("ArrowLeft");
+  await expect(track).toBeChecked();
+  await expect(track).toBeFocused();
+  await group.getByText("Segment mode", { exact: true }).click();
+  await expect(segment).toBeChecked();
+  await segment.press("Escape");
   await expect(settings).toBeFocused();
 
   expect(pageErrors).toEqual([]);
