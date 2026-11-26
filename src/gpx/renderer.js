@@ -1,7 +1,9 @@
 import { cloneAndFreezePlainData } from "../domains/immutable.js";
 import { CircleMarker, DivIcon, Marker, Polyline } from "leaflet";
 import { resolveGpxStyle } from "./style.js";
-import { gpxTargetPaths, queryGpx } from "./queries.js";
+import { resolveGpxTarget } from "./document.js";
+import { getTrackPresentationSegments } from "./presentation-segments.js";
+import { queryGpx } from "./queries.js";
 const position = (p) => ({ lat: p.lat, lng: p.lon });
 function routeNumberColor(background) {
   const [red, green, blue] = [1, 3, 5].map(offset => {
@@ -34,10 +36,11 @@ export function createGpxRenderer(colors) {
       const own = (layer, id, target, band = "geometry", nearest = false, group = null) => {
         input.resources.own(layer, (value) => value.remove(), { label: id, retry: "safe" });
         input.map.attachLayer(layer, { band, group });
+        if (!target) return;
         const surface = input.interactions.createSurface({ id, target: layer, group });
         input.interactions.bind({ id: `${id}:select`, surface, event: "click", resolve: (event) => {
           if (!nearest) return target;
-          if (!event.latlng) return target;
+          if (!event.latlng) return target.kind === "segment" ? { kind: "track", trackIndex: target.trackIndex } : target;
           return queryGpx(view, "nearest", target, { lat: event.latlng.lat, lon: event.latlng.lng }).match?.target ?? target;
         } });
       };
@@ -47,16 +50,26 @@ export function createGpxRenderer(colors) {
         const drawable = beginColor?.(target, style.color);
         const color = drawable?.color ?? style.color;
         const group = input.visibility.createGroup(target);
-        const points = gpxTargetPaths(data, target)[0].points.map(({ point }) => position(point));
-        if (points.length > 1) {
-          const line = new Polyline(points, { ...style, color });
-          own(line, `track:${trackIndex}`, target, "geometry", true, group);
-          drawable?.paint.push(color => line.setStyle({ color }));
+        for (const { segmentIndex, points, gapFrom } of getTrackPresentationSegments(track, input.semanticSnapshot.derived.presentationMode)) {
+          const segmentId = `track:${trackIndex}:segment:${segmentIndex}`;
+          if (gapFrom) {
+            const gap = new Polyline([position(gapFrom), position(points[0])], {
+              ...style, color, dashArray: "6 6", interactive: false,
+            });
+            own(gap, `${segmentId}:gap`, null, "geometry", false, group);
+            drawable?.paint.push(color => gap.setStyle({ color }));
+          }
+          if (points.length > 1) {
+            const line = new Polyline(points.map(position), { ...style, color });
+            own(line, segmentId, { kind: "segment", trackIndex, segmentIndex }, "geometry", true, group);
+            drawable?.paint.push(color => line.setStyle({ color }));
+          }
         }
-        track.segments.forEach((segment, segmentIndex) => {
-          if (segment.points.length !== 1) return;
+        // Singletons stay above every line in their track, including later overlapping segments.
+        track.segments.forEach(({ points }, segmentIndex) => {
+          if (points.length !== 1) return;
           const pointTarget = { kind: "track-point", trackIndex, segmentIndex, pointIndex: 0 };
-          const marker = new CircleMarker(position(segment.points[0]), {
+          const marker = new CircleMarker(position(points[0]), {
             radius: 6, fillColor: color, fillOpacity: 1,
             color: "#fff", weight: 2, opacity: 1, interactive: true,
           });
@@ -86,17 +99,28 @@ export function createGpxRenderer(colors) {
       const geometry = (ref = { kind: "document" }) => {
         if (ref.revision !== undefined && ref.revision !== input.semanticRevision) return null;
         try {
-          return gpxTargetPaths(data, ref).filter(({ target }) => {
-            if (["track", "segment", "track-point"].includes(target.kind)) return preferences.tracksVisible && preferences.trackVisibility[target.trackIndex] !== false && input.visibility.isVisible(target);
-            if (["route", "route-point"].includes(target.kind)) return preferences.routesVisible && preferences.routeVisibility[target.routeIndex] !== false;
-            return preferences.waypointsVisible;
-          });
+          const value = resolveGpxTarget(data, ref);
+          const visibleTracks = (trackIndex) => preferences.tracksVisible && preferences.trackVisibility[trackIndex] !== false
+            && input.visibility.isVisible({ kind: "track", trackIndex });
+          const visibleRoutes = (routeIndex) => preferences.routesVisible && preferences.routeVisibility[routeIndex] !== false;
+          const trackPaths = (track, trackIndex) => visibleTracks(trackIndex) ? track.segments.map(segment => segment.points) : [];
+          switch (ref.kind) {
+            case "document": return [...data.tracks.flatMap(trackPaths),
+              ...data.routes.filter((route, index) => visibleRoutes(index)).map(route => route.points),
+              ...(preferences.waypointsVisible ? data.waypoints.map(point => [point]) : [])];
+            case "track": return trackPaths(value, ref.trackIndex);
+            case "segment": return visibleTracks(ref.trackIndex) ? [value.points] : [];
+            case "track-point": return visibleTracks(ref.trackIndex) ? [[value]] : [];
+            case "route": return visibleRoutes(ref.routeIndex) ? [value.points] : [];
+            case "route-point": return visibleRoutes(ref.routeIndex) ? [[value]] : [];
+            case "waypoint": return preferences.waypointsVisible ? [[value]] : [];
+          }
         } catch { return null; }
       };
       return { presentation: {
-        anchor(ref) { const first = geometry(ref)?.find((path) => path.points.length)?.points[0]; return first ? position(first.point) : null; },
+        anchor(ref) { const first = geometry(ref)?.find((path) => path.length)?.[0]; return first ? position(first) : null; },
         bounds(ref) {
-          const points = geometry(ref)?.flatMap((path) => path.points.map(({ point }) => position(point)));
+          const points = geometry(ref)?.flatMap((path) => path.map(position));
           if (!points?.length) return null;
           return { southWest: points.reduce((a, p) => ({ lat: Math.min(a.lat, p.lat), lng: Math.min(a.lng, p.lng) })),
             northEast: points.reduce((a, p) => ({ lat: Math.max(a.lat, p.lat), lng: Math.max(a.lng, p.lng) })) };
@@ -104,10 +128,10 @@ export function createGpxRenderer(colors) {
         highlightDescriptor(ref) {
           const paths = geometry(ref); if (!paths?.length) return null;
           if (["waypoint", "track-point", "route-point"].includes(ref?.kind)) {
-            return cloneAndFreezePlainData({ kind: "point", symbol: "crosshair", point: position(paths[0].points[0].point) });
+            return cloneAndFreezePlainData({ kind: "point", symbol: "crosshair", point: position(paths[0][0]) });
           }
-          return cloneAndFreezePlainData({ kind: "geometry", lines: paths.filter((path) => path.points.length > 1).map((path) => path.points.map(({ point }) => position(point))),
-            points: paths.filter((path) => path.points.length === 1).map((path) => position(path.points[0].point)) });
+          return cloneAndFreezePlainData({ kind: "geometry", lines: paths.filter((path) => path.length > 1).map((path) => path.map(position)),
+            points: paths.filter((path) => path.length === 1).map((path) => position(path[0])) });
         },
       } };
     },
