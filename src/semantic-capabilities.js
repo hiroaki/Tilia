@@ -7,6 +7,7 @@ export function createSemanticCapabilityFactories(foundation) {
         scope: input.scope,
         entries: foundation.entries,
         selection: foundation.selection,
+        registry: foundation.domains,
         registryFacade: foundation.domains.createFacade(input),
       });
     },
@@ -24,7 +25,7 @@ export function createApplicationSemanticApi(foundation) {
     entries: createEntryFacade({ scope: foundation.scope, entries: foundation.entries }),
     selection: foundation.selection.createFacade(foundation.scope),
     domains: Object.freeze({
-      gpx: createGpxFacade({ scope: foundation.scope, entries: foundation.entries, selection: foundation.selection }),
+      gpx: createGpxFacade({ registry: foundation.domains, scope: foundation.scope, entries: foundation.entries, selection: foundation.selection }),
       photo: createPhotoFacade({ scope: foundation.scope, entries: foundation.entries, selection: foundation.selection }),
     }),
   });

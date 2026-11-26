@@ -308,6 +308,15 @@ export function createEntryStore({ applicationController, domainRegistry, semant
     }
   }
 
+  // A domain-wide preference can change while a provider result is awaiting publication.
+  // Wait for creations already in flight before enumerating committed views.
+  async function listAfterPendingCreations(domainKey) {
+    const pending = [...entries.values()].filter(record =>
+      record.domainKey === domainKey && record.state === "preparing");
+    await Promise.all(pending.map(record => record.creationDone));
+    return list().filter(entry => entry.domain === domainKey);
+  }
+
   function getDomainView(id, domainKey) {
     assertDomainKey(domainKey);
     const record = requireRecord(id);
@@ -710,5 +719,5 @@ export function createEntryStore({ applicationController, domainRegistry, semant
     });
   }
 
-  return Object.freeze({ create, get, list, getDomainView, getSemanticTarget, update, setVisible, remove, retryCleanup, clear, subscribe, bindPresentationLifetime, inspect, beginShutdown, drainShutdown });
+  return Object.freeze({ create, get, list, listAfterPendingCreations, getDomainView, getSemanticTarget, update, setVisible, remove, retryCleanup, clear, subscribe, bindPresentationLifetime, inspect, beginShutdown, drainShutdown });
 }

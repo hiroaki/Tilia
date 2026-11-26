@@ -1,4 +1,6 @@
-function distanceMeters(from, to) {
+import { getTrackPresentationSegments } from "./presentation-segments.js";
+
+export function distanceMeters(from, to) {
   const earthRadius = 6371000;
   const toRadians = (value) => (value * Math.PI) / 180;
   const deltaLat = toRadians(to.lat - from.lat);
@@ -77,20 +79,11 @@ export function getTrackModeCoordinates(track) {
 export function getTrackDistanceSummary(track) {
   let recordedDistanceMeters = 0;
   let inferredDistanceMeters = 0;
-  let previousSegmentEnd = null;
-
-  for (const segment of track?.segments || []) {
-    const points = segment.points || [];
-    if (points.length === 0) {
-      continue;
-    }
-    if (previousSegmentEnd) {
-      inferredDistanceMeters += distanceMeters(previousSegmentEnd, points[0]);
-    }
+  for (const { points, gapFrom } of getTrackPresentationSegments(track, "track")) {
+    if (gapFrom) inferredDistanceMeters += distanceMeters(gapFrom, points[0]);
     for (let index = 1; index < points.length; index += 1) {
       recordedDistanceMeters += distanceMeters(points[index - 1], points[index]);
     }
-    previousSegmentEnd = points[points.length - 1];
   }
 
   return {
@@ -116,23 +109,22 @@ export function getTrackModeProfile(track, trackIndex) {
 }
 
 export function getTrackModePointDetails(track, trackIndex) {
-  const profile = [];
-  let previousPoint = null;
-  let distanceFromStart = 0;
+  return getTrackPresentationPoints(track, trackIndex, "track");
+}
 
-  for (let segmentIndex = 0; segmentIndex < (track?.segments || []).length; segmentIndex += 1) {
-    const segment = track.segments[segmentIndex];
-    for (let pointIndex = 0; pointIndex < segment.points.length; pointIndex += 1) {
-      const point = segment.points[pointIndex];
-      if (previousPoint) {
-        distanceFromStart += distanceMeters(previousPoint, point);
-      }
+export function getTrackPresentationPoints(track, trackIndex, mode) {
+  const profile = [];
+  let distanceFromStart = 0;
+  for (const { points, segmentIndex, gapFrom } of getTrackPresentationSegments(track, mode)) {
+    for (const [pointIndex, point] of points.entries()) {
+      const previous = pointIndex ? points[pointIndex - 1] : gapFrom;
+      if (previous) distanceFromStart += distanceMeters(previous, point);
       profile.push({
         ...point,
         distanceMeters: distanceFromStart,
+        edgeKind: pointIndex ? "recorded" : gapFrom ? "inferred-gap" : "start",
         locator: { trackIndex, segmentIndex, pointIndex },
       });
-      previousPoint = point;
     }
   }
   return profile;

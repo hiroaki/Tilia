@@ -367,3 +367,67 @@ describe("Phase 4D-B capability and lazy-loading boundaries", () => {
     await value.runtime.unuse("tilia-gpx-domain");
   });
 });
+
+describe("GPX presentation settings", () => {
+  it("applies the configured mode to new entries and keeps canonical queries independent", async () => {
+    const { runtime, api } = await harness();
+    await runtime.use("tilia-gpx-domain", { presentationMode: "segment" });
+    const gpx = api.domains.gpx;
+    const { id } = await gpx.create(gpxValue(), { visible: false });
+    const canonical = gpx.getDocument(id).document;
+    const initial = gpx.getElevationProfile(id).profiles;
+    const distances = gpx.getDistance(id);
+    expect(initial[0].samples[1].edgeKind).toBe("inferred-gap");
+    expect(distances.totalMeters).toBeGreaterThan(0);
+    expect(gpx.getPresentationProfile(id)).toMatchObject({
+      mode: "segment", profiles: [
+        { samples: [{ distanceMeters: 0 }, { distanceMeters: 0, edgeKind: "start", elevation: null }] },
+        { samples: [{ distanceMeters: 0 }] }, { samples: [{ distanceMeters: 0 }] },
+      ],
+    });
+    for (const target of [{ kind: "track", trackIndex: 0 }, { kind: "segment", trackIndex: 0, segmentIndex: 1 },
+      { kind: "track-point", trackIndex: 0, segmentIndex: 1, pointIndex: 0 }]) {
+      await api.selection.request(gpx.selection.createCandidate(id, target));
+      const mode = gpx.getPresentationMode() === "track" ? "segment" : "track";
+      await gpx.setPresentationMode(mode);
+      const { revision, snapshot, entry } = gpx.get(id);
+      expect(api.selection.getCurrent().ref).toMatchObject({ ...target, revision });
+      expect(gpx.getDocument(id).document).toBe(canonical);
+      expect(snapshot.preferences.trackVisibility[1]).toBe(false);
+      expect(entry.visible).toBe(false);
+      expect(gpx.getElevationProfile(id).profiles).toEqual(initial);
+      expect(gpx.getDistance(id)).toEqual({ ...distances, revision });
+      if (mode === "track") expect(gpx.getPresentationProfile(id).profiles[0].samples[1]).toMatchObject(initial[0].samples[1]);
+    }
+  });
+
+  it("orders concurrent switches, imports, replacements and removals within one app", async () => {
+    const { runtime, api } = await harness();
+    const other = await harness();
+    await Promise.all([runtime.use("tilia-gpx-domain"), other.runtime.use("tilia-gpx-domain")]);
+    const gpx = api.domains.gpx;
+    const events = [];
+    const subscription = gpx.subscribePresentationMode(mode => events.push(mode));
+    await gpx.setPresentationMode("segment");
+    const first = await gpx.create(gpxValue());
+    const removed = await gpx.create(gpxValue());
+    const pending = gpx.create(gpxValue());
+    await Promise.resolve(); // The new entry can already have a prepared snapshot.
+    await Promise.all([gpx.setPresentationMode("track"), gpx.replaceData(first.id,
+      { ...gpxValue().data, name: "replacement" }, { expectedRevision: 1 }), api.entries.remove(removed.id),
+      gpx.setPresentationMode("segment"), gpx.setPresentationMode("track")]);
+    const created = await pending;
+    expect(gpx.get(first.id).snapshot.data.name).toBe("replacement");
+    const updated = gpx.get(first.id);
+    expect(api.entries.get(removed.id)).toBeNull();
+    for (const { id } of [first, created]) expect(gpx.get(id).snapshot.derived.presentationMode).toBe("track");
+    await gpx.setPresentationMode("track");
+    expect(gpx.get(first.id).revision).toBe(updated.revision);
+    expect(events).toEqual(["track", "segment", "track", "segment", "track"]);
+    subscription.unsubscribe();
+    await expect(gpx.setPresentationMode("invalid")).rejects.toMatchObject({ code: semanticErrorCodes.inputInvalid });
+    await gpx.setPresentationMode("segment");
+    expect(other.api.domains.gpx.getPresentationMode()).toBe("track");
+    expect(events.at(-1)).toBe("track");
+  });
+});
