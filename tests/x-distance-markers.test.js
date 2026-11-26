@@ -54,10 +54,9 @@ async function setup(options, resolveSelection) {
 describe("distance marker placement", () => {
   it("interpolates exact thresholds, including inferred gaps, using public cumulative samples", async () => {
     const { entry } = await setup();
-    const view = f.app.domains.gpx.get(entry.id);
-    const samples = f.app.domains.gpx.getElevationProfile(entry.id, { target: { kind: "track", trackIndex: 0 } }).profiles[0].samples;
+    const samples = f.app.domains.gpx.getPresentationProfile(entry.id, { target: { kind: "track", trackIndex: 0 } }).profiles[0].samples;
     expect(samples[2].edgeKind).toBe("inferred-gap");
-    const series = buildSeries(view.snapshot.data.tracks[0], samples, f.context.map.project);
+    const series = buildSeries(samples, f.context.map.project);
     expect(series.total).toBeCloseTo(f.app.domains.gpx.getDistance(entry.id, { target: { kind: "track", trackIndex: 0 } }).totalMeters);
     const placed = placeMarkers(series, 16);
     const first = placed[0];
@@ -78,6 +77,14 @@ describe("distance marker placement", () => {
     expect(niceInterval(210)).toBe(500);
     expect(niceInterval(Infinity)).toBe(Infinity);
   });
+  it("excludes disconnected edges from pixel density and places an exact boundary threshold once", () => {
+    const samples = [[0, 0, "start"], [1, 100, "recorded"], [90, 100, "start"], [90, 100, "recorded"], [91, 200, "recorded"]]
+      .map(([lon, distanceMeters, edgeKind]) => ({ lat: 0, lon, distanceMeters, edgeKind }));
+    const series = buildSeries(samples, ({ lng }) => ({ x: lng, y: 0 }));
+    expect(series.pixels).toBe(2);
+    expect(placeMarkers(series, 9)).toEqual([{ distance: 100, x: 1, y: 0 }, { distance: 200, x: 91, y: 0 }]);
+  });
+
   it("culls offscreen and colliding labels without shifting anchors", () => {
     const points = [{ x: 0, y: 0 }, { x: .01, y: .01 }, { x: 1, y: 0 }];
     expect(visibleMarkers(points, 10)).toEqual([points[0], points[2]]);
@@ -153,6 +160,19 @@ describe("selected-track lifecycle", () => {
     await f.app.domains.gpx.setCategoryVisibility(entry.id, { category: "tracks", visible: false }, { expectedRevision: 3 }); expect(markers()).toHaveLength(0);
     expect(f.app.selection.getCurrent()).not.toBeNull();
   });
+  it("rebuilds the selected segment's parent track labels when switching modes", async () => {
+    const { entry, select } = await setup();
+    await select({ kind: "segment", trackIndex: 0, segmentIndex: 1 });
+    const original = markers();
+    expect(original.some(marker => marker.point.lng > 135.03)).toBe(true);
+    await f.app.domains.gpx.setPresentationMode("segment");
+    expect(f.app.selection.getCurrent()).toMatchObject({ entryId: entry.id, ref: { kind: "segment", segmentIndex: 1 } });
+    expect(markers().length).toBeGreaterThan(0);
+    expect(markers().every(marker => marker.point.lng <= 135.03 && !original.includes(marker))).toBe(true);
+    await f.app.domains.gpx.setPresentationMode("track");
+    expect(markers().map(marker => marker.point)).toEqual(original.map(marker => marker.point));
+  });
+
   it("refreshes edits, withdraws replacements/deletions, and disposes listeners and layers", async () => {
     const { entry, select, handlers } = await setup(); await select(); const original = markers();
     await f.app.domains.gpx.updatePoint(entry.id, { target: { kind: "track-point", trackIndex: 0, segmentIndex: 0, pointIndex: 1 }, patch: { lon: 135.04 } }, { expectedRevision: 1 });

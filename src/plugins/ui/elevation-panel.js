@@ -60,10 +60,11 @@ export default Object.freeze({ id: "tilia-elevation", requires: ["tilia-panel", 
       };
       const render = () => {
         if (!scope.alive) return;
+        const restoreFocus = chart && container.ownerDocument.activeElement === chart;
         clearHover(); const old = session; session = scope.child({ label: "elevation-chart" }); void old?.dispose().catch(report); container.replaceChildren();
         const view = chooseEntry(); if (!view) { node(container, "p", "tilia-elevation-empty", "No GPX tracks"); layout = null; return; }
         revision = view.revision;
-        layout = elevationLayout(gpx.getElevationProfile(view.entry.id).profiles, { paddingX: 3, paddingTop: 8, paddingBottom: 20 });
+        layout = elevationLayout(gpx.getPresentationProfile(view.entry.id).profiles, { paddingX: 3, paddingTop: 8, paddingBottom: 20 });
         if (!layout.points.length) {
           node(container, "span", "tilia-elevation-name tilia-elevation-chart-label", `${view.snapshot.data.name}${view.entry.visible ? "" : " (hidden)"}`);
           node(container, "p", "tilia-elevation-empty", view.snapshot.data.tracks.length ? "No elevation data" : "No GPX tracks"); return;
@@ -106,13 +107,14 @@ export default Object.freeze({ id: "tilia-elevation", requires: ["tilia-panel", 
           if (event.key === "ArrowRight" || event.key === "ArrowLeft") { event.preventDefault(); keyboardIndex = Math.max(0, Math.min(layout.points.length - 1, keyboardIndex + (event.key === "ArrowRight" ? 1 : -1))); hover(layout.points[keyboardIndex]); }
           else if (event.key === "Enter" || event.key === " ") { event.preventDefault(); selectSample(layout.points[keyboardIndex]); }
         }, report);
+        if (restoreFocus) chart.focus({ preventScroll: true });
         const selected = context.selection.getCurrent();
         if (selected?.entryId === view.entry.id && selected.ref.kind === "track-point") {
           const point = layout.points.find((p) => ["trackIndex", "segmentIndex", "pointIndex"].every((key) => p.locator[key] === selected.ref[key]));
           if (point) showGuide(point);
         }
       };
-      const subscriptions = [context.entries.subscribe(render, { emitCurrent: false }), context.selection.subscribe(render), context.rendering.subscribe(clearHover, { emitCurrent: false })];
+      const subscriptions = [context.entries.subscribe(render, { emitCurrent: false }), context.selection.subscribe(render), context.rendering.subscribe(() => { if (hoverScope) clearHover(); }, { emitCurrent: false })];
       scope.defer(() => subscriptions.forEach((s) => s.unsubscribe()), { retry: "safe" }); render();
     } });
   } });

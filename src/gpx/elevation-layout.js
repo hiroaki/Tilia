@@ -25,7 +25,7 @@ export function elevationLayout(profiles, { width = 320, height = 160, padding =
       const y = minimum === maximum ? (paddingTop + height - paddingBottom) / 2
         : height - paddingBottom - (sample.elevation - minimum) / range * (height - paddingTop - paddingBottom);
       const point = { ...sample, x, y, trackIndex: profile.target.trackIndex }; points.push(point);
-      if (previous) {
+      if (previous && sample.edgeKind !== "start") {
         const inferred = sample.edgeKind === "inferred-gap";
         strokes.push({ from: previous, to: point, inferred, trackIndex: point.trackIndex });
         if (!inferred) ascent += Math.max(0, sample.elevation - previous.elevation);

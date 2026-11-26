@@ -454,8 +454,10 @@ test("clicking a normal track selects its GPX source without starting a session"
 test("displays multiple draft tracks and transfers local editing between segments", async ({ page }) => {
   await page.goto("/tests/fixtures/editor.html");
   await loadGpx(page, "multi.gpx", "/tests/fixtures/multi-track-elevation.gpx");
-  // Two track lines plus the normal-view single-point segment marker.
-  await expect(page.locator('[data-tilia-map-band="geometry"] path, .tilia-track-editor-draft')).toHaveCount(3);
+  // Two recorded lines, one inferred connection and a singleton marker.
+  const normalPaths = page.locator('[data-tilia-map-band="geometry"] path');
+  await expect(normalPaths).toHaveCount(4);
+  await expect(page.locator('[data-tilia-map-band="geometry"] path[stroke-dasharray]')).toHaveCount(1);
 
   await page.getByRole("button", { name: "Track editor" }).click();
   await page.getByRole("button", { name: "Start Edit" }).click();
@@ -469,10 +471,23 @@ test("displays multiple draft tracks and transfers local editing between segment
   await paths.nth(2).click({ force: true });
   await expect(page.locator(".leaflet-partially-editable-polyline-point")).toHaveCount(firstMarkerCount);
   await expect(inspectorLatitude).not.toHaveText(firstSelectionLatitude);
+  await inspectorLatitude.click();
+  const input = page.getByRole("spinbutton", { name: "Lat value" });
+  await input.fill("35.101");
+  const originalInput = await input.elementHandle();
+  await page.evaluate(() => window.editorHarness.app.domains.gpx.setPresentationMode("segment"));
+  await expect(normalPaths).toHaveCount(0);
+  await expect(paths).toHaveCount(3);
+  expect(await input.evaluate((current, previous) => current === previous, originalInput)).toBe(true);
+  await expect(input).toBeFocused();
+  await expect(input).toHaveValue("35.101");
+  await input.press("Escape");
   await expect(page.locator(".tilia-track-editor-selection-ring")).toHaveCount(1);
   await page.getByRole("button", { name: "Cancel" }).click();
   await expect(page.locator(".tilia-track-editor-selection-ring")).toHaveCount(0);
-  await expect(page.locator('[data-tilia-map-band="geometry"] path, .tilia-track-editor-draft')).toHaveCount(3);
+  await expect(normalPaths).toHaveCount(3);
+  await expect(page.locator('[data-tilia-map-band="geometry"] path[stroke-dasharray]')).toHaveCount(0);
+  await expect(paths).toHaveCount(0);
 });
 
 // Only the new pane integration tests use this explicit fixture lifecycle.

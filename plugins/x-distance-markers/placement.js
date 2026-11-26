@@ -10,14 +10,15 @@ export function niceInterval(minimum) {
   return [1, 2, 5, 10].map(n => n * unit).find(n => n >= minimum);
 }
 
-export function buildSeries(track, samples, project) {
+export function buildSeries(samples, project) {
   let pixels = 0;
+  let previous;
   const points = samples.map(sample => {
-    const { segmentIndex, pointIndex } = sample.locator;
-    const point = track.segments[segmentIndex].points[pointIndex];
-    return { ...project({ lat: point.lat, lng: point.lon }, 0), distance: sample.distanceMeters };
+    const point = project({ lat: sample.lat, lng: sample.lon }, 0);
+    if (previous && sample.edgeKind !== "start") pixels += Math.hypot(point.x - previous.x, point.y - previous.y);
+    previous = point;
+    return { ...point, distance: sample.distanceMeters };
   });
-  for (let i = 1; i < points.length; i++) pixels += Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y);
   return { points, pixels, total: points.at(-1)?.distance ?? 0 };
 }
 

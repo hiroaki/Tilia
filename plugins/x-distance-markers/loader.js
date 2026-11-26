@@ -59,8 +59,8 @@ export default Object.freeze({
         scope.signal.addEventListener("abort", withdraw, { once: true });
         scope.defer(() => scope.signal.removeEventListener("abort", withdraw), { retry: "safe" });
         context.entries.bindPresentationLifetime(entryId, { scope });
-        const samples = gpx.getElevationProfile(entryId, { target: { kind: "track", trackIndex } }).profiles[0].samples;
-        record.series = buildSeries(view.snapshot.data.tracks[trackIndex], samples, context.map.project);
+        const samples = gpx.getPresentationProfile(entryId, { target: { kind: "track", trackIndex } }).profiles[0].samples;
+        record.series = buildSeries(samples, context.map.project);
       }
       const record = state;
       if (!record || !current(record, ref)) return;
