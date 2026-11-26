@@ -14,62 +14,50 @@ describe("Phase 4I semantic product behavior",()=>{
   f=await uiFixture(["tilia-gpx-ui","tilia-layers"]);const a=await f.app.domains.gpx.create(data("a")),b=await f.app.domains.gpx.create(data("b"));f.click("Layers");await settle();const rows=byClass(f.map.container,"tilia-layer-item"),nodes=byClass(f.map.container,"tilia-gpx-tree");await f.app.domains.gpx.setStylePreset(a.id,"amber",{expectedRevision:1});await settle();expect(byClass(f.map.container,"tilia-layer-item")).toEqual(rows);expect(byClass(f.map.container,"tilia-gpx-tree")).toEqual(nodes);expect(f.app.entries.get(b.id)).not.toBeNull();
  });
 
- it("keeps a Settings panel without contributions empty before and after loading GPX", async () => {
+ it("reconciles Settings when the GPX domain appears, disappears and returns", async () => {
    f = await uiFixture(["tilia-settings"]);
    f.click("Settings");
    await settle();
    const [panel] = byClass(f.map.container, "tilia-side-panel");
+   const fields = () => byClass(panel, "tilia-gpx-presentation-mode");
    expect(panel.attributes["aria-label"]).toBe("Settings");
    expect(panel.classList.contains("tilia-side-panel-hidden")).toBe(false);
-   expect(byClass(panel, "tilia-entry-settings")).toHaveLength(0);
+   expect(fields()).toHaveLength(0);
 
-   await f.app.use("tilia-gpx-ui");
-   await f.app.domains.gpx.create(data());
+   await f.app.use("tilia-gpx-domain");
+   const [old] = fields();
+   expect(old.value).toBe("track");
+   await f.app.unuse("tilia-gpx-domain");
+   expect(fields()).toHaveLength(0);
+   await f.app.use("tilia-gpx-domain");
+   old.value = "segment";
+   old.dispatchEvent(new Event("change"));
    await settle();
-   expect(f.context.contributions.settings.getSnapshot()).toEqual([]);
-   expect(byClass(panel, "tilia-entry-settings")).toHaveLength(0);
+   expect(f.app.domains.gpx.getPresentationMode()).toBe("track");
+   expect(fields()[0]).not.toBe(old);
    byClass(panel, "tilia-side-panel-close")[0].click();
    await settle();
    expect(panel.classList.contains("tilia-side-panel-hidden")).toBe(true);
  });
 
- it("mounts a custom Settings contribution and keeps its section stable across domain changes", async () => {
-   f = await uiFixture(["tilia-gpx-ui", "tilia-photo-ui", "tilia-settings"]);
-   const gpx = await f.app.domains.gpx.create(data());
-   const photo = await f.app.domains.photo.create({ data: { name: "photo.jpg", coordinate: { lat: 1, lon: 2 } } });
+ it("keeps a single Settings field in sync across external updates and entry changes", async () => {
+   f = await uiFixture(["tilia-gpx-domain", "tilia-settings"]);
+   const { gpx } = f.app.domains;
    f.click("Settings");
    await settle();
-   expect(f.context.contributions.settings.getSnapshot()).toEqual([]);
-   expect(byClass(f.map.container, "tilia-entry-settings")).toHaveLength(0);
-   const cleanup = vi.fn();
-   await f.app.use({ id: "x-test-entry-settings", setup(context) {
-     context.contributions.settings.register({ id: "custom-entry-settings", descriptor: {
-       supports: (entry) => entry.domain === photoDomainKey,
-       mount({ container, scope, entry }) {
-         const field = container.ownerDocument.createElement("input");
-         field.className = "custom-entry-settings-field";
-         field.value = entry.id;
-         container.appendChild(field);
-         scope.defer(cleanup, { retry: "safe" });
-       },
-     } });
-   } });
+   const fields = () => byClass(f.map.container, "tilia-gpx-presentation-mode");
+   const [select] = fields();
+   await gpx.setPresentationMode("segment");
+   expect(select.value).toBe("segment");
+   await gpx.create(data());
+   await gpx.create(data("second"));
+   expect(fields()).toEqual([select]);
+   select.value = "track";
+   select.dispatchEvent(new Event("change"));
+   expect(select.disabled).toBe(true);
    await settle();
-   const sections = byClass(f.map.container, "tilia-entry-settings");
-   expect(sections).toHaveLength(1);
-   const [field] = byClass(sections[0], "custom-entry-settings-field");
-   expect(field.value).toBe(photo.id);
-
-   await f.app.domains.gpx.setStylePreset(gpx.id, "magenta", { expectedRevision: 1 });
-   await f.app.domains.photo.setRequestedTimeMode(photo.id, "utc", { expectedRevision: 1 });
-   await settle();
-   expect(byClass(f.map.container, "tilia-entry-settings")).toEqual(sections);
-   expect(byClass(sections[0], "custom-entry-settings-field")).toEqual([field]);
-   expect(cleanup).not.toHaveBeenCalled();
-   await f.app.unuse("x-test-entry-settings");
-   await settle();
-   expect(byClass(f.map.container, "tilia-entry-settings")).toHaveLength(0);
-   expect(cleanup).toHaveBeenCalledTimes(1);
+   expect(select.disabled).toBe(false);
+   expect(gpx.getPresentationMode()).toBe("track");
  });
  it("withdraws an unselected stale row at action-time absence while external cleanup remains held",async()=>{
   let start;const entered=new Promise(r=>start=r),gate=new Promise(r=>release=r);

@@ -10,3 +10,8 @@
   color: #57534e;
   line-height: 1.5;
 }
+
+.tilia-settings-field {
+  display: grid;
+  gap: 4px;
+}

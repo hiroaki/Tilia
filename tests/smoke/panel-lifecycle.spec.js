@@ -45,39 +45,25 @@ test("old Photo time controls are inert during Layers removal, Close, and panel 
   expect(results).toEqual([1, 1, 1, 2]);
 });
 
-test("Settings revokes a contribution before disconnecting its DOM", async ({ page }) => {
-  const result = await page.evaluate(async () => {
-    const { listen } = await import("/src/ui/scoped-dom.js");
-    const app = window.lifecycle.create({ plugins: ["tilia-settings", "tilia-photo-domain"] });
-    await app.ready;
-    const source = await app.domains.photo.create({ data: { name: "Source" } });
-    const target = await app.domains.photo.create({ data: { name: "Target" } });
-    let disconnected = 0;
-    customElements.define("test-settings-section", class extends HTMLElement {
-      disconnectedCallback() {
-        if (this.isConnected) return;
-        disconnected++;
-        this.firstElementChild.click();
-      }
-    });
-    await app.use({ id: "x-test-settings-section", setup(context) {
-      context.contributions.settings.register({ id: "test-section", descriptor: {
-        supports: (entry) => entry.id === source.id && entry.visible,
-        mount({ container, scope }) {
-          const section = document.createElement("test-settings-section");
-          const button = document.createElement("button");
-          listen(scope, button, "click", () => context.entries.setVisible(target.id, false));
-          section.append(button);
-          container.append(section);
-        },
-      } });
-    } });
-    document.querySelector('button[aria-label="Settings"]').click();
-    await app.entries.setVisible(source.id, false);
-    await new Promise(resolve => setTimeout(resolve, 0));
-    const snapshot = { disconnected, targetVisible: app.entries.get(target.id).visible };
-    await app.destroy();
-    return snapshot;
+test("detached Settings controls cannot change the current GPX mode", async ({ page }) => {
+  await page.evaluate(async () => {
+    await window.lifecycle.create({ plugins: ["tilia-settings", "tilia-gpx-domain"] }).ready;
   });
-  expect(result).toEqual({ disconnected: 1, targetVisible: true });
+  const launcher = page.getByRole("button", { name: "Settings", exact: true });
+  const field = page.getByRole("combobox", { name: "GPX track display" });
+  await launcher.click();
+  await expect(field).toHaveValue("track");
+  const old = await field.elementHandle();
+  await page.getByRole("button", { name: "Close", exact: true }).click();
+  await launcher.click();
+  await expect(field).toHaveValue("track");
+  await old.evaluate(select => {
+    select.value = "segment";
+    select.dispatchEvent(new Event("change"));
+    return new Promise(resolve => setTimeout(resolve, 0));
+  });
+  expect(await page.evaluate(() => window.lifecycle.app.domains.gpx.getPresentationMode())).toBe("track");
+  await page.evaluate(() => window.lifecycle.app.domains.gpx.setPresentationMode("segment"));
+  await expect(field).toHaveValue("segment");
+  await page.evaluate(() => window.lifecycle.app.destroy());
 });

@@ -1,7 +1,6 @@
 import { createToolbarPoint } from "./toolbar-contributions.js";
 import { guardedMount } from "./contribution-mount.js";
 import { assertDomainKey } from "../domains/identity.js";
-import { createContributionPoint } from "../extensions/contributions.js";
 import { createSubscriptionChannel } from "../extensions/subscriptions.js";
 
 
@@ -48,21 +47,7 @@ function primaryPoint(id, onError) {
 export function createDomainContributions({ onError = () => {} } = {}) {
   const toolbar = createToolbarPoint(onError);
   const layers = primaryPoint("layers", onError), popup = primaryPoint("popup", onError);
-  const settings = createContributionPoint({ id: "entry-settings", onError,
-    validateDescriptor: (d) => typeof d?.mount === "function" && typeof d?.supports === "function" });
   return Object.freeze({ createFacade(input) {
-    const facade = settings.createFacade(input);
-    return Object.freeze({ toolbar: toolbar(input), layers: layers(input), popup: popup(input), settings: Object.freeze({
-      ...facade,
-      register(value) {
-        input.scope.assertAlive();
-        if (typeof value?.descriptor?.supports !== "function" || typeof value?.descriptor?.mount !== "function")
-          throw new TypeError("Invalid settings contribution");
-        facade.register({ ...value, descriptor: {
-          supports: input.scope.guard(value.descriptor.supports),
-          mount: guardedMount(input.scope, value.descriptor.mount, onError),
-        } });
-      },
-    }) });
+    return Object.freeze({ toolbar: toolbar(input), layers: layers(input), popup: popup(input) });
   } });
 }

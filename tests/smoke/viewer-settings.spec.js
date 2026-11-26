@@ -8,7 +8,14 @@ test("viewer Layers exposes Photo time, preserves its value on reopen and owns s
   await page.goto("/tests/fixtures/viewer/");
   await page.locator('input[type="file"]').setInputFiles(timestampPhoto);
   await expect(page.locator(".tilia-status-text")).toContainText("IMG_2892.JPG");
-  await expect(page.getByRole("button", { name: "Settings", exact: true })).toHaveCount(0);
+  const settings = page.getByRole("button", { name: "Settings", exact: true });
+  await settings.click();
+  const mode = page.getByRole("combobox", { name: "GPX track display" });
+  await expect(mode).toHaveValue("track");
+  await mode.selectOption("segment");
+  await expect(mode).toBeEnabled();
+  await mode.press("Escape");
+  await expect(settings).toBeFocused();
 
   const launcher = page.getByRole("button", { name: "Layers", exact: true });
   const panel = page.getByRole("dialog", { name: "Layers", exact: true });

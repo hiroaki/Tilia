@@ -12,7 +12,14 @@ test("viewer sample boots and renders the main controls", async ({ page }) => {
   await expect(page.locator(".tilia-base-map-control .tilia-base-map-select")).toBeVisible();
   await expect(page.locator(".tilia-file-import-control .tilia-file-label")).toBeVisible();
   await expect(page.locator(".tilia-status-control")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Settings", exact: true })).toHaveCount(0);
+  const settings = page.getByRole("button", { name: "Settings", exact: true });
+  await settings.click();
+  const mode = page.getByRole("combobox", { name: "GPX track display" });
+  await expect(mode).toHaveValue("track");
+  await mode.selectOption("segment");
+  await expect(mode).toBeEnabled();
+  await mode.press("Escape");
+  await expect(settings).toBeFocused();
 
   expect(pageErrors).toEqual([]);
 });

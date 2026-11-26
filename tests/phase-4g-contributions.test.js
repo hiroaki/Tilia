@@ -43,16 +43,16 @@ describe("Phase 4G fixed typed domain contributions", () => {
     const owner = createScopeController({ label: "contributor" }), consumer = createScopeController({ label: "host" }), q = [];
     const key = defineDomainKey({ id: "test-mount" });
     const point = facade(host, owner, q)[kind];
-    const descriptor = { supports: () => true, mount({ scope }) { scope.defer(cleanup, { label: "mount-resource", retry: "safe" }); } };
-    if (kind === "settings") point.register({ id: "test", descriptor }); else point.register(key, descriptor);
+    const descriptor = { mount({ scope }) { scope.defer(cleanup, { label: "mount-resource", retry: "safe" }); } };
+    point.register(key, descriptor);
     await commit(owner, q); await consumer.commit();
     const mounts = consumer.createChildController({ label: "mount" });
     const read = facade(host, consumer)[kind];
-    const adapter = kind === "settings" ? read.getSnapshot()[0].descriptor : read.get(key);
+    const adapter = read.get(key);
     adapter.mount({ scope: mounts.scope, container: {} });
     return { owner, consumer, mounts, adapter, diagnostic };
   }
-  it.each(["layers", "popup", "settings"].flatMap((kind) => [[kind, "contributor-first"], [kind, "host-first"]]))("%s %s teardown waits for captured asynchronous mount cleanup", async (kind, order) => {
+  it.each(["layers", "popup"].flatMap((kind) => [[kind, "contributor-first"], [kind, "host-first"]]))("%s %s teardown waits for captured asynchronous mount cleanup", async (kind, order) => {
     let finish, started;
     const gate = new Promise((r) => { finish = r; }), invoked = new Promise((r) => { started = r; });
     const cleanup = vi.fn(async () => { started(); await gate; });
@@ -67,7 +67,7 @@ describe("Phase 4G fixed typed domain contributions", () => {
     finish(); await closing; await repeated; await hostClosing; expect(cleanup).toHaveBeenCalledOnce();
     await f.owner.close(); await f.consumer.close(); expect(cleanup).toHaveBeenCalledOnce();
   });
-  it.each(["layers", "popup", "settings"].flatMap((kind) => [[kind, "contributor-first"], [kind, "host-first"]]))("%s %s cleanup failure is diagnosed, retained and recovered by contributor retry", async (kind, order) => {
+  it.each(["layers", "popup"].flatMap((kind) => [[kind, "contributor-first"], [kind, "host-first"]]))("%s %s cleanup failure is diagnosed, retained and recovered by contributor retry", async (kind, order) => {
     let fail = true;
     const cleanup = vi.fn(() => { if (fail) throw new Error("mount cleanup failed"); });
     const f = await mounted(kind, cleanup);
@@ -83,7 +83,7 @@ describe("Phase 4G fixed typed domain contributions", () => {
     const calls = cleanup.mock.calls.length;
     await f.owner.close(); await f.consumer.close(); expect(cleanup).toHaveBeenCalledTimes(calls);
   });
-  it.each(["layers", "popup", "settings"])("%s host-first closure detaches cross-lifetime listeners and is idempotent", async (kind) => {
+  it.each(["layers", "popup"])("%s host-first closure detaches cross-lifetime listeners and is idempotent", async (kind) => {
     const cleanup = vi.fn(), f = await mounted(kind, cleanup);
     const remove = vi.spyOn(f.owner.scope.signal, "removeEventListener");
     await f.mounts.close(); expect(remove).toHaveBeenCalledWith("abort", expect.any(Function));
