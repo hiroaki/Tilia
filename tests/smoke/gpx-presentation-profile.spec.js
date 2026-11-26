@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("an open popup and elevation chart follow mode changes and both sides of a break remain keyboard selectable", async ({ page }) => {
+test("recorded elevation geometry and map/chart point selection stay aligned across mode changes", async ({ page }) => {
   const errors = [];
   page.on("pageerror", error => errors.push(error.message));
   await page.goto("/tests/fixtures/phase-4h/");
@@ -8,7 +8,7 @@ test("an open popup and elevation chart follow mode changes and both sides of a 
   const expected = await page.evaluate(async () => {
     const { app, map } = window.phase4h;
     await app.use("tilia-elevation");
-    map.setView([35, 135], 11, { animate: false });
+    map.setView([35, 135.01], 15, { animate: false });
     const gpx = app.domains.gpx;
     const entry = await gpx.create({ tracks: [{ segments: [
       { points: [{ lat: 35, lon: 135, elevation: 10 }, { lat: 35, lon: 135.001, elevation: 15 }] },
@@ -28,23 +28,100 @@ test("an open popup and elevation chart follow mode changes and both sides of a 
   const chart = page.locator(".tilia-elevation-chart");
   await expect(chart.locator("polyline")).toHaveCount(3);
   await expect(chart.locator('polyline[stroke-dasharray="4 3"]')).toHaveCount(1);
+  // Use the painted solid endpoints, in canonical traversal order. The dashed
+  // stroke spanning the gap exists only in Track mode.
+  const solidVertices = () => chart.locator('polyline[stroke-dasharray="none"]').evaluateAll(lines =>
+    lines.map(line => [...line.points].map(point => [point.x, point.y])));
+  const trackVertices = await solidVertices();
+  expect(trackVertices).toHaveLength(2);
+  const [left, right] = [trackVertices[0][1], trackVertices[1][0]];
+  expect(right[0]).toBeGreaterThan(left[0]);
+
+  const screenPoint = point => chart.evaluate((svg, [x, y]) => {
+    const screen = new DOMPoint(x, y).matrixTransform(svg.getScreenCTM());
+    return { x: screen.x, y: screen.y };
+  }, point);
+  const guide = page.locator(".tilia-elevation-guide-marker");
+  const guideLine = page.locator(".tilia-elevation-guide-line");
+  async function expectGuide(vertex) {
+    await expect(guide).toBeVisible();
+    await expect(guideLine).toBeVisible();
+    const screen = await screenPoint(vertex);
+    const line = await guideLine.boundingBox();
+    expect(Math.abs(line.x + line.width / 2 - screen.x)).toBeLessThan(1);
+    await expect.poll(async () => {
+      const box = await guide.boundingBox();
+      return box ? Math.hypot(box.x + box.width / 2 - screen.x, box.y + box.height / 2 - screen.y) : Infinity;
+    }).toBeLessThan(1);
+  }
+  const selected = () => page.evaluate(() => window.phase4h.app.selection.getCurrent()?.ref);
+  async function expectBoundary(segmentIndex) {
+    const pointIndex = segmentIndex === 0 ? 1 : 0;
+    const ref = { kind: "track-point", trackIndex: 0, segmentIndex, pointIndex };
+    await expect.poll(selected).toMatchObject(ref);
+    await expectGuide(segmentIndex === 0 ? left : right);
+    // The chart selects a real map point. Inspect the actual crosshair layer
+    // and popup, independent of the coordinates reported by the chart.
+    await expect.poll(() => page.evaluate(() => {
+      let coordinate;
+      window.phase4h.map.eachLayer(layer => {
+        if (layer.options.icon?.options.className === "tilia-selection-crosshair") {
+          const { lat, lng } = layer.getLatLng();
+          coordinate = [lat, lng];
+        }
+      });
+      return coordinate;
+    })).toEqual([35, segmentIndex === 0 ? 135.001 : 135.02]);
+    await expect(page.locator(".leaflet-popup")).toContainText("Track point");
+  }
+
   await chart.focus();
   await page.evaluate(() => window.phase4h.app.domains.gpx.setPresentationMode("segment"));
   await expect(popupDistance).toHaveText(expected.segment);
   await expect(chart).toBeFocused();
-  await expect(page.locator(".tilia-elevation-guide-marker")).toBeVisible();
   await expect(chart.locator("polyline")).toHaveCount(2);
   await expect(chart.locator('polyline[stroke-dasharray="4 3"]')).toHaveCount(0);
+  expect(await solidVertices()).toEqual(trackVertices);
   await expect(page.locator(".tilia-elevation-summary")).toContainText("ascent 13 m");
-  const selected = () => page.evaluate(() => window.phase4h.app.selection.getCurrent().ref);
-  await expect.poll(selected).toMatchObject({ segmentIndex: 1, pointIndex: 0 });
-  for (const [segmentIndex, pointIndex] of [[0, 1], [1, 0]]) {
+  await expectBoundary(1);
+
+  // Click recorded Leaflet geometry near the left boundary to drive the chart
+  // from the map. The path's screen transform includes the current map view.
+  await page.locator(".leaflet-popup-close-button").click();
+  const recorded = page.locator('[data-tilia-map-band="geometry"] path.leaflet-interactive[fill="none"]').first();
+  const mapPoint = await recorded.evaluate(path => {
+    const p = path.getPointAtLength(path.getTotalLength() * 0.85).matrixTransform(path.getScreenCTM());
+    return { x: p.x, y: p.y };
+  });
+  await page.mouse.click(mapPoint.x, mapPoint.y);
+  await expectBoundary(0);
+
+  // Click both actual endpoints and both halves of the empty displayed gap.
+  // The two contradictory Y coordinates ensure hit testing still uses X.
+  for (const [point, segmentIndex] of [
+    [right, 1], [left, 0],
+    [[left[0] + (right[0] - left[0]) * 0.7, left[1]], 1],
+    [[left[0] + (right[0] - left[0]) * 0.3, right[1]], 0],
+  ]) {
+    const screen = await screenPoint(point);
+    await page.mouse.move(screen.x, screen.y);
+    await expectGuide(segmentIndex === 0 ? left : right);
+    await page.mouse.click(screen.x, screen.y);
+    await expectBoundary(segmentIndex);
+  }
+
+  await chart.focus();
+  for (const segmentIndex of [0, 1]) {
     await page.keyboard.press("ArrowRight");
     await page.keyboard.press("Enter");
-    await expect.poll(selected).toMatchObject({ segmentIndex, pointIndex });
+    await expectBoundary(segmentIndex);
     await expect(chart).toBeFocused();
   }
-  expect(await chart.locator("polyline").evaluateAll(lines => lines[0].points.getItem(1).x === lines[1].points.getItem(0).x)).toBe(true);
+  await page.evaluate(() => window.phase4h.app.domains.gpx.setPresentationMode("track"));
+  await expect(chart).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expectBoundary(1);
+  await expect(popupDistance).toHaveText(expected.track);
   expect(await page.evaluate(async id => {
     const { serializeGpxSource } = await import("/src/gpx/serialize.js");
     return serializeGpxSource(window.phase4h.app.domains.gpx.getDocument(id).document);

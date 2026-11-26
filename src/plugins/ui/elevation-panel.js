@@ -84,7 +84,9 @@ export default Object.freeze({ id: "tilia-elevation", requires: ["tilia-panel", 
         clearHover(); const old = session; session = scope.child({ label: "elevation-chart" }); void old?.dispose().catch(report); container.replaceChildren();
         chart = guide = guideLine = nameLabel = null;
         if (!view) { node(container, "p", "tilia-elevation-empty", "No GPX tracks"); layout = null; return; }
-        layout = elevationLayout(gpx.getPresentationProfile(view.entry.id).profiles, { paddingX: 3, paddingTop: 8, paddingBottom: 20 });
+        layout = elevationLayout(gpx.getElevationProfile(view.entry.id).profiles, {
+          mode: view.snapshot.derived.presentationMode, paddingX: 3, paddingTop: 8, paddingBottom: 20,
+        });
         if (!layout.points.length) {
           nameLabel = node(container, "span", "tilia-elevation-name tilia-elevation-chart-label", label(view));
           node(container, "p", "tilia-elevation-empty", view.snapshot.data.tracks.length ? "No elevation data" : "No GPX tracks"); return;

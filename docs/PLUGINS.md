@@ -116,6 +116,8 @@ Use **Open files**, **Load URL**, or drop files onto the map. Use **Layers** to 
 
 Open **Elevation** for a track containing elevation data. Hover to locate chart samples on the map, or click to select a track point. Arrow keys move through samples; Enter or Space selects one. Map-linked presentation also needs the GPX renderer. Routes and standalone waypoints are not track elevation profiles.
 
+In both modes the elevation chart reserves horizontal space for the estimated distance between segments of the same track. Track mode draws a dashed line there. Segment mode leaves that space blank and counts only recorded distance in the panel total. Hovering or clicking in a gap targets the nearest recorded sample with elevation along the horizontal axis. Separate tracks add no geographic distance between them.
+
 By default, the built-in renderer cycles through the preset palette once per GPX entry. All tracks and routes in that entry start with the same color. In **Layers**, use the color swatch beside a visible track or route to give just that object a temporary color. The swatch is display-only when the object cannot be recolored. Temporary colors survive panel and visibility changes. Replacing or removing the GPX, changing its preset with `setStylePreset()`, or removing the renderer clears them. They are not serialized to GPX or copied by Track Editor.
 
 The [viewer sample](../samples/viewer/index.html) combines GPX and Photos. In the Layers panel, select a track name to show its distance markers. Select the same name again to clear the selection. The [embed gallery](../samples/embed/index.html) demonstrates separate map instances.
