@@ -38,7 +38,7 @@ The inventory below records the consumers before minimization; test titles and a
 - [smoke/jpeg-viewport.spec.js](../smoke/jpeg-viewport.spec.js): JPEG import restores GPS/inferred viewport and leaves unlocated photos alone (renderer true / false)
 - [smoke/visual-regression.spec.js](../smoke/visual-regression.spec.js): Photo thumbnail dimensions, long Layers scrolling and shared GPX leases survive renderer disposal
 - [smoke/application-lifecycle.spec.js](../smoke/application-lifecycle.spec.js): public destroy does not join pinned EXIF readers and their late settlement cannot create a Photo URL
-- [smoke/viewer-settings.spec.js](../smoke/viewer-settings.spec.js): viewer settings exposes per-entry Photo modes and owns side layout/focus
+- [smoke/viewer-settings.spec.js](../smoke/viewer-settings.spec.js): Viewer Settings switches GPX display mode and Layers exposes per-entry Photo modes, with side layout and focus restoration
 - [smoke/phase-4g.spec.js](../smoke/phase-4g.spec.js): Phase 4G timestamp-only Photo tree selection, three settings modes and UI lifetimes
 
 ### `biwakososui.gpx`

@@ -210,6 +210,28 @@ Point patches use `null` to clear elevation/timestamp; supplied patch values can
 
 Route visibility is `entry.visible && preferences.routesVisible && preferences.routeVisibility[routeIndex] !== false` and applies to its line and every numbered point marker. Read individual preferences through `app.domains.gpx.get(id).snapshot.preferences.routeVisibility`; category/entry toggles leave them intact. `replaceData` retains preferences by index, discards removed indexes, and defaults new indexes to visible. `setRouteVisibility` follows the common revision-checked mutation contract above, as does `setTrackVisibility`. Public visibility mutations retain semantic selection; Layers checkbox hides conditionally clear only selections made invisible by that operation.
 
+### Track presentation mode
+
+The GPX domain starts in `"track"` mode. To configure it, list the domain before plugins that depend on it in the application constructor. This embed uses the API directly.
+
+```js
+const app = createDefaultTiliaApp("map", {
+  plugins: [["tilia-gpx-domain", { presentationMode: "segment" }], "tilia-gpx-renderer"],
+});
+await app.ready;
+const gpx = app.domains.gpx;
+const initialMode = gpx.getPresentationMode();
+const subscription = gpx.subscribePresentationMode(mode => console.log(mode));
+await gpx.setPresentationMode("track");
+subscription.unsubscribe();
+```
+
+Viewer exposes the same setting under **Settings → GPX track display**. Include `"tilia-settings"` in `plugins` to add the panel. A subscription immediately receives the current value and then each change to the application setting. Pass `{ emitCurrent: false }` to skip initial delivery. Changes run in invocation order. The setter resolves once affected entries have committed. Rendering progress is available through `app.rendering.getStatus(id)`.
+
+Each entry exposes its committed value in `snapshot.derived.presentationMode`. A change advances its revision. Repeating the current value preserves the revision. New imports and edited copies inherit the application's mode. Settings live in memory.
+
+`getPresentationProfile(id, { target } = {})` returns `{ entryId, revision, mode, profiles }`. It accepts the same targets and sample structure as `getElevationProfile` and adds `lat` and `lon` to each sample. In Track mode the connection between nonempty segments of the same track is an `inferred-gap` and contributes distance. In Segment mode the first sample of each segment has edge kind `start` and inherits the previous cumulative distance. Each track starts at distance zero. Both modes use recorded edges for ascent. The existing distance, elevation and nearest-point queries, photo timestamp matching and GPX serialization retain their contracts.
+
 ### GPX targets and queries
 
 Targets use zero-based indexes:

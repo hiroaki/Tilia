@@ -62,8 +62,9 @@ A feature can consist of several plugins with different responsibilities:
 | Domain | Validate and own semantic data; expose commands, queries, and selection references | `tilia-gpx-domain`, `tilia-photo-domain` |
 | Input handler | Recognize and parse files, then create domain entries | `tilia-gpx-input`, `tilia-jpeg-input` |
 | Renderer | Project domain snapshots onto the map | `tilia-gpx-renderer`, `tilia-photo-renderer` |
-| UI contributor | Supply format-specific layer rows, popup content, and settings | `tilia-gpx-ui`, `tilia-photo-ui` |
-| Host or presenter | Arrange contributions or display current selection | `tilia-layers`, `tilia-settings`, `tilia-map-selection-presenter` |
+| UI contributor | Supply format-specific layer rows and popup content | `tilia-gpx-ui`, `tilia-photo-ui` |
+| Host or presenter | Arrange contributions or display current selection | `tilia-layers`, `tilia-map-selection-presenter` |
+| Application settings panel | Display and change settings through available domain APIs | `tilia-settings` |
 | Tool or overlay | Use domain data while owning independent operation/presentation resources | Track Editor, route search, Distance Markers |
 
 This separation allows data to exist without a map renderer, a file handler to work without viewer controls, or an editor to keep its own session while the original view changes. Installing one role does not automatically install all the others; the [plugin guide](PLUGINS.md#choosing-plugins) gives concrete combinations.
@@ -125,6 +126,8 @@ Every in-progress creation and committed entry holds a lease on its exact domain
 The creator is not the lifetime owner of a committed entry. An input operation or editing session may end while its successful result remains in the application.
 
 Application ownership and the provider lease solve different problems: imported or saved data must survive removal of its creating tool, while the implementation needed to interpret and release that data must remain available. Provider removal therefore rejects rather than silently deleting user data or leaving entries without their semantic implementation.
+
+The GPX domain owns the presentation mode for its application. A switch waits for GPX creations already in progress and updates each snapshot’s derived mode through the entry mutation queue, retrying against the latest revision if a data update wins. The map and presentation queries share a segment traversal and use the mode committed for that generation. Inferred connections are noninteractive dashed lines. Clicking a recorded line resolves a real point within its segment.
 
 ### Creation and input
 
@@ -192,7 +195,7 @@ Visibility also has separate layers: whole-entry visibility, domain child/catego
 
 ## UI, overlays, and session state
 
-UI hosts own placement, layout, ordering, outer containers, and mount lifetimes. Contributors own behavior and resources within their assigned subtrees. Narrow contributions provide toolbar items, domain layer rows, popup content, and settings. Host-defined groups, rank, and stable IDs determine ordering rather than installation timing.
+UI hosts own placement, layout, ordering, outer containers, and mount lifetimes. Contributors own behavior and resources within their assigned subtrees. Narrow contributions provide toolbar items, domain layer rows, and popup content. Host-defined groups, rank, and stable IDs determine ordering rather than installation timing.
 
 Core provides the shared UI surfaces and stylesheet management. `context.ui.mountSurface` supplies a container and a child Scope. Mounts within a surface are ordered by `rank`, with ties broken by the plugin and mount IDs, and the common stylesheet sets the z-order between surfaces. The stylesheet manager tracks leases by Scope. For example, the URL input form uses the `floating` surface and the shared `.tilia-control-panel` style with or without the panel plugin.
 

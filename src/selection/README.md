@@ -33,7 +33,7 @@ An issuer disposed during state-change delivery cannot activate presentation.
 canonical ref still equal `selected`, using the domain adapter's equality.
 An outdated ref cannot clear a newer revision or different selection. Unconditional
 `clear()` retains its existing behavior. Visibility APIs still preserve selection;
-Layers/Settings checkbox consumers conditionally clear only targets they hide.
+Layers checkbox consumers conditionally clear only targets they hide.
 The presenter keeps popup visibility intent independently of rendering generations
 and opens popups on explicit requests rather than semantic state notifications.
 

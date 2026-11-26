@@ -15,7 +15,7 @@ For each data format, choose the parts your application needs:
 | Input | `tilia-gpx-input` | `tilia-jpeg-input` | Reads files and creates entries |
 | UI contribution | `tilia-gpx-ui` | `tilia-photo-ui` | Adds format-specific layer rows and popup content, including Photo time in photo rows |
 
-Input, renderer, and UI plugins require their respective domain, which installs automatically. A domain alone does not parse files or draw anything. UI contributions need hosts: `tilia-layers` for layer rows, `tilia-settings` for settings, and `tilia-map-selection-presenter` for selection popups and highlights. These hosts do not install the format-specific contributions.
+Input, renderer, and UI plugins require their respective domain, which installs automatically. A domain alone does not parse files or draw anything. Install `tilia-layers` for layer rows and `tilia-map-selection-presenter` for selection popups and highlights. These hosts do not install the format-specific contributions.
 
 File picker, URL, query, and drop plugins are input transports. They dispatch to installed handlers rather than providing a GPX or JPEG parser themselves. Include the appropriate input plugin even when its domain and renderer are already installed.
 
@@ -78,7 +78,7 @@ await app.unuse("x-distance-markers");
 | `tilia-url-import` | `tilia-toolbar` | URL input control with timeout and size limits |
 | `tilia-query-import` | — | Imports a URL from a page query parameter without a control |
 | `tilia-initial-view` | — | Experimental initial view and one-shot geolocation from `tilia.c` |
-| `tilia-settings` | `tilia-panel`, `tilia-toolbar` | Hosts per-entry settings contributed by format UI plugins |
+| `tilia-settings` | `tilia-panel`, `tilia-toolbar` | Displays application settings available from installed domains |
 | `tilia-dropzone` | — | File drop target across the map area |
 
 ### Optional tools and base maps
@@ -180,6 +180,10 @@ await app.domains.photo.recomputeDerived(result.entry.id, undefined, {
 ```
 
 Recomputation can reject if there is no matching timeline. For a simple embedded marker, only `tilia-jpeg-input` and `tilia-photo-renderer` are needed; add the UI contribution and selection presenter for photo popups.
+
+## Application settings
+
+The Viewer includes `tilia-settings`. To add the panel to another application, include `"tilia-settings"` in its `plugins` array or call `await app.use("tilia-settings")`. With the GPX domain installed, open **Settings → GPX track display** and select **Track mode** to include estimated connections between segments of the same track, or **Segment mode** to show only recorded sections. The setting applies to all GPX entries in that application, including future imports. The panel also reflects changes made through the GPX API. Embeds can use the same [domain API](API.md) without installing the panel.
 
 ## Input settings
 
