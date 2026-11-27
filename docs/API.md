@@ -289,6 +289,8 @@ console.log(distance.totalMeters, nearest.match?.target);
 
 Normalized data adds `hasGps`. Preferences contain `requestedTimeMode`, defaulting to `auto`: `auto`, `local`, `utc`, or a fixed offset such as `+09:00`, `-05:00`, or `+05:30`. Compact offsets (`+0900`) and `Z` normalize to `+09:00` and `+00:00`; hours must be 00–23 and minutes 00–59. Snapshots are `{ data, preferences, derived }`; derived fields are `resolvedTimeMode`, `inferredTimestamp`, `inferredLocation`, and `locationSource`.
 
+GPX-based location estimates are stored separately from EXIF coordinates and reported as `gpx-time-inference`. For each candidate capture time, inference searches entries in committed creation order, then tracks, segments and points in GPX order, and uses the first exact point or eligible bracket. Within a segment it skips points with unusable timestamps. Between consecutive segments it requires valid times at both actual endpoints. A bracket can run in either time direction and may span any duration. Inference stays within one track of one entry and within the bracket's time range. Track mode and Segment mode have no bearing on photo estimates.
+
 Fixed offsets interpret the EXIF wall-clock calendar fields in the specified offset; they do not rewrite `capturedAt`. JPEG input stores the parsed EXIF Date as Unix milliseconds, and inference reads its local calendar fields in that same browser environment. Programmatically supplied `capturedAt` must represent the intended wall-clock fields when read as a local Date; `local` retains its existing instant-based interpretation.
 
 | Photo mutation | Value argument |

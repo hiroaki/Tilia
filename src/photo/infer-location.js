@@ -1,6 +1,5 @@
 import { parseFixedOffsetMinutes } from "../core/photo-time-utils.js";
 import { lookupTimestamp } from "../gpx/queries.js";
-import { getGlobalTimeline } from "../gpx/interpretation.js";
 
 export class PhotoInferenceNoMatchError extends Error {
   constructor(message) { super(message); this.name = "PhotoInferenceNoMatchError"; }
@@ -54,14 +53,54 @@ function interpolatePoint(before, after, targetTimestamp) {
   };
 }
 
+function validPoint(point) {
+  return Number.isFinite(point?.timestamp) && Math.abs(point.timestamp) <= 8.64e15
+    && Number.isFinite(point.lat) && Number.isFinite(point.lon);
+}
+
+function findTrackBracket(sources, timestamp) {
+  for (const source of sources) {
+    if (source?.type !== undefined && source.type !== "gpx") continue;
+    for (const track of source?.tracks ?? []) {
+      let previousEnd = null;
+      for (const { points } of track.segments) {
+        let previous = previousEnd;
+        for (const [index, point] of points.entries()) {
+          if (!validPoint(point)) {
+            if (index === 0) previous = null;
+            continue;
+          }
+          if (point.timestamp === timestamp) return { before: point, after: point };
+          if (previous && timestamp > Math.min(previous.timestamp, point.timestamp)
+              && timestamp < Math.max(previous.timestamp, point.timestamp)) {
+            return previous.timestamp < point.timestamp
+              ? { before: previous, after: point } : { before: point, after: previous };
+          }
+          previous = point;
+        }
+        // Only actual endpoints can bridge consecutive segments.
+        const end = points.at(-1);
+        previousEnd = validPoint(end) ? end : null;
+      }
+    }
+  }
+  return {};
+}
+
 function inferPhotoLocationForMode(timeline, photo, mode) {
   const timestamp = toModeAdjustedTimestamp(photo?.dateTimeOriginal, mode);
   if (!Number.isFinite(timestamp)) {
     throw new PhotoInferenceNoMatchError(`No valid photo timestamp: ${photo?.name || "unknown"}`);
   }
 
-  const { before, after } = lookupTimestamp({ points: timeline }, timestamp);
-  if (!before || !after || !Number.isFinite(new Date(before.timestamp).getTime()) || !Number.isFinite(new Date(after.timestamp).getTime())) {
+  const { before, after } = timeline.sources
+    ? findTrackBracket(timeline.sources, timestamp)
+    : lookupTimestamp(timeline, timestamp);
+  // A flat timeline cannot establish actual endpoints at a segment boundary.
+  const left = before?.locator, right = after?.locator;
+  const crossesBoundary = (left || right) && (!left || !right || left.entryId !== right.entryId
+    || left.trackIndex !== right.trackIndex || left.segmentIndex !== right.segmentIndex);
+  if (!validPoint(before) || !validPoint(after) || (!timeline.sources && crossesBoundary)) {
     throw new PhotoInferenceNoMatchError("Photo timestamp is outside GPX timeline range");
   }
 
@@ -85,8 +124,8 @@ function inferPhotoLocationForMode(timeline, photo, mode) {
 export function inferPhotoLocationFromTimeline(capturedTimeline, photo, options = {}) {
   const mode = options.timeInterpretationMode || "auto";
 
-  const timeline = capturedTimeline.points;
-  if (timeline.length < 2) {
+  const timeline = capturedTimeline;
+  if (!timeline.sources && timeline.points.length < 2) {
     throw new PhotoInferenceNoMatchError("No GPX timeline data for inference");
   }
 
@@ -136,5 +175,5 @@ export function inferPhotoLocationFromTimeline(capturedTimeline, photo, options 
 }
 
 export function inferPhotoLocationFromGpx(sources, photo, options = {}) {
-  return inferPhotoLocationFromTimeline({ points: getGlobalTimeline(sources) }, photo, options);
+  return inferPhotoLocationFromTimeline({ sources: sources ?? [] }, photo, options);
 }
