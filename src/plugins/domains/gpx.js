@@ -5,8 +5,8 @@ import { createGpxProvider } from "./gpx-provider.js";
 
 export default Object.freeze({
   id: "tilia-gpx-domain",
-  setup(context) {
-    context.domains.provide(gpxDomainKey, createGpxProvider());
+  setup(context, options) {
+    context.domains.provide(gpxDomainKey, createGpxProvider(options));
     context.services?.provide(gpxQueryServiceKey, {
       captureTimeline() {
         const gpx = context.domains.require(gpxDomainKey);

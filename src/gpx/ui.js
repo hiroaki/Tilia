@@ -204,7 +204,7 @@ export function mountGpxPopup({ container, selection, gpx }) {
   if (ref.kind === "waypoint") container.appendChild(createWaypointPopupContent(document.name, value));
   else if (ref.kind === "route-point") container.appendChild(createRoutePointPopupContent(document, value, ref));
   else if (ref.kind === "track-point") {
-    const samples = gpx.getElevationProfile(selection.entryId, { target: { kind: "track", trackIndex: ref.trackIndex } }).profiles[0].samples;
+    const samples = gpx.getPresentationProfile(selection.entryId, { target: { kind: "track", trackIndex: ref.trackIndex } }).profiles[0].samples;
     const sample = samples.find((s) => s.locator.segmentIndex === ref.segmentIndex && s.locator.pointIndex === ref.pointIndex);
     container.appendChild(createTrackPointPopupContent({ ...document, name: document.tracks[ref.trackIndex].name || document.name }, { ...value, distanceMeters: sample?.distanceMeters }));
   } else {
@@ -218,6 +218,8 @@ export function mountGpxPopup({ container, selection, gpx }) {
       const date = new Date(metadata.timestamp);
       node(container, "div", "tilia-popup-row", `Time: ${metadata.timestamp === null || !Number.isFinite(date.getTime()) ? "-" : date.toLocaleString()}`);
     }
-    node(container, "div", "tilia-popup-row", `Distance: ${Math.round(gpx.getDistance(selection.entryId, { target: ref }).totalMeters)} m`);
+    const distance = gpx.getDistance(selection.entryId, { target: ref });
+    const meters = view.snapshot.derived.presentationMode === "segment" ? distance.recordedMeters : distance.totalMeters;
+    node(container, "div", "tilia-popup-row", `Distance: ${Math.round(meters)} m`);
   }
 }

@@ -15,7 +15,7 @@ For each data format, choose the parts your application needs:
 | Input | `tilia-gpx-input` | `tilia-jpeg-input` | Reads files and creates entries |
 | UI contribution | `tilia-gpx-ui` | `tilia-photo-ui` | Adds format-specific layer rows and popup content, including Photo time in photo rows |
 
-Input, renderer, and UI plugins require their respective domain, which installs automatically. A domain alone does not parse files or draw anything. UI contributions need hosts: `tilia-layers` for layer rows, `tilia-settings` for settings, and `tilia-map-selection-presenter` for selection popups and highlights. These hosts do not install the format-specific contributions.
+Input, renderer, and UI plugins require their respective domain, which installs automatically. A domain alone does not parse files or draw anything. Install `tilia-layers` for layer rows and `tilia-map-selection-presenter` for selection popups and highlights. These hosts do not install the format-specific contributions.
 
 File picker, URL, query, and drop plugins are input transports. They dispatch to installed handlers rather than providing a GPX or JPEG parser themselves. Include the appropriate input plugin even when its domain and renderer are already installed.
 
@@ -78,7 +78,7 @@ await app.unuse("x-distance-markers");
 | `tilia-url-import` | `tilia-toolbar` | URL input control with timeout and size limits |
 | `tilia-query-import` | — | Imports a URL from a page query parameter without a control |
 | `tilia-initial-view` | — | Experimental initial view and one-shot geolocation from `tilia.c` |
-| `tilia-settings` | `tilia-panel`, `tilia-toolbar` | Hosts per-entry settings contributed by format UI plugins |
+| `tilia-settings` | `tilia-panel`, `tilia-toolbar` | Displays application settings available from installed domains |
 | `tilia-dropzone` | — | File drop target across the map area |
 
 ### Optional tools and base maps
@@ -115,6 +115,8 @@ await app.ready;
 Use **Open files**, **Load URL**, or drop files onto the map. Use **Layers** to show or hide GPX entries, categories, and individual tracks or routes, or to remove entries. Click a rendered feature to select it and display its contributed popup. Closing the popup does not clear the semantic selection.
 
 Open **Elevation** for a track containing elevation data. Hover to locate chart samples on the map, or click to select a track point. Arrow keys move through samples; Enter or Space selects one. Map-linked presentation also needs the GPX renderer. Routes and standalone waypoints are not track elevation profiles.
+
+In both modes the elevation chart reserves horizontal space for the estimated distance between segments of the same track. Track mode draws a dashed line there. Segment mode leaves that space blank and counts only recorded distance in the panel total. Hovering or clicking in a gap targets the nearest recorded sample with elevation along the horizontal axis. Separate tracks add no geographic distance between them.
 
 By default, the built-in renderer cycles through the preset palette once per GPX entry. All tracks and routes in that entry start with the same color. In **Layers**, use the color swatch beside a visible track or route to give just that object a temporary color. The swatch is display-only when the object cannot be recolored. Temporary colors survive panel and visibility changes. Replacing or removing the GPX, changing its preset with `setStylePreset()`, or removing the renderer clears them. They are not serialized to GPX or copied by Track Editor.
 
@@ -180,6 +182,10 @@ await app.domains.photo.recomputeDerived(result.entry.id, undefined, {
 ```
 
 Recomputation can reject if there is no matching timeline. For a simple embedded marker, only `tilia-jpeg-input` and `tilia-photo-renderer` are needed; add the UI contribution and selection presenter for photo popups.
+
+## Application settings
+
+The Viewer includes `tilia-settings`. To add the panel to another application, include `"tilia-settings"` in its `plugins` array or call `await app.use("tilia-settings")`. With the GPX domain installed, open **Settings → GPX track display** and select **Track mode** to include estimated connections between segments of the same track, or **Segment mode** to show only recorded sections. The setting applies to all GPX entries in that application, including future imports. The panel also reflects changes made through the GPX API. Embeds can use the same [domain API](API.md) without installing the panel.
 
 ## Input settings
 

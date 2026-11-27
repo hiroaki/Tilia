@@ -34,10 +34,10 @@ The 100 m minimum interval and collision thresholds are fixed internally.
 
 ## Placement and drawing
 
-1. Read the selected track's public GPX Domain snapshot and
-   `getElevationProfile()` samples. Sample locators identify the original
-   points, and sample distances measure from the start of the track. Birch
-   includes inferred edges between nonempty segments in this distance.
+1. Read the selected track's committed `getPresentationProfile()` samples.
+   Track mode includes inferred connections between nonempty segments in both
+   cumulative distance and projected length. Segment mode accumulates recorded
+   edges across the whole track and excludes the gaps from both measurements.
    Project each vertex at zoom zero and cache the projected points,
    cumulative distances, and total projected length for the selected revision.
 2. Compute the minimum interval in meters as the greatest of 100 m,
@@ -51,7 +51,9 @@ The 100 m minimum interval and collision thresholds are fixed internally.
    end, limiting the loop to `maxMarkers` before entering it. For each multiple,
    binary-search the first sample at or beyond that distance. Use the
    cumulative-distance fraction to interpolate along the corresponding
-   projected edge, including inferred gap edges. Unproject the surviving
+   projected edge. In Track mode this may place a label on an inferred
+   connection. In Segment mode a threshold exactly on a break places one
+   candidate at the end of the preceding recorded edge. Unproject the surviving
    anchors at zoom zero. A distance shared by two zooms keeps its position.
 4. Discard anchors outside the viewport. In increasing distance order,
    discard candidates less than 90 screen pixels horizontally and less than
@@ -69,7 +71,7 @@ The 100 m minimum interval and collision thresholds are fixed internally.
 Selection changes and entry or suppression notifications recheck eligibility.
 Clear the layer group when selection is cleared, moves to a non-track object,
 or the track is hidden, suppressed, or removed. Selecting a different track
-or changing the GPX revision invalidates the cached distance series. GPX
+or changing the GPX revision (including a mode switch) invalidates the cached distance series. GPX
 replacement invalidates the old selection through Birch. Entry-bound scope
 cleanup removes labels on deletion, and post-attachment checks account for
 synchronous callbacks that change eligibility during a rebuild. A refresh pass

@@ -1,3 +1,4 @@
+import { createPresentationSettings } from "../../gpx/presentation-settings.js";
 import { cloneAndFreezePlainData, semanticError, semanticErrorCodes } from "../../domains/index.js";
 import { normalizeGpxDocument, updateGpxPoint } from "../../gpx/document.js";
 import { TRACK_STYLE_PRESETS } from "../../map/track-style-presets.js";
@@ -51,31 +52,38 @@ function normalizePreferences(value, trackCount, routeCount) {
   };
 }
 
-function snapshot(data, preferences, defaultStyleIndex) {
+function snapshot(data, preferences, defaultStyleIndex, presentationMode) {
   for (const field of ["tracksVisible", "routesVisible", "waypointsVisible"]) {
     if (typeof preferences[field] !== "boolean") invalid(`GPX ${field} must be boolean`, { field });
   }
-  return cloneAndFreezePlainData({ data, preferences, derived: { defaultStyleIndex } });
+  return cloneAndFreezePlainData({ data, preferences, derived: { defaultStyleIndex, presentationMode } });
 }
 
 function same(left, right) {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
-export function createGpxProvider() {
+export function createGpxProvider({ presentationMode = "track" } = {}) {
   let nextStyleIndex = 0;
-  return Object.freeze({
+  const provider = Object.freeze({
     selection: createGpxSelectionAdapter(),
     async prepareCreate({ value }) {
       const data = normalizeGpxDocument(value?.data ?? value);
       const preferences = normalizePreferences(value?.preferences, data.tracks.length, data.routes.length);
-      const nextSnapshot = snapshot(data, preferences, nextStyleIndex);
+      const nextSnapshot = snapshot(data, preferences, nextStyleIndex, presentation.get());
       nextStyleIndex = (nextStyleIndex + 1) % TRACK_STYLE_PRESETS.length;
       return { instance: nextSnapshot, snapshot: nextSnapshot };
     },
     async prepareMutation({ currentInstance, command, expectedRevision }) {
       if (!command || typeof command !== "object") invalid("GPX command must be an object");
       if (command.type === "recompute-derived") return { changed: false };
+      if (command.type === "apply-presentation-mode") {
+        const presentationMode = presentation.get();
+        if (presentationMode === currentInstance.derived.presentationMode) return { changed: false };
+        const derived = Object.freeze({ ...currentInstance.derived, presentationMode });
+        const nextSnapshot = Object.freeze({ ...currentInstance, derived });
+        return { changed: true, nextInstance: nextSnapshot, nextSnapshot, change: Object.freeze({ type: command.type }) };
+      }
       let data = currentInstance.data;
       let preferences = currentInstance.preferences;
       if (command.type === "replace-data") {
@@ -105,7 +113,7 @@ export function createGpxProvider() {
         if (typeof command.stylePresetId !== "string" || command.stylePresetId.length === 0) invalid("Invalid GPX style preset");
         preferences = { ...preferences, stylePresetId: command.stylePresetId };
       } else invalid(`Unknown GPX command "${command.type}"`);
-      const nextSnapshot = snapshot(data, preferences, currentInstance.derived.defaultStyleIndex);
+      const nextSnapshot = snapshot(data, preferences, currentInstance.derived.defaultStyleIndex, presentation.get());
       if (same(nextSnapshot, currentInstance)) return { changed: false };
       return {
         changed: true,
@@ -116,4 +124,6 @@ export function createGpxProvider() {
     },
     getSnapshot(instance) { return instance; },
   });
+  const presentation = createPresentationSettings(provider, presentationMode);
+  return provider;
 }

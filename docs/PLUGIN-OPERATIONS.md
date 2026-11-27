@@ -156,7 +156,7 @@ The context exposes these capabilities:
 | `inputs` | Register input handlers, dispatch input, and observe handler discovery |
 | `domains`, `entries`, `selection` | Semantic providers, data operations, and current selection |
 | `renderers`, `rendering`, `presentation`, `interactions` | Rendering contributions, display state, presentation handles, and interaction resources |
-| `contributions` | Toolbar, layer row, popup, and settings contributions |
+| `contributions` | Toolbar, layer row, and popup contributions |
 | `ui` | Assigned UI surfaces and drop targets |
 | `styles` | Shared stylesheet leases |
 | `baseMaps` | Register and select base-map definitions |
@@ -229,7 +229,7 @@ Tilia-managed private panes and shared band panes within the same band stack in 
 
 If a managed pane is replaced rather than reconnected, the replacement receives a new creation position. For example, acquiring a private pane while it is being removed on final lease release creates a replacement, even when the plugin requests the same name. Band z-index values remain unchanged, and there is no public numeric `order` option. Tilia does not move or take ownership of standard Leaflet panes or externally owned panes; stacking order relative to those panes at the same z-index is not guaranteed.
 
-`context.ui.mountSurface` supplies an assigned container and a child Scope to its mount callback. Own listeners and temporary resources through that supplied Scope; do not modify unrelated DOM. For layer rows, popup content, settings, and toolbar items, use their contribution hosts rather than assuming another plugin's container exists. The [Photo UI contribution](../src/plugins/ui/photo.js) shows how contributor and host lifetimes are paired.
+`context.ui.mountSurface` supplies an assigned container and a child Scope to its mount callback. Own listeners and temporary resources through that supplied Scope; do not modify unrelated DOM. For layer rows, popup content, and toolbar items, use their contribution hosts rather than assuming another plugin's container exists. The former `context.contributions.settings` entry-section API was removed when Settings became an application-wide panel. Use domain layer rows for entry controls. A plugin can also provide its own panel or toolbar action when the operation needs a separate workflow. The [Photo UI contribution](../src/plugins/ui/photo.js) shows how contributor and host lifetimes are paired.
 
 Load your plugin's stylesheet with `context.styles.use({id, href})`, using an absolute URL such as `new URL("./styles.css", import.meta.url).href` when your plugin supplies that asset. The lease exposes `ready` and `release()`. Matching leases share a stylesheet until the last release; conflicting definitions with the same ID reject. Await `ready` only when your work depends on successful CSS loading.
 

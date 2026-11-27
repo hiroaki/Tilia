@@ -19,7 +19,7 @@
 | 入力 | `tilia-gpx-input` | `tilia-jpeg-input` | ファイルを読み、エントリーを作成 |
 | UI提供 | `tilia-gpx-ui` | `tilia-photo-ui` | 形式ごとのレイヤー行とポップアップ内容を追加。写真行には時刻解釈の操作を含む |
 
-入力、レンダラー、UIはそれぞれのドメインを必須とし、自動インストールします。ドメインだけではファイルの解析も描画も行いません。UI提供にはホストが必要です。レイヤー行は`tilia-layers`、設定は`tilia-settings`、選択ポップアップと強調表示は`tilia-map-selection-presenter`が受け持ちます。これらのホストは形式ごとの提供プラグインをインストールしません。
+入力、レンダラー、UIはそれぞれのドメインを必須とし、自動インストールします。ドメインだけではファイルの解析も描画も行いません。UI提供にはホストが必要です。レイヤー行は`tilia-layers`、選択ポップアップと強調表示は`tilia-map-selection-presenter`が受け持ちます。これらのホストは形式ごとの提供プラグインをインストールしません。
 
 ファイル選択、URL、クエリ、ドロップのプラグインは入力の経路です。自分でGPXやJPEGを解析せず、インストール済みのハンドラーに振り分けます。ドメインとレンダラーが導入済みでも、対応する入力プラグインが必要です。
 
@@ -90,7 +90,7 @@ await app.unuse("x-distance-markers");
 | `tilia-url-import` | `tilia-toolbar` | タイムアウトとサイズ制限のあるURL入力 |
 | `tilia-query-import` | — | 操作部品なしでページのクエリパラメーターのURLを読み込む |
 | `tilia-initial-view` | — | 実験機能：`tilia.c` による初期表示と一度だけの現在位置取得 |
-| `tilia-settings` | `tilia-panel`, `tilia-toolbar` | 形式別UIが提供するエントリー設定のホスト |
+| `tilia-settings` | `tilia-panel`, `tilia-toolbar` | 導入済みドメインが提供するアプリケーション設定を表示 |
 | `tilia-dropzone` | — | 地図全体のファイルドロップ先 |
 
 <a id="optional-tools-and-base-maps"></a>
@@ -131,6 +131,8 @@ await app.ready;
 **Open files**、**Load URL**、または地図へのドロップで読み込みます。**Layers**では、GPXエントリー全体、種類別、個々のトラックやルートの表示を切り替えたり、エントリーを削除したりできます。描画した対象をクリックすると選択され、提供されたポップアップを表示します。閉じても意味上の選択は消えません。
 
 標高データのあるトラックには**Elevation**を使います。ホバーでグラフのサンプル位置を地図に示し、クリックで点を選択できます。矢印キーで移動し、EnterまたはSpaceで選択します。地図と連動する表示にはGPXレンダラーも必要です。ルートや独立したウェイポイントはトラックの標高グラフではありません。
+
+標高グラフの横軸は、どちらのモードでも同じトラック内のセグメント間の推定距離を含みます。Track mode はこの区間を破線で示します。Segment mode は同じ幅を空白として残し、パネルの合計距離には記録区間だけを含めます。空白上でホバーまたはクリックすると、横方向に最も近い標高のある記録点を選びます。別トラック間には地理的距離を加えません。
 
 組み込みレンダラーでは、GPX エントリーごとに既定のパレットを順に割り当て、同じ GPX のトラックとルートは同じ色で表示します。**Layers** で表示中のトラックやルートの横にある色見本から、その対象だけに一時色を設定できます。色を変更できない状態では色見本は表示専用です。一時色はパネルの開閉や表示切り替えで維持されます。GPX の置換・削除、`setStylePreset()` によるプリセット変更、レンダラーの撤去で解除されます。GPX への書き出しや Track Editor の保存コピーには含まれません。
 
@@ -198,6 +200,12 @@ await app.domains.photo.recomputeDerived(result.entry.id, undefined, {
 ```
 
 対応する時系列がない場合は失敗することがあります。単純な埋め込みマーカーには`tilia-jpeg-input`と`tilia-photo-renderer`だけで足ります。写真のポップアップにはUI提供と選択表示を加えてください。
+
+<a id="application-settings"></a>
+
+## アプリケーション設定
+
+Viewer は `tilia-settings` を導入しています。別のアプリに追加するには、`plugins` 配列に `"tilia-settings"` を含めるか、起動後に `await app.use("tilia-settings")` を呼びます。GPX ドメインの導入後、**Settings → GPX track display** を開きます。**Track mode** は同じトラック内のセグメント間を推定接続し、**Segment mode** は記録区間のみを表示します。設定はそのアプリの全 GPX エントリーと、以降に読み込む GPX に適用されます。パネルには GPX API による変更も反映されます。埋め込みではパネルを省略し、[ドメイン API](API.ja.md) から同じ設定を操作できます。
 
 <a id="input-settings"></a>
 

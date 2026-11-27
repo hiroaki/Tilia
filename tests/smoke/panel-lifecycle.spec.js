@@ -45,39 +45,106 @@ test("old Photo time controls are inert during Layers removal, Close, and panel 
   expect(results).toEqual([1, 1, 1, 2]);
 });
 
-test("Settings revokes a contribution before disconnecting its DOM", async ({ page }) => {
-  const result = await page.evaluate(async () => {
-    const { listen } = await import("/src/ui/scoped-dom.js");
-    const app = window.lifecycle.create({ plugins: ["tilia-settings", "tilia-photo-domain"] });
-    await app.ready;
-    const source = await app.domains.photo.create({ data: { name: "Source" } });
-    const target = await app.domains.photo.create({ data: { name: "Target" } });
-    let disconnected = 0;
-    customElements.define("test-settings-section", class extends HTMLElement {
-      disconnectedCallback() {
-        if (this.isConnected) return;
-        disconnected++;
-        this.firstElementChild.click();
-      }
-    });
-    await app.use({ id: "x-test-settings-section", setup(context) {
-      context.contributions.settings.register({ id: "test-section", descriptor: {
-        supports: (entry) => entry.id === source.id && entry.visible,
-        mount({ container, scope }) {
-          const section = document.createElement("test-settings-section");
-          const button = document.createElement("button");
-          listen(scope, button, "click", () => context.entries.setVisible(target.id, false));
-          section.append(button);
-          container.append(section);
-        },
-      } });
-    } });
-    document.querySelector('button[aria-label="Settings"]').click();
-    await app.entries.setVisible(source.id, false);
-    await new Promise(resolve => setTimeout(resolve, 0));
-    const snapshot = { disconnected, targetVisible: app.entries.get(target.id).visible };
-    await app.destroy();
-    return snapshot;
+test("detached Settings controls cannot change the current GPX mode", async ({ page }) => {
+  await page.evaluate(async () => {
+    await window.lifecycle.create({ plugins: ["tilia-settings", "tilia-gpx-domain"] }).ready;
   });
-  expect(result).toEqual({ disconnected: 1, targetVisible: true });
+  const launcher = page.getByRole("button", { name: "Settings", exact: true });
+  const field = page.getByRole("radio", { name: "Segment mode", exact: true });
+  await launcher.click();
+  await expect(field).not.toBeChecked();
+  const old = await field.elementHandle();
+  await page.getByRole("button", { name: "Close", exact: true }).click();
+  await launcher.click();
+  await expect(field).not.toBeChecked();
+  await old.evaluate(radio => {
+    radio.checked = true;
+    radio.dispatchEvent(new Event("change"));
+    return new Promise(resolve => setTimeout(resolve, 0));
+  });
+  expect(await page.evaluate(() => window.lifecycle.app.domains.gpx.getPresentationMode())).toBe("track");
+  await page.evaluate(() => window.lifecycle.app.domains.gpx.setPresentationMode("segment"));
+  await expect(field).toBeChecked();
+  await page.evaluate(() => window.lifecycle.app.destroy());
+});
+
+for (const origin of ["Settings", "API"]) {
+  test(`Settings reports a partial ${origin} failure after reopening and retries the desired mode`, async ({ page }) => {
+    // Pause the second real provider update once. The real domain setter, entry
+    // commits, failure notification and subsequent retry run normally.
+    await page.route("**/src/plugins/domains/gpx-provider.js", async route => {
+      const response = await route.fetch();
+      const source = await response.text();
+      const apply = 'if (command.type === "apply-presentation-mode") {';
+      expect(source).toContain(apply);
+      await route.fulfill({ response, body: source.replace(apply, apply + `
+        if (currentInstance.data.name === "blocked" && window.pauseModeUpdate) await window.pauseModeUpdate();
+      `) });
+    });
+    await page.evaluate(async () => {
+      const app = window.lifecycle.create({ plugins: ["tilia-settings", "tilia-gpx-domain"] });
+      await app.ready;
+      const gpx = app.domains.gpx;
+      const entries = [await gpx.create({ name: "first" }), await gpx.create({ name: "blocked" })];
+      window.entryModes = () => entries.map(({ id }) => gpx.get(id).snapshot.derived.presentationMode);
+      window.revisions = () => entries.map(({ id }) => gpx.get(id).revision);
+      window.pauseModeUpdate = () => new Promise((_, reject) => {
+        window.rejectUpdate = () => { delete window.pauseModeUpdate; reject(new Error("test failure")); };
+      });
+    });
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    const segment = page.getByRole("radio", { name: "Segment mode", exact: true });
+    const status = page.getByRole("status");
+    const retry = page.getByRole("button", { name: "Retry", exact: true });
+    if (origin === "Settings") await segment.check();
+    else await page.evaluate(() => {
+      void window.lifecycle.app.domains.gpx.setPresentationMode("segment").catch(() => {});
+    });
+    await expect(segment).toBeChecked();
+    await expect(segment).toBeDisabled();
+    await expect(status).toHaveText("Applying display mode…");
+    await expect(retry).toBeHidden();
+    await page.getByRole("button", { name: "Close", exact: true }).click();
+    await page.waitForFunction(() => typeof window.rejectUpdate === "function");
+    await page.evaluate(() => window.rejectUpdate());
+    await expect.poll(() => page.evaluate(() => window.lifecycle.app.domains.gpx.getPresentationStatus().state)).toBe("failed");
+    expect(await page.evaluate(() => window.entryModes())).toEqual(["segment", "track"]);
+
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await expect(status).toContainText("could not be applied");
+    await expect(segment).toBeChecked();
+    await retry.focus();
+    await retry.press("Enter");
+    await expect(retry).toBeHidden();
+    await expect(segment).toBeFocused();
+    await expect(status).toBeEmpty();
+    expect(await page.evaluate(() => window.entryModes())).toEqual(["segment", "segment"]);
+    const revisions = await page.evaluate(() => window.revisions());
+    await segment.click();
+    expect(await page.evaluate(() => window.revisions())).toEqual(revisions);
+  });
+}
+
+test("two Settings panels have independent native radio groups", async ({ page }) => {
+  await page.evaluate(async () => {
+    const { createDefaultTiliaApp } = await import("/src/index.js");
+    const container = document.createElement("div");
+    container.id = "second-map";
+    container.style.cssText = "width:600px;height:450px";
+    document.body.append(container);
+    const plugins = ["tilia-gpx-domain", "tilia-settings"];
+    const first = window.lifecycle.create({ plugins });
+    const second = createDefaultTiliaApp(container, { plugins,
+      baseMapOptions: { tileUrl: "/tiles/{z}/{x}/{y}.png" } });
+    await Promise.all([first.ready, second.ready]);
+  });
+  const first = page.locator("#map");
+  const second = page.locator("#second-map");
+  for (const map of [first, second]) {
+    await map.getByRole("button", { name: "Settings", exact: true }).click();
+    await expect(map.getByRole("radio", { name: "Track mode", exact: true })).toBeChecked();
+  }
+  await first.getByRole("radio", { name: "Segment mode", exact: true }).check();
+  await expect(first.getByRole("radio", { name: "Track mode", exact: true })).not.toBeChecked();
+  await expect(second.getByRole("radio", { name: "Track mode", exact: true })).toBeChecked();
 });

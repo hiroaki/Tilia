@@ -30,7 +30,7 @@ test("swatches track the GPX preset without replacing the row and survive panel 
   });
   await expect(swatches(page).first()).toHaveCSS("background-color", "rgb(42, 157, 143)");
   expect(await swatches(page).first().evaluate((element, old) => element === old, initial)).toBe(true);
-  await expect(page.locator('[data-tilia-map-band="geometry"] path[stroke="#2a9d8f"]')).toHaveCount(3);
+  await expect(page.locator('[data-tilia-map-band="geometry"] path[stroke="#2a9d8f"]')).toHaveCount(4);
   await page.getByRole("button", { name: "Track A", exact: true }).click();
   await expect(page.getByRole("button", { name: "Track A", exact: true })).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: "Close", exact: true }).click();
@@ -59,7 +59,9 @@ test("temporary track and route colors repaint owned layers and survive visibili
   await changeColor(track, "#ff3300");
   await changeColor(route, "#3344bb");
   expect(await identity()).toEqual(before);
-  const trackLine = geometry(page).locator('path[stroke="#ff3300"]');
+  const trackLine = geometry(page).locator('path.leaflet-interactive[stroke="#ff3300"]');
+  const gap = geometry(page).locator('path[stroke="#ff3300"][stroke-dasharray]');
+  await expect(gap).toHaveCount(1);
   const routeLine = geometry(page).locator('path[stroke="#3344bb"]');
   const singleton = geometry(page).locator('path[fill="#ff3300"][stroke="#fff"]');
   const routeNumbers = page.locator(".tilia-route-point-marker");
@@ -73,6 +75,7 @@ test("temporary track and route colors repaint owned layers and survive visibili
 
   await page.getByRole("checkbox", { name: "Colors show track 1" }).uncheck();
   await expect(trackLine).toHaveCount(0);
+  await expect(gap).toHaveCount(0);
   await expect(track).toBeDisabled();
   await page.getByRole("checkbox", { name: "Colors show track 1" }).check();
   await expect(track).toHaveValue("#ff3300");
@@ -101,11 +104,12 @@ test("temporary track and route colors repaint owned layers and survive visibili
   const start = page.getByRole("button", { name: "Start Edit", exact: true });
   await start.click();
   await expect(trackLine).toHaveCount(0);
+  await expect(gap).toHaveCount(0);
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(trackLine).toHaveCount(1);
   await start.click();
   await page.getByRole("button", { name: "Save Copy", exact: true }).click();
-  await expect(geometry(page).locator('path[stroke="#5c6bc0"]')).toHaveCount(2);
+  await expect(geometry(page).locator('path[stroke="#5c6bc0"]')).toHaveCount(3);
   await expect(trackLine).toHaveCount(1);
 });
 
@@ -147,7 +151,7 @@ test("a pending picker cannot write to a new generation and overrides reset on e
 test("a route color change can be retried after a marker update fails", async ({ page }) => {
   await ready(page);
   const route = picker(page, "Route A");
-  const routeLine = geometry(page).locator("path[stroke-dasharray]");
+  const routeLine = geometry(page).locator('path[stroke-dasharray="8 6"]');
   const routeNumbers = page.locator(".tilia-route-point-marker");
   const markerColors = () => routeNumbers.evaluateAll(nodes => nodes.map(node => node.style.getPropertyValue("--route-color")));
   const status = () => page.evaluate(async () => {
@@ -196,7 +200,7 @@ test("a route color change can be retried after a marker update fails", async ({
   expect(await markerColors()).toEqual(["#ce1201", "#ce1201", "#5c6bc0", "#5c6bc0"]);
   expect(await status()).toEqual({ ...before, color: "#ce1201" });
   await expect(picker(page, "Track A")).toHaveValue("#0099cc");
-  await expect(geometry(page).locator('path[stroke="#0099cc"]')).toHaveCount(2);
+  await expect(geometry(page).locator('path[stroke="#0099cc"]')).toHaveCount(3);
   await expect(routeLine.last()).toHaveAttribute("stroke", "#5c6bc0");
   await expect(picker(page, "Other route")).toHaveValue("#5c6bc0");
 });
@@ -206,7 +210,7 @@ for (const colorScheme of ["light", "dark"]) {
     await page.emulateMedia({ colorScheme });
     await ready(page);
     const route = picker(page, "Route A");
-    const routeLine = geometry(page).locator("path[stroke-dasharray]");
+    const routeLine = geometry(page).locator('path[stroke-dasharray="8 6"]');
     const routeNumbers = page.locator(".tilia-route-point-marker");
     const expectRouteColor = async (value, background, foreground) => {
       await expect(route).toHaveValue(value);

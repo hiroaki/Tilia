@@ -9,6 +9,27 @@ async function fixture(page) {
 }
 const data = { tracks: [{ segments: [{ points: [{ lat: 35.68, lon: 139.755 }, { lat: 35.68, lon: 139.765 }, { lat: 35.685, lon: 139.77 }] }] }] };
 
+test("GPX and Photo providers start without AbortSignal.any", async ({ page }) => {
+  await page.addInitScript(() => { delete AbortSignal.any; });
+  await fixture(page);
+  const result = await page.evaluate(async () => {
+    const app = window.lifecycle.create({ plugins: ["tilia-gpx-domain", "tilia-photo-domain"] });
+    await app.ready;
+    try {
+      const gpx = await app.domains.gpx.create({ name: "track.gpx" });
+      const photo = await app.domains.photo.create({ name: "photo.jpg" });
+      return {
+        hasAny: "any" in AbortSignal,
+        gpx: app.domains.gpx.get(gpx.id).snapshot.data.name,
+        photo: app.domains.photo.get(photo.id).snapshot.data.name,
+      };
+    } finally {
+      await app.destroy();
+    }
+  });
+  expect(result).toEqual({ hasAny: false, gpx: "track.gpx", photo: "photo.jpg" });
+});
+
 for (const canvas of [false, true]) test(`public destroy and distinct-Map same-container recreation (${canvas ? "Canvas" : "SVG"})`, async ({ page }) => {
   const errors = []; page.on("pageerror", error => errors.push(error.message));
   await fixture(page);

@@ -7,6 +7,7 @@ import {
   getTrackModeCoordinates,
   getTrackModeElevationLayout,
   getTrackModeProfile,
+  getTrackPresentationPoints,
 } from "../src/gpx/interpretation.js";
 
 describe("GPX summary formatting", () => {
@@ -87,4 +88,23 @@ describe("Track-mode GPX interpretation", () => {
       trackIndex: 1, segmentIndex: 0, pointIndex: 0,
     });
   });
+});
+
+it("preserves empty segment indexes, duplicate points and missing elevation across presentation modes", () => {
+  const point = (lon, elevation) => ({ lat: 0, lon, elevation });
+  const track = { segments: [
+    { points: [point(0, null), point(0, 3), point(1, 4)] },
+    { points: [] },
+    { points: [point(2, null)] },
+  ] };
+  const logical = getTrackPresentationPoints(track, 5, "track");
+  const recorded = getTrackPresentationPoints(track, 5, "segment");
+  expect(logical.map(p => p.edgeKind)).toEqual(["start", "recorded", "recorded", "inferred-gap"]);
+  expect(recorded.map(p => p.edgeKind)).toEqual(["start", "recorded", "recorded", "start"]);
+  expect(recorded.map(p => p.elevation)).toEqual([null, 3, 4, null]);
+  expect(recorded[0].distanceMeters).toBe(recorded[1].distanceMeters);
+  expect(recorded[2].distanceMeters).toBeGreaterThan(0);
+  expect(recorded[3].distanceMeters).toBe(recorded[2].distanceMeters);
+  expect(logical[3].distanceMeters).toBeGreaterThan(recorded[3].distanceMeters);
+  expect(recorded[3].locator).toEqual({ trackIndex: 5, segmentIndex: 2, pointIndex: 0 });
 });

@@ -1,3 +1,4 @@
+import { getPresentationSettings } from "../gpx/presentation-settings.js";
 import { queryGpx } from "../gpx/queries.js";
 import { isScopeWithin, scopeIsOperational } from "../ownership/scope.js";
 import { gpxDomainKey, photoDomainKey } from "./keys.js";
@@ -23,7 +24,7 @@ function domainFacade(scope, entries, key, commands) {
   });
 }
 
-export function createGpxFacade({ scope, entries, selection }) {
+export function createGpxFacade({ scope, entries, selection, registry }) {
   const facade = domainFacade(scope, entries, gpxDomainKey, {
     replaceData: (data) => Object.freeze({ type: "replace-data", data }),
     updatePoint: ({ target, patch }) => Object.freeze({ type: "update-point", target, patch }),
@@ -42,7 +43,29 @@ export function createGpxFacade({ scope, entries, selection }) {
     }
     return queryGpx(view, method, options.target, options.coordinate);
   }
+  function presentation() {
+    scope.assertAlive();
+    const registration = registry.resolve(gpxDomainKey).registration;
+    const settings = getPresentationSettings(registration.provider);
+    if (!settings) {
+      throw semanticError(semanticErrorCodes.providerUnavailable, "GPX presentation settings are unavailable");
+    }
+    return { settings, owner: registration.owner, signal: registration.signal };
+  }
+  function subscribePresentation(method, listener, options) {
+    const { settings, signal } = presentation();
+    return settings[method](scope, listener, options, signal);
+  }
   const queries = {
+    getPresentationMode: () => presentation().settings.get(),
+    setPresentationMode(mode) {
+      const { settings, owner, signal } = presentation();
+      return settings.set(mode, { scope, owner, entries, signal });
+    },
+    subscribePresentationMode: (listener, options) => subscribePresentation("subscribe", listener, options),
+    getPresentationStatus: () => presentation().settings.getStatus(),
+    subscribePresentationStatus: (listener, options) => subscribePresentation("subscribeStatus", listener, options),
+    getPresentationProfile: (id, options) => query(id, "presentation", options),
     getDocument: (id) => queryGpx(facade.get(id), "document"),
     getExtent: (id, options) => query(id, "extent", options),
     getDistance: (id, options) => query(id, "distance", options),
@@ -93,8 +116,8 @@ export function createEntryFacade({ scope, entries }) {
   });
 }
 
-export function createDomainFacade({ scope, entries, selection, registryFacade }) {
-  const gpx = createGpxFacade({ scope, entries, selection });
+export function createDomainFacade({ scope, entries, selection, registry, registryFacade }) {
+  const gpx = createGpxFacade({ scope, entries, selection, registry });
   const photo = createPhotoFacade({ scope, entries, selection });
   const facadeFor = (key) => {
     assertDomainKey(key);

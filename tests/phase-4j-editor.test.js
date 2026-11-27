@@ -61,3 +61,37 @@ it("keeps unresolved vendor child cleanup quarantined and blocks reinstall witho
   // No invented recovery: terminal/non-retry-safe residual intentionally remains.
   expectedDestroyFailure = true;
 });
+
+it("keeps the active edit and undo/redo history across mode changes, and saves in the current mode", async () => {
+  const entry = await start();
+  const gpx = f.app.domains.gpx;
+  const layer = draftLayer();
+  layer.startEditing();
+  layer.fire("pointchange", { index: 0, latlng: { lat: 9, lng: 10 } });
+  await settle();
+
+  await gpx.setPresentationMode("segment");
+  expect(draftLayer()).toBe(layer);
+  expect(layer.editing).toBe(true);
+  expect(f.context.rendering.getSuppressionSnapshot()).toMatchObject([
+    { entryId: entry.id, ref: { trackIndex: 0, revision: gpx.get(entry.id).revision } },
+  ]);
+  action("Undo"); await settle();
+  await gpx.setPresentationMode("track");
+  action("Redo"); await settle();
+  await gpx.setPresentationMode("segment");
+  action("Save Copy"); await settle();
+
+  const copy = f.app.entries.list().find(candidate => candidate.id !== entry.id);
+  expect(gpx.get(copy.id).snapshot.derived.presentationMode).toBe("segment");
+  expect(gpx.getDocument(copy.id).document.tracks[0].segments[0].points[0]).toMatchObject({ lat: 9, lon: 10 });
+  expect(gpx.getDocument(entry.id).document.tracks[0].segments[0].points[0]).toMatchObject({ lat: 1, lon: 2 });
+  expect(f.context.rendering.getSuppressionSnapshot()).toEqual([]);
+
+  action("Start Edit"); await settle();
+  await gpx.setPresentationMode("track");
+  action("Cancel"); await settle();
+  expect(draftLayer()).toBeUndefined();
+  expect(f.context.rendering.getSuppressionSnapshot()).toEqual([]);
+  expect(gpx.get(entry.id).snapshot.derived.presentationMode).toBe("track");
+});

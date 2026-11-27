@@ -1,8 +1,10 @@
+import { queryObjects } from "node:v8";
 import { describe, expect, it, vi } from "vitest";
 import { createSemanticFoundation } from "../src/semantic-foundation.js";
 import { createApplicationSemanticApi, createSemanticCapabilityFactories } from "../src/semantic-capabilities.js";
 import { createPluginRuntime } from "../src/plugins/runtime/index.js";
 import { createScopeController } from "../src/ownership/index.js";
+import { createGpxProvider } from "../src/plugins/domains/gpx-provider.js";
 import { createPhotoFacade, gpxDomainKey, photoDomainKey, semanticErrorCodes } from "../src/domains/index.js";
 
 const catalog = Object.freeze([
@@ -365,5 +367,168 @@ describe("Phase 4D-B capability and lazy-loading boundaries", () => {
     expect(value.api.domains.gpx.get(entryId)).toMatchObject({ revision: 1, snapshot: { data: { name: "multi.gpx" } } });
     await value.api.entries.remove(entryId);
     await value.runtime.unuse("tilia-gpx-domain");
+  });
+});
+
+describe("GPX presentation settings", () => {
+  it.each(["subscribePresentationMode", "subscribePresentationStatus"])(
+    "%s releases its consumer record on withdrawal, removal and explicit unsubscribe",
+    async method => {
+      const { foundation, runtime, api } = await harness();
+      const gpx = api.domains.gpx;
+      const provider = createGpxProvider();
+      let registration;
+      const plugin = { id: "x-provider-lifetime", setup(context) {
+        registration = context.domains.provide(gpxDomainKey, provider);
+      } };
+      await runtime.use(plugin);
+      const count = () => foundation.inspect().ownership.counts.locals;
+      const before = count();
+      const listener = vi.fn();
+      const stale = gpx[method](listener, { emitCurrent: false });
+      expect(count()).toBe(before + 1);
+      await registration.dispose();
+      expect(count()).toBe(before);
+
+      // The same implementation can be registered again. A subscriber from its
+      // earlier registration must never observe the new registration's updates.
+      await runtime.unuse(plugin.id);
+      await runtime.use(plugin);
+      const current = gpx[method](listener, { emitCurrent: false });
+      stale.unsubscribe();
+      await gpx.setPresentationMode("segment");
+      expect(listener).toHaveBeenCalledTimes(method === "subscribePresentationMode" ? 1 : 2);
+      listener.mockClear();
+      current.unsubscribe();
+      await gpx.setPresentationMode("track");
+      expect(listener).not.toHaveBeenCalled();
+      expect(count()).toBe(before);
+
+      const removed = gpx[method](listener, { emitCurrent: false });
+      await runtime.unuse(plugin.id);
+      expect(count()).toBe(before);
+      removed.unsubscribe();
+      await foundation.dispose();
+    },
+  );
+
+  it("releases listener captures even when an application retains its withdrawn subscription handles", async () => {
+    const { foundation, runtime, api } = await harness();
+    await runtime.use("tilia-gpx-domain");
+    class Observer {
+      record(value) { this.last = value; }
+    }
+    const subscribe = method => {
+      const observer = new Observer();
+      return api.domains.gpx[method](observer.record.bind(observer));
+    };
+    const handles = [subscribe("subscribePresentationMode"), subscribe("subscribePresentationStatus")];
+    // queryObjects performs a full GC and counts live instances, without a
+    // sleep or assumptions about when FinalizationRegistry callbacks run.
+    expect(queryObjects(Observer)).toBe(2);
+    await runtime.unuse("tilia-gpx-domain");
+    expect(queryObjects(Observer)).toBe(0);
+    for (const handle of handles) handle.unsubscribe();
+    await foundation.dispose();
+  });
+
+  it("rejects a queued mode change when the providing registration is explicitly withdrawn", async () => {
+    const { foundation, runtime, api } = await harness();
+    const provider = createGpxProvider();
+    let registration;
+    const plugin = { id: "x-withdrawing-domain", setup(context) {
+      registration = context.domains.provide(gpxDomainKey, provider);
+    } };
+    await runtime.use(plugin);
+    const change = api.domains.gpx.setPresentationMode("segment");
+    const rejected = expect(change).rejects.toMatchObject({ code: semanticErrorCodes.providerUnavailable });
+    await registration.dispose();
+    await rejected;
+    await runtime.unuse(plugin.id);
+    await runtime.use(plugin);
+    expect(api.domains.gpx.getPresentationMode()).toBe("track");
+    await runtime.unuse(plugin.id);
+    await foundation.dispose();
+  });
+
+  it("releases both presentation subscriptions when their consuming plugin is removed", async () => {
+    const { foundation, runtime, api } = await harness();
+    await runtime.use("tilia-gpx-domain");
+    const listener = vi.fn();
+    let handles;
+    await runtime.use({ id: "x-mode-listener", setup({ domains }) {
+      const gpx = domains.require(gpxDomainKey);
+      handles = [gpx.subscribePresentationMode(listener), gpx.subscribePresentationStatus(listener)];
+    } });
+    expect(listener.mock.calls).toEqual([["track"], [api.domains.gpx.getPresentationStatus()]]);
+    listener.mockClear();
+    await runtime.unuse("x-mode-listener");
+    await api.domains.gpx.setPresentationMode("segment");
+    expect(listener).not.toHaveBeenCalled();
+    for (const handle of handles) handle.unsubscribe();
+    await runtime.unuse("tilia-gpx-domain");
+    await foundation.dispose();
+  });
+
+  it("applies the configured mode to new entries and keeps canonical queries independent", async () => {
+    const { runtime, api } = await harness();
+    await runtime.use("tilia-gpx-domain", { presentationMode: "segment" });
+    const gpx = api.domains.gpx;
+    const { id } = await gpx.create(gpxValue(), { visible: false });
+    const canonical = gpx.getDocument(id).document;
+    const initial = gpx.getElevationProfile(id).profiles;
+    const distances = gpx.getDistance(id);
+    expect(initial[0].samples[1].edgeKind).toBe("inferred-gap");
+    expect(distances.totalMeters).toBeGreaterThan(0);
+    expect(gpx.getPresentationProfile(id)).toMatchObject({
+      mode: "segment", profiles: [
+        { samples: [{ distanceMeters: 0 }, { distanceMeters: 0, edgeKind: "start", elevation: null }] },
+        { samples: [{ distanceMeters: 0 }] }, { samples: [{ distanceMeters: 0 }] },
+      ],
+    });
+    for (const target of [{ kind: "track", trackIndex: 0 }, { kind: "segment", trackIndex: 0, segmentIndex: 1 },
+      { kind: "track-point", trackIndex: 0, segmentIndex: 1, pointIndex: 0 }]) {
+      await api.selection.request(gpx.selection.createCandidate(id, target));
+      const mode = gpx.getPresentationMode() === "track" ? "segment" : "track";
+      await gpx.setPresentationMode(mode);
+      const { revision, snapshot, entry } = gpx.get(id);
+      expect(api.selection.getCurrent().ref).toMatchObject({ ...target, revision });
+      expect(gpx.getDocument(id).document).toBe(canonical);
+      expect(snapshot.preferences.trackVisibility[1]).toBe(false);
+      expect(entry.visible).toBe(false);
+      expect(gpx.getElevationProfile(id).profiles).toEqual(initial);
+      expect(gpx.getDistance(id)).toEqual({ ...distances, revision });
+      if (mode === "track") expect(gpx.getPresentationProfile(id).profiles[0].samples[1]).toMatchObject(initial[0].samples[1]);
+    }
+  });
+
+  it("orders concurrent switches, imports, replacements and removals within one app", async () => {
+    const { runtime, api } = await harness();
+    const other = await harness();
+    await Promise.all([runtime.use("tilia-gpx-domain"), other.runtime.use("tilia-gpx-domain")]);
+    const gpx = api.domains.gpx;
+    const events = [];
+    const subscription = gpx.subscribePresentationMode(mode => events.push(mode));
+    await gpx.setPresentationMode("segment");
+    const first = await gpx.create(gpxValue());
+    const removed = await gpx.create(gpxValue());
+    const pending = gpx.create(gpxValue());
+    await Promise.resolve(); // The new entry can already have a prepared snapshot.
+    await Promise.all([gpx.setPresentationMode("track"), gpx.replaceData(first.id,
+      { ...gpxValue().data, name: "replacement" }, { expectedRevision: 1 }), api.entries.remove(removed.id),
+      gpx.setPresentationMode("segment"), gpx.setPresentationMode("track")]);
+    const created = await pending;
+    expect(gpx.get(first.id).snapshot.data.name).toBe("replacement");
+    const updated = gpx.get(first.id);
+    expect(api.entries.get(removed.id)).toBeNull();
+    for (const { id } of [first, created]) expect(gpx.get(id).snapshot.derived.presentationMode).toBe("track");
+    await gpx.setPresentationMode("track");
+    expect(gpx.get(first.id).revision).toBe(updated.revision);
+    expect(events).toEqual(["track", "segment", "track", "segment", "track"]);
+    subscription.unsubscribe();
+    await expect(gpx.setPresentationMode("invalid")).rejects.toMatchObject({ code: semanticErrorCodes.inputInvalid });
+    await gpx.setPresentationMode("segment");
+    expect(other.api.domains.gpx.getPresentationMode()).toBe("track");
+    expect(events.at(-1)).toBe("track");
   });
 });

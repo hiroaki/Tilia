@@ -640,7 +640,12 @@ export const trackEditorPlugin = {
         selectedEntryId = selected.entryId; renderPanel();
       }
     });
-    context.entries.subscribe(renderPanel, { emitCurrent: false });
+    context.entries.subscribe(event => {
+      // Display-only changes do not affect the source list or detached draft.
+      // Keep a focused inspector field and its in-progress text selection.
+      if (event.type === "domain-changed" && event.change.type === "apply-presentation-mode") return;
+      renderPanel();
+    }, { emitCurrent: false });
     context.map.listen("click", () => {
       if (!session || session.saving) return;
       endUserLocalEditing();

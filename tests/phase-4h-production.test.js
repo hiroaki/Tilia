@@ -292,19 +292,44 @@ describe("Phase 4H typed GPX queries and captured Photo estimates", () => {
 });
 
 describe("Phase 4H production rendering and independent presentation", () => {
-  it("owns one line per track, gaps only within tracks, route dash/numbered markers and waypoint markers", async () => {
+  it("owns recorded lines and noninteractive inferred gaps within tracks, route dash/numbered markers and waypoint markers", async () => {
     const f = await fixture(["tilia-gpx-renderer"]);
     const entry = await f.app.domains.gpx.create({ tracks: [{ segments: [{ points: [p(0), p(1)] }, { points: [p(2)] }] }, { segments: [{ points: [p(20), p(21)] }] }], routes: [{ points: [p(30), p(31)] }], waypoints: [p(40)] }); await settle();
     const lines = [...f.map.layers].filter((l) => l instanceof Polyline);
-    expect(lines.map((l) => l.point)).toEqual([[{ lat: 0, lng: 0 }, { lat: 1, lng: 0 }, { lat: 2, lng: 0 }], [{ lat: 20, lng: 0 }, { lat: 21, lng: 0 }], [{ lat: 30, lng: 0 }, { lat: 31, lng: 0 }]]);
-    expect(lines[2].options).toMatchObject({ dashArray: "8 6", weight: 4, color: "#0099cc" });
+    expect(lines.map((l) => l.point)).toEqual([[{ lat: 0, lng: 0 }, { lat: 1, lng: 0 }], [{ lat: 1, lng: 0 }, { lat: 2, lng: 0 }], [{ lat: 20, lng: 0 }, { lat: 21, lng: 0 }], [{ lat: 30, lng: 0 }, { lat: 31, lng: 0 }]]);
+    expect(lines[1].options).toMatchObject({ lineCap: "round", interactive: false });
+    const [dot, space] = lines[1].options.dashArray.split(" ").map(Number);
+    expect(dot).toBeLessThan(space);
+    expect(lines[1].options.dashArray).not.toBe(lines[3].options.dashArray);
+    expect(lines[3].options).toMatchObject({ dashArray: "8 6", weight: 4, color: "#0099cc" });
     const markers = [...f.map.layers].filter((l) => l instanceof Marker);
     expect(markers).toHaveLength(3); expect(markers.slice(0, 2).map((m) => m.options.icon.options.html)).toEqual(["1", "2"]);
     lines[0].fire("click", { latlng: { lat: 1.9, lng: 0 } }); await settle();
-    expect(f.app.selection.getCurrent()).toMatchObject({ entryId: entry.id, ref: { kind: "track-point", trackIndex: 0, segmentIndex: 1, pointIndex: 0 } });
+    expect(f.app.selection.getCurrent()).toMatchObject({ entryId: entry.id, ref: { kind: "track-point", trackIndex: 0, segmentIndex: 0, pointIndex: 1 } });
     markers[0].fire("click"); await settle();
     expect(f.app.selection.getCurrent().ref).toMatchObject({ kind: "route-point", pointIndex: 0 });
     markers[2].fire("click"); await settle(); expect(f.app.selection.getCurrent().ref.kind).toBe("waypoint");
+  });
+  it("highlights recorded segments and isolated points before and after a mode switch", async () => {
+    const f = await fixture(["tilia-gpx-renderer"]), gpx = f.app.domains.gpx;
+    const { id } = await gpx.create({ tracks: [
+      { segments: [{ points: [p(1), p(2)] }, { points: [] }, { points: [p(4), p(5)] }, { points: [p(7)] }] },
+      { segments: [{ points: [p(10), p(11)] }] },
+    ] });
+    const coordinates = (...latitudes) => latitudes.map(lat => ({ lat, lng: 0 }));
+    for (const mode of ["track", "segment"]) {
+      await gpx.setPresentationMode(mode); await settle();
+      const describe = ref => f.context.presentation.resolve(id, ref).highlightDescriptor;
+      expect(describe({ kind: "track", trackIndex: 0 })).toEqual({
+        kind: "geometry", lines: [coordinates(1, 2), coordinates(4, 5)], points: coordinates(7),
+      });
+      expect(describe({ kind: "document" })).toEqual({
+        kind: "geometry", lines: [coordinates(1, 2), coordinates(4, 5), coordinates(10, 11)], points: coordinates(7),
+      });
+      expect(describe({ kind: "segment", trackIndex: 0, segmentIndex: 2 })).toEqual({
+        kind: "geometry", lines: [coordinates(4, 5)], points: [],
+      });
+    }
   });
   it("uses style fallback, revokes old interaction and handles singleton/empty geometry without cross-track highlight", async () => {
     const f = await fixture(["tilia-gpx-renderer", "tilia-gpx-ui", "tilia-map-selection-presenter"]);
@@ -727,7 +752,7 @@ describe("Phase B Layers hierarchy and deterministic renderer styling", () => {
       { segments: [] }, { segments: [{ points: [p(4), p(5)] }] },
     ], routes: [{ points: [] }, { points: [p(6), p(7)] }] }); await settle();
     const lines = () => [...f.map.layers].filter((layer) => layer instanceof Polyline);
-    expect(lines().map((layer) => layer.options.color)).toEqual(["#0099cc", "#0099cc", "#0099cc"]);
+    expect(lines().map((layer) => layer.options.color)).toEqual(["#0099cc", "#0099cc", "#0099cc", "#0099cc"]);
     expect([...f.map.layers].filter((layer) => layer instanceof Marker).map((layer) => layer.options.icon.options.routeColor)).toEqual(["#0099cc", "#0099cc"]);
     await gpx.setTrackVisibility(entry.id, { trackIndex: 0, visible: false }, { expectedRevision: 1 }); await settle();
     expect(lines().map((layer) => layer.options.color)).toEqual(["#0099cc", "#0099cc"]);
@@ -736,10 +761,10 @@ describe("Phase B Layers hierarchy and deterministic renderer styling", () => {
     await f.app.entries.setVisible(entry.id, false); await f.app.entries.setVisible(entry.id, true); await settle();
     expect(lines().map((layer) => layer.options.color)).toEqual(["#0099cc", "#0099cc"]);
     await gpx.setTrackVisibility(entry.id, { trackIndex: 0, visible: true }, { expectedRevision: 2 }); await settle();
-    expect(lines().map((layer) => layer.options.color)).toEqual(["#0099cc", "#0099cc", "#0099cc"]);
+    expect(lines().map((layer) => layer.options.color)).toEqual(["#0099cc", "#0099cc", "#0099cc", "#0099cc"]);
     for (const [preset, color] of [["forest", "#2a9d8f"], ["unknown", "#0099cc"]]) {
       await gpx.setStylePreset(entry.id, preset, { expectedRevision: gpx.get(entry.id).revision }); await settle();
-      expect(lines().map((layer) => layer.options.color)).toEqual([color, color, color]);
+      expect(lines().map((layer) => layer.options.color)).toEqual([color, color, color, color]);
       expect([...f.map.layers].filter((layer) => layer instanceof Marker).map((layer) => layer.options.icon.options.routeColor)).toEqual([color, color]);
     }
   });

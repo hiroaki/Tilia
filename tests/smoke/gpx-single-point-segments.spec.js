@@ -56,7 +56,7 @@ for (const canvas of [false, true]) {
       await expect.poll(async () => (await snapshot(page)).circles.length).toBe(5);
       const actual = await snapshot(page);
       expect(actual.lines).toEqual([
-        [[35.68,139.756],[35.68,139.758],[35.68,139.76],[35.68,139.76]],
+        [[35.68,139.756],[35.68,139.758]], [[35.68,139.758],[35.68,139.76]], [[35.68,139.76],[35.68,139.76]],
         [[35.68,139.762],[35.68,139.764]], [[35.68,139.766],[35.68,139.766]],
       ]);
       expect(actual.circles.map(c => [c.coordinate, c.fill])).toEqual([

@@ -234,6 +234,34 @@ console.log(updated.revision);
 
 ルートの表示条件は`entry.visible && preferences.routesVisible && preferences.routeVisibility[routeIndex] !== false`で、線と全番号マーカーに適用します。個別設定は`app.domains.gpx.get(id).snapshot.preferences.routeVisibility`で読み取り、種類・エントリー全体の切り替えでは保持します。`replaceData`はインデックスごとに設定を保持し、範囲外の指定を除き、新しいインデックスは表示を標準とします。`setRouteVisibility`は`setTrackVisibility`と同じく、上記のリビジョン検証付き更新の共通契約に従います。公開APIは意味的な選択を維持し、Layersのチェックボックスはその操作で不可視になる選択だけを条件付きで解除します。
 
+### トラックの表示モード
+
+GPX Domain の初期値は `"track"` です。初期値を変更するには、コンストラクタの `plugins` で依存側より先に Domain を指定します。次の埋め込み例では、Settings パネルを省略しています。
+
+```js
+const app = createDefaultTiliaApp("map", {
+  plugins: [["tilia-gpx-domain", { presentationMode: "segment" }], "tilia-gpx-renderer"],
+});
+await app.ready;
+const gpx = app.domains.gpx;
+const initialMode = gpx.getPresentationMode();
+const subscription = gpx.subscribePresentationMode(mode => console.log(mode));
+await gpx.setPresentationMode("track");
+subscription.unsubscribe();
+```
+
+Viewer の **Settings → GPX track display** では、Track mode と Segment mode をラジオボタンで選べます。パネルを追加するには `plugins` に `"tilia-settings"` を指定します。
+
+`setPresentationMode(mode)` は要求を呼び出し順に処理します。まずアプリの希望モードを設定し、値が変わった場合に `subscribePresentationMode` が通知します。その後、エントリーごとにモードを反映します。新規インポートと編集コピーは希望モードを継承します。各エントリーに確定した値は `snapshot.derived.presentationMode` です。setter の Promise は対象エントリーへの反映が完了すると解決します。地図の描画完了は `app.rendering.getStatus(id)` の対象です。
+
+反映中にエラーが発生すると Promise は拒否されます。希望モードと、その時点までに確定したエントリーの変更は保持されるため、エントリー間でモードが一時的に異なることがあります。原因を取り除いて `await gpx.setPresentationMode(gpx.getPresentationMode())` を再実行するか、Settings の再試行ボタンを使います。希望モードと一致しているエントリーはリビジョンを維持し、残りのエントリーだけを更新します。
+
+`getPresentationStatus()` は `{ mode, state }` を返します。`mode` は希望モード、`state` はエントリーへの反映状態（`"applying"`、`"applied"`、`"failed"`）です。`subscribePresentationStatus(listener, options)` は同じ形式で状態遷移を通知します。同じモードへの再試行もこの購読で追跡できます。
+
+モードと反映状態の購読はどちらも初期値を即時通知し、`{ emitCurrent: false }` で初期通知を省略できます。購読は利用側の Scope または GPX provider の登録が終了すると解除されます。Domain を再導入した場合は新たに購読してください。返されたハンドルの `unsubscribe()` は繰り返し呼び出せます。設定はメモリ上に保持します。
+
+`getPresentationProfile(id, { target } = {})` は `{ entryId, revision, mode, profiles }` を返します。対象とサンプルの構造は `getElevationProfile` と共通で、各サンプルに `lat` と `lon` が加わります。Track mode では、同じトラックの空でないセグメントを結ぶ区間を `inferred-gap` とし、距離に含めます。Segment mode では各セグメントの先頭を `start` とし、直前の区間の累積距離を引き継ぎます。各トラックの距離はゼロから始まります。どちらのモードでも、累積上昇量には記録区間のみを使います。既存の距離・標高・最近傍クエリ、写真の時刻照合、GPX出力は従来の意味を維持します。
+
 <a id="gpx-targets-and-queries"></a>
 
 ### GPXの対象指定とクエリ

@@ -210,6 +210,34 @@ Point patches use `null` to clear elevation/timestamp; supplied patch values can
 
 Route visibility is `entry.visible && preferences.routesVisible && preferences.routeVisibility[routeIndex] !== false` and applies to its line and every numbered point marker. Read individual preferences through `app.domains.gpx.get(id).snapshot.preferences.routeVisibility`; category/entry toggles leave them intact. `replaceData` retains preferences by index, discards removed indexes, and defaults new indexes to visible. `setRouteVisibility` follows the common revision-checked mutation contract above, as does `setTrackVisibility`. Public visibility mutations retain semantic selection; Layers checkbox hides conditionally clear only selections made invisible by that operation.
 
+### Track presentation mode
+
+The GPX domain starts in `"track"` mode. To configure it, list the domain before plugins that depend on it in the application constructor. This embed uses the API directly.
+
+```js
+const app = createDefaultTiliaApp("map", {
+  plugins: [["tilia-gpx-domain", { presentationMode: "segment" }], "tilia-gpx-renderer"],
+});
+await app.ready;
+const gpx = app.domains.gpx;
+const initialMode = gpx.getPresentationMode();
+const subscription = gpx.subscribePresentationMode(mode => console.log(mode));
+await gpx.setPresentationMode("track");
+subscription.unsubscribe();
+```
+
+Viewer offers Track mode and Segment mode as radio buttons under **Settings → GPX track display**. Include `"tilia-settings"` in `plugins` to add the panel.
+
+`setPresentationMode(mode)` processes requests in invocation order. It first sets the application's desired mode and notifies `subscribePresentationMode` listeners if the value changed. It then applies the mode to individual entries. New imports and edited copies inherit the desired mode. Read each entry's committed mode from `snapshot.derived.presentationMode`. The setter resolves when the affected entries have committed. Map rendering can finish later. Use `app.rendering.getStatus(id)` for rendering progress.
+
+If application to an entry fails, the setter rejects. The desired mode and previously committed updates remain in effect, so entries may temporarily use different modes. After resolving the cause, call `await gpx.setPresentationMode(gpx.getPresentationMode())` or use the retry button in Settings. Only entries with a different committed mode need an update. Matching entries keep their revisions.
+
+`getPresentationStatus()` returns `{ mode, state }`. The mode is the desired value and the state describes its application to entries (`"applying"`, `"applied"`, or `"failed"`). `subscribePresentationStatus(listener, options)` delivers the same snapshot on transitions, including retries of the same mode.
+
+Both subscriptions immediately deliver the current value unless passed `{ emitCurrent: false }`. A subscription ends when its consumer Scope closes or its GPX provider registration ends. Subscribe again after installing a new provider. The returned handle's `unsubscribe()` is idempotent. Settings live in memory.
+
+`getPresentationProfile(id, { target } = {})` returns `{ entryId, revision, mode, profiles }`. It accepts the same targets and sample structure as `getElevationProfile` and adds `lat` and `lon` to each sample. In Track mode the connection between nonempty segments of the same track is an `inferred-gap` and contributes distance. In Segment mode the first sample of each segment has edge kind `start` and inherits the previous cumulative distance. Each track starts at distance zero. Both modes use recorded edges for ascent. The existing distance, elevation and nearest-point queries, photo timestamp matching and GPX serialization retain their contracts.
+
 ### GPX targets and queries
 
 Targets use zero-based indexes:
