@@ -30,6 +30,83 @@ test("4J-A exports rich immutable GPX and reimports its supported values", async
   }, xml);
   expect(result.round).toEqual(result.original); expect(result.anchors).toBe(0); expect(errors).toEqual([]);
 });
+for (const tracksOnly of [false, true]) {
+  test(`Save Copy exports and reimports ${tracksOnly ? "tracks only" : "the full GPX document"}`, async ({ page }) => {
+    await page.goto("/tests/fixtures/phase-4j/");
+    await expect(page.locator("body")).toHaveAttribute("data-phase4j-ready", "true");
+    const { source, sourceId } = await page.evaluate(async () => {
+      const { app } = window.phase4j;
+      const point = { lat: 35.68, lon: 139.76, name: "Start", description: "Notes & details", symbol: "Flag", elevation: 0, timestamp: 0 };
+      const data = {
+        name: "Journey.gpx",
+        metadata: { name: "Survey", description: "Field notes", timestamp: 0 },
+        tracks: [
+          { name: "Walk", description: "Path", segments: [{ points: [point, { lat: 35.69, lon: 139.77 }] }, { points: [] }] },
+          { name: "Hidden walk", segments: [{ points: [{ lat: 35.67, lon: 139.75 }] }] },
+          { name: "Empty track", segments: [] },
+        ],
+        routes: [
+          { name: "Plan", description: "Alternate", points: [point, { lat: 35.70, lon: 139.78 }] },
+          { name: "Empty route", points: [] },
+        ],
+        waypoints: [point, { lat: 35.71, lon: 139.79, name: "Finish" }],
+      };
+      const gpx = app.domains.gpx;
+      const { id } = await gpx.create(data);
+      await gpx.setTrackVisibility(id, { trackIndex: 1, visible: false }, { expectedRevision: gpx.get(id).revision });
+      await gpx.setRouteVisibility(id, { routeIndex: 0, visible: false }, { expectedRevision: gpx.get(id).revision });
+      return { source: gpx.getDocument(id).document, sourceId: id };
+    });
+
+    const editor = page.getByRole("button", { name: "Track editor", exact: true });
+    const option = page.getByRole("checkbox", { name: "Save tracks only" });
+    await editor.click();
+    await page.getByRole("button", { name: "Start Edit", exact: true }).click();
+    await expect(option).not.toBeChecked();
+    await expect(page.locator(".tilia-track-editor-draft")).toHaveCount(1);
+    await option.focus();
+    await option.press("Space");
+    await expect(option).toBeChecked();
+    await editor.click();
+    await expect(option).toHaveCount(0);
+    await editor.click();
+    await expect(option).toBeChecked();
+    if (!tracksOnly) await option.uncheck();
+
+    const savedName = "Journey (edited).gpx";
+    const expected = { ...source, name: savedName, ...(tracksOnly ? { waypoints: [], routes: [] } : {}) };
+    await page.getByRole("button", { name: "Save Copy", exact: true }).click();
+    await expect(option).toHaveCount(0);
+    const saved = await page.evaluate(id => {
+      const { app } = window.phase4j;
+      const copy = app.entries.list().find(entry => entry.id !== id);
+      return app.domains.gpx.getDocument(copy.id).document;
+    }, sourceId);
+    expect(saved).toEqual(expected);
+
+    await page.getByRole("button", { name: "GPX export", exact: true }).click();
+    await page.locator(".tilia-gpx-export-select").selectOption({ label: savedName });
+    const pendingDownload = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Export GPX", exact: true }).click();
+    const download = await pendingDownload;
+    expect(download.suggestedFilename()).toBe(savedName);
+    await page.locator('.tilia-file-import-control input[type="file"]').setInputFiles({
+      name: savedName,
+      mimeType: "application/gpx+xml",
+      buffer: await readFile(await download.path()),
+    });
+    await expect.poll(() => page.evaluate(() => window.phase4j.app.entries.list().length)).toBe(3);
+    const documents = await page.evaluate(id => {
+      const { app } = window.phase4j;
+      return {
+        original: app.domains.gpx.getDocument(id).document,
+        reimported: app.domains.gpx.getDocument(app.entries.list().at(-1).id).document,
+      };
+    }, sourceId);
+    expect(documents).toEqual({ original: source, reimported: expected });
+  });
+}
+
 test("4J-B form, draggable markers and context menu automatically create persistent GPX", async ({ page }) => {
   const errors = []; page.on("pageerror", error => errors.push(error.message));
   let request;
@@ -275,13 +352,14 @@ async function dragMarker(page, selector, dx, dy, { release = true } = {}) {
 }
 test("4J-C continues initialized editing, Undo/Redo and Save Copy after source deletion and renderer removal",async({page})=>{
   const id=await editorSession(page);
+  const original = await page.evaluate(id => window.phase4j.app.domains.gpx.getDocument(id).document, id);
   await page.evaluate(async id=>{const {app}=window.phase4j;await app.domains.gpx.replaceData(id,{name:"external",tracks:[]},{expectedRevision:1});await app.entries.remove(id);await app.unuse("tilia-gpx-renderer");},id);
   await dragMarker(page,".leaflet-partially-editable-polyline-point",20,10);
   await page.getByRole("button",{name:"Undo",exact:true}).click(); await page.getByRole("button",{name:"Redo",exact:true}).click();
   await page.getByRole("button",{name:"Save Copy",exact:true}).click();
   await expect.poll(()=>page.evaluate(()=>window.phase4j.app.entries.list().length)).toBe(1);
   const result=await page.evaluate(()=>{const {app}=window.phase4j;return app.domains.gpx.getDocument(app.entries.list()[0].id).document;});
-  expect(result.name).toBe("initial (edited).gpx"); expect(result.tracks[0].segments[0].points[0].lat).not.toBe(35.68); expect(result.routes).toEqual([]); expect(result.waypoints).toEqual([]);
+  expect(result.name).toBe("initial (edited).gpx"); expect(result.tracks[0].segments[0].points[0].lat).not.toBe(35.68); expect(result.routes).toEqual(original.routes); expect(result.waypoints).toEqual(original.waypoints);
   await expect(page.locator(".leaflet-partially-editable-polyline-point")).toHaveCount(0);
 });
 test("4J-C editor-owned modal panes stack handles above overlapping draft geometry and clean real drag gestures",async({page})=>{

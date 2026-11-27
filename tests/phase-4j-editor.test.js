@@ -24,13 +24,14 @@ async function start(options={}) {
   const entry=await f.app.domains.gpx.create(source); f.click("Track editor"); await settle(); action("Start Edit"); await settle(); return entry;
 }
 const draftLayer=()=>[...f.map.layers].find(layer=>layer.options.className==="tilia-track-editor-draft");
-it("keeps detached edits/history and track-only Save Copy after source mutation/deletion; cancel never recreates the source",async()=>{
-  const entry=await start(); const old=draftLayer(); old.startEditing(); old.fire("pointchange",{index:0,latlng:{lat:9,lng:10}}); await settle();
-  await f.app.domains.gpx.replaceData(entry.id,{...source,name:"external"},{expectedRevision:1}); await f.app.entries.remove(entry.id); await settle();
+it("keeps detached edits/history and full Save Copy after source mutation/deletion; cancel never recreates the source",async()=>{
+  const entry=await start(); const initial=f.app.domains.gpx.getDocument(entry.id).document; const old=draftLayer(); old.startEditing(); old.fire("pointchange",{index:0,latlng:{lat:9,lng:10}}); await settle();
+  await f.app.domains.gpx.replaceData(entry.id,{...source,name:"external",metadata:{name:"Replacement"},routes:[],waypoints:[]},{expectedRevision:1}); await f.app.entries.remove(entry.id); await settle();
   action("Undo"); await settle(); action("Redo"); await settle(); action("Save Copy"); await settle();
   const saved=f.app.entries.list(); expect(saved).toHaveLength(1); expect(saved[0].id).not.toBe(entry.id);
   const document=f.app.domains.gpx.getDocument(saved[0].id).document; expect(document.name).toBe("initial (edited).gpx");
-  expect(document.tracks[0].segments[0].points[0]).toMatchObject({lat:9,lon:10,elevation:0}); expect(document.routes).toEqual([]); expect(document.waypoints).toEqual([]);
+  expect(document.tracks[0].segments[0].points[0]).toMatchObject({lat:9,lon:10,elevation:0}); expect(document.routes).toEqual(initial.routes); expect(document.waypoints).toEqual(initial.waypoints);
+  expect(document.metadata).toEqual(initial.metadata);
   action("Start Edit"); await settle(); await f.app.entries.remove(saved[0].id); action("Cancel"); await settle();
   expect(f.app.entries.list()).toEqual([]); expect(f.context.rendering.getSuppressionSnapshot()).toEqual([]);
   old.fire("pointchange",{index:0,latlng:{lat:11,lng:12}}); expect(f.app.entries.list()).toEqual([]);
@@ -44,6 +45,99 @@ it("retains draft after failed create, then uses caller cancellation as the prec
   await start({builtins}); action("Save Copy"); await settle(); expect(draftLayer()).toBeDefined(); expect(f.app.entries.list()).toHaveLength(1);
   fail=false; held=true; action("Save Copy"); await settle(); action("Cancel"); await settle(); release(); await settle(); expect(f.app.entries.list()).toHaveLength(1); expect(draftLayer()).toBeUndefined();
 });
+it("keeps the option and history after failure, then saves the complete draft when the option is cleared", async () => {
+  const attempts = [];
+  const customDomain = {
+    ...gpxPlugin,
+    setup(context) {
+      gpxPlugin.setup({
+        ...context,
+        domains: {
+          ...context.domains,
+          provide(key, provider) {
+            context.domains.provide(key, {
+              ...provider,
+              async prepareCreate(input) {
+                if (input.value.name.includes("edited")) {
+                  attempts.push(input.value);
+                  if (attempts.length === 1) throw new Error("save rejected");
+                }
+                return provider.prepareCreate(input);
+              },
+            });
+          },
+        },
+      });
+    },
+  };
+  const builtins = builtinPluginCatalog.map(item => item.id === gpxPlugin.id
+    ? { ...item, load: async () => ({ default: customDomain }) }
+    : item);
+  const entry = await start({ builtins });
+  const gpx = f.app.domains.gpx;
+  const original = gpx.getDocument(entry.id).document;
+  const layer = draftLayer();
+  layer.startEditing();
+  layer.fire("pointchange", { index: 0, latlng: { lat: 9, lng: 10 } });
+  await settle();
+  action("Undo");
+  await settle();
+
+  const checkbox = () => byClass(f.map.container, "tilia-track-editor-save-option")[0].children[0];
+  function setTracksOnly(checked) {
+    const input = checkbox();
+    input.checked = checked;
+    input.dispatchEvent(new Event("change"));
+  }
+
+  expect(checkbox().checked).toBe(false);
+  setTracksOnly(true);
+  action("Save Copy");
+  action("Save Copy");
+  await settle();
+  expect(attempts).toHaveLength(1);
+  expect(attempts[0]).toEqual({ ...original, name: "initial (edited).gpx", routes: [], waypoints: [] });
+  expect(checkbox().checked).toBe(true);
+  expect(f.app.entries.list()).toHaveLength(1);
+
+  setTracksOnly(false);
+  action("Redo");
+  await settle();
+  action("Save Copy");
+  await settle();
+  expect(attempts).toHaveLength(2);
+  const saved = f.app.entries.list().find(candidate => candidate.id !== entry.id);
+  const expected = structuredClone(original);
+  expected.name = "initial (edited).gpx";
+  Object.assign(expected.tracks[0].segments[0].points[0], { lat: 9, lon: 10 });
+  expect(gpx.getDocument(saved.id).document).toEqual(expected);
+  expect(gpx.getDocument(entry.id).document).toEqual(original);
+});
+
+it("saves inserted and deleted track points in order with their surviving attributes", async () => {
+  const sourceEntry = await start();
+  const gpx = f.app.domains.gpx;
+  const original = gpx.getDocument(sourceEntry.id).document;
+  const layer = draftLayer();
+  layer.startEditing();
+  layer.fire("pointinsert", { index: 1, latlng: { lat: 2, lng: 3 } });
+  layer.fire("pointdelete", { index: 2 });
+  layer.fire("pointchange", { index: 0, latlng: { lat: 1.5, lng: 2.5 } });
+  await settle();
+  action("Save Copy");
+  await settle();
+
+  const saved = f.app.entries.list().find(entry => entry.id !== sourceEntry.id);
+  const expected = structuredClone(original);
+  expected.name = "initial (edited).gpx";
+  expected.tracks[0].segments[0].points = [
+    { ...original.tracks[0].segments[0].points[0], lat: 1.5, lon: 2.5 },
+    { lat: 2, lon: 3, elevation: null, timestamp: null },
+  ];
+  expect(gpx.getDocument(saved.id).document).toEqual(expected);
+  expect(gpx.getDocument(sourceEntry.id).document).toEqual(original);
+});
+
 it("preserves postcommit copy when cancellation is triggered by the created callback",async()=>{
   await start(); f.context.entries.subscribe(event=>{if(event.type==="created")action("Cancel");},{emitCurrent:false});
   action("Save Copy"); await settle(); expect(f.app.entries.list()).toHaveLength(2); expect(draftLayer()).toBeUndefined();

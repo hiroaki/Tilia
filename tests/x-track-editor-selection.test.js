@@ -23,6 +23,7 @@ function createDraft() {
         })),
       }],
     }],
+    routes: [],
     waypoints: [],
   });
 }

@@ -73,13 +73,15 @@ describe("canonical GPX and detached draft replacement coverage", () => {
   });
 });
 
-it("copies canonical empty hierarchy without shifting original track indices or expanding the draft", () => {
-  const source=normalizeGpxDocument({tracks:[{segments:[]},{segments:[{points:[]},{points:[{lat:0,lon:0,elevation:0,timestamp:0}]}]}],routes:[{points:[{lat:1,lon:1}]}],waypoints:[{lat:2,lon:2}]});
+it("copies canonical empty hierarchy without shifting original track indices", () => {
+  const source=normalizeGpxDocument({tracks:[{segments:[]},{segments:[{points:[]},{points:[{lat:0,lon:0,elevation:0,timestamp:0}]}]}],routes:[{points:[{lat:1,lon:1}]},{points:[]}],waypoints:[{lat:2,lon:2}]});
   const draft=createDraftDocument(source);
   expect(draft.tracks.map(track=>track.originalTrackIndex)).toEqual([0,1]);
   expect(draft.tracks[0].segments).toEqual([]);expect(draft.tracks[1].segments[0].points).toEqual([]);
   draft.tracks[1].segments[1].points[0].lat=5;
   expect(source.tracks[1].segments[1].points[0].lat).toBe(0);
-  const saved=normalizeGpxDocument(toGpxSource(draft));expect(saved.routes).toEqual([]);expect(saved.waypoints).toEqual([]);
+  const saved=toGpxSource(draft);
+  expect(saved.routes).toEqual(source.routes);expect(saved.waypoints).toEqual(source.waypoints);
+  expect(saved.tracks[0].segments).toEqual([]);expect(saved.tracks[1].segments[0].points).toEqual([]);
   expect(saved.tracks[1].segments[1].points[0]).toMatchObject({lat:5,elevation:0,timestamp:0});
 });

@@ -109,8 +109,11 @@ test("temporary track and route colors repaint owned layers and survive visibili
   await expect(trackLine).toHaveCount(1);
   await start.click();
   await page.getByRole("button", { name: "Save Copy", exact: true }).click();
-  await expect(geometry(page).locator('path[stroke="#5c6bc0"]')).toHaveCount(3);
+  const copyLines = geometry(page).locator('path[stroke="#5c6bc0"]');
+  await expect(copyLines).toHaveCount(4);
+  await expect(geometry(page).locator('path[stroke="#5c6bc0"][stroke-dasharray="8 6"]')).toHaveCount(1);
   await expect(trackLine).toHaveCount(1);
+  await expect(routeLine).toHaveCount(1);
 });
 
 test("a pending picker cannot write to a new generation and overrides reset on external updates", async ({ page }) => {

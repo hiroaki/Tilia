@@ -255,7 +255,9 @@ Add `x-track-editor` and/or `x-gpx-export` to a GPX viewer. Both install their p
 
 **Track Editor:** choose a GPX entry, select **Start Edit**, then click a draft track segment to edit nearby points. Moving, inserting, deleting, inspector edits, Undo/Redo, and rectangle selection operate on an independent draft. **Save Copy** creates a new GPX entry named with ` (edited)`; **Cancel** discards the draft and releases temporary source display suppression. Neither action restores or recreates the source. Source changes/deletion or GPX renderer removal do not terminate editing or block Save Copy. App/editor disposal ends the session.
 
-Only track points are editable; routes and waypoints are excluded from the saved copy. The `editablePointRadius` option defaults to `100` and controls the number of points on either side of the clicked point, not a distance in meters. A nonnegative integer is supported; the vendor helper also accepts `Infinity`. See the [Track Editor guide](../plugins/x-track-editor/README.md) for the full workflow and limitations.
+Editing is limited to track points. The draft captures the complete GPX document at session start. **Save Copy** includes supported metadata, waypoints, routes, and tracks by default, including hidden features and model-supported empty structures. Enable **Save tracks only** to omit waypoints and routes from the copy while keeping metadata and all supported track fields. The GPX model's field coverage and the existing XML export and import rules apply.
+
+The `editablePointRadius` option defaults to `100` and counts the points on either side of the clicked point. It accepts nonnegative integers and `Infinity`. See the full workflow and limitations in the plugin guide. [Track Editor guide](../plugins/x-track-editor/README.md)
 
 **GPX export:** open **GPX export**, choose an entry, and select **Export GPX** to download it. The `creator` option defaults to `"Tilia"` and sets the serialized GPX creator. To export an edited draft, save it as a copy first, then choose the resulting entry in the export tool.
 
