@@ -199,6 +199,35 @@ describe("Phase 4H typed GPX queries and captured Photo estimates", () => {
     await f.app.domains.photo.setRequestedTimeMode(image.id, "utc", { expectedRevision: 1 });
     expect(effective(f, image.id).revision).toBe(2); expect(preview.isCurrent()).toBe(true);
   });
+  it("infers within one committed track independently of presentation mode and preserves EXIF GPS", async () => {
+    const f = await fixture();
+    const gpx = f.app.domains.gpx;
+    const track = points => ({ segments: points.map(point => ({ points: [point] })) });
+    const source = await gpx.create({ tracks: [track([p(80, 4000)]), track([p(81, 6000)])] });
+    await gpx.create({ tracks: [track([p(85, 4500)])] });
+    const document = gpx.getDocument(source.id).document;
+    const create = coordinate => f.app.domains.photo.create({
+      data: { capturedAt: 5000, coordinate }, preferences: { requestedTimeMode: "local" },
+    });
+    const unmatched = await create(null);
+    expect(effective(f, unmatched.id).snapshot.derived.inferredLocation).toBeNull();
+    const valid = await gpx.create({ tracks: [track([p(0, 0), p(10, 10000)]), track([p(60, 4000), p(70, 6000)])] });
+    const saved = await create(null);
+    const old = effective(f, saved.id);
+    expect(old.snapshot.derived.inferredLocation).toEqual({ lat: 65, lon: 0 });
+    const gps = { lat: 35, lon: 135 };
+    const exif = await create(gps);
+    await gpx.setPresentationMode("segment");
+    expect(effective(f, saved.id)).toMatchObject({ revision: old.revision });
+    expect(effective(f, saved.id).snapshot).toBe(old.snapshot);
+    const later = await create(null);
+    expect(effective(f, later.id).snapshot.derived).toEqual(old.snapshot.derived);
+    expect(effective(f, exif.id).snapshot).toMatchObject({
+      data: { coordinate: gps, hasGps: true }, derived: { inferredLocation: null, locationSource: "exif-gps" },
+    });
+    expect(gpx.getDocument(source.id).document).toBe(document);
+    expect(gpx.getDocument(valid.id).document.tracks[0].segments).toHaveLength(2);
+  });
   it.each(["missing", "empty", "outside"])("permits unlocated mode preference without usable evidence: %s", async (kind) => {
     const f = await fixture();
     if (kind === "missing") await f.app.unuse("tilia-gpx-domain");
@@ -227,6 +256,24 @@ describe("Phase 4H typed GPX queries and captured Photo estimates", () => {
     expect(effective(f, image.id).snapshot.derived.inferredLocation).toBeNull();
     await f.app.domains.photo.replaceData(image.id, { ...effective(f, image.id).snapshot.data, coordinate: { lat: 30, lon: 40 } }, { expectedRevision: 3 });
     expect(effective(f, image.id).snapshot.derived).toMatchObject({ inferredLocation: null, locationSource: "exif-gps" });
+  });
+  it.each([[1, 2], ["external-A", "external-B"]])("recovers matching evidence through captureTimeline for entry ID %s", async (entryId, otherId) => {
+    const f = await fixture();
+    await f.app.unuse("tilia-gpx-domain");
+    const sample = (lat, timestamp, entryId) => ({
+      ...p(lat, timestamp), locator: { entryId, trackIndex: 0, segmentIndex: 0 },
+    });
+    await f.app.use({ id: "x-legacy-gpx-query", setup(context) {
+      context.services.provide(gpxQueryServiceKey, {
+        captureTimeline: () => ({ points: [sample(0, 0, entryId), sample(30, 1000, otherId), sample(10, 2000, entryId)] }),
+      });
+    } });
+    for (const [capturedAt, lat] of [[0, 0], [1200, 6]]) {
+      const image = await photo(f, capturedAt);
+      expect(effective(f, image.id).snapshot.derived).toMatchObject({
+        inferredLocation: { lat, lon: 0 }, locationSource: "gpx-time-inference",
+      });
+    }
   });
   it("rejects unexpected inference errors and invalid commands without preference-only success", async () => {
     const f = await fixture(); await f.app.unuse("tilia-gpx-domain"); const image = await photo(f);

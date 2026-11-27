@@ -3,6 +3,11 @@ export const gpxQueryServiceKey = defineServiceKey({
   id: "tilia-gpx-query",
   validate: (value) => typeof value?.captureTimeline === "function",
   createFacade({ implementation, assertAvailable }) {
-    return { captureTimeline() { assertAvailable(); return implementation.captureTimeline(); } };
+    return {
+      captureTimeline() { assertAvailable(); return implementation.captureTimeline(); },
+      ...(typeof implementation.captureTrackSources === "function" && {
+        captureTrackSources() { assertAvailable(); return implementation.captureTrackSources(); },
+      }),
+    };
   },
 });

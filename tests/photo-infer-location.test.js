@@ -7,19 +7,58 @@ function source(...tracks) {
 
 const at = (timestamp, lat, lon) => ({ timestamp, lat, lon, elevation: null });
 
+const infer = (sources, timestamp) => inferPhotoLocationFromGpx(sources,
+  { dateTimeOriginal: new Date(timestamp) }, { timeInterpretationMode: "local" });
+
 describe("inferPhotoLocationFromGpx", () => {
-  it("interpolates from canonical points across segment and track boundaries", () => {
-    const sources = [source([[at(0, 35, 135)]], [[at(600_000, 35.1, 135.2)]])];
+  it("interpolates across consecutive segments in the same track", () => {
+    const sources = [source([[at(0, 35, 135)], [at(600_000, 35.1, 135.2)]])];
     const result = inferPhotoLocationFromGpx(sources, { name: "photo.jpg", dateTimeOriginal: new Date(300_000) });
     expect(result.lat).toBeCloseTo(35.05, 6);
     expect(result.lon).toBeCloseTo(135.1, 6);
     expect(result.timeInterpretationMode).toBe("local");
   });
 
-  it("searches timestamp candidates across GPX sources in chronological order", () => {
-    const result = inferPhotoLocationFromGpx([source([[at(600_000, 35.1, 135.1)]]), source([[at(0, 35, 135)]])], { name: "photo.jpg", dateTimeOriginal: new Date(300_000) });
-    expect(result.lat).toBeCloseTo(35.05, 6);
-    expect(result.lon).toBeCloseTo(135.05, 6);
+  it.each([
+    [source([[at(0, 35, 135)]], [[at(600_000, 35.1, 135.1)]])],
+    [source([[at(600_000, 35.1, 135.1)]]), source([[at(0, 35, 135)]])],
+    [source([[at(0, 35, 135), at(null, 0, 0)], [at(600_000, 35.1, 135.1)]])],
+    [source([[at(0, 35, 135)], [at(8.64e15 + 1, 0, 0), at(600_000, 35.1, 135.1)]])],
+    [source([[at(0, 35, 135)], [], [at(600_000, 35.1, 135.1)]])],
+  ].map(sources => [sources]))("rejects evidence without an eligible bracket (%j)", sources => {
+    expect(() => infer(sources, 300_000)).toThrow("outside GPX timeline range");
+  });
+
+  it("retains traversal order for equally ranked edges and duplicate exact points", () => {
+    const descending = source([[at(1000, 10, 10), at(null, 30, 30), at(0, 0, 0), at(0, 8, 8), at(1000, 9, 9)]]);
+    const other = source([[at(0, 20, 20), at(1000, 22, 22)]]);
+    expect(infer([descending, other], 500).lat).toBe(5);
+    expect(infer([other, descending], 500).lat).toBe(21);
+    expect(infer([descending], 0).lat).toBe(0);
+    expect(infer([descending], 1000).lat).toBe(10);
+    expect(infer([source([[at(500, 42, 0)]])], 500).lat).toBe(42);
+    expect(infer([source([[at(0, 0, 0), at(null, 42, 0), at(1000, 10, 0)]])], 500).lat).toBe(5);
+  });
+
+  it("ranks by nearest endpoint, then by span, across entries and tracks", () => {
+    const wideNear = [[at(999, 10, 0)], [at(1099, 10, 170)]];
+    const narrowFar = [[at(970, 20, 0), at(1030, 20, 0)]];
+    const narrowNear = [[at(999, 30, 0), at(1009, 30, 0)]];
+    expect(infer([source(narrowFar), source(wideNear)], 1000).lat).toBe(10);
+    expect(infer([source(narrowFar, wideNear, narrowNear)], 1000).lat).toBe(30);
+    expect(infer([source(wideNear, [[at(999, 40, 0), at(1099, 40, 0)]])], 1000).lat).toBe(10);
+  });
+
+  it("replaces an earlier bracket with the first exact point and stops scanning", () => {
+    const exact = source([[at(1000, 42, 0), at(1000, 43, 0)]]);
+    const unread = { get tracks() { throw new Error("scanned past exact match"); } };
+    expect(infer([source([[at(0, 0, 0), at(2000, 10, 10)]]), exact, unread], 1000).lat).toBe(42);
+  });
+
+  it("bridges a long interruption using the actual segment endpoints", () => {
+    const day = 86_400_000;
+    expect(infer([source([[at(0, 0, 0), at(day, 10, 20)], [at(5 * day, 30, 60), at(6 * day, 40, 80)]])], 2 * day))
+      .toMatchObject({ lat: 15, lon: 30 });
   });
 
   it("throws for timestamps outside valid canonical GPX data", () => {
