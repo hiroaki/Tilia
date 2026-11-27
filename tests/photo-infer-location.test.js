@@ -29,7 +29,7 @@ describe("inferPhotoLocationFromGpx", () => {
     expect(() => infer(sources, 300_000)).toThrow("outside GPX timeline range");
   });
 
-  it("uses the first valid point or edge in source and traversal order", () => {
+  it("retains traversal order for equally ranked edges and duplicate exact points", () => {
     const descending = source([[at(1000, 10, 10), at(null, 30, 30), at(0, 0, 0), at(0, 8, 8), at(1000, 9, 9)]]);
     const other = source([[at(0, 20, 20), at(1000, 22, 22)]]);
     expect(infer([descending, other], 500).lat).toBe(5);
@@ -38,6 +38,21 @@ describe("inferPhotoLocationFromGpx", () => {
     expect(infer([descending], 1000).lat).toBe(10);
     expect(infer([source([[at(500, 42, 0)]])], 500).lat).toBe(42);
     expect(infer([source([[at(0, 0, 0), at(null, 42, 0), at(1000, 10, 0)]])], 500).lat).toBe(5);
+  });
+
+  it("ranks by nearest endpoint, then by span, across entries and tracks", () => {
+    const wideNear = [[at(999, 10, 0)], [at(1099, 10, 170)]];
+    const narrowFar = [[at(970, 20, 0), at(1030, 20, 0)]];
+    const narrowNear = [[at(999, 30, 0), at(1009, 30, 0)]];
+    expect(infer([source(narrowFar), source(wideNear)], 1000).lat).toBe(10);
+    expect(infer([source(narrowFar, wideNear, narrowNear)], 1000).lat).toBe(30);
+    expect(infer([source(wideNear, [[at(999, 40, 0), at(1099, 40, 0)]])], 1000).lat).toBe(10);
+  });
+
+  it("replaces an earlier bracket with the first exact point and stops scanning", () => {
+    const exact = source([[at(1000, 42, 0), at(1000, 43, 0)]]);
+    const unread = { get tracks() { throw new Error("scanned past exact match"); } };
+    expect(infer([source([[at(0, 0, 0), at(2000, 10, 10)]]), exact, unread], 1000).lat).toBe(42);
   });
 
   it("bridges a long interruption using the actual segment endpoints", () => {
