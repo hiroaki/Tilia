@@ -235,7 +235,7 @@ Chromium verification at `fec0bb3` confirmed that a minimal application renders 
 
 Photo inference occurs in the semantic domain, using an available GPX timeline when applicable. Later GPX changes do not silently recompute a saved Photo location; Photo commands can request recomputation.
 
-Track Editor's draft remains independent after initialization. Source changes/deletion or renderer removal do not stop editing or prevent Save Copy. Cancel discards the draft and releases suppression; it does not restore or recreate the source. Saving commits values into a new entry, whose renderer creates new resources. Temporary editor layers are not transferred into persistent entry rendering.
+Track Editor captures the supported GPX document and keeps a session-wide operation history. Its draft remains independent after initialization. Source changes/deletion or renderer removal do not stop editing or prevent Save Copy. Cancel discards the draft and releases suppression; it does not restore or recreate the source. Saving commits values into a new entry, whose renderer creates new resources. Temporary editor layers are not transferred into persistent entry rendering.
 
 ## Ownership, cancellation, and failure
 

@@ -8,11 +8,10 @@ import {
   toDraftCoordinates,
 } from "./draft.js";
 import {
-  applyOperation,
   createDeleteOperation,
   createInsertOperation,
   createPointPatchOperation,
-} from "./history.js";
+} from "./track-operations.js";
 
 function getPointAt(segment, index) {
   return segment?.points[index] || null;
@@ -158,8 +157,7 @@ export function createDraftTrackLayers({
         if (!operation) {
           return;
         }
-        applyOperation(draft, operation);
-        onOperation?.(operation, {
+        onOperation(operation, {
           type: "pointchange",
           trackId,
           segmentId: segment.id,
@@ -171,8 +169,7 @@ export function createDraftTrackLayers({
         const range = layer.getEditablePointRange();
         const point = createInsertedDraftPoint(draft, latlng);
         const operation = createInsertOperation({ trackId, segmentId: segment.id, index, point });
-        applyOperation(draft, operation);
-        onOperation?.(operation, {
+        onOperation(operation, {
           type: "pointinsert",
           trackId,
           segmentId: segment.id,
@@ -191,14 +188,14 @@ export function createDraftTrackLayers({
         if (!operation) {
           return;
         }
-        applyOperation(draft, operation);
-        onOperation?.(operation, {
+        const applied = onOperation(operation, {
           type: "pointdelete",
           trackId,
           segmentId: segment.id,
           pointId: point.id,
           range,
         });
+        if (!applied) return;
         syncSinglePointMarker();
         const remainingSegment = findDraftSegment(draft, trackId, segment.id);
         if (remainingSegment?.points.length) {

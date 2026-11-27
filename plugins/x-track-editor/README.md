@@ -51,7 +51,7 @@ Set `editablePointRadius` to a nonnegative integer or `Infinity`. The default va
 
 Before a session starts, clicking a normally rendered track can select its GPX source for the editor. The source list is disabled while a session is active; finish or cancel it before switching sources.
 
-**Start Edit** copies the source's track data into an independent draft. Tracks visible at that moment are shown as editable drafts, while their original map display is temporarily hidden. This does not change the source entry's visibility or track preferences. Hidden source tracks are also copied into the draft and saved output, but are not shown for editing in that session. Show the tracks you want to edit before starting.
+**Start Edit** copies the entire supported GPX document into an independent draft. Tracks visible at that moment are shown as editable drafts, while their original map display is temporarily hidden. This does not change the source entry's visibility or track preferences. Hidden source tracks are also copied into the draft and saved output, but are not shown for editing in that session. Show the tracks you want to edit before starting.
 
 Once editing starts, changes to or deletion of the source entry do not change the draft or prevent **Save Copy**. Editing and Undo/Redo remain available even if the GPX renderer plugin is removed. Removing the editor plugin or shutting down the application ends the session. Closing the panel alone does not discard the draft; reopen it to continue.
 
@@ -125,7 +125,11 @@ Buttons are enabled when the matching operation is available. Shortcuts work whi
 
 **Save Copy** applies any valid unfinished inspector edit, hides the editing markers, and creates a new visible GPX entry in the app. Successful creation ends the session and removes the draft display. Saving without edits still creates a copy. Names receive ` (edited)` before a final `.gpx` extension, for example `walk.gpx` becomes `walk (edited).gpx`.
 
-The saved document contains all draft tracks and segments, including tracks that were hidden at session start. It preserves track names and each point's latitude, longitude, elevation, and timestamp. It excludes routes, waypoints, document metadata, track descriptions, and point names/descriptions/symbols. It is a track-editing output, not a lossless copy of the original GPX document.
+By default, **Save Copy** includes the entire draft, including hidden features and empty tracks, segments, or routes supported by the GPX model. It preserves document metadata (name, description, and time), track and route names and descriptions, and point coordinates, elevation, time, name, description, and symbol. The new entry uses the GPX provider's default display settings.
+
+Check **Save tracks only** to omit routes and waypoints from the saved copy. Metadata and all supported track fields are still included. The option defaults to unchecked for each session and leaves the draft and Undo/Redo history intact.
+
+The draft preserves the fields supported by Tilia's GPX model. Arbitrary XML extensions and unsupported fields are outside that model. Export and reimport also follow the existing XML rules, including limits of 20 routes per file and 100 points per route when importing, and XML-valid text and ISO-representable timestamps when exporting.
 
 Saving does not modify or recreate the source. If saving fails, the draft remains available. Check the status message or browser console for details. You can resume editing by clicking a draft line or single-point circle, or retry Save Copy. During a pending save, editing, Undo/Redo, and another save are disabled; **Cancel** remains available.
 
@@ -143,7 +147,7 @@ and its 0BSD license. It resolves the host's single Leaflet module (currently
 ## Scope and limitations
 
 - Designed for local corrections and cleanup, not comprehensive long-track authoring.
-- Only track points are editable; routes and waypoints are excluded from the saved copy.
+- Editing is limited to track points.
 - Editing markers and rectangle selection are limited to one segment at a time; `editablePointRadius` determines how many neighboring points are available.
 - No bulk value assignment, automatic elevation recovery, or timestamp interpolation.
 - Save creates an application entry; download requires the separate export plugin.

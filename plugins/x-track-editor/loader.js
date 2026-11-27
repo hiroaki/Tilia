@@ -5,7 +5,8 @@ import { statusServiceKey } from "../../src/plugins/contracts/status.js";
 import { listen, reportError } from "../../src/ui/scoped-dom.js";
 import { registerLauncher } from "../../src/ui/toolbar-launcher.js";
 import { createButton, createSelect } from "../../src/map/controls.js";
-import { createDraftDocument, findDraftSegment, toGpxSource } from "./draft.js";
+import { findDraftSegment } from "./draft.js";
+import { createEditorSession } from "./session.js";
 import { createDraftTrackLayers } from "./editing-layers.js";
 import {
   createPointInspector,
@@ -15,10 +16,9 @@ import {
 } from "./form.js";
 import {
   applyOperation,
-  createHistory,
   createPointPatchOperation,
   createPointsDeleteOperation,
-} from "./history.js";
+} from "./track-operations.js";
 import {
   createEmptySelection,
   createPointSelection,
@@ -31,13 +31,6 @@ import {
   createRectangleSelection,
   selectPointIdsInContainerBounds,
 } from "./rectangle-selection.js";
-
-function createEditedSourceName(name = "track.gpx") {
-  const suffix = " (edited)";
-  return name.toLowerCase().endsWith(".gpx")
-    ? `${name.slice(0, -4)}${suffix}.gpx`
-    : `${name}${suffix}`;
-}
 
 export function recoverSelectionConsistencyFailure({
   details,
@@ -263,8 +256,7 @@ export const trackEditorPlugin = {
         trackId: draftTrack.id,
         options: { editablePointRadius, pane: session.draftPane.name, handlePane: session.handlesPane.name },
         onOperation(operation, context) {
-          if (!session || session.saving) return;
-          session.history.record(operation);
+          if (!session?.edit(operation)) return false;
           if (context.type === "pointdelete"
             && session.selection.trackId === context.trackId
             && session.selection.segmentId === context.segmentId) {
@@ -274,6 +266,7 @@ export const trackEditorPlugin = {
             reconcileSelectionWithRange(context, context.range);
           }
           syncSelectionPresentation();
+          return true;
         },
         onPointSelect(selection) {
           setPointSelection(selection);
@@ -304,12 +297,15 @@ export const trackEditorPlugin = {
       }
       const view = gpx.get(entry.id);
       const scope = context.scope.child({ label: "editor-session" });
-      session = {
+      const initialized = createEditorSession({
         scope,
-        saving: null,
-        originalEntryId: entry.id,
-        draft: createDraftDocument(view.snapshot.data),
-        history: createHistory(),
+        source: view.snapshot.data,
+        applyOperation,
+        createEntry: (output, options) => gpx.create(output, options),
+        report,
+      });
+      session = Object.assign(initialized, {
+        saveTracksOnly: false,
         selection: createEmptySelection(),
         layersByTrackId: new Map(),
         suppression: [],
@@ -319,8 +315,7 @@ export const trackEditorPlugin = {
         selectionOverlay: createSelectionOverlay({ context, scope, report }),
         rectangleSelection: null,
         inspector: { focusedPointId: null, editingCell: null, scrollTop: 0 },
-      };
-      const initialized = session;
+      });
       scope.defer(() => { if (session === initialized) session = null; }, { label: "draft-authority", retry: "safe" });
       try {
         let draftPane, handlesPane;
@@ -391,25 +386,22 @@ export const trackEditorPlugin = {
       if (finished.inspector.editingCell?.error) return Promise.resolve();
       finished.rectangleSelection.cancel();
       detachLocalEditing();
-      const source = toGpxSource(finished.draft, createEditedSourceName(finished.draft.name));
-      const output = { name: source.name, tracks: source.tracks, waypoints: [] };
-      const operation = finished.scope.child({ label: "editor-save" });
-      const saving = Promise.resolve().then(async () => {
-        try {
-          const entry = await gpx.create(output, { visible: true, signal: operation.signal });
-          if (session === finished && finished.scope.alive) {
-            session = null; void finished.scope.dispose().catch(report);
-            setStatus("saved edited copy as a new layer"); renderPanel();
-          }
-          return entry;
-        } catch (error) {
-          if (session === finished && finished.scope.alive) {
-            finished.saving = null; setStatus(`save failed: ${error.message}`); report(error); renderPanel();
-          }
-        } finally { void operation.dispose().catch(report); }
+      const saving = finished.saveCopy({
+        tracksOnly: finished.saveTracksOnly,
+        onSaved() {
+          if (session !== finished) return;
+          session = null;
+          void finished.scope.dispose().catch(report);
+          setStatus("saved edited copy as a new layer");
+          renderPanel();
+        },
+        onError(error) {
+          if (session !== finished) return;
+          setStatus(`save failed: ${error.message}`);
+          report(error);
+          renderPanel();
+        },
       });
-      finished.saving = saving;
-      operation.track(saving, { label: "save-outcome", await: false });
       renderPanel(); return saving;
     }
 
@@ -441,8 +433,7 @@ export const trackEditorPlugin = {
         return;
       }
       session.inspector.editingCell = null;
-      applyOperation(session.draft, operation);
-      session.history.record(operation);
+      session.edit(operation);
       syncTrackLayers(selection.trackId, captureRestoreHint());
     }
 
@@ -487,19 +478,17 @@ export const trackEditorPlugin = {
 
       const restoreHint = captureRestoreHint();
       cancelRectangleSelection();
-      applyOperation(session.draft, operation);
-      session.history.record(operation);
+      session.edit(operation);
       clearSelection();
       syncTrackLayers(trackId, restoreHint);
     }
 
     function applyHistory(direction) {
-      if (session?.saving) return;
       if (!session || session.saving) {
         return;
       }
       const restoreHint = captureRestoreHint();
-      const operation = direction === "undo" ? session.history.undo(session.draft) : session.history.redo(session.draft);
+      const operation = direction === "undo" ? session.history.undo() : session.history.redo();
       if (!operation) {
         return;
       }
@@ -544,6 +533,22 @@ export const trackEditorPlugin = {
       listen(rows, cancel, "click", () => finishSession({ save: false }));
       primaryActions.append(start, save, cancel);
       root.appendChild(primaryActions);
+
+      if (session) {
+        const label = document.createElement("label");
+        label.className = "tilia-track-editor-save-option";
+        const tracksOnly = document.createElement("input");
+        tracksOnly.type = "checkbox";
+        tracksOnly.checked = session.saveTracksOnly;
+        tracksOnly.disabled = Boolean(session.saving);
+        listen(rows, tracksOnly, "change", () => {
+          session.saveTracksOnly = tracksOnly.checked;
+        });
+        const text = document.createElement("span");
+        text.textContent = "Save tracks only";
+        label.append(tracksOnly, text);
+        root.appendChild(label);
+      }
 
       const historyActions = document.createElement("div");
       historyActions.className = "tilia-track-editor-actions tilia-track-editor-actions-history";
